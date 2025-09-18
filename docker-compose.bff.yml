@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  bff:
+    build:
+      context: ./app/bff
+      dockerfile: Dockerfile
+    container_name: trader-bff
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ENGINE_PUBSUB_URL=redis://redis:6379
+      - ROUTER_BASE_URL=http://router:8080
+      - ROUTER_API_KEY=${ROUTER_API_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - trader-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); })"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    container_name: trader-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - trader-network
+    restart: unless-stopped
+
+networks:
+  trader-network:
+    driver: bridge
+
+volumes:
+  redis-data:

@@ -1,0 +1,224 @@
+/* Error Message Base */
+.error-message {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 20px;
+  animation: slideIn 0.2s ease-out;
+  position: relative;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Error content layout */
+.error-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+}
+
+.error-icon-wrapper {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.error-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.error-text {
+  flex: 1;
+}
+
+.error-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.error-message-text {
+  word-break: break-word;
+}
+
+/* Error actions */
+.error-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.error-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.retry-button {
+  color: inherit;
+}
+
+.dismiss-button {
+  color: inherit;
+  padding: 4px;
+  opacity: 0.8;
+}
+
+.dismiss-button:hover {
+  opacity: 1;
+}
+
+/* Variants */
+.error-message.variant-error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.error-message.variant-error .error-button {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.error-message.variant-error .error-button:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.error-message.variant-warning {
+  background-color: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #f59e0b;
+}
+
+.error-message.variant-warning .error-button {
+  background-color: rgba(251, 191, 36, 0.1);
+}
+
+.error-message.variant-warning .error-button:hover {
+  background-color: rgba(251, 191, 36, 0.2);
+}
+
+.error-message.variant-info {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+}
+
+.error-message.variant-info .error-button {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.error-message.variant-info .error-button:hover {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Compact mode */
+.error-message.compact {
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 18px;
+  margin-bottom: 8px;
+}
+
+.error-message.compact .error-icon-wrapper {
+  width: 16px;
+  height: 16px;
+}
+
+.error-message.compact .error-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.error-message.compact .error-content {
+  gap: 8px;
+}
+
+.error-message.compact .error-button {
+  font-size: 13px;
+  padding: 2px 6px;
+}
+
+.error-message.compact .dismiss-button {
+  padding: 2px;
+}
+
+.error-message.compact .dismiss-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Dark theme adjustments */
+@media (prefers-color-scheme: dark) {
+  .error-message {
+    background-color: rgba(0, 0, 0, 0.3);
+  }
+
+  .error-message.variant-error {
+    background-color: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .error-message.variant-warning {
+    background-color: rgba(251, 191, 36, 0.15);
+    border-color: rgba(251, 191, 36, 0.4);
+  }
+
+  .error-message.variant-info {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .error-message {
+    animation: none;
+  }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .error-message {
+    flex-direction: column;
+  }
+
+  .error-actions {
+    margin-left: 0;
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  .error-button {
+    flex: 1;
+    justify-content: center;
+  }
+}

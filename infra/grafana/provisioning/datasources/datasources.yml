@@ -1,0 +1,42 @@
+# Grafana datasources provisioning configuration
+apiVersion: 1
+
+# List of datasources that should be deleted from the database
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+  - name: TimescaleDB
+    orgId: 1
+
+# List of datasources to insert/update depending on what's available in the database
+datasources:
+  # Prometheus datasource for metrics
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    basicAuth: false
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      manageAlerts: true
+
+  # TimescaleDB datasource for trading data
+  - name: TimescaleDB
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: trading_platform
+    user: trading_user
+    basicAuth: false
+    editable: true
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: true
+      timeInterval: "1m"
+    secureJsonData:
+      password: "password"  # In production, use env variable or secret management

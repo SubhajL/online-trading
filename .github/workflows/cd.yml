@@ -1,0 +1,247 @@
+name: Continuous Deployment
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # Build and Push Docker Images
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      # Cache Docker layers
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Build and push Engine
+      - name: Build and push Engine image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/engine
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/engine:${{ steps.meta.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push Router
+      - name: Build and push Router image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/router
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/router:${{ steps.meta.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push BFF
+      - name: Build and push BFF image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/bff
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/bff:${{ steps.meta.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build and push UI
+      - name: Build and push UI image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/ui
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/ui:${{ steps.meta.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.trading-platform.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Kubernetes config
+        run: |
+          echo "${{ secrets.STAGING_KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Update image tags in manifests
+          kubectl set image deployment/trading-engine trading-engine=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/engine:${{ github.sha }} -n trading
+          kubectl set image deployment/trading-router trading-router=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/router:${{ github.sha }} -n trading
+          kubectl set image deployment/trading-bff trading-bff=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/bff:${{ github.sha }} -n trading
+          kubectl set image deployment/trading-ui trading-ui=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/ui:${{ github.sha }} -n trading
+
+          # Wait for rollout
+          kubectl rollout status deployment/trading-engine -n trading
+          kubectl rollout status deployment/trading-router -n trading
+          kubectl rollout status deployment/trading-bff -n trading
+          kubectl rollout status deployment/trading-ui -n trading
+
+      - name: Run smoke tests
+        run: |
+          curl -f https://staging.trading-platform.example.com/health || exit 1
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    environment:
+      name: production
+      url: https://trading-platform.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up Kubernetes config
+        run: |
+          echo "${{ secrets.PRODUCTION_KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Create backup
+        run: |
+          # Backup current deployment state
+          kubectl get deployment -n trading -o yaml > backup-$(date +%Y%m%d-%H%M%S).yaml
+
+      - name: Deploy to Kubernetes (Blue-Green)
+        run: |
+          # Deploy to green environment
+          kubectl apply -f k8s/production/green/ -n trading
+
+          # Update green image tags
+          kubectl set image deployment/trading-engine-green trading-engine=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/engine:${{ github.sha }} -n trading
+          kubectl set image deployment/trading-router-green trading-router=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/router:${{ github.sha }} -n trading
+          kubectl set image deployment/trading-bff-green trading-bff=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/bff:${{ github.sha }} -n trading
+          kubectl set image deployment/trading-ui-green trading-ui=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/ui:${{ github.sha }} -n trading
+
+          # Wait for green deployment
+          kubectl rollout status deployment/trading-engine-green -n trading
+          kubectl rollout status deployment/trading-router-green -n trading
+          kubectl rollout status deployment/trading-bff-green -n trading
+          kubectl rollout status deployment/trading-ui-green -n trading
+
+          # Run health checks on green
+          kubectl run health-check --rm -it --image=curlimages/curl -- curl -f http://trading-engine-green:8000/health
+
+          # Switch traffic to green
+          kubectl patch service trading-engine -p '{"spec":{"selector":{"version":"green"}}}' -n trading
+          kubectl patch service trading-router -p '{"spec":{"selector":{"version":"green"}}}' -n trading
+          kubectl patch service trading-bff -p '{"spec":{"selector":{"version":"green"}}}' -n trading
+          kubectl patch service trading-ui -p '{"spec":{"selector":{"version":"green"}}}' -n trading
+
+          # Delete old blue deployment after successful switch
+          sleep 300  # Wait 5 minutes before removing old version
+          kubectl delete deployment trading-engine-blue trading-router-blue trading-bff-blue trading-ui-blue -n trading || true
+
+      - name: Run production smoke tests
+        run: |
+          curl -f https://trading-platform.example.com/health || exit 1
+          curl -f https://trading-platform.example.com/api/health || exit 1
+
+      - name: Notify deployment
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Production deployment completed for version ${{ github.ref }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        if: always()
+
+  # Rollback job
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: [deploy-staging, deploy-production]
+
+    steps:
+      - name: Rollback Kubernetes deployment
+        run: |
+          echo "Rolling back deployment..."
+          # Rollback logic would go here
+          kubectl rollout undo deployment/trading-engine -n trading
+          kubectl rollout undo deployment/trading-router -n trading
+          kubectl rollout undo deployment/trading-bff -n trading
+          kubectl rollout undo deployment/trading-ui -n trading
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'failure'
+          text: 'Deployment failed and was rolled back!'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

@@ -1,0 +1,55 @@
+# YAML Lint Configuration for Online Trading Platform
+
+extends: default
+
+rules:
+  # Line length
+  line-length:
+    max: 120
+    level: warning
+
+  # Indentation
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Key ordering
+  key-ordering: disable
+
+  # Comments
+  comments:
+    min-spaces-from-content: 1
+
+  # Document start
+  document-start:
+    present: false
+
+  # Empty lines
+  empty-lines:
+    max: 2
+    max-start: 0
+    max-end: 1
+
+  # Truthy values
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false
+
+  # Brackets
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Braces
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+ignore: |
+  node_modules/
+  .git/
+  dist/
+  build/
+  .next/
+  coverage/

@@ -1,0 +1,23 @@
+# Development Dockerfile for BFF service
+FROM node:20-alpine
+
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
+
+# Install pnpm
+RUN npm install -g pnpm@8
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install all dependencies (including devDependencies)
+RUN pnpm install --frozen-lockfile
+
+# Expose port
+EXPOSE 3000
+
+# Use the start:dev command for hot-reloading
+CMD ["pnpm", "run", "start:dev"]

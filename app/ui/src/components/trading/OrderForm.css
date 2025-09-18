@@ -1,0 +1,129 @@
+.order-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background-color: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 8px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #758696;
+}
+
+.form-group input,
+.form-group select {
+  padding: 10px 12px;
+  background-color: #161a1e;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  color: #d1d4dc;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3a3e49;
+  background-color: #1e222d;
+}
+
+.form-group input:disabled,
+.form-group select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-group input::placeholder {
+  color: #758696;
+}
+
+.radio-group {
+  display: flex;
+  gap: 16px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #d1d4dc;
+  cursor: pointer;
+}
+
+.radio-label input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.radio-label input[type='radio']:disabled {
+  cursor: not-allowed;
+}
+
+.error-message {
+  font-size: 12px;
+  color: #ef5350;
+}
+
+.submit-error {
+  padding: 12px;
+  background-color: rgba(239, 83, 80, 0.1);
+  border: 1px solid rgba(239, 83, 80, 0.3);
+  border-radius: 6px;
+  color: #ef5350;
+  font-size: 14px;
+}
+
+.submit-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+}
+
+.submit-button.buy {
+  background-color: #26a69a;
+  color: #ffffff;
+}
+
+.submit-button.buy:hover:not(:disabled) {
+  background-color: #2cb5a8;
+}
+
+.submit-button.sell {
+  background-color: #ef5350;
+  color: #ffffff;
+}
+
+.submit-button.sell:hover:not(:disabled) {
+  background-color: #f66462;
+}
+
+.submit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive design */
+@media (min-width: 768px) {
+  .order-form {
+    max-width: 400px;
+  }
+}

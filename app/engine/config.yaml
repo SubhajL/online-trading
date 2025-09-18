@@ -1,0 +1,291 @@
+# Trading Engine Configuration
+# This file contains default configuration values
+# Override with environment variables in production
+
+environment: development
+log_level: INFO
+
+# Database Configuration
+database:
+  host: ${DB_HOST:-localhost}
+  port: ${DB_PORT:-5432}
+  database: ${DB_NAME:-trading_platform}
+  username: ${DB_USER:-postgres}
+  password: ${DB_PASSWORD:-postgres}
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+
+# Redis Configuration
+redis:
+  host: ${REDIS_HOST:-localhost}
+  port: ${REDIS_PORT:-6379}
+  password: ${REDIS_PASSWORD:-}
+  database: 0
+  max_connections: 10
+
+# Binance Configuration
+binance:
+  api_key: ${BINANCE_API_KEY:-}
+  api_secret: ${BINANCE_API_SECRET:-}
+  testnet: ${BINANCE_TESTNET:-true}
+  base_url: ${BINANCE_BASE_URL:-https://testnet.binance.vision}
+  ws_base_url: ${BINANCE_WS_URL:-wss://testnet.binance.vision}
+
+  # Rate limiting
+  requests_per_minute: 1200
+  ws_connections_limit: 10
+
+  # Reconnection settings
+  reconnect_attempts: 5
+  reconnect_delay_ms: 5000
+  backfill_on_reconnect: true
+
+# Trading Configuration
+trading:
+  # Symbols to trade
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+    - BNBUSDT
+
+  # Timeframes to analyze
+  timeframes:
+    - 1m
+    - 5m
+    - 15m
+    - 1h
+
+  # Risk Management
+  risk_parameters:
+    max_position_size: 10000.0
+    max_daily_loss: 500.0
+    max_drawdown: 1000.0
+    risk_per_trade: 0.01  # 1% per trade
+    max_correlation: 0.7
+    max_open_positions: 3
+    allowed_symbols:
+      - BTCUSDT
+      - ETHUSDT
+      - BNBUSDT
+
+    # Position sizing
+    use_atr_sizing: true
+    atr_multiplier: 1.5
+
+    # Stop loss settings
+    default_stop_loss_pct: 0.02  # 2%
+    trailing_stop_enabled: false
+    trailing_stop_pct: 0.01
+
+    # Take profit settings
+    default_take_profit_ratios:
+      - 1.5
+      - 2.0
+      - 3.0
+    partial_take_profit_pcts:
+      - 0.33
+      - 0.33
+      - 0.34
+
+# Technical Indicators Configuration
+indicators:
+  # EMA periods
+  ema_periods:
+    - 9
+    - 21
+    - 50
+    - 200
+
+  # RSI settings
+  rsi_period: 14
+  rsi_oversold: 30
+  rsi_overbought: 70
+
+  # MACD settings
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+
+  # ATR settings
+  atr_period: 14
+
+  # Bollinger Bands
+  bb_period: 20
+  bb_std_dev: 2
+
+# Smart Money Concepts Configuration
+smc:
+  # Pivot detection
+  pivot_left_bars: 5
+  pivot_right_bars: 5
+  min_pivot_strength: 3
+
+  # Structure break detection
+  structure_break_threshold: 0.001  # 0.1%
+
+  # Zone identification
+  zone_atr_multiplier: 0.5
+  zone_max_age_bars: 50
+  zone_min_touches: 2
+
+  # Fair Value Gap
+  fvg_min_gap_atr: 0.3
+  fvg_max_age_bars: 20
+
+  # Order Block
+  ob_lookback_bars: 10
+  ob_min_volume_percentile: 70
+
+# Retest Analysis Configuration
+retest:
+  max_wait_bars: 8
+  entry_tolerance_atr: 0.25
+  confirmation_required:
+    - macd_histogram_positive
+    - rsi_bounce
+  min_risk_reward_ratio: 1.5
+
+# Regime and Volatility Configuration
+regime:
+  # ADX settings
+  adx_period: 14
+  adx_trend_threshold: 25
+
+  # ATR percentile settings
+  atr_lookback_periods: 100
+  high_volatility_percentile: 80
+  low_volatility_percentile: 20
+
+  # Regime classification
+  regime_lookback_bars: 50
+
+# News and Funding Guards Configuration
+guards:
+  # News events
+  news_calendar_url: ${NEWS_CALENDAR_URL:-}
+  news_block_minutes_before: 30
+  news_block_minutes_after: 30
+  high_impact_only: true
+
+  # Funding rates (for futures)
+  funding_check_enabled: true
+  max_funding_rate: 0.001  # 0.1%
+  funding_block_minutes_before: 10
+
+  # Volatility guards
+  volatility_spike_threshold: 3.0  # 3x average
+  volatility_block_duration_minutes: 15
+
+# Decision Engine Configuration
+decision:
+  # Signal requirements
+  require_structure_setup: true
+  require_retest_confirmation: true
+  min_confluence_factors: 2
+
+  # Confidence thresholds
+  min_confidence_to_trade: 0.6
+  high_confidence_threshold: 0.8
+
+  # Order execution
+  use_limit_orders: true
+  limit_order_offset_pct: 0.0005  # 0.05%
+
+  # Futures specific
+  futures_enabled: false
+  max_leverage: 3
+  use_reduce_only_tp: true
+  use_stop_market_sl: true
+
+# Paper Trading Configuration
+paper_trading:
+  enabled: true
+  initial_balance: 10000.0
+
+  # Slippage simulation
+  market_order_slippage_pct: 0.001  # 0.1%
+  limit_order_fill_probability: 0.95
+
+  # Fee simulation
+  maker_fee_pct: 0.001  # 0.1%
+  taker_fee_pct: 0.001  # 0.1%
+
+# Backtesting Configuration
+backtesting:
+  # Data settings
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
+
+  # Execution settings
+  use_vectorized: true
+  use_intrabar_fills: true
+
+  # Walk-forward analysis
+  walk_forward_enabled: false
+  in_sample_periods: 60
+  out_sample_periods: 20
+
+  # Monte Carlo simulation
+  monte_carlo_runs: 0  # 0 to disable
+  monte_carlo_confidence: 0.95
+
+# Monitoring Configuration
+monitoring:
+  metrics_enabled: true
+  health_check_interval: 30
+
+  # Prometheus metrics
+  prometheus_port: 8000
+
+  # Performance tracking
+  track_latency: true
+  track_event_counts: true
+  track_error_rates: true
+
+  # Alerts
+  alerts_enabled: true
+  telegram_bot_token: ${TELEGRAM_BOT_TOKEN:-}
+  telegram_chat_id: ${TELEGRAM_CHAT_ID:-}
+
+# Feature Flags
+features:
+  enable_smc_trading: true
+  enable_news_filter: true
+  enable_funding_filter: false
+  enable_paper_trading: true
+  enable_backtesting: true
+  enable_ai_signals: false
+  enable_pairs_trading: false
+  enable_options_hedging: false
+
+# Router Client Configuration
+router:
+  base_url: ${ROUTER_URL:-http://localhost:8080}
+  timeout_seconds: 10
+  max_retries: 3
+  retry_delay_ms: 1000
+
+# Event Bus Configuration
+event_bus:
+  max_queue_size: 1000
+  processing_timeout_seconds: 5
+  enable_dead_letter_queue: true
+  dead_letter_max_retries: 3
+
+# Logging Configuration
+logging:
+  format: json
+  output: stdout
+  file_enabled: false
+  file_path: /var/log/trading_engine.log
+  max_file_size_mb: 100
+  max_backup_files: 10
+
+  # Log levels per module
+  module_levels:
+    ingest: INFO
+    features: INFO
+    smc: DEBUG
+    decision: INFO
+    router_client: DEBUG

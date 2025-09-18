@@ -1,0 +1,125 @@
+{
+  "name": "online-trading-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A comprehensive online trading platform with real-time market data and order execution",
+  "keywords": [
+    "trading",
+    "finance",
+    "cryptocurrency",
+    "binance",
+    "real-time",
+    "websocket",
+    "monorepo"
+  ],
+  "author": "Trading Platform Team <dev@tradingplatform.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourorg/online-trading-platform.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourorg/online-trading-platform/issues"
+  },
+  "homepage": "https://github.com/yourorg/online-trading-platform#readme",
+  "workspaces": [
+    "app/ui",
+    "app/bff",
+    "infra",
+    "tools/*"
+  ],
+  "packageManager": "pnpm@9.12.1",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "dev": "pnpm --parallel --stream run dev",
+    "dev:ui": "pnpm --filter=ui run dev",
+    "dev:bff": "pnpm --filter=bff run dev",
+    "build": "pnpm --parallel run build",
+    "build:ui": "pnpm --filter=ui run build",
+    "build:bff": "pnpm --filter=bff run build",
+    "test": "pnpm --parallel run test",
+    "test:ui": "pnpm --filter=ui run test",
+    "test:bff": "pnpm --filter=bff run test",
+    "test:watch": "pnpm --parallel run test:watch",
+    "test:coverage": "pnpm --parallel run test:coverage",
+    "lint": "pnpm --parallel run lint",
+    "lint:fix": "pnpm --parallel run lint:fix",
+    "format": "pnpm --parallel run format",
+    "format:check": "pnpm --parallel run format:check",
+    "typecheck": "pnpm --parallel run typecheck",
+    "clean": "pnpm --parallel run clean && rm -rf node_modules",
+    "clean:modules": "find . -name 'node_modules' -type d -prune -exec rm -rf {} +",
+    "deps:update": "pnpm update --recursive",
+    "deps:outdated": "pnpm outdated --recursive",
+    "deps:audit": "pnpm audit",
+    "start": "pnpm --parallel run start",
+    "start:ui": "pnpm --filter=ui run start",
+    "start:bff": "pnpm --filter=bff run start",
+    "postinstall": "husky install || true"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ],
+    "rules": {
+      "type-enum": [
+        2,
+        "always",
+        [
+          "feat",
+          "fix",
+          "docs",
+          "style",
+          "refactor",
+          "perf",
+          "test",
+          "build",
+          "ci",
+          "chore",
+          "revert"
+        ]
+      ],
+      "subject-max-length": [2, "always", 100],
+      "body-max-line-length": [2, "always", 100]
+    }
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,scss,md,yaml,yml}": [
+      "prettier --write"
+    ],
+    "*.py": [
+      "ruff check --fix",
+      "ruff format"
+    ],
+    "*.go": [
+      "gofmt -w"
+    ]
+  },
+  "pnpm": {
+    "overrides": {
+      "semver": "^7.5.4"
+    },
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "@babel/core",
+        "webpack"
+      ]
+    }
+  }
+}

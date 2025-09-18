@@ -1,0 +1,462 @@
+[build-system]
+requires = ["hatchling>=1.5.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "online-trading-platform"
+dynamic = ["version"]
+description = "A comprehensive online trading platform with real-time market data and order execution"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Trading Platform Team", email = "dev@tradingplatform.com" },
+]
+keywords = [
+    "trading",
+    "finance",
+    "cryptocurrency",
+    "binance",
+    "real-time",
+    "websocket",
+    "fastapi",
+    "python",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    # Web framework
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+
+    # Database
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+    "asyncpg>=0.29.0",  # PostgreSQL async driver
+
+    # Redis
+    "redis[hiredis]>=5.0.0",
+
+    # HTTP client
+    "httpx>=0.25.0",
+    "aiohttp>=3.9.0",
+
+    # WebSocket
+    "websockets>=12.0",
+
+    # Cryptocurrency/Trading
+    "python-binance>=1.0.19",
+    "ccxt>=4.1.0",
+
+    # Data processing
+    "pandas>=2.1.0",
+    "numpy>=1.25.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # Date/time handling
+    "python-dateutil>=2.8.2",
+    "pytz>=2023.3",
+
+    # Async utilities
+    "asyncio-mqtt>=0.16.0",
+    "aiofiles>=23.2.1",
+
+    # Logging and monitoring
+    "structlog>=23.2.0",
+    "prometheus-client>=0.19.0",
+
+    # Security
+    "cryptography>=41.0.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+
+    # Configuration
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+
+    # Utilities
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "tenacity>=8.2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",
+    "httpx>=0.25.0",  # For testing FastAPI
+    "factory-boy>=3.3.0",
+    "freezegun>=1.2.2",
+
+    # Code quality
+    "ruff>=0.6.0",
+    "mypy>=1.8.0",
+    "bandit[toml]>=1.7.5",
+    "pre-commit>=3.6.0",
+
+    # Type stubs
+    "types-python-dateutil>=2.8.19",
+    "types-redis>=4.6.0",
+    "types-PyYAML>=6.0.12",
+    "types-requests>=2.31.0",
+    "types-setuptools>=69.0.0",
+
+    # Documentation
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings[python]>=0.24.0",
+
+    # Development tools
+    "ipython>=8.18.0",
+    "ipdb>=0.13.13",
+    "watchfiles>=0.21.0",
+]
+
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",
+    "httpx>=0.25.0",
+    "factory-boy>=3.3.0",
+    "freezegun>=1.2.2",
+]
+
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourorg/online-trading-platform"
+Documentation = "https://docs.tradingplatform.com"
+Repository = "https://github.com/yourorg/online-trading-platform.git"
+Issues = "https://github.com/yourorg/online-trading-platform/issues"
+
+[project.scripts]
+trading-engine = "app.engine.cli:main"
+
+[tool.hatch.version]
+path = "app/engine/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app/engine"]
+
+# ===========================
+# Ruff Configuration
+# ===========================
+[tool.ruff]
+# Increase the maximum line length to 88 characters (Black's default)
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.11+
+target-version = "py311"
+
+# Include only the engine directory
+include = ["app/engine/**/*.py"]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "migrations",
+    "tests",
+]
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# McCabe complexity (`C901`) by default.
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # Pyflakes
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "SIM",   # flake8-simplify
+    "I",     # isort
+    "N",     # pep8-naming
+    "C90",   # mccabe
+    "ANN",   # flake8-annotations
+    "ASYNC", # flake8-async
+    "S",     # flake8-bandit
+    "BLE",   # flake8-blind-except
+    "FBT",   # flake8-boolean-trap
+    "A",     # flake8-builtins
+    "COM",   # flake8-commas
+    "C4",    # flake8-comprehensions
+    "DTZ",   # flake8-datetimez
+    "T10",   # flake8-debugger
+    "DJ",    # flake8-django
+    "EM",    # flake8-errmsg
+    "EXE",   # flake8-executable
+    "FA",    # flake8-future-annotations
+    "ISC",   # flake8-implicit-str-concat
+    "ICN",   # flake8-import-conventions
+    "G",     # flake8-logging-format
+    "INP",   # flake8-no-pep420
+    "PIE",   # flake8-pie
+    "T20",   # flake8-print
+    "PYI",   # flake8-pyi
+    "PT",    # flake8-pytest-style
+    "Q",     # flake8-quotes
+    "RSE",   # flake8-raise
+    "RET",   # flake8-return
+    "SLF",   # flake8-self
+    "SLOT",  # flake8-slots
+    "TID",   # flake8-tidy-imports
+    "TCH",   # flake8-type-checking
+    "INT",   # flake8-gettext
+    "ARG",   # flake8-unused-arguments
+    "PTH",   # flake8-use-pathlib
+    "TD",    # flake8-todos
+    "FIX",   # flake8-fixme
+    "ERA",   # eradicate
+    "PD",    # pandas-vet
+    "PGH",   # pygrep-hooks
+    "PL",    # Pylint
+    "TRY",   # tryceratops
+    "FLY",   # flynt
+    "NPY",   # NumPy-specific rules
+    "PERF",  # Perflint
+    "FURB",  # refurb
+    "LOG",   # flake8-logging
+    "RUF",   # Ruff-specific rules
+]
+
+ignore = [
+    "ANN101",  # Missing type annotation for `self` in method
+    "ANN102",  # Missing type annotation for `cls` in classmethod
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D104",    # Missing docstring in public package
+    "D105",    # Missing docstring in magic method
+    "D107",    # Missing docstring in `__init__`
+    "S101",    # Use of `assert` detected (pytest uses assert)
+    "FBT001",  # Boolean positional arg in function definition
+    "FBT002",  # Boolean default value in function definition
+    "TD002",   # Missing author in TODO
+    "TD003",   # Missing issue link on the line following this TODO
+    "FIX002",  # Line contains TODO, consider resolving the issue
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.ruff.lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and print statements
+"tests/**" = ["PLR2004", "S101", "T201"]
+# CLI modules can use print statements
+"**/cli.py" = ["T201"]
+# __init__.py files don't need docstrings
+"__init__.py" = ["D104"]
+
+[tool.ruff.lint.isort]
+# Import sorting configuration
+known-first-party = ["app"]
+force-sort-within-sections = true
+split-on-trailing-comma = true
+
+# ===========================
+# MyPy Configuration
+# ===========================
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+ignore_missing_imports = true
+show_error_codes = true
+
+# Files to check
+files = ["app/engine"]
+
+# Exclude patterns
+exclude = [
+    "build/",
+    "dist/",
+    "node_modules/",
+    "migrations/",
+    "tests/",
+]
+
+# Per-module options
+[[tool.mypy.overrides]]
+module = [
+    "binance.*",
+    "ccxt.*",
+    "redis.*",
+    "prometheus_client.*",
+]
+ignore_missing_imports = true
+
+# ===========================
+# Pytest Configuration
+# ===========================
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--color=yes",
+    "--tb=short",
+    "--cov=app/engine",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-branch",
+    "--cov-fail-under=80",
+]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "smoke: marks tests as smoke tests",
+    "api: marks tests as API tests",
+    "websocket: marks tests as websocket tests",
+    "database: marks tests as database tests",
+    "redis: marks tests as redis tests",
+    "binance: marks tests as binance integration tests",
+]
+
+# ===========================
+# Coverage Configuration
+# ===========================
+[tool.coverage.run]
+source = ["app/engine"]
+omit = [
+    "*/tests/*",
+    "*/migrations/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/build/*",
+    "*/dist/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+ignore_errors = true
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# ===========================
+# Bandit Configuration
+# ===========================
+[tool.bandit]
+exclude_dirs = ["tests", "migrations"]
+tests = ["B201", "B301"]
+skips = ["B101", "B601"]
+
+# ===========================
+# Black Configuration (if using Black instead of Ruff format)
+# ===========================
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | migrations
+)/
+'''

@@ -1,0 +1,53 @@
+# Prometheus configuration for Online Trading Platform
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Python Engine metrics
+  - job_name: 'trading-engine'
+    static_configs:
+      - targets: ['engine:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Go Router metrics
+  - job_name: 'trading-router'
+    static_configs:
+      - targets: ['router:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # NestJS BFF metrics
+  - job_name: 'trading-bff'
+    static_configs:
+      - targets: ['bff:8002']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # PostgreSQL metrics (if using postgres_exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    scrape_interval: 30s
+
+  # Redis metrics (if using redis_exporter)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+
+  # Node exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s

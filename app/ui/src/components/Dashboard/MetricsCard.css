@@ -1,0 +1,153 @@
+.metrics-card {
+  background-color: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.metrics-card:hover {
+  border-color: #3a3e49;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.metrics-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metrics-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.metrics-titles {
+  flex: 1;
+}
+
+.metrics-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #758696;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metrics-subtitle {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #5a6270;
+}
+
+.metrics-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metrics-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #d1d4dc;
+  line-height: 1.2;
+}
+
+.metrics-indicators {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.metrics-change {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.change-positive {
+  color: #26a69a;
+}
+
+.change-negative {
+  color: #ef5350;
+}
+
+.change-neutral {
+  color: #758696;
+}
+
+.trend-indicator {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.trend-up {
+  color: #26a69a;
+}
+
+.trend-down {
+  color: #ef5350;
+}
+
+.trend-neutral {
+  color: #758696;
+}
+
+/* Loading state */
+.metrics-loading {
+  height: 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    #1e222d 25%,
+    #2a2e39 50%,
+    #1e222d 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+/* Error state */
+.metrics-error {
+  color: #ef5350;
+  font-size: 13px;
+  padding: 12px;
+  background-color: rgba(239, 83, 80, 0.1);
+  border-radius: 6px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .metrics-card {
+    padding: 16px;
+  }
+
+  .metrics-value {
+    font-size: 24px;
+  }
+
+  .metrics-title {
+    font-size: 13px;
+  }
+}

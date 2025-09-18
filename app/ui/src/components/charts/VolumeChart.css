@@ -1,0 +1,59 @@
+.volume-chart {
+  display: flex;
+  flex-direction: column;
+  height: 200px;
+  background-color: #161a1e;
+  border: 1px solid #2a2e39;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.volume-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background-color: #1e222d;
+  border-bottom: 1px solid #2a2e39;
+}
+
+.volume-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #d1d4dc;
+}
+
+.volume-container {
+  flex: 1;
+  position: relative;
+  min-height: 150px;
+}
+
+.volume-loading,
+.volume-no-data {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #758696;
+  font-size: 13px;
+}
+
+.volume-loading::before {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto 8px;
+  border: 2px solid #2a2e39;
+  border-top-color: #758696;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

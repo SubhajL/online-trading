@@ -1,0 +1,152 @@
+/* Error Boundary Fallback */
+.error-boundary-fallback {
+  padding: 32px;
+  max-width: 800px;
+  margin: 0 auto;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Error Details Section */
+.error-details-section {
+  margin-top: 16px;
+}
+
+.error-details-toggle {
+  background: none;
+  border: 1px solid #3f4553;
+  color: #758696;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.error-details-toggle:hover {
+  background-color: rgba(117, 134, 150, 0.1);
+  color: #a0aec0;
+  border-color: #4b5563;
+}
+
+.error-details-toggle:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.3);
+}
+
+/* Error Details */
+.error-details {
+  margin-top: 16px;
+  background-color: #1a1e29;
+  border: 1px solid #2d3341;
+  border-radius: 8px;
+  padding: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.error-details h4 {
+  margin: 0 0 12px 0;
+  color: #d1d4dc;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.error-details pre {
+  margin: 0;
+  padding: 16px;
+  background-color: #0f1117;
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #758696;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.error-stack {
+  margin-bottom: 20px;
+}
+
+.component-stack pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Scrollbar styling */
+.error-details pre::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.error-details pre::-webkit-scrollbar-track {
+  background: #1a1e29;
+  border-radius: 4px;
+}
+
+.error-details pre::-webkit-scrollbar-thumb {
+  background: #3f4553;
+  border-radius: 4px;
+}
+
+.error-details pre::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .error-boundary-fallback {
+    padding: 20px;
+    min-height: 300px;
+  }
+
+  .error-details {
+    padding: 16px;
+  }
+
+  .error-details pre {
+    padding: 12px;
+    font-size: 11px;
+  }
+}
+
+/* Light theme adjustments */
+@media (prefers-color-scheme: light) {
+  .error-details {
+    background-color: #f9fafb;
+    border-color: #e5e7eb;
+  }
+
+  .error-details h4 {
+    color: #1f2937;
+  }
+
+  .error-details pre {
+    background-color: #ffffff;
+    color: #4b5563;
+    border: 1px solid #e5e7eb;
+  }
+
+  .error-details-toggle {
+    border-color: #d1d5db;
+    color: #6b7280;
+  }
+
+  .error-details-toggle:hover {
+    background-color: rgba(107, 114, 128, 0.1);
+    color: #4b5563;
+    border-color: #9ca3af;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .error-details-toggle {
+    transition: none;
+  }
+}
