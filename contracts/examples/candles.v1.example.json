@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "venue": "binance",
+  "symbol": "BTCUSDT",
+  "timeframe": "1h",
+  "open_time": "2024-01-15T10:00:00.000Z",
+  "close_time": "2024-01-15T11:00:00.000Z",
+  "open": 45000.0,
+  "high": 45500.0,
+  "low": 44800.0,
+  "close": 45200.0,
+  "volume": 100.5,
+  "quote_volume": 4525000.0,
+  "trades": 1500,
+  "taker_buy_volume": 60.3,
+  "taker_buy_quote_volume": 2715000.0,
+  "is_closed": true
+}

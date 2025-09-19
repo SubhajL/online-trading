@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://trading-platform.io/schemas/signals_raw.v1.schema.json",
+  "title": "Signals Raw V1",
+  "description": "Candidate trading signals with entry, stop loss, and take profit hints",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Schema version in semver format"
+    },
+    "venue": {
+      "type": "string",
+      "description": "Exchange/venue name",
+      "examples": ["binance", "bybit", "okx"]
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Trading pair symbol",
+      "examples": ["BTCUSDT", "ETHUSDT"]
+    },
+    "timeframe": {
+      "type": "string",
+      "description": "Candle timeframe",
+      "examples": ["1m", "5m", "15m", "1h", "4h", "1d"]
+    },
+    "signal_id": {
+      "type": "string",
+      "description": "Unique identifier for the signal"
+    },
+    "signal_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+      "description": "Time when the signal was generated"
+    },
+    "signal_type": {
+      "type": "string",
+      "enum": ["long", "short"],
+      "description": "Direction of the signal"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source strategy that generated the signal",
+      "examples": ["smc_retest", "trend_continuation", "reversal"]
+    },
+    "entry_price": {
+      "type": "number",
+      "description": "Suggested entry price"
+    },
+    "stop_loss": {
+      "type": "number",
+      "description": "Suggested stop loss price"
+    },
+    "take_profit_1": {
+      "type": ["number", "null"],
+      "description": "First take profit target"
+    },
+    "take_profit_2": {
+      "type": ["number", "null"],
+      "description": "Second take profit target"
+    },
+    "take_profit_3": {
+      "type": ["number", "null"],
+      "description": "Third take profit target"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Signal confidence score (0-1)"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional signal metadata",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "version",
+    "venue",
+    "symbol",
+    "timeframe",
+    "signal_id",
+    "signal_time",
+    "signal_type",
+    "source",
+    "entry_price",
+    "stop_loss",
+    "take_profit_1",
+    "take_profit_2",
+    "take_profit_3",
+    "confidence",
+    "metadata"
+  ],
+  "additionalProperties": false
+}

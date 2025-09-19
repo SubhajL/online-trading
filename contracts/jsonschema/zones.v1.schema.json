@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://trading-platform.io/schemas/zones.v1.schema.json",
+  "title": "Zones V1",
+  "description": "Supply/demand zones including order blocks and fair value gaps",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Schema version in semver format"
+    },
+    "venue": {
+      "type": "string",
+      "description": "Exchange/venue name",
+      "examples": ["binance", "bybit", "okx"]
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Trading pair symbol",
+      "examples": ["BTCUSDT", "ETHUSDT"]
+    },
+    "timeframe": {
+      "type": "string",
+      "description": "Candle timeframe",
+      "examples": ["1m", "5m", "15m", "1h", "4h", "1d"]
+    },
+    "zone_id": {
+      "type": "string",
+      "description": "Unique identifier for the zone"
+    },
+    "zone_type": {
+      "type": "string",
+      "enum": ["order_block", "fair_value_gap"],
+      "description": "Type of SMC zone"
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["demand", "supply"],
+      "description": "Zone direction - demand (bullish) or supply (bearish)"
+    },
+    "upper_bound": {
+      "type": "number",
+      "description": "Upper price boundary of the zone"
+    },
+    "lower_bound": {
+      "type": "number",
+      "description": "Lower price boundary of the zone"
+    },
+    "created_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+      "description": "Time when the zone was created"
+    },
+    "candle_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of candles forming the zone"
+    },
+    "strength": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Zone strength score (0-1)"
+    },
+    "touches": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of times price has retested the zone"
+    },
+    "is_active": {
+      "type": "boolean",
+      "description": "Whether the zone is still active"
+    }
+  },
+  "required": [
+    "version",
+    "venue",
+    "symbol",
+    "timeframe",
+    "zone_id",
+    "zone_type",
+    "direction",
+    "upper_bound",
+    "lower_bound",
+    "created_time",
+    "candle_count",
+    "strength",
+    "touches",
+    "is_active"
+  ],
+  "additionalProperties": false
+}

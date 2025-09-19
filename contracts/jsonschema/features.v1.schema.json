@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://trading-platform.io/schemas/features.v1.schema.json",
+  "title": "Features V1",
+  "description": "Technical indicators calculated from candle data",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Schema version in semver format"
+    },
+    "venue": {
+      "type": "string",
+      "description": "Exchange/venue name",
+      "examples": ["binance", "bybit", "okx"]
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Trading pair symbol",
+      "examples": ["BTCUSDT", "ETHUSDT"]
+    },
+    "timeframe": {
+      "type": "string",
+      "description": "Candle timeframe",
+      "examples": ["1m", "5m", "15m", "1h", "4h", "1d"]
+    },
+    "open_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+      "description": "Candle open time in ISO8601 format"
+    },
+    "close_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+      "description": "Candle close time in ISO8601 format"
+    },
+    "ema_short": {
+      "type": ["number", "null"],
+      "description": "Short-term exponential moving average"
+    },
+    "ema_long": {
+      "type": ["number", "null"],
+      "description": "Long-term exponential moving average"
+    },
+    "rsi": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Relative Strength Index (0-100)"
+    },
+    "macd": {
+      "type": ["number", "null"],
+      "description": "MACD line value"
+    },
+    "macd_signal": {
+      "type": ["number", "null"],
+      "description": "MACD signal line value"
+    },
+    "macd_histogram": {
+      "type": ["number", "null"],
+      "description": "MACD histogram value"
+    },
+    "atr": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Average True Range"
+    },
+    "bb_upper": {
+      "type": ["number", "null"],
+      "description": "Bollinger Band upper band"
+    },
+    "bb_middle": {
+      "type": ["number", "null"],
+      "description": "Bollinger Band middle band (SMA)"
+    },
+    "bb_lower": {
+      "type": ["number", "null"],
+      "description": "Bollinger Band lower band"
+    },
+    "volume_ma": {
+      "type": ["number", "null"],
+      "description": "Volume moving average"
+    }
+  },
+  "required": [
+    "version",
+    "venue",
+    "symbol",
+    "timeframe",
+    "open_time",
+    "close_time",
+    "ema_short",
+    "ema_long",
+    "rsi",
+    "macd",
+    "macd_signal",
+    "macd_histogram",
+    "atr",
+    "bb_upper",
+    "bb_middle",
+    "bb_lower",
+    "volume_ma"
+  ],
+  "additionalProperties": false
+}

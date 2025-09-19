@@ -495,3 +495,6 @@ credentials.json
 # Backup files
 *.backup
 *.bak
+
+# VS Code workspace files
+*.code-workspace

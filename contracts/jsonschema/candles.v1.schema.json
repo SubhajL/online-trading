@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://trading-platform.io/schemas/candles.v1.schema.json",
+  "title": "Candles V1",
+  "description": "OHLCV candle data from exchange",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Schema version in semver format"
+    },
+    "venue": {
+      "type": "string",
+      "description": "Exchange/venue name",
+      "examples": ["binance", "bybit", "okx"]
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Trading pair symbol",
+      "examples": ["BTCUSDT", "ETHUSDT"]
+    },
+    "timeframe": {
+      "type": "string",
+      "description": "Candle timeframe",
+      "examples": ["1m", "5m", "15m", "1h", "4h", "1d"]
+    },
+    "open_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+      "description": "Candle open time in ISO8601 format"
+    },
+    "close_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+      "description": "Candle close time in ISO8601 format"
+    },
+    "open": {
+      "type": "number",
+      "description": "Opening price"
+    },
+    "high": {
+      "type": "number",
+      "description": "Highest price"
+    },
+    "low": {
+      "type": "number",
+      "description": "Lowest price"
+    },
+    "close": {
+      "type": "number",
+      "description": "Closing price"
+    },
+    "volume": {
+      "type": "number",
+      "description": "Base asset volume"
+    },
+    "quote_volume": {
+      "type": "number",
+      "description": "Quote asset volume"
+    },
+    "trades": {
+      "type": "integer",
+      "description": "Number of trades"
+    },
+    "taker_buy_volume": {
+      "type": "number",
+      "description": "Taker buy base asset volume"
+    },
+    "taker_buy_quote_volume": {
+      "type": "number",
+      "description": "Taker buy quote asset volume"
+    },
+    "is_closed": {
+      "type": "boolean",
+      "description": "Whether the candle is closed"
+    }
+  },
+  "required": [
+    "version",
+    "venue",
+    "symbol",
+    "timeframe",
+    "open_time",
+    "close_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "quote_volume",
+    "trades",
+    "taker_buy_volume",
+    "taker_buy_quote_volume",
+    "is_closed"
+  ],
+  "additionalProperties": false
+}

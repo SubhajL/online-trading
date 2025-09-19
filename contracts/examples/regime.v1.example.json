@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "venue": "binance",
+  "symbol": "BTCUSDT",
+  "timeframe": "1h",
+  "analysis_time": "2024-01-15T11:00:00.000Z",
+  "regime_type": "trending_up",
+  "strength": 0.85,
+  "volatility": 0.023,
+  "trend_direction": 0.75,
+  "lookback_periods": 100
+}

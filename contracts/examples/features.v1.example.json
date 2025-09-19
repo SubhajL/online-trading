@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "venue": "binance",
+  "symbol": "BTCUSDT",
+  "timeframe": "1h",
+  "open_time": "2024-01-15T10:00:00.000Z",
+  "close_time": "2024-01-15T11:00:00.000Z",
+  "ema_short": 45100.0,
+  "ema_long": 45000.0,
+  "rsi": 55.5,
+  "macd": 50.0,
+  "macd_signal": 45.0,
+  "macd_histogram": 5.0,
+  "atr": 200.0,
+  "bb_upper": 45400.0,
+  "bb_middle": 45000.0,
+  "bb_lower": 44600.0,
+  "volume_ma": 90.0
+}
