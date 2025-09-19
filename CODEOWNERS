@@ -1,0 +1,67 @@
+# CODEOWNERS file for automated pull request reviews
+# Each line specifies a file pattern followed by one or more owners.
+
+# Global owners (review everything)
+* @your-org/trading-team
+
+# Contracts & Schema (Prompt #2)
+/contracts/ @your-org/qe @your-org/be
+/contracts/gen/ @your-org/qe @your-org/be
+/scripts/codegen_contracts.py @your-org/qe
+/tests/contracts/ @your-org/qe
+
+# Database & Migrations (Prompt #3)
+/db/migrations/ @your-org/de
+/app/engine/adapters/db/ @your-org/de
+/tests/db/ @your-org/de
+
+# WebSocket Ingestor (Prompt #4)
+/app/engine/ingest/ @your-org/de
+/tests/ingest/ @your-org/de
+
+# Features & Indicators (Prompt #5)
+/app/engine/shared/math/ @your-org/qe
+/app/engine/features/ @your-org/qe
+/tests/golden/ @your-org/qe
+
+# SMC Engine (Prompt #6)
+/app/engine/smc/ @your-org/qe
+/tests/smc/ @your-org/qe
+
+# Retest & Guards (Prompt #7)
+/app/engine/retest/ @your-org/qe
+/app/engine/regime_vol/ @your-org/qe
+/app/engine/news_funding_guards/ @your-org/qe @your-org/be
+/tests/retest/ @your-org/qe
+/tests/guards/ @your-org/qe
+
+# Decision Engine (Prompt #8)
+/app/engine/decision/ @your-org/qe @your-org/be
+/app/engine/adapters/router_client/ @your-org/be
+/tests/decision/ @your-org/qe
+
+# Order Router (Prompt #9)
+/app/router/ @your-org/re @your-org/do
+
+# UI & BFF (Prompt #10)
+/app/ui/ @your-org/fe
+/app/bff/ @your-org/be @your-org/fe
+/app/engine/alert/ @your-org/be
+
+# Backtester & Paper Trading (Bonus)
+/app/engine/backtest/ @your-org/qe
+/app/engine/paper/ @your-org/qe
+/tests/backtest/ @your-org/qe
+
+# Infrastructure & DevOps
+/.github/ @your-org/do
+/docker/ @your-org/do
+/k8s/ @your-org/do
+docker-compose*.yml @your-org/do
+Dockerfile @your-org/do
+Makefile @your-org/do
+
+# Python engine configuration
+/app/engine/config.yaml @your-org/qe @your-org/de
+/app/engine/types.py @your-org/qe
+/app/engine/bus.py @your-org/de
