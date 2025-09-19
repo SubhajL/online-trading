@@ -38,27 +38,27 @@
       "description": "Candle close time in ISO8601 format"
     },
     "open": {
-      "type": "number",
+      "type": "string",
       "description": "Opening price"
     },
     "high": {
-      "type": "number",
+      "type": "string",
       "description": "Highest price"
     },
     "low": {
-      "type": "number",
+      "type": "string",
       "description": "Lowest price"
     },
     "close": {
-      "type": "number",
+      "type": "string",
       "description": "Closing price"
     },
     "volume": {
-      "type": "number",
+      "type": "string",
       "description": "Base asset volume"
     },
     "quote_volume": {
-      "type": "number",
+      "type": "string",
       "description": "Quote asset volume"
     },
     "trades": {
@@ -66,11 +66,11 @@
       "description": "Number of trades"
     },
     "taker_buy_volume": {
-      "type": "number",
+      "type": "string",
       "description": "Taker buy base asset volume"
     },
     "taker_buy_quote_volume": {
-      "type": "number",
+      "type": "string",
       "description": "Taker buy quote asset volume"
     },
     "is_closed": {

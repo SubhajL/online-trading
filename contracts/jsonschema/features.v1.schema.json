@@ -64,8 +64,7 @@
       "description": "MACD histogram value"
     },
     "atr": {
-      "type": ["number", "null"],
-      "minimum": 0,
+      "type": ["string", "null"],
       "description": "Average True Range"
     },
     "bb_upper": {

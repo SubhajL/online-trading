@@ -40,11 +40,11 @@
       "description": "Zone direction - demand (bullish) or supply (bearish)"
     },
     "upper_bound": {
-      "type": "number",
+      "type": "string",
       "description": "Upper price boundary of the zone"
     },
     "lower_bound": {
-      "type": "number",
+      "type": "string",
       "description": "Lower price boundary of the zone"
     },
     "created_time": {

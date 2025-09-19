@@ -42,11 +42,11 @@
       "description": "Direction of the structure break"
     },
     "price_level": {
-      "type": "number",
+      "type": "string",
       "description": "Price at which the event occurred"
     },
     "previous_pivot_price": {
-      "type": "number",
+      "type": "string",
       "description": "Price of the previous pivot point"
     },
     "previous_pivot_time": {
@@ -56,7 +56,7 @@
       "description": "Time of the previous pivot point"
     },
     "broken_pivot_price": {
-      "type": "number",
+      "type": "string",
       "description": "Price of the broken pivot point"
     },
     "broken_pivot_time": {

@@ -54,23 +54,23 @@
       "description": "Order type"
     },
     "price": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Order price (null for market orders)"
     },
     "stop_price": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Stop price (for stop orders)"
     },
     "quantity": {
-      "type": "number",
+      "type": "string",
       "description": "Order quantity"
     },
     "filled_quantity": {
-      "type": "number",
+      "type": "string",
       "description": "Filled quantity"
     },
     "average_fill_price": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Average fill price"
     },
     "commission": {

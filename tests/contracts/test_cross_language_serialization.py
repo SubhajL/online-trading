@@ -40,15 +40,15 @@ class TestCrossLanguageSerialization:
             "timeframe": "1h",
             "open_time": "2024-01-15T10:00:00.000Z",
             "close_time": "2024-01-15T11:00:00.000Z",
-            "open": 45000.0,
-            "high": 45500.0,
-            "low": 44800.0,
-            "close": 45200.0,
-            "volume": 100.5,
-            "quote_volume": 4525000.0,
+            "open": "45000.0",
+            "high": "45500.0",
+            "low": "44800.0",
+            "close": "45200.0",
+            "volume": "100.5",
+            "quote_volume": "4525000.0",
             "trades": 1500,
-            "taker_buy_volume": 60.3,
-            "taker_buy_quote_volume": 2715000.0,
+            "taker_buy_volume": "60.3",
+            "taker_buy_quote_volume": "2715000.0",
             "is_closed": True,
         }
 
@@ -67,7 +67,7 @@ class TestCrossLanguageSerialization:
             "macd": 50.0,
             "macd_signal": 45.0,
             "macd_histogram": 5.0,
-            "atr": 200.0,
+            "atr": "200.0",
             "bb_upper": 45400.0,
             "bb_middle": 45000.0,
             "bb_lower": 44600.0,
@@ -84,13 +84,13 @@ class TestCrossLanguageSerialization:
             "decision_time": "2024-01-15T11:00:00.000Z",
             "action": "open_long",
             "signal_ids": ["sig-001", "sig-002"],
-            "entry_price": 45000.0,
-            "stop_loss": 44500.0,
-            "take_profit": 45500.0,
-            "position_size": 0.1,
-            "risk_amount": 50.0,
+            "entry_price": "45000.0",
+            "stop_loss": "44500.0",
+            "take_profit": "45500.0",
+            "position_size": "0.1",
+            "risk_amount": "50.0",
             "risk_percentage": 0.01,
-            "leverage": 1.0,
+            "leverage": "1.0",
             "confidence": 0.8,
             "reason": "Strong bullish structure, retest of demand zone, RSI divergence",
         }
@@ -101,7 +101,7 @@ class TestCrossLanguageSerialization:
         candle_data = self.create_sample_candle()
         candle = CandlesV1(**candle_data)
         assert candle.symbol == "BTCUSDT"
-        assert candle.open == 45000.0
+        assert candle.open == "45000.0"
 
         # Test features validation
         features_data = self.create_sample_features()
@@ -185,15 +185,15 @@ const candle: CandlesV1 = {
     timeframe: "1h",
     openTime: "2024-01-15T10:00:00.000Z",
     closeTime: "2024-01-15T11:00:00.000Z",
-    open: 45000.0,
-    high: 45500.0,
-    low: 44800.0,
-    close: 45200.0,
-    volume: 100.5,
-    quoteVolume: 4525000.0,
+    open: "45000.0",
+    high: "45500.0",
+    low: "44800.0",
+    close: "45200.0",
+    volume: "100.5",
+    quoteVolume: "4525000.0",
     trades: 1500,
-    takerBuyVolume: 60.3,
-    takerBuyQuoteVolume: 2715000.0,
+    takerBuyVolume: "60.3",
+    takerBuyQuoteVolume: "2715000.0",
     isClosed: true,
 };
 

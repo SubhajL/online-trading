@@ -46,23 +46,23 @@
       "examples": ["smc_retest", "trend_continuation", "reversal"]
     },
     "entry_price": {
-      "type": "number",
+      "type": "string",
       "description": "Suggested entry price"
     },
     "stop_loss": {
-      "type": "number",
+      "type": "string",
       "description": "Suggested stop loss price"
     },
     "take_profit_1": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "First take profit target"
     },
     "take_profit_2": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Second take profit target"
     },
     "take_profit_3": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Third take profit target"
     },
     "confidence": {

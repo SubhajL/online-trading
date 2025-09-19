@@ -43,23 +43,23 @@
       "description": "IDs of signals that contributed to this decision"
     },
     "entry_price": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Entry price for new positions"
     },
     "stop_loss": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Stop loss price"
     },
     "take_profit": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Take profit price"
     },
     "position_size": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Position size in base currency"
     },
     "risk_amount": {
-      "type": ["number", "null"],
+      "type": ["string", "null"],
       "description": "Risk amount in quote currency"
     },
     "risk_percentage": {
@@ -69,8 +69,7 @@
       "description": "Risk as percentage of capital (0-1)"
     },
     "leverage": {
-      "type": ["number", "null"],
-      "minimum": 1,
+      "type": ["string", "null"],
       "description": "Leverage to use (1 for spot)"
     },
     "confidence": {

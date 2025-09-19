@@ -18,23 +18,23 @@ export interface CandlesV1 {
   /** Candle close time in ISO8601 format */
   closeTime: string;
   /** Opening price */
-  open: number;
+  open: string;
   /** Highest price */
-  high: number;
+  high: string;
   /** Lowest price */
-  low: number;
+  low: string;
   /** Closing price */
-  close: number;
+  close: string;
   /** Base asset volume */
-  volume: number;
+  volume: string;
   /** Quote asset volume */
-  quoteVolume: number;
+  quoteVolume: string;
   /** Number of trades */
   trades: number;
   /** Taker buy base asset volume */
-  takerBuyVolume: number;
+  takerBuyVolume: string;
   /** Taker buy quote asset volume */
-  takerBuyQuoteVolume: number;
+  takerBuyQuoteVolume: string;
   /** Whether the candle is closed */
   isClosed: boolean;
 }
@@ -58,19 +58,19 @@ export interface DecisionV1 {
   /** IDs of signals that contributed to this decision */
   signalIds: string[];
   /** Entry price for new positions */
-  entryPrice: number | null;
+  entryPrice: string | null;
   /** Stop loss price */
-  stopLoss: number | null;
+  stopLoss: string | null;
   /** Take profit price */
-  takeProfit: number | null;
+  takeProfit: string | null;
   /** Position size in base currency */
-  positionSize: number | null;
+  positionSize: string | null;
   /** Risk amount in quote currency */
-  riskAmount: number | null;
+  riskAmount: string | null;
   /** Risk as percentage of capital (0-1) */
   riskPercentage: number | null;
   /** Leverage to use (1 for spot) */
-  leverage: number | null;
+  leverage: string | null;
   /** Decision confidence score (0-1) */
   confidence: number;
   /** Human-readable reason for the decision */
@@ -106,7 +106,7 @@ export interface FeaturesV1 {
   /** MACD histogram value */
   macdHistogram: number | null;
   /** Average True Range */
-  atr: number | null;
+  atr: string | null;
   /** Bollinger Band upper band */
   bbUpper: number | null;
   /** Bollinger Band middle band (SMA) */
@@ -192,15 +192,15 @@ export interface OrderUpdateV1 {
   /** Order type */
   orderType: "market" | "limit" | "stop_market" | "stop_limit";
   /** Order price (null for market orders) */
-  price: number | null;
+  price: string | null;
   /** Stop price (for stop orders) */
-  stopPrice: number | null;
+  stopPrice: string | null;
   /** Order quantity */
-  quantity: number;
+  quantity: string;
   /** Filled quantity */
-  filledQuantity: number;
+  filledQuantity: string;
   /** Average fill price */
-  averageFillPrice: number | null;
+  averageFillPrice: string | null;
   /** Commission paid */
   commission: number | null;
   /** Commission asset */
@@ -258,15 +258,15 @@ export interface SignalsRawV1 {
   /** Source strategy that generated the signal */
   source: string;
   /** Suggested entry price */
-  entryPrice: number;
+  entryPrice: string;
   /** Suggested stop loss price */
-  stopLoss: number;
+  stopLoss: string;
   /** First take profit target */
-  takeProfit1: number | null;
+  takeProfit1: string | null;
   /** Second take profit target */
-  takeProfit2: number | null;
+  takeProfit2: string | null;
   /** Third take profit target */
-  takeProfit3: number | null;
+  takeProfit3: string | null;
   /** Signal confidence score (0-1) */
   confidence: number;
   /** Additional signal metadata */
@@ -292,13 +292,13 @@ export interface SmcEventsV1 {
   /** Direction of the structure break */
   direction: "bullish" | "bearish";
   /** Price at which the event occurred */
-  priceLevel: number;
+  priceLevel: string;
   /** Price of the previous pivot point */
-  previousPivotPrice: number;
+  previousPivotPrice: string;
   /** Time of the previous pivot point */
   previousPivotTime: string;
   /** Price of the broken pivot point */
-  brokenPivotPrice: number;
+  brokenPivotPrice: string;
   /** Time of the broken pivot point */
   brokenPivotTime: string;
 }
@@ -322,9 +322,9 @@ export interface ZonesV1 {
   /** Zone direction - demand (bullish) or supply (bearish) */
   direction: "demand" | "supply";
   /** Upper price boundary of the zone */
-  upperBound: number;
+  upperBound: string;
   /** Lower price boundary of the zone */
-  lowerBound: number;
+  lowerBound: string;
   /** Time when the zone was created */
   createdTime: string;
   /** Number of candles forming the zone */

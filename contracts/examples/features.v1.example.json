@@ -11,7 +11,7 @@
   "macd": 50.0,
   "macd_signal": 45.0,
   "macd_histogram": 5.0,
-  "atr": 200.0,
+  "atr": "200.0",
   "bb_upper": 45400.0,
   "bb_middle": 45000.0,
   "bb_lower": 44600.0,

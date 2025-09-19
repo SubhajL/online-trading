@@ -22,23 +22,23 @@ type CandlesV1 struct {
 	// Candle close time in ISO8601 format
 	CloseTime string `json:"close_time"`
 	// Opening price
-	Open float64 `json:"open"`
+	Open string `json:"open"`
 	// Highest price
-	High float64 `json:"high"`
+	High string `json:"high"`
 	// Lowest price
-	Low float64 `json:"low"`
+	Low string `json:"low"`
 	// Closing price
-	Close float64 `json:"close"`
+	Close string `json:"close"`
 	// Base asset volume
-	Volume float64 `json:"volume"`
+	Volume string `json:"volume"`
 	// Quote asset volume
-	QuoteVolume float64 `json:"quote_volume"`
+	QuoteVolume string `json:"quote_volume"`
 	// Number of trades
 	Trades int64 `json:"trades"`
 	// Taker buy base asset volume
-	TakerBuyVolume float64 `json:"taker_buy_volume"`
+	TakerBuyVolume string `json:"taker_buy_volume"`
 	// Taker buy quote asset volume
-	TakerBuyQuoteVolume float64 `json:"taker_buy_quote_volume"`
+	TakerBuyQuoteVolume string `json:"taker_buy_quote_volume"`
 	// Whether the candle is closed
 	IsClosed bool `json:"is_closed"`
 }
@@ -60,19 +60,19 @@ type DecisionV1 struct {
 	// IDs of signals that contributed to this decision
 	SignalIds []string `json:"signal_ids"`
 	// Entry price for new positions
-	EntryPrice *float64 `json:"entry_price"`
+	EntryPrice *string `json:"entry_price"`
 	// Stop loss price
-	StopLoss *float64 `json:"stop_loss"`
+	StopLoss *string `json:"stop_loss"`
 	// Take profit price
-	TakeProfit *float64 `json:"take_profit"`
+	TakeProfit *string `json:"take_profit"`
 	// Position size in base currency
-	PositionSize *float64 `json:"position_size"`
+	PositionSize *string `json:"position_size"`
 	// Risk amount in quote currency
-	RiskAmount *float64 `json:"risk_amount"`
+	RiskAmount *string `json:"risk_amount"`
 	// Risk as percentage of capital (0-1)
 	RiskPercentage *float64 `json:"risk_percentage"`
 	// Leverage to use (1 for spot)
-	Leverage *float64 `json:"leverage"`
+	Leverage *string `json:"leverage"`
 	// Decision confidence score (0-1)
 	Confidence float64 `json:"confidence"`
 	// Human-readable reason for the decision
@@ -106,7 +106,7 @@ type FeaturesV1 struct {
 	// MACD histogram value
 	MacdHistogram *float64 `json:"macd_histogram"`
 	// Average True Range
-	Atr *float64 `json:"atr"`
+	Atr *string `json:"atr"`
 	// Bollinger Band upper band
 	BbUpper *float64 `json:"bb_upper"`
 	// Bollinger Band middle band (SMA)
@@ -186,15 +186,15 @@ type OrderUpdateV1 struct {
 	// Order type
 	OrderType string `json:"order_type"`
 	// Order price (null for market orders)
-	Price *float64 `json:"price"`
+	Price *string `json:"price"`
 	// Stop price (for stop orders)
-	StopPrice *float64 `json:"stop_price"`
+	StopPrice *string `json:"stop_price"`
 	// Order quantity
-	Quantity float64 `json:"quantity"`
+	Quantity string `json:"quantity"`
 	// Filled quantity
-	FilledQuantity float64 `json:"filled_quantity"`
+	FilledQuantity string `json:"filled_quantity"`
 	// Average fill price
-	AverageFillPrice *float64 `json:"average_fill_price"`
+	AverageFillPrice *string `json:"average_fill_price"`
 	// Commission paid
 	Commission *float64 `json:"commission"`
 	// Commission asset
@@ -248,15 +248,15 @@ type SignalsRawV1 struct {
 	// Source strategy that generated the signal
 	Source string `json:"source"`
 	// Suggested entry price
-	EntryPrice float64 `json:"entry_price"`
+	EntryPrice string `json:"entry_price"`
 	// Suggested stop loss price
-	StopLoss float64 `json:"stop_loss"`
+	StopLoss string `json:"stop_loss"`
 	// First take profit target
-	TakeProfit1 *float64 `json:"take_profit_1"`
+	TakeProfit1 *string `json:"take_profit_1"`
 	// Second take profit target
-	TakeProfit2 *float64 `json:"take_profit_2"`
+	TakeProfit2 *string `json:"take_profit_2"`
 	// Third take profit target
-	TakeProfit3 *float64 `json:"take_profit_3"`
+	TakeProfit3 *string `json:"take_profit_3"`
 	// Signal confidence score (0-1)
 	Confidence float64 `json:"confidence"`
 	// Additional signal metadata
@@ -280,13 +280,13 @@ type SmcEventsV1 struct {
 	// Direction of the structure break
 	Direction string `json:"direction"`
 	// Price at which the event occurred
-	PriceLevel float64 `json:"price_level"`
+	PriceLevel string `json:"price_level"`
 	// Price of the previous pivot point
-	PreviousPivotPrice float64 `json:"previous_pivot_price"`
+	PreviousPivotPrice string `json:"previous_pivot_price"`
 	// Time of the previous pivot point
 	PreviousPivotTime string `json:"previous_pivot_time"`
 	// Price of the broken pivot point
-	BrokenPivotPrice float64 `json:"broken_pivot_price"`
+	BrokenPivotPrice string `json:"broken_pivot_price"`
 	// Time of the broken pivot point
 	BrokenPivotTime string `json:"broken_pivot_time"`
 }
@@ -308,9 +308,9 @@ type ZonesV1 struct {
 	// Zone direction - demand (bullish) or supply (bearish)
 	Direction string `json:"direction"`
 	// Upper price boundary of the zone
-	UpperBound float64 `json:"upper_bound"`
+	UpperBound string `json:"upper_bound"`
 	// Lower price boundary of the zone
-	LowerBound float64 `json:"lower_bound"`
+	LowerBound string `json:"lower_bound"`
 	// Time when the zone was created
 	CreatedTime string `json:"created_time"`
 	// Number of candles forming the zone
