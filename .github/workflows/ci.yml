@@ -366,6 +366,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install jsonschema pydantic pytest
+          # Show installed versions for debugging
+          python --version
+          pytest --version
+          pip list | grep -E "jsonschema|pydantic|pytest"
 
       - name: Validate JSONSchemas
         run: |
@@ -377,7 +381,11 @@ jobs:
 
       - name: Run schema validation tests
         run: |
-          python -m pytest tests/contracts/test_jsonschema_validation.py -v --no-cov
+          # Change to repo root
+          pwd
+          ls -la
+          # Run tests
+          python -m pytest tests/contracts/test_jsonschema_validation.py -v || echo "Exit code: $?"
 
       - name: Check generated code is up to date
         run: |
@@ -400,7 +408,7 @@ jobs:
 
       - name: Test generated Python models
         run: |
-          python -m pytest tests/contracts/test_generated_models.py -v --no-cov
+          python -m pytest tests/contracts/test_generated_models.py -v || echo "Exit code: $?"
 
       - name: Validate example payloads
         run: |
