@@ -7,7 +7,6 @@ import { Server, Socket } from 'socket.io';
 describe('TradingGateway', () => {
   let gateway: TradingGateway;
   let tradingService: TradingService;
-  let eventEmitter: EventEmitter2;
   let mockServer: Server;
   let mockClient: Socket;
 
@@ -44,7 +43,6 @@ describe('TradingGateway', () => {
 
     gateway = module.get<TradingGateway>(TradingGateway);
     tradingService = module.get<TradingService>(TradingService);
-    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
 
     // Mock Socket.io server
     mockServer = {

@@ -6,7 +6,6 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 
 describe('TradingService', () => {
   let service: TradingService;
-  let engineClient: EngineClientService;
   let routerClient: RouterClientService;
   let eventEmitter: EventEmitter2;
 
@@ -48,7 +47,6 @@ describe('TradingService', () => {
     }).compile();
 
     service = module.get<TradingService>(TradingService);
-    engineClient = module.get<EngineClientService>(EngineClientService);
     routerClient = module.get<RouterClientService>(RouterClientService);
     eventEmitter = module.get<EventEmitter2>(EventEmitter2);
   });

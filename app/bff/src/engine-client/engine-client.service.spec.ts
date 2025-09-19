@@ -1,8 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { Logger } from '@nestjs/common';
 import { EngineClientService } from './engine-client.service';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 
 // Mock Redis module
 jest.mock('redis', () => {
@@ -129,7 +127,7 @@ describe('EngineClientService', () => {
 
     it('should handle connection errors', async () => {
       // Create a new service instance with failing redis connection
-      const redis = require('redis');
+      const redis = jest.requireMock('redis');
       redis.createClient.mockImplementationOnce(() => ({
         connect: jest.fn().mockRejectedValue(new Error('Connection failed')),
         quit: jest.fn(),

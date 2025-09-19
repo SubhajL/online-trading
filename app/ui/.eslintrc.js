@@ -12,5 +12,14 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'error',
     'no-console': ['warn', { allow: ['warn', 'error'] }],
     'prettier/prettier': 'error'
-  }
+  },
+  overrides: [
+    {
+      files: ['**/*.spec.ts', '**/*.spec.tsx', '**/*.test.ts', '**/*.test.tsx'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
+      }
+    }
+  ]
 }

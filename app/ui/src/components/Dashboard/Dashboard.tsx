@@ -122,7 +122,10 @@ export function Dashboard({
             trend={dailyPnL > 0 ? 'up' : dailyPnL < 0 ? 'down' : 'neutral'}
             loading={loading}
           />
-          <span data-testid="daily-pnl-value" style={{ display: 'none' }}>{`$${dailyPnL.toFixed(2)}`}</span>
+          <span
+            data-testid="daily-pnl-value"
+            style={{ display: 'none' }}
+          >{`$${dailyPnL.toFixed(2)}`}</span>
         </div>
 
         <div>
@@ -133,7 +136,9 @@ export function Dashboard({
             icon="📊"
             loading={loading}
           />
-          <span data-testid="positions-count" style={{ display: 'none' }}>{positions.length}</span>
+          <span data-testid="positions-count" style={{ display: 'none' }}>
+            {positions.length}
+          </span>
         </div>
 
         <div>
@@ -145,7 +150,10 @@ export function Dashboard({
             icon="💵"
             loading={loading}
           />
-          <span data-testid="total-balance" style={{ display: 'none' }}>{`$${totalBalance.toLocaleString('en-US', {
+          <span
+            data-testid="total-balance"
+            style={{ display: 'none' }}
+          >{`$${totalBalance.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}`}</span>
@@ -167,24 +175,20 @@ export function Dashboard({
             icon="📈"
             loading={loading}
           />
-          <span data-testid="trades-count" style={{ display: 'none' }}>{todayTrades.length}</span>
+          <span data-testid="trades-count" style={{ display: 'none' }}>
+            {todayTrades.length}
+          </span>
         </div>
       </div>
 
       <div className="dashboard-content">
         <div className="main-section">
           <div className="chart-container">
-            <CandlestickChart
-              data={[]}
-              loading={loading}
-            />
+            <CandlestickChart data={[]} loading={loading} />
           </div>
 
           <div className="volume-chart-container">
-            <VolumeChart
-              data={[]}
-              loading={loading}
-            />
+            <VolumeChart data={[]} loading={loading} />
           </div>
         </div>
 
@@ -196,27 +200,18 @@ export function Dashboard({
           )}
 
           <div className="positions-container">
-            <PositionsList
-              positions={positions}
-              loading={loading}
-            />
+            <PositionsList positions={positions} loading={loading} />
           </div>
         </div>
       </div>
 
       <div className="bottom-section">
         <div className="balance-container">
-          <AccountBalance
-            balances={balances}
-            loading={loading}
-          />
+          <AccountBalance balances={balances} loading={loading} />
         </div>
 
         <div className="history-container">
-          <OrderHistory
-            orders={orders}
-            loading={loading}
-          />
+          <OrderHistory orders={orders} loading={loading} />
         </div>
       </div>
     </div>

@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { WebSocketService } from './websocket.service'
-import type { Socket } from 'socket.io-client'
 
 // Mock socket.io-client
 vi.mock('socket.io-client', () => ({

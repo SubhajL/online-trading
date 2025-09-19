@@ -107,7 +107,6 @@ describe('Engine Client Pub/Sub Integration', () => {
 
   describe('Performance', () => {
     it('should handle high volume of events', async () => {
-      const eventCount = 100; // Reduced for real testing
       const receivedEvents: any[] = [];
 
       eventEmitter.on('candle.v1', (data) => {
