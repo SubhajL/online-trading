@@ -33,7 +33,7 @@ export type UseChartReturn = {
 export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartReturn {
   const [chart, setChart] = useState<IChartApi | null>(null)
   const [candlestickSeries, setCandlestickSeries] = useState<ISeriesApi<'Candlestick'> | null>(null)
-  const indicatorSeriesRef = useRef<Map<string, ISeriesApi<any>>>(new Map())
+  const indicatorSeriesRef = useRef<Map<string, ISeriesApi<'Line'>>>(new Map())
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -102,7 +102,9 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
-      indicatorSeriesRef.current.clear()
+      // Capture the current ref value to avoid stale closure issues
+      const currentIndicators = indicatorSeriesRef.current
+      currentIndicators.clear()
       chartInstance.remove()
       setChart(null)
       setCandlestickSeries(null)
@@ -137,13 +139,13 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
       // Use line series for moving averages
       series = chart.addLineSeries({
         color: options.color || '#2962ff',
-        lineWidth: (options.lineWidth || 2) as any,
+        lineWidth: options.lineWidth || 2,
         priceScaleId: options.priceScaleId || 'right',
         crosshairMarkerVisible: false,
       })
     }
 
-    series.setData(data as any)
+    series.setData(data as LineData[])
     indicatorSeriesRef.current.set(`${type}-${Date.now()}`, series)
 
     return series

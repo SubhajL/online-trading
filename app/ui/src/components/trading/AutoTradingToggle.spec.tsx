@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AutoTradingToggle } from './AutoTradingToggle'
@@ -98,7 +98,7 @@ describe('AutoTradingToggle', () => {
 
   it('handles rapid clicks gracefully', async () => {
     const user = userEvent.setup()
-    const { rerender } = render(<AutoTradingToggle enabled={false} onChange={mockOnChange} />)
+    render(<AutoTradingToggle enabled={false} onChange={mockOnChange} />)
 
     const toggle = screen.getByRole('switch')
 

@@ -5,7 +5,7 @@ import type { Symbol } from '@/types'
 export type Subscription = {
   channel: string
   symbol?: string | Symbol
-  onData?: (data: any) => void
+  onData?: (data: unknown) => void
 }
 
 export function useRealtimeData(subscriptions: Subscription[]) {
@@ -13,7 +13,7 @@ export function useRealtimeData(subscriptions: Subscription[]) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const wsRef = useRef<WebSocketService | null>(null)
-  const handlersRef = useRef<Map<string, (data: any) => void>>(new Map())
+  const handlersRef = useRef<Map<string, (data: unknown) => void>>(new Map())
   const activeSubscriptionsRef = useRef<Set<string>>(new Set())
 
   // Initialize WebSocket connection
@@ -48,7 +48,7 @@ export function useRealtimeData(subscriptions: Subscription[]) {
 
     const ws = wsRef.current
     const currentSubscriptions = new Set<string>()
-    const newHandlers = new Map<string, (data: any) => void>()
+    const newHandlers = new Map<string, (data: unknown) => void>()
 
     // Process current subscriptions
     subscriptions.forEach(sub => {
@@ -56,7 +56,7 @@ export function useRealtimeData(subscriptions: Subscription[]) {
       currentSubscriptions.add(key)
 
       // Create handler for this subscription
-      const handler = (data: any) => {
+      const handler = (data: unknown) => {
         // Filter by symbol if specified
         if (sub.symbol && data.symbol && data.symbol !== sub.symbol) {
           return

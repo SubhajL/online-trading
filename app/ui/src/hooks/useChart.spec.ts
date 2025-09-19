@@ -92,7 +92,7 @@ describe('useChart', () => {
   })
 
   it('resizes chart when container dimensions change', () => {
-    const { rerender } = renderHook(() => useChart(containerRef))
+    renderHook(() => useChart(containerRef))
 
     // Change container dimensions
     Object.defineProperty(containerRef.current, 'clientWidth', {

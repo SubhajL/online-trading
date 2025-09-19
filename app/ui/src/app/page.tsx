@@ -81,17 +81,17 @@ export default function Home() {
   }, [])
 
   const handleSubmitOrder = (order: OrderFormValues) => {
-    console.info('Submitting order:', order)
+    console.warn('TODO: Implement order submission:', order)
     // TODO: Implement order submission
   }
 
   const handleToggleAutoTrading = (enabled: boolean) => {
     setAutoTradingEnabled(enabled)
-    console.info('Auto trading:', enabled ? 'enabled' : 'disabled')
+    console.warn('Auto trading:', enabled ? 'enabled' : 'disabled')
   }
 
   const handleLogout = () => {
-    console.info('Logging out...')
+    console.warn('TODO: Implement logout')
     // TODO: Implement logout
   }
 
