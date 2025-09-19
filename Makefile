@@ -486,6 +486,20 @@ restore: ## Restore database from backup
 	@./scripts/restore.sh
 
 # ==================================================================================
+# Database Migrations
+# ==================================================================================
+
+.PHONY: migrate
+migrate: ## Run database migrations
+	@echo "$(BLUE)🗄️  Running database migrations...$(RESET)"
+	@docker-compose exec -T postgres bash -c '\
+		for migration in /docker-entrypoint-initdb.d/../../../db/migrations/*.sql; do \
+			echo "Applying migration: $$(basename $$migration)"; \
+			psql -U $$POSTGRES_USER -d $$POSTGRES_DB -f $$migration; \
+		done'
+	@echo "$(GREEN)✅ Migrations completed$(RESET)"
+
+# ==================================================================================
 # Special targets
 # ==================================================================================
 
