@@ -30,6 +30,15 @@ type ServerConfig struct {
 
 // BinanceConfig holds Binance API configuration
 type BinanceConfig struct {
+	// Spot API credentials
+	SpotAPIKey    string `json:"spot_api_key"`
+	SpotSecretKey string `json:"spot_secret_key"`
+
+	// Futures API credentials
+	FuturesAPIKey    string `json:"futures_api_key"`
+	FuturesSecretKey string `json:"futures_secret_key"`
+
+	// Legacy fields for backward compatibility
 	APIKey          string        `json:"api_key"`
 	SecretKey       string        `json:"secret_key"`
 	BaseURL         string        `json:"base_url"`
@@ -42,6 +51,9 @@ type BinanceConfig struct {
 	RetryDelay      time.Duration `json:"retry_delay"`
 	RateLimitDelay  time.Duration `json:"rate_limit_delay"`
 	RecvWindow      int64         `json:"recv_window"`
+
+	// Exchange info cache
+	ExchangeInfoCacheTTL time.Duration `json:"exchange_info_cache_ttl"`
 }
 
 // RedisConfig holds Redis configuration
@@ -92,6 +104,15 @@ func Load() (*Config, error) {
 			ShutdownTimeout: getEnvAsDuration("SERVER_SHUTDOWN_TIMEOUT", "10s"),
 		},
 		Binance: BinanceConfig{
+			// Spot API credentials (fallback to legacy keys)
+			SpotAPIKey:    getEnv("BINANCE_SPOT_API_KEY", getEnv("BINANCE_API_KEY", "")),
+			SpotSecretKey: getEnv("BINANCE_SPOT_SECRET_KEY", getEnv("BINANCE_SECRET_KEY", "")),
+
+			// Futures API credentials
+			FuturesAPIKey:    getEnv("BINANCE_FUTURES_API_KEY", ""),
+			FuturesSecretKey: getEnv("BINANCE_FUTURES_SECRET_KEY", ""),
+
+			// Legacy fields
 			APIKey:          getEnv("BINANCE_API_KEY", ""),
 			SecretKey:       getEnv("BINANCE_SECRET_KEY", ""),
 			BaseURL:         getEnv("BINANCE_BASE_URL", "https://api.binance.com"),
@@ -104,6 +125,9 @@ func Load() (*Config, error) {
 			RetryDelay:      getEnvAsDuration("BINANCE_RETRY_DELAY", "1s"),
 			RateLimitDelay:  getEnvAsDuration("BINANCE_RATE_LIMIT_DELAY", "100ms"),
 			RecvWindow:      getEnvAsInt64("BINANCE_RECV_WINDOW", 5000),
+
+			// Cache settings
+			ExchangeInfoCacheTTL: getEnvAsDuration("EXCHANGE_INFO_CACHE_TTL", "5m"),
 		},
 		Redis: RedisConfig{
 			Host:     getEnv("REDIS_HOST", "localhost"),
@@ -145,12 +169,22 @@ func Load() (*Config, error) {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	if c.Binance.APIKey == "" {
-		return fmt.Errorf("BINANCE_API_KEY is required")
+	// Check Spot API credentials
+	if c.Binance.SpotAPIKey == "" {
+		return fmt.Errorf("BINANCE_SPOT_API_KEY is required")
 	}
-	if c.Binance.SecretKey == "" {
-		return fmt.Errorf("BINANCE_SECRET_KEY is required")
+	if c.Binance.SpotSecretKey == "" {
+		return fmt.Errorf("BINANCE_SPOT_SECRET_KEY is required")
 	}
+
+	// Check Futures API credentials
+	if c.Binance.FuturesAPIKey == "" {
+		return fmt.Errorf("BINANCE_FUTURES_API_KEY is required")
+	}
+	if c.Binance.FuturesSecretKey == "" {
+		return fmt.Errorf("BINANCE_FUTURES_SECRET_KEY is required")
+	}
+
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d", c.Server.Port)
 	}

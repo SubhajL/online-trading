@@ -14,6 +14,7 @@ type SpotOrderRequest struct {
 	TimeInForce      string          `json:"timeInForce,omitempty"`
 	Quantity         decimal.Decimal `json:"quantity"`
 	Price            decimal.Decimal `json:"price,omitempty"`
+	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`
 	QuoteOrderQty    decimal.Decimal `json:"quoteOrderQty,omitempty"`
 	NewClientOrderID string          `json:"newClientOrderId,omitempty"`
 }
@@ -26,6 +27,7 @@ type FuturesOrderRequest struct {
 	TimeInForce      string          `json:"timeInForce,omitempty"`
 	Quantity         decimal.Decimal `json:"quantity"`
 	Price            decimal.Decimal `json:"price,omitempty"`
+	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`
 	ReduceOnly       bool            `json:"reduceOnly,omitempty"`
 	ClosePosition    bool            `json:"closePosition,omitempty"`
 	NewClientOrderID string          `json:"newClientOrderId,omitempty"`

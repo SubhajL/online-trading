@@ -8,9 +8,10 @@ import (
 type OrderRequest struct {
 	Symbol           string          `json:"symbol"`
 	Side             string          `json:"side"`             // BUY or SELL
-	Type             string          `json:"type"`             // MARKET, LIMIT, etc.
+	Type             string          `json:"type"`             // MARKET, LIMIT, STOP_LOSS_LIMIT, etc.
 	Quantity         decimal.Decimal `json:"quantity"`
 	Price            decimal.Decimal `json:"price,omitempty"`
+	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`    // For stop orders
 	TimeInForce      string          `json:"timeInForce,omitempty"` // GTC, IOC, FOK
 	NewClientOrderID string          `json:"newClientOrderId,omitempty"`
 	RecvWindow       int64           `json:"recvWindow,omitempty"`
@@ -121,3 +122,100 @@ type Order struct {
 	IsWorking           bool            `json:"isWorking"`
 	OrigQuoteOrderQty   decimal.Decimal `json:"origQuoteOrderQty"`
 }
+
+// FuturesOrderRequest represents a futures order request
+type FuturesOrderRequest struct {
+	Symbol              string          `json:"symbol"`
+	Side                string          `json:"side"`
+	Type                string          `json:"type"`
+	Quantity            decimal.Decimal `json:"quantity"`
+	Price               decimal.Decimal `json:"price,omitempty"`
+	StopPrice           decimal.Decimal `json:"stopPrice,omitempty"`
+	TimeInForce         string          `json:"timeInForce,omitempty"`
+	ReduceOnly          bool            `json:"reduceOnly,omitempty"`
+	ClosePosition       bool            `json:"closePosition,omitempty"`
+	ActivationPrice     decimal.Decimal `json:"activationPrice,omitempty"`
+	CallbackRate        decimal.Decimal `json:"callbackRate,omitempty"`
+	WorkingType         string          `json:"workingType,omitempty"`
+	PriceProtect        bool            `json:"priceProtect,omitempty"`
+	NewClientOrderID    string          `json:"newClientOrderId,omitempty"`
+	RecvWindow          int64           `json:"recvWindow,omitempty"`
+}
+
+// FuturesOrderResponse represents a futures order response
+type FuturesOrderResponse struct {
+	OrderID               int64           `json:"orderId"`
+	Symbol                string          `json:"symbol"`
+	Status                string          `json:"status"`
+	ClientOrderID         string          `json:"clientOrderId"`
+	Price                 decimal.Decimal `json:"price"`
+	AvgPrice              decimal.Decimal `json:"avgPrice"`
+	OrigQty               decimal.Decimal `json:"origQty"`
+	ExecutedQty           decimal.Decimal `json:"executedQty"`
+	CumQty                decimal.Decimal `json:"cumQty"`
+	CumQuote              decimal.Decimal `json:"cumQuote"`
+	TimeInForce           string          `json:"timeInForce"`
+	Type                  string          `json:"type"`
+	ReduceOnly            bool            `json:"reduceOnly"`
+	ClosePosition         bool            `json:"closePosition"`
+	Side                  string          `json:"side"`
+	PositionSide          string          `json:"positionSide"`
+	StopPrice             decimal.Decimal `json:"stopPrice"`
+	WorkingType           string          `json:"workingType"`
+	PriceProtect          bool            `json:"priceProtect"`
+	OrigType              string          `json:"origType"`
+	UpdateTime            int64           `json:"updateTime"`
+}
+
+// FuturesAccountResponse represents futures account info
+type FuturesAccountResponse struct {
+	TotalWalletBalance       decimal.Decimal    `json:"totalWalletBalance"`
+	TotalUnrealizedProfit    decimal.Decimal    `json:"totalUnrealizedProfit"`
+	TotalMarginBalance       decimal.Decimal    `json:"totalMarginBalance"`
+	AvailableBalance         decimal.Decimal    `json:"availableBalance"`
+	TotalPositionInitialMargin decimal.Decimal  `json:"totalPositionInitialMargin"`
+	TotalOpenOrderInitialMargin decimal.Decimal `json:"totalOpenOrderInitialMargin"`
+	TotalCrossWalletBalance  decimal.Decimal    `json:"totalCrossWalletBalance"`
+	TotalCrossUnPnl          decimal.Decimal    `json:"totalCrossUnPnl"`
+	MaxWithdrawAmount        decimal.Decimal    `json:"maxWithdrawAmount"`
+	UpdateTime               int64              `json:"updateTime"`
+	Assets                   []FuturesAsset     `json:"assets"`
+	Positions                []FuturesPosition  `json:"positions"`
+}
+
+// FuturesAsset represents a futures account asset
+type FuturesAsset struct {
+	Asset                  string          `json:"asset"`
+	WalletBalance          decimal.Decimal `json:"walletBalance"`
+	UnrealizedProfit       decimal.Decimal `json:"unrealizedProfit"`
+	MarginBalance          decimal.Decimal `json:"marginBalance"`
+	MaintMargin            decimal.Decimal `json:"maintMargin"`
+	InitialMargin          decimal.Decimal `json:"initialMargin"`
+	PositionInitialMargin  decimal.Decimal `json:"positionInitialMargin"`
+	OpenOrderInitialMargin decimal.Decimal `json:"openOrderInitialMargin"`
+	MaxWithdrawAmount      decimal.Decimal `json:"maxWithdrawAmount"`
+	CrossWalletBalance     decimal.Decimal `json:"crossWalletBalance"`
+	CrossUnPnl             decimal.Decimal `json:"crossUnPnl"`
+	AvailableBalance       decimal.Decimal `json:"availableBalance"`
+}
+
+// FuturesPosition represents an open futures position
+type FuturesPosition struct {
+	Symbol                 string          `json:"symbol"`
+	InitialMargin          decimal.Decimal `json:"initialMargin"`
+	MaintMargin            decimal.Decimal `json:"maintMargin"`
+	UnrealizedProfit       decimal.Decimal `json:"unrealizedProfit"`
+	PositionInitialMargin  decimal.Decimal `json:"positionInitialMargin"`
+	OpenOrderInitialMargin decimal.Decimal `json:"openOrderInitialMargin"`
+	Leverage               string          `json:"leverage"`
+	Isolated               bool            `json:"isolated"`
+	EntryPrice             decimal.Decimal `json:"entryPrice"`
+	MaxNotional            decimal.Decimal `json:"maxNotional"`
+	BidNotional            decimal.Decimal `json:"bidNotional"`
+	AskNotional            decimal.Decimal `json:"askNotional"`
+	PositionSide           string          `json:"positionSide"`
+	PositionAmt            decimal.Decimal `json:"positionAmt"`
+	UpdateTime             int64           `json:"updateTime"`
+	MarkPrice              decimal.Decimal `json:"markPrice"`
+}
+
