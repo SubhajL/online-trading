@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -338,20 +339,24 @@ func TestConnection_PingPong(t *testing.T) {
 func TestConnection_Reconnection(t *testing.T) {
 	t.Run("reconnects automatically on connection loss", func(t *testing.T) {
 		reconnected := make(chan bool, 1)
-		connectionCount := 0
+		var connectionCount int32 // Use atomic for thread safety
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
 			defer conn.Close()
-			connectionCount++
+			count := atomic.AddInt32(&connectionCount, 1)
 
-			if connectionCount == 1 {
+			if count == 1 {
 				// First connection - close after brief period
 				time.Sleep(100 * time.Millisecond)
 				return
 			}
 
 			// Second connection - signal reconnection
-			reconnected <- true
+			select {
+			case reconnected <- true:
+			default:
+				// Channel might be full, ignore
+			}
 			conn.ReadMessage()
 		})
 		defer server.Close()

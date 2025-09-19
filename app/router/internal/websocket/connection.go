@@ -41,6 +41,7 @@ type Connection struct {
 	closeChan   chan struct{}
 	doneChan    chan struct{}
 	doneOnce    sync.Once
+	doneMutex   sync.Mutex // Protects doneChan recreation
 
 	// Reconnection state
 	reconnectAttempts int
@@ -177,12 +178,16 @@ func (c *Connection) Connect(ctx context.Context) error {
 	default:
 	}
 
+	// Handle doneChan without resetting sync.Once
+	c.doneMutex.Lock()
 	select {
 	case <-c.doneChan:
+		// Create new done channel and reset once for next use
 		c.doneChan = make(chan struct{})
 		c.doneOnce = sync.Once{}
 	default:
 	}
+	c.doneMutex.Unlock()
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
@@ -249,20 +254,18 @@ func (c *Connection) Send(ctx context.Context, data []byte) error {
 	}
 	conn.SetWriteDeadline(deadline)
 
-	// Write message with timeout handling
-	done := make(chan error, 1)
-	go func() {
-		done <- conn.WriteMessage(websocket.TextMessage, data)
-	}()
-
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(c.writeTimeout):
-		return fmt.Errorf("write timeout after %v", c.writeTimeout)
+	// Write message - SetWriteDeadline will handle timeout
+	err := conn.WriteMessage(websocket.TextMessage, data)
+	if err != nil {
+		// Check if context was cancelled
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			return err
+		}
 	}
+	return nil
 }
 
 // Close closes the WebSocket connection
@@ -332,8 +335,15 @@ func (c *Connection) SetMessageHandler(handler func([]byte)) {
 // startPingLoop sends periodic ping frames
 func (c *Connection) startPingLoop() {
 	defer func() {
+		c.doneMutex.Lock()
+		defer c.doneMutex.Unlock()
 		c.doneOnce.Do(func() {
-			close(c.doneChan)
+			select {
+			case <-c.doneChan:
+				// Already closed
+			default:
+				close(c.doneChan)
+			}
 		})
 	}()
 
@@ -393,8 +403,15 @@ func (c *Connection) startPingLoop() {
 // startReadLoop reads messages from WebSocket
 func (c *Connection) startReadLoop() {
 	defer func() {
+		c.doneMutex.Lock()
+		defer c.doneMutex.Unlock()
 		c.doneOnce.Do(func() {
-			close(c.doneChan)
+			select {
+			case <-c.doneChan:
+				// Already closed
+			default:
+				close(c.doneChan)
+			}
 		})
 	}()
 
@@ -466,11 +483,18 @@ func (c *Connection) attemptReconnection() {
 		c.reconnectMu.Unlock()
 	}()
 
-	for c.reconnectAttempts < c.maxReconnectAttempts {
+	for {
+		c.reconnectMu.Lock()
+		if c.reconnectAttempts >= c.maxReconnectAttempts {
+			c.reconnectMu.Unlock()
+			break
+		}
 		c.reconnectAttempts++
+		attempts := c.reconnectAttempts
+		c.reconnectMu.Unlock()
 
 		// Calculate backoff delay
-		backoffDelay := c.reconnectInterval * time.Duration(1<<uint(c.reconnectAttempts-1))
+		backoffDelay := c.reconnectInterval * time.Duration(1<<uint(attempts-1))
 		maxDelay := 30 * time.Second
 		if backoffDelay > maxDelay {
 			backoffDelay = maxDelay
