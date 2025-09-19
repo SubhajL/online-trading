@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://trading-platform.io/schemas/news_window.v1.schema.json",
+  "title": "News Window V1",
+  "description": "Risk window for news events",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Schema version in semver format"
+    },
+    "venue": {
+      "type": "string",
+      "description": "Exchange/venue name",
+      "examples": ["binance", "bybit", "okx"]
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Trading pair symbol",
+      "examples": ["BTCUSDT", "ETHUSDT"]
+    },
+    "event_id": {
+      "type": "string",
+      "description": "Unique identifier for the news event"
+    },
+    "event_name": {
+      "type": "string",
+      "description": "Name of the news event",
+      "examples": ["FOMC Meeting", "CPI Release", "NFP Report"]
+    },
+    "impact": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "description": "Expected market impact level"
+    },
+    "window_start": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+      "description": "Start of the risk window"
+    },
+    "window_end": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+      "description": "End of the risk window"
+    },
+    "is_active": {
+      "type": "boolean",
+      "description": "Whether the risk window is currently active"
+    }
+  },
+  "required": [
+    "version",
+    "venue",
+    "symbol",
+    "event_id",
+    "event_name",
+    "impact",
+    "window_start",
+    "window_end",
+    "is_active"
+  ],
+  "additionalProperties": false
+}

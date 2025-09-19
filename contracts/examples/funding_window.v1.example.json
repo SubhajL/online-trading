@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "venue": "binance",
+  "symbol": "BTCUSDT",
+  "funding_time": "2024-01-15T16:00:00.000Z",
+  "current_rate": 0.0008,
+  "predicted_rate": 0.0012,
+  "window_start": "2024-01-15T15:30:00.000Z",
+  "window_end": "2024-01-15T16:15:00.000Z",
+  "is_active": false,
+  "risk_level": "medium"
+}

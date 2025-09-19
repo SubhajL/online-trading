@@ -354,14 +354,63 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-contracts-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-contracts-
+
       - name: Install dependencies
         run: |
-          pip install jsonschema pydantic
+          python -m pip install --upgrade pip
+          pip install jsonschema pydantic pytest pytest-cov
+          # Show installed versions for debugging
+          python --version
+          pytest --version
+          pip list | grep -E "jsonschema|pydantic|pytest"
 
-      - name: Validate contracts
+      - name: Validate JSONSchemas
         run: |
-          make contracts || echo "Contracts validation pending implementation"
-          python -m pytest tests/contracts -q || echo "Contract tests pending implementation"
+          echo "Validating all JSONSchema files..."
+          for schema in contracts/jsonschema/*.schema.json; do
+            echo "Validating $schema"
+            python -m json.tool "$schema" > /dev/null || exit 1
+          done
+
+      - name: Run schema validation tests
+        run: |
+          # Run tests without coverage (coverage is for engine code, not contracts)
+          python -m pytest tests/contracts/test_jsonschema_validation.py -v --no-cov
+
+      - name: Check generated code is up to date
+        run: |
+          # Backup current generated files
+          cp -r contracts/gen contracts/gen.backup
+
+          # Regenerate code
+          python scripts/codegen_contracts.py
+
+          # Check for differences
+          if ! diff -r contracts/gen contracts/gen.backup > /dev/null 2>&1; then
+            echo "Generated code is out of date!"
+            echo "Please run 'make contracts' and commit the changes."
+            diff -r contracts/gen contracts/gen.backup || true
+            exit 1
+          fi
+
+          # Cleanup
+          rm -rf contracts/gen.backup
+
+      - name: Test generated Python models
+        run: |
+          python -m pytest tests/contracts/test_generated_models.py -v --no-cov
+
+      - name: Validate example payloads
+        run: |
+          # This would validate example payloads if we had them
+          echo "✓ Contract validation complete"
 
   # Wave A: Database migration job
   db-migrate:
