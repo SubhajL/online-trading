@@ -377,7 +377,7 @@ jobs:
 
       - name: Run schema validation tests
         run: |
-          python -m pytest tests/contracts/test_jsonschema_validation.py -v
+          python -m pytest tests/contracts/test_jsonschema_validation.py -v --no-cov
 
       - name: Check generated code is up to date
         run: |
@@ -400,7 +400,7 @@ jobs:
 
       - name: Test generated Python models
         run: |
-          python -m pytest tests/contracts/test_generated_models.py -v
+          python -m pytest tests/contracts/test_generated_models.py -v --no-cov
 
       - name: Validate example payloads
         run: |
