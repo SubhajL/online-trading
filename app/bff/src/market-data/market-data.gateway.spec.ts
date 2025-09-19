@@ -6,7 +6,6 @@ import { Server, Socket } from 'socket.io';
 
 describe('MarketDataGateway', () => {
   let gateway: MarketDataGateway;
-  let engineClient: EngineClientService;
   let mockServer: Server;
   let mockClient: Socket;
 
@@ -43,7 +42,6 @@ describe('MarketDataGateway', () => {
     }).compile();
 
     gateway = module.get<MarketDataGateway>(MarketDataGateway);
-    engineClient = module.get<EngineClientService>(EngineClientService);
 
     // Mock Socket.io server
     mockServer = {

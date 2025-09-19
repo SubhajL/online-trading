@@ -5,7 +5,6 @@ import {
   type IChartApi,
   type ISeriesApi,
   type CandlestickData,
-  type Time,
   CrosshairMode,
   type LineData,
   type HistogramData,

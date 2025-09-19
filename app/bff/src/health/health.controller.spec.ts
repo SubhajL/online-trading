@@ -1,13 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthCheckService, HttpHealthIndicator, TerminusModule } from '@nestjs/terminus';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { HealthController } from './health.controller';
 import { EngineClientService } from '../engine-client/engine-client.service';
 
 describe('HealthController', () => {
   let controller: HealthController;
   let healthCheckService: HealthCheckService;
-  let engineClientService: EngineClientService;
 
   const mockEngineClientService = {
     checkHealth: jest.fn().mockResolvedValue({
@@ -54,7 +53,6 @@ describe('HealthController', () => {
 
     controller = module.get<HealthController>(HealthController);
     healthCheckService = module.get<HealthCheckService>(HealthCheckService);
-    engineClientService = module.get<EngineClientService>(EngineClientService);
   });
 
   it('should be defined', () => {

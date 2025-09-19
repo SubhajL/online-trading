@@ -27,7 +27,7 @@ export function CandlestickChart({
     if (candles.length > 0) {
       const candleData = candles.map(candle => ({
         ...candle,
-        time: candle.time as any
+        time: candle.time as any,
       }))
       updateCandles(candleData)
     }
@@ -38,7 +38,7 @@ export function CandlestickChart({
       if (indicator.data.length > 0) {
         const indicatorData = indicator.data.map(d => ({
           ...d,
-          time: d.time as any
+          time: d.time as any,
         }))
         addIndicator(indicator.type, indicatorData, {
           color: indicator.color,

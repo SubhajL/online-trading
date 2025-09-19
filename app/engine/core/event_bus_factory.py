@@ -3,8 +3,10 @@ Factory for creating EventBus instances with dependency injection.
 Provides flexible configuration and testing support.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 from unittest.mock import Mock, AsyncMock
 import os
 
@@ -13,6 +15,9 @@ from app.engine.core.interfaces import (
     SubscriptionManagerInterface,
     EventProcessorInterface
 )
+
+if TYPE_CHECKING:
+    from app.engine.bus_refactored import EventBus
 from app.engine.core.subscription_manager import SubscriptionManager, SubscriptionConfig
 from app.engine.core.event_processor import EventProcessor, EventProcessingConfig
 from app.engine.core.security import SecureConfig, SecurityLevel, validate_environment

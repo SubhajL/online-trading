@@ -18,13 +18,16 @@ export function AccountBalance({
 }: AccountBalanceProps) {
   // Group balances by venue
   const balancesByVenue = useMemo(() => {
-    return balances.reduce((acc, balance) => {
-      if (!acc[balance.venue]) {
-        acc[balance.venue] = []
-      }
-      acc[balance.venue]!.push(balance)
-      return acc
-    }, {} as Record<string, Balance[]>)
+    return balances.reduce(
+      (acc, balance) => {
+        if (!acc[balance.venue]) {
+          acc[balance.venue] = []
+        }
+        acc[balance.venue]!.push(balance)
+        return acc
+      },
+      {} as Record<string, Balance[]>,
+    )
   }, [balances])
 
   // Calculate total USD value
@@ -81,21 +84,15 @@ export function AccountBalance({
                 {venueBalances.some(b => b.usdValue) && <span>USD Value</span>}
               </div>
 
-              {venueBalances.map((balance) => {
+              {venueBalances.map(balance => {
                 const total = balance.free + balance.locked
 
                 return (
                   <div key={`${balance.asset}-${balance.venue}`} className="balance-row">
                     <span className="asset-name">{balance.asset}</span>
-                    <span className="free-amount">
-                      {formatNumber(balance.free)}
-                    </span>
-                    <span className="locked-amount">
-                      {formatNumber(balance.locked)}
-                    </span>
-                    <span className="total-amount">
-                      {formatNumber(total)}
-                    </span>
+                    <span className="free-amount">{formatNumber(balance.free)}</span>
+                    <span className="locked-amount">{formatNumber(balance.locked)}</span>
+                    <span className="total-amount">{formatNumber(total)}</span>
                     {venueBalances.some(b => b.usdValue) && (
                       <span className="usd-value">
                         {balance.usdValue ? formatCurrency(balance.usdValue) : '-'}

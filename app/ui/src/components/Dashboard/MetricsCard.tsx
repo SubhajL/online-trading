@@ -102,17 +102,10 @@ export function MetricsCard({
         <div className="metrics-value">{formatValue(value)}</div>
 
         <div className="metrics-indicators">
-          {change && (
-            <span className={`metrics-change ${getChangeClass(change)}`}>
-              {change}
-            </span>
-          )}
+          {change && <span className={`metrics-change ${getChangeClass(change)}`}>{change}</span>}
 
           {trend && (
-            <span
-              className={`trend-indicator trend-${trend}`}
-              data-testid="trend-indicator"
-            >
+            <span className={`trend-indicator trend-${trend}`} data-testid="trend-indicator">
               {trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→'}
             </span>
           )}

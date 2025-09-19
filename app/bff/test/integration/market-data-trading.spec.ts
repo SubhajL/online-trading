@@ -3,9 +3,6 @@ import { INestApplication } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../../src/app.module';
-import { EngineClientService } from '../../src/engine-client/engine-client.service';
-import { RouterClientService } from '../../src/router-client/router-client.service';
-import { ConfigService } from '@nestjs/config';
 
 // No mocks - using real services
 
@@ -13,8 +10,6 @@ describe('Market Data to Trading Integration', () => {
   let app: INestApplication;
   let marketDataClient: Socket;
   let tradingClient: Socket;
-  let engineClient: EngineClientService;
-  let routerClient: RouterClientService;
   let eventEmitter: EventEmitter2;
 
   beforeEach(async () => {
@@ -25,8 +20,6 @@ describe('Market Data to Trading Integration', () => {
     app = moduleFixture.createNestApplication();
     await app.listen(3001);
 
-    engineClient = moduleFixture.get<EngineClientService>(EngineClientService);
-    routerClient = moduleFixture.get<RouterClientService>(RouterClientService);
     eventEmitter = moduleFixture.get<EventEmitter2>(EventEmitter2);
 
     // Connect WebSocket clients
@@ -225,14 +218,10 @@ describe('Market Data to Trading Integration', () => {
     for (const symbol of symbols) {
       for (const timeframe of timeframes) {
         const promise = new Promise<void>((resolve) => {
-          marketDataClient.emit(
-            'subscribe',
-            { symbol, timeframe },
-            (response: any) => {
-              expect(response.success).toBe(true);
-              resolve();
-            },
-          );
+          marketDataClient.emit('subscribe', { symbol, timeframe }, (response: any) => {
+            expect(response.success).toBe(true);
+            resolve();
+          });
         });
         subscriptions.push(promise);
       }

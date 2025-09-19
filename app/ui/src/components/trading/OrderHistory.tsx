@@ -37,8 +37,8 @@ export function OrderHistory({
       filtered = orders.filter(order => order.status === statusFilter)
     }
     // Sort by date descending (newest first) - create a copy to avoid mutating
-    return [...filtered].sort((a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    return [...filtered].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     )
   }, [orders, statusFilter])
 
@@ -55,14 +55,14 @@ export function OrderHistory({
       date: date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
       }),
       time: date.toLocaleTimeString('en-US', {
         hour12: false,
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit'
-      })
+        second: '2-digit',
+      }),
     }
   }
 
@@ -101,7 +101,7 @@ export function OrderHistory({
           <select
             id="status-filter"
             value={statusFilter}
-            onChange={(e) => {
+            onChange={e => {
               setStatusFilter(e.target.value as OrderStatus | 'ALL')
               setCurrentPage(0) // Reset to first page on filter change
             }}
@@ -134,7 +134,7 @@ export function OrderHistory({
               <span>Venue</span>
             </div>
 
-            {paginatedOrders.map((order) => {
+            {paginatedOrders.map(order => {
               const { date, time } = formatDate(order.createdAt)
               const fillPercentage = order.executedQuantity
                 ? Math.round((order.executedQuantity / order.quantity) * 100)
@@ -151,15 +151,9 @@ export function OrderHistory({
                   </span>
                   <span className="symbol">{order.symbol}</span>
                   <span className="order-type">{order.type}</span>
-                  <span className={`side-badge ${order.side.toLowerCase()}`}>
-                    {order.side}
-                  </span>
-                  <span>
-                    {order.type === 'MARKET' ? 'N/A' : formatNumber(order.price || 0)}
-                  </span>
-                  <span>
-                    {order.avgPrice ? formatNumber(order.avgPrice) : 'N/A'}
-                  </span>
+                  <span className={`side-badge ${order.side.toLowerCase()}`}>{order.side}</span>
+                  <span>{order.type === 'MARKET' ? 'N/A' : formatNumber(order.price || 0)}</span>
+                  <span>{order.avgPrice ? formatNumber(order.avgPrice) : 'N/A'}</span>
                   <span>{order.quantity}</span>
                   <span>
                     {order.executedQuantity || 0} / {order.quantity}

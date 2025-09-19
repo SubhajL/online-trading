@@ -1,0 +1,19 @@
+# Example CODEOWNERS with real usernames
+# Replace these with actual GitHub usernames or team names
+
+# Global owners
+* @your-github-username @colleague-username
+
+# Router (Go expertise needed)
+/app/router/ @go-expert-username @your-username
+
+# Python Engine
+/app/engine/ @python-expert @data-engineer
+
+# Frontend
+/app/ui/ @frontend-dev @ui-designer
+/app/bff/ @backend-dev @frontend-dev
+
+# Infrastructure
+/.github/ @devops-person
+docker-compose*.yml @devops-person

@@ -5,13 +5,19 @@ This module contains all Pydantic models and type definitions used across
 the trading platform, including events, market data, signals, and decisions.
 """
 
+from __future__ import annotations
+
+import enum
+import uuid
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, validator
+
+UUID = uuid.UUID
+uuid4 = uuid.uuid4
+Enum = enum.Enum
 
 
 # ============================================================================
