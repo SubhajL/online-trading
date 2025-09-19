@@ -220,7 +220,7 @@ func (h *Handlers) HealthzHandler(w http.ResponseWriter, r *http.Request) {
 		Msg("Health check requested")
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status": "healthy",
+		"status":  "healthy",
 		"service": "order-router",
 	})
 }
@@ -244,7 +244,7 @@ func (h *Handlers) ReadyzHandler(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Check actual readiness (Binance connectivity, etc.)
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status": "ready",
+		"status":  "ready",
 		"service": "order-router",
 	})
 }

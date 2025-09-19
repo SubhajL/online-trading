@@ -6,12 +6,12 @@ import (
 
 // StreamResponse represents information about an active stream
 type StreamResponse struct {
-	ID            string          `json:"id"`
-	Type          string          `json:"type"`
-	Status        string          `json:"status"`
-	CreatedAt     time.Time       `json:"created_at"`
-	Subscriptions []string        `json:"subscriptions,omitempty"`
-	Metrics       *StreamMetrics  `json:"metrics,omitempty"`
+	ID            string         `json:"id"`
+	Type          string         `json:"type"`
+	Status        string         `json:"status"`
+	CreatedAt     time.Time      `json:"created_at"`
+	Subscriptions []string       `json:"subscriptions,omitempty"`
+	Metrics       *StreamMetrics `json:"metrics,omitempty"`
 }
 
 // StreamMetrics contains metrics for a stream connection

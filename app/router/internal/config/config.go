@@ -39,18 +39,18 @@ type BinanceConfig struct {
 	FuturesSecretKey string `json:"futures_secret_key"`
 
 	// Legacy fields for backward compatibility
-	APIKey          string        `json:"api_key"`
-	SecretKey       string        `json:"secret_key"`
-	BaseURL         string        `json:"base_url"`
-	WSBaseURL       string        `json:"ws_base_url"`
-	FuturesBaseURL  string        `json:"futures_base_url"`
-	FuturesWSURL    string        `json:"futures_ws_url"`
-	Testnet         bool          `json:"testnet"`
-	Timeout         time.Duration `json:"timeout"`
-	MaxRetries      int           `json:"max_retries"`
-	RetryDelay      time.Duration `json:"retry_delay"`
-	RateLimitDelay  time.Duration `json:"rate_limit_delay"`
-	RecvWindow      int64         `json:"recv_window"`
+	APIKey         string        `json:"api_key"`
+	SecretKey      string        `json:"secret_key"`
+	BaseURL        string        `json:"base_url"`
+	WSBaseURL      string        `json:"ws_base_url"`
+	FuturesBaseURL string        `json:"futures_base_url"`
+	FuturesWSURL   string        `json:"futures_ws_url"`
+	Testnet        bool          `json:"testnet"`
+	Timeout        time.Duration `json:"timeout"`
+	MaxRetries     int           `json:"max_retries"`
+	RetryDelay     time.Duration `json:"retry_delay"`
+	RateLimitDelay time.Duration `json:"rate_limit_delay"`
+	RecvWindow     int64         `json:"recv_window"`
 
 	// Exchange info cache
 	ExchangeInfoCacheTTL time.Duration `json:"exchange_info_cache_ttl"`
@@ -75,19 +75,19 @@ type MetricsConfig struct {
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
 	Level      string `json:"level"`
-	Format     string `json:"format"` // json or text
-	Output     string `json:"output"` // stdout, stderr, or file path
-	MaxSize    int    `json:"max_size"`    // MB
+	Format     string `json:"format"`   // json or text
+	Output     string `json:"output"`   // stdout, stderr, or file path
+	MaxSize    int    `json:"max_size"` // MB
 	MaxBackups int    `json:"max_backups"`
 	MaxAge     int    `json:"max_age"` // days
 }
 
 // SecurityConfig holds security configuration
 type SecurityConfig struct {
-	APIKeyHeader     string        `json:"api_key_header"`
-	RequiredAPIKey   string        `json:"required_api_key"`
-	MaxRequestSize   int64         `json:"max_request_size"`
-	RateLimit       int           `json:"rate_limit"`        // requests per minute
+	APIKeyHeader    string        `json:"api_key_header"`
+	RequiredAPIKey  string        `json:"required_api_key"`
+	MaxRequestSize  int64         `json:"max_request_size"`
+	RateLimit       int           `json:"rate_limit"` // requests per minute
 	RateLimitWindow time.Duration `json:"rate_limit_window"`
 	AllowedOrigins  []string      `json:"allowed_origins"`
 }
@@ -113,18 +113,18 @@ func Load() (*Config, error) {
 			FuturesSecretKey: getEnv("BINANCE_FUTURES_SECRET_KEY", ""),
 
 			// Legacy fields
-			APIKey:          getEnv("BINANCE_API_KEY", ""),
-			SecretKey:       getEnv("BINANCE_SECRET_KEY", ""),
-			BaseURL:         getEnv("BINANCE_BASE_URL", "https://api.binance.com"),
-			WSBaseURL:       getEnv("BINANCE_WS_BASE_URL", "wss://stream.binance.com:9443"),
-			FuturesBaseURL:  getEnv("BINANCE_FUTURES_BASE_URL", "https://fapi.binance.com"),
-			FuturesWSURL:    getEnv("BINANCE_FUTURES_WS_URL", "wss://fstream.binance.com"),
-			Testnet:         getEnvAsBool("BINANCE_TESTNET", false),
-			Timeout:         getEnvAsDuration("BINANCE_TIMEOUT", "30s"),
-			MaxRetries:      getEnvAsInt("BINANCE_MAX_RETRIES", 3),
-			RetryDelay:      getEnvAsDuration("BINANCE_RETRY_DELAY", "1s"),
-			RateLimitDelay:  getEnvAsDuration("BINANCE_RATE_LIMIT_DELAY", "100ms"),
-			RecvWindow:      getEnvAsInt64("BINANCE_RECV_WINDOW", 5000),
+			APIKey:         getEnv("BINANCE_API_KEY", ""),
+			SecretKey:      getEnv("BINANCE_SECRET_KEY", ""),
+			BaseURL:        getEnv("BINANCE_BASE_URL", "https://api.binance.com"),
+			WSBaseURL:      getEnv("BINANCE_WS_BASE_URL", "wss://stream.binance.com:9443"),
+			FuturesBaseURL: getEnv("BINANCE_FUTURES_BASE_URL", "https://fapi.binance.com"),
+			FuturesWSURL:   getEnv("BINANCE_FUTURES_WS_URL", "wss://fstream.binance.com"),
+			Testnet:        getEnvAsBool("BINANCE_TESTNET", false),
+			Timeout:        getEnvAsDuration("BINANCE_TIMEOUT", "30s"),
+			MaxRetries:     getEnvAsInt("BINANCE_MAX_RETRIES", 3),
+			RetryDelay:     getEnvAsDuration("BINANCE_RETRY_DELAY", "1s"),
+			RateLimitDelay: getEnvAsDuration("BINANCE_RATE_LIMIT_DELAY", "100ms"),
+			RecvWindow:     getEnvAsInt64("BINANCE_RECV_WINDOW", 5000),
 
 			// Cache settings
 			ExchangeInfoCacheTTL: getEnvAsDuration("EXCHANGE_INFO_CACHE_TTL", "5m"),
@@ -150,9 +150,9 @@ func Load() (*Config, error) {
 			MaxAge:     getEnvAsInt("LOG_MAX_AGE", 30),
 		},
 		Security: SecurityConfig{
-			APIKeyHeader:     getEnv("SECURITY_API_KEY_HEADER", "X-API-Key"),
-			RequiredAPIKey:   getEnv("SECURITY_REQUIRED_API_KEY", ""),
-			MaxRequestSize:   getEnvAsInt64("SECURITY_MAX_REQUEST_SIZE", 1048576), // 1MB
+			APIKeyHeader:    getEnv("SECURITY_API_KEY_HEADER", "X-API-Key"),
+			RequiredAPIKey:  getEnv("SECURITY_REQUIRED_API_KEY", ""),
+			MaxRequestSize:  getEnvAsInt64("SECURITY_MAX_REQUEST_SIZE", 1048576), // 1MB
 			RateLimit:       getEnvAsInt("SECURITY_RATE_LIMIT", 1000),
 			RateLimitWindow: getEnvAsDuration("SECURITY_RATE_LIMIT_WINDOW", "1m"),
 			AllowedOrigins:  getEnvAsSlice("SECURITY_ALLOWED_ORIGINS", []string{"*"}),

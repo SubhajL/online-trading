@@ -16,24 +16,24 @@ const (
 
 // BracketOrder represents a bracket order (main + TPs + SL)
 type BracketOrder struct {
-	ID               string          `json:"id"`
-	Symbol           string          `json:"symbol"`
-	Type             OrderType       `json:"type"`
-	Side             string          `json:"side"`
-	Quantity         decimal.Decimal `json:"quantity"`
-	EntryPrice       decimal.Decimal `json:"entry_price"`
+	ID               string            `json:"id"`
+	Symbol           string            `json:"symbol"`
+	Type             OrderType         `json:"type"`
+	Side             string            `json:"side"`
+	Quantity         decimal.Decimal   `json:"quantity"`
+	EntryPrice       decimal.Decimal   `json:"entry_price"`
 	TakeProfitPrices []decimal.Decimal `json:"take_profit_prices"`
-	StopLossPrice    decimal.Decimal `json:"stop_loss_price"`
-	ClientOrderIDs   ClientOrderIDs  `json:"client_order_ids"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
+	StopLossPrice    decimal.Decimal   `json:"stop_loss_price"`
+	ClientOrderIDs   ClientOrderIDs    `json:"client_order_ids"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
 }
 
 // ClientOrderIDs holds the client order IDs for a bracket order
 type ClientOrderIDs struct {
-	Main         string   `json:"main"`
-	TakeProfits  []string `json:"take_profits"`
-	StopLoss     string   `json:"stop_loss"`
+	Main        string   `json:"main"`
+	TakeProfits []string `json:"take_profits"`
+	StopLoss    string   `json:"stop_loss"`
 }
 
 // OrderUpdate represents an order status update event

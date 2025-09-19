@@ -8,16 +8,16 @@ import (
 // Collector handles Prometheus metrics collection
 type Collector struct {
 	// HTTP request metrics
-	requestCounter    map[string]int64 // [method:path:status]
-	requestHistogram  map[string][]float64 // [method:endpoint] -> durations
+	requestCounter   map[string]int64     // [method:path:status]
+	requestHistogram map[string][]float64 // [method:endpoint] -> durations
 
 	// Order metrics
-	orderLatencyHist  map[string][]float64 // [exchange:type] -> durations
-	orderStatusCount  map[string]int64     // [exchange:status] -> count
+	orderLatencyHist map[string][]float64 // [exchange:type] -> durations
+	orderStatusCount map[string]int64     // [exchange:status] -> count
 
 	// WebSocket metrics
-	wsConnectionCount map[string]int64     // [status] -> count
-	wsEventCounter    map[string]int64     // [event_type] -> count
+	wsConnectionCount map[string]int64 // [status] -> count
+	wsEventCounter    map[string]int64 // [event_type] -> count
 
 	// Custom metrics
 	customHistograms map[string][]float64 // [name] -> values

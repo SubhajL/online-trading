@@ -58,11 +58,11 @@ func TestRoundPrice(t *testing.T) {
 			cache := &ExchangeInfoCache{
 				cache: map[string]*SymbolInfo{
 					"BTCUSDT": {
-						Symbol:     "BTCUSDT",
-						TickSize:   decimal.RequireFromString(tt.tickSize),
-						MinPrice:   decimal.RequireFromString(tt.minPrice),
-						MaxPrice:   decimal.RequireFromString(tt.maxPrice),
-						IsFutures:  false,
+						Symbol:    "BTCUSDT",
+						TickSize:  decimal.RequireFromString(tt.tickSize),
+						MinPrice:  decimal.RequireFromString(tt.minPrice),
+						MaxPrice:  decimal.RequireFromString(tt.maxPrice),
+						IsFutures: false,
 					},
 				},
 				cacheTime: time.Now(),

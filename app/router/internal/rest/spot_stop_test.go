@@ -22,7 +22,7 @@ func TestPlaceOrder_StopLossLimit(t *testing.T) {
 		assert.Contains(t, r.URL.RawQuery, "side=SELL")
 		assert.Contains(t, r.URL.RawQuery, "type=STOP_LOSS_LIMIT")
 		assert.Contains(t, r.URL.RawQuery, "quantity=0.001")
-		assert.Contains(t, r.URL.RawQuery, "price=59900")      // Limit price
+		assert.Contains(t, r.URL.RawQuery, "price=59900")     // Limit price
 		assert.Contains(t, r.URL.RawQuery, "stopPrice=60000") // Stop trigger price
 		assert.Contains(t, r.URL.RawQuery, "timeInForce=GTC")
 
@@ -48,8 +48,8 @@ func TestPlaceOrder_StopLossLimit(t *testing.T) {
 		Side:             "SELL",
 		Type:             "STOP_LOSS_LIMIT",
 		Quantity:         decimal.RequireFromString("0.001"),
-		Price:            decimal.RequireFromString("59900"),    // Limit price (slightly below stop)
-		StopPrice:        decimal.RequireFromString("60000"),   // Stop trigger price
+		Price:            decimal.RequireFromString("59900"), // Limit price (slightly below stop)
+		StopPrice:        decimal.RequireFromString("60000"), // Stop trigger price
 		TimeInForce:      "GTC",
 		NewClientOrderID: "test_stop_123",
 	}
@@ -64,7 +64,7 @@ func TestPlaceOrder_TakeProfitLimit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify take profit order parameters
 		assert.Contains(t, r.URL.RawQuery, "type=TAKE_PROFIT_LIMIT")
-		assert.Contains(t, r.URL.RawQuery, "price=71000")      // Limit price
+		assert.Contains(t, r.URL.RawQuery, "price=71000")     // Limit price
 		assert.Contains(t, r.URL.RawQuery, "stopPrice=70000") // Stop trigger price
 
 		resp := &OrderResponse{
@@ -85,7 +85,7 @@ func TestPlaceOrder_TakeProfitLimit(t *testing.T) {
 		Side:        "SELL",
 		Type:        "TAKE_PROFIT_LIMIT",
 		Quantity:    decimal.RequireFromString("0.001"),
-		Price:       decimal.RequireFromString("71000"),  // Limit price (above trigger)
+		Price:       decimal.RequireFromString("71000"), // Limit price (above trigger)
 		StopPrice:   decimal.RequireFromString("70000"), // Trigger price
 		TimeInForce: "GTC",
 	}

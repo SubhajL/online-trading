@@ -43,13 +43,13 @@ type SymbolInfo struct {
 
 // Filter represents a symbol filter from exchange info
 type Filter struct {
-	FilterType string          `json:"filterType"`
-	MinPrice   decimal.Decimal `json:"minPrice,omitempty"`
-	MaxPrice   decimal.Decimal `json:"maxPrice,omitempty"`
-	TickSize   decimal.Decimal `json:"tickSize,omitempty"`
-	MinQty     decimal.Decimal `json:"minQty,omitempty"`
-	MaxQty     decimal.Decimal `json:"maxQty,omitempty"`
-	StepSize   decimal.Decimal `json:"stepSize,omitempty"`
+	FilterType  string          `json:"filterType"`
+	MinPrice    decimal.Decimal `json:"minPrice,omitempty"`
+	MaxPrice    decimal.Decimal `json:"maxPrice,omitempty"`
+	TickSize    decimal.Decimal `json:"tickSize,omitempty"`
+	MinQty      decimal.Decimal `json:"minQty,omitempty"`
+	MaxQty      decimal.Decimal `json:"maxQty,omitempty"`
+	StepSize    decimal.Decimal `json:"stepSize,omitempty"`
 	MinNotional decimal.Decimal `json:"minNotional,omitempty"`
 }
 

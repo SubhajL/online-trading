@@ -104,10 +104,10 @@ func TestPlaceFuturesOrder_StopMarket(t *testing.T) {
 		assert.Contains(t, r.URL.RawQuery, "closePosition=true")
 
 		resp := &FuturesOrderResponse{
-			OrderID:  111222333,
-			Symbol:   "BTCUSDT",
-			Status:   "NEW",
-			Type:     "STOP_MARKET",
+			OrderID: 111222333,
+			Symbol:  "BTCUSDT",
+			Status:  "NEW",
+			Type:    "STOP_MARKET",
 		}
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -239,11 +239,11 @@ func TestGetFuturesAccount_Success(t *testing.T) {
 		UpdateTime:            time.Now().UnixMilli(),
 		Assets: []FuturesAsset{
 			{
-				Asset:               "USDT",
-				WalletBalance:       decimal.RequireFromString("1000.5"),
-				UnrealizedProfit:    decimal.RequireFromString("50.25"),
-				MarginBalance:       decimal.RequireFromString("1050.75"),
-				AvailableBalance:    decimal.RequireFromString("900.0"),
+				Asset:            "USDT",
+				WalletBalance:    decimal.RequireFromString("1000.5"),
+				UnrealizedProfit: decimal.RequireFromString("50.25"),
+				MarginBalance:    decimal.RequireFromString("1050.75"),
+				AvailableBalance: decimal.RequireFromString("900.0"),
 			},
 		},
 		Positions: []FuturesPosition{

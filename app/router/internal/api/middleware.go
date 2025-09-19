@@ -65,11 +65,11 @@ func LoggerMiddleware(output io.Writer) gin.HandlerFunc {
 func AuthMiddleware(apiKey string) gin.HandlerFunc {
 	// Skip auth for these paths
 	skipPaths := map[string]bool{
-		"/health":   true,
-		"/ready":    true,
-		"/metrics":  true,
-		"/healthz":  true,
-		"/readyz":   true,
+		"/health":  true,
+		"/ready":   true,
+		"/metrics": true,
+		"/healthz": true,
+		"/readyz":  true,
 	}
 
 	return func(c *gin.Context) {
@@ -104,12 +104,12 @@ func AuthMiddleware(apiKey string) gin.HandlerFunc {
 
 // RateLimiter tracks request rates per client
 type rateLimiter struct {
-	clients  map[string]*clientRateInfo
-	mu       sync.RWMutex
-	rate     int
-	window   time.Duration
+	clients         map[string]*clientRateInfo
+	mu              sync.RWMutex
+	rate            int
+	window          time.Duration
 	cleanupInterval time.Duration
-	stopCleanup chan bool
+	stopCleanup     chan bool
 }
 
 type clientRateInfo struct {
@@ -120,11 +120,11 @@ type clientRateInfo struct {
 // RateLimitMiddleware implements token bucket rate limiting per client IP
 func RateLimitMiddleware(requestsPerWindow int, window time.Duration) gin.HandlerFunc {
 	limiter := &rateLimiter{
-		clients:  make(map[string]*clientRateInfo),
-		rate:     requestsPerWindow,
-		window:   window,
+		clients:         make(map[string]*clientRateInfo),
+		rate:            requestsPerWindow,
+		window:          window,
 		cleanupInterval: window * 10,
-		stopCleanup: make(chan bool),
+		stopCleanup:     make(chan bool),
 	}
 
 	// Start cleanup goroutine

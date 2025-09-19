@@ -45,10 +45,10 @@ func TestStreamResponse(t *testing.T) {
 func TestSubscriptionResponse(t *testing.T) {
 	t.Run("creates success response", func(t *testing.T) {
 		resp := SubscriptionResponse{
-			Success:       true,
-			Symbol:        "BTCUSDT",
-			Streams:       []string{"depth", "ticker"},
-			SubscribedAt:  time.Now(),
+			Success:      true,
+			Symbol:       "BTCUSDT",
+			Streams:      []string{"depth", "ticker"},
+			SubscribedAt: time.Now(),
 		}
 
 		assert.True(t, resp.Success)

@@ -44,7 +44,6 @@ func convertFills(restFills []rest.Fill) []Fill {
 	return fills
 }
 
-
 // NewClient creates a new Binance-specific client
 func NewClient(baseURL string, signer *auth.Signer, restClient *rest.Client, logger zerolog.Logger) (*Client, error) {
 	if signer == nil {

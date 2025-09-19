@@ -20,11 +20,11 @@ import (
 
 // Client represents a REST client for Binance API
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	signer     *auth.Signer
+	baseURL     string
+	httpClient  *http.Client
+	signer      *auth.Signer
 	rateLimiter *RateLimiter
-	maxRetries int
+	maxRetries  int
 }
 
 // Option configures the client

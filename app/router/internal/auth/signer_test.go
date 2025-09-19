@@ -334,4 +334,3 @@ func BenchmarkSign(b *testing.B) {
 		_ = signer.Sign(params)
 	}
 }
-

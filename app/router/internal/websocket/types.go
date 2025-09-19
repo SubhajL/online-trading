@@ -14,9 +14,9 @@ type StreamMessage struct {
 
 // SubscriptionRequest represents an outgoing subscription request
 type SubscriptionRequest struct {
-	Method string      `json:"method"`
-	Params []string    `json:"params"`
-	ID     int         `json:"id"`
+	Method string   `json:"method"`
+	Params []string `json:"params"`
+	ID     int      `json:"id"`
 }
 
 // SubscriptionResponse represents a subscription response from server
@@ -53,11 +53,11 @@ type UserStreamHandler interface {
 
 // DepthUpdateEvent represents order book depth changes
 type DepthUpdateEvent struct {
-	EventType     string      `json:"e"`
-	EventTime     int64       `json:"E"`
-	Symbol        string      `json:"s"`
-	FirstUpdateID int64       `json:"U"`
-	FinalUpdateID int64       `json:"u"`
+	EventType     string       `json:"e"`
+	EventTime     int64        `json:"E"`
+	Symbol        string       `json:"s"`
+	FirstUpdateID int64        `json:"U"`
+	FinalUpdateID int64        `json:"u"`
 	Bids          []PriceLevel `json:"b"`
 	Asks          []PriceLevel `json:"a"`
 }
@@ -99,37 +99,37 @@ func (p *PriceLevel) UnmarshalJSON(data []byte) error {
 
 // TickerEvent represents 24hr ticker statistics
 type TickerEvent struct {
-	EventType             string          `json:"e"`
-	EventTime             int64           `json:"E"`
-	Symbol                string          `json:"s"`
-	PriceChange           decimal.Decimal `json:"p"`
-	PriceChangePercent    decimal.Decimal `json:"P"`
-	WeightedAvgPrice      decimal.Decimal `json:"w"`
-	PrevClosePrice        decimal.Decimal `json:"x"`
-	LastPrice             decimal.Decimal `json:"c"`
-	LastQty               decimal.Decimal `json:"Q"`
-	BidPrice              decimal.Decimal `json:"b"`
-	BidQty                decimal.Decimal `json:"B"`
-	AskPrice              decimal.Decimal `json:"a"`
-	AskQty                decimal.Decimal `json:"A"`
-	OpenPrice             decimal.Decimal `json:"o"`
-	HighPrice             decimal.Decimal `json:"h"`
-	LowPrice              decimal.Decimal `json:"l"`
-	Volume                decimal.Decimal `json:"v"`
-	QuoteVolume           decimal.Decimal `json:"q"`
-	OpenTime              int64           `json:"O"`
-	CloseTime             int64           `json:"C"`
-	FirstTradeID          int64           `json:"F"`
-	LastTradeID           int64           `json:"L"`
-	Count                 int64           `json:"n"`
+	EventType          string          `json:"e"`
+	EventTime          int64           `json:"E"`
+	Symbol             string          `json:"s"`
+	PriceChange        decimal.Decimal `json:"p"`
+	PriceChangePercent decimal.Decimal `json:"P"`
+	WeightedAvgPrice   decimal.Decimal `json:"w"`
+	PrevClosePrice     decimal.Decimal `json:"x"`
+	LastPrice          decimal.Decimal `json:"c"`
+	LastQty            decimal.Decimal `json:"Q"`
+	BidPrice           decimal.Decimal `json:"b"`
+	BidQty             decimal.Decimal `json:"B"`
+	AskPrice           decimal.Decimal `json:"a"`
+	AskQty             decimal.Decimal `json:"A"`
+	OpenPrice          decimal.Decimal `json:"o"`
+	HighPrice          decimal.Decimal `json:"h"`
+	LowPrice           decimal.Decimal `json:"l"`
+	Volume             decimal.Decimal `json:"v"`
+	QuoteVolume        decimal.Decimal `json:"q"`
+	OpenTime           int64           `json:"O"`
+	CloseTime          int64           `json:"C"`
+	FirstTradeID       int64           `json:"F"`
+	LastTradeID        int64           `json:"L"`
+	Count              int64           `json:"n"`
 }
 
 // AccountUpdateEvent represents account balance changes
 type AccountUpdateEvent struct {
-	EventType   string    `json:"e"`
-	EventTime   int64     `json:"E"`
-	LastUpdate  int64     `json:"u"`
-	Balances    []Balance `json:"B"`
+	EventType  string    `json:"e"`
+	EventTime  int64     `json:"E"`
+	LastUpdate int64     `json:"u"`
+	Balances   []Balance `json:"B"`
 }
 
 // Balance represents account balance for an asset
@@ -141,32 +141,32 @@ type Balance struct {
 
 // OrderUpdateEvent represents order status changes
 type OrderUpdateEvent struct {
-	EventType               string          `json:"e"`
-	EventTime               int64           `json:"E"`
-	Symbol                  string          `json:"s"`
-	ClientOrderID           string          `json:"c"`
-	Side                    string          `json:"S"`
-	OrderType               string          `json:"o"`
-	TimeInForce             string          `json:"f"`
-	Quantity                decimal.Decimal `json:"q"`
-	Price                   decimal.Decimal `json:"p"`
-	StopPrice               decimal.Decimal `json:"P"`
-	IcebergQuantity         decimal.Decimal `json:"F"`
-	OrderListID             int64           `json:"g"`
-	OrigClientOrderID       string          `json:"C"`
-	ExecutionType           string          `json:"x"`
-	OrderStatus             string          `json:"X"`
-	OrderRejectReason       string          `json:"r"`
-	OrderID                 int64           `json:"i"`
-	LastExecutedQuantity    decimal.Decimal `json:"l"`
-	CumulativeFilledQty     decimal.Decimal `json:"z"`
-	LastExecutedPrice       decimal.Decimal `json:"L"`
-	CommissionAmount        decimal.Decimal `json:"n"`
-	CommissionAsset         string          `json:"N"`
-	TransactionTime         int64           `json:"T"`
-	TradeID                 int64           `json:"t"`
-	IsOrderWorking          bool            `json:"w"`
-	IsMaker                 bool            `json:"m"`
+	EventType            string          `json:"e"`
+	EventTime            int64           `json:"E"`
+	Symbol               string          `json:"s"`
+	ClientOrderID        string          `json:"c"`
+	Side                 string          `json:"S"`
+	OrderType            string          `json:"o"`
+	TimeInForce          string          `json:"f"`
+	Quantity             decimal.Decimal `json:"q"`
+	Price                decimal.Decimal `json:"p"`
+	StopPrice            decimal.Decimal `json:"P"`
+	IcebergQuantity      decimal.Decimal `json:"F"`
+	OrderListID          int64           `json:"g"`
+	OrigClientOrderID    string          `json:"C"`
+	ExecutionType        string          `json:"x"`
+	OrderStatus          string          `json:"X"`
+	OrderRejectReason    string          `json:"r"`
+	OrderID              int64           `json:"i"`
+	LastExecutedQuantity decimal.Decimal `json:"l"`
+	CumulativeFilledQty  decimal.Decimal `json:"z"`
+	LastExecutedPrice    decimal.Decimal `json:"L"`
+	CommissionAmount     decimal.Decimal `json:"n"`
+	CommissionAsset      string          `json:"N"`
+	TransactionTime      int64           `json:"T"`
+	TradeID              int64           `json:"t"`
+	IsOrderWorking       bool            `json:"w"`
+	IsMaker              bool            `json:"m"`
 }
 
 // ConnectionState represents WebSocket connection status

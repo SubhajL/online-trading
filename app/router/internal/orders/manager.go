@@ -18,9 +18,9 @@ type Manager struct {
 	futuresClient *binance.Client
 
 	// Order tracking
-	orders      map[string]*BracketOrder // bracket order ID -> order
-	ordersByClient map[string]string       // client order ID -> bracket order ID
-	mu          sync.RWMutex
+	orders         map[string]*BracketOrder // bracket order ID -> order
+	ordersByClient map[string]string        // client order ID -> bracket order ID
+	mu             sync.RWMutex
 
 	// Event emitter
 	eventEmitter EventEmitter

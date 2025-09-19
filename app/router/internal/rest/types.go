@@ -7,11 +7,11 @@ import (
 // OrderRequest represents a request to place an order
 type OrderRequest struct {
 	Symbol           string          `json:"symbol"`
-	Side             string          `json:"side"`             // BUY or SELL
-	Type             string          `json:"type"`             // MARKET, LIMIT, STOP_LOSS_LIMIT, etc.
+	Side             string          `json:"side"` // BUY or SELL
+	Type             string          `json:"type"` // MARKET, LIMIT, STOP_LOSS_LIMIT, etc.
 	Quantity         decimal.Decimal `json:"quantity"`
 	Price            decimal.Decimal `json:"price,omitempty"`
-	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`    // For stop orders
+	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`   // For stop orders
 	TimeInForce      string          `json:"timeInForce,omitempty"` // GTC, IOC, FOK
 	NewClientOrderID string          `json:"newClientOrderId,omitempty"`
 	RecvWindow       int64           `json:"recvWindow,omitempty"`
@@ -75,22 +75,22 @@ type ExchangeInfo struct {
 
 // Symbol represents trading symbol information
 type Symbol struct {
-	Symbol              string   `json:"symbol"`
-	Status              string   `json:"status"`
-	BaseAsset           string   `json:"baseAsset"`
-	BaseAssetPrecision  int      `json:"baseAssetPrecision"`
-	QuoteAsset          string   `json:"quoteAsset"`
-	QuoteAssetPrecision int      `json:"quoteAssetPrecision"`
-	OrderTypes          []string `json:"orderTypes"`
-	IcebergAllowed      bool     `json:"icebergAllowed"`
-	OcoAllowed          bool     `json:"ocoAllowed"`
-	IsSpotTradingAllowed bool    `json:"isSpotTradingAllowed"`
-	IsMarginTradingAllowed bool  `json:"isMarginTradingAllowed"`
+	Symbol                 string   `json:"symbol"`
+	Status                 string   `json:"status"`
+	BaseAsset              string   `json:"baseAsset"`
+	BaseAssetPrecision     int      `json:"baseAssetPrecision"`
+	QuoteAsset             string   `json:"quoteAsset"`
+	QuoteAssetPrecision    int      `json:"quoteAssetPrecision"`
+	OrderTypes             []string `json:"orderTypes"`
+	IcebergAllowed         bool     `json:"icebergAllowed"`
+	OcoAllowed             bool     `json:"ocoAllowed"`
+	IsSpotTradingAllowed   bool     `json:"isSpotTradingAllowed"`
+	IsMarginTradingAllowed bool     `json:"isMarginTradingAllowed"`
 }
 
 // OrderBook represents order book depth
 type OrderBook struct {
-	LastUpdateID int64       `json:"lastUpdateId"`
+	LastUpdateID int64        `json:"lastUpdateId"`
 	Bids         []PriceLevel `json:"bids"`
 	Asks         []PriceLevel `json:"asks"`
 }
@@ -125,62 +125,62 @@ type Order struct {
 
 // FuturesOrderRequest represents a futures order request
 type FuturesOrderRequest struct {
-	Symbol              string          `json:"symbol"`
-	Side                string          `json:"side"`
-	Type                string          `json:"type"`
-	Quantity            decimal.Decimal `json:"quantity"`
-	Price               decimal.Decimal `json:"price,omitempty"`
-	StopPrice           decimal.Decimal `json:"stopPrice,omitempty"`
-	TimeInForce         string          `json:"timeInForce,omitempty"`
-	ReduceOnly          bool            `json:"reduceOnly,omitempty"`
-	ClosePosition       bool            `json:"closePosition,omitempty"`
-	ActivationPrice     decimal.Decimal `json:"activationPrice,omitempty"`
-	CallbackRate        decimal.Decimal `json:"callbackRate,omitempty"`
-	WorkingType         string          `json:"workingType,omitempty"`
-	PriceProtect        bool            `json:"priceProtect,omitempty"`
-	NewClientOrderID    string          `json:"newClientOrderId,omitempty"`
-	RecvWindow          int64           `json:"recvWindow,omitempty"`
+	Symbol           string          `json:"symbol"`
+	Side             string          `json:"side"`
+	Type             string          `json:"type"`
+	Quantity         decimal.Decimal `json:"quantity"`
+	Price            decimal.Decimal `json:"price,omitempty"`
+	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`
+	TimeInForce      string          `json:"timeInForce,omitempty"`
+	ReduceOnly       bool            `json:"reduceOnly,omitempty"`
+	ClosePosition    bool            `json:"closePosition,omitempty"`
+	ActivationPrice  decimal.Decimal `json:"activationPrice,omitempty"`
+	CallbackRate     decimal.Decimal `json:"callbackRate,omitempty"`
+	WorkingType      string          `json:"workingType,omitempty"`
+	PriceProtect     bool            `json:"priceProtect,omitempty"`
+	NewClientOrderID string          `json:"newClientOrderId,omitempty"`
+	RecvWindow       int64           `json:"recvWindow,omitempty"`
 }
 
 // FuturesOrderResponse represents a futures order response
 type FuturesOrderResponse struct {
-	OrderID               int64           `json:"orderId"`
-	Symbol                string          `json:"symbol"`
-	Status                string          `json:"status"`
-	ClientOrderID         string          `json:"clientOrderId"`
-	Price                 decimal.Decimal `json:"price"`
-	AvgPrice              decimal.Decimal `json:"avgPrice"`
-	OrigQty               decimal.Decimal `json:"origQty"`
-	ExecutedQty           decimal.Decimal `json:"executedQty"`
-	CumQty                decimal.Decimal `json:"cumQty"`
-	CumQuote              decimal.Decimal `json:"cumQuote"`
-	TimeInForce           string          `json:"timeInForce"`
-	Type                  string          `json:"type"`
-	ReduceOnly            bool            `json:"reduceOnly"`
-	ClosePosition         bool            `json:"closePosition"`
-	Side                  string          `json:"side"`
-	PositionSide          string          `json:"positionSide"`
-	StopPrice             decimal.Decimal `json:"stopPrice"`
-	WorkingType           string          `json:"workingType"`
-	PriceProtect          bool            `json:"priceProtect"`
-	OrigType              string          `json:"origType"`
-	UpdateTime            int64           `json:"updateTime"`
+	OrderID       int64           `json:"orderId"`
+	Symbol        string          `json:"symbol"`
+	Status        string          `json:"status"`
+	ClientOrderID string          `json:"clientOrderId"`
+	Price         decimal.Decimal `json:"price"`
+	AvgPrice      decimal.Decimal `json:"avgPrice"`
+	OrigQty       decimal.Decimal `json:"origQty"`
+	ExecutedQty   decimal.Decimal `json:"executedQty"`
+	CumQty        decimal.Decimal `json:"cumQty"`
+	CumQuote      decimal.Decimal `json:"cumQuote"`
+	TimeInForce   string          `json:"timeInForce"`
+	Type          string          `json:"type"`
+	ReduceOnly    bool            `json:"reduceOnly"`
+	ClosePosition bool            `json:"closePosition"`
+	Side          string          `json:"side"`
+	PositionSide  string          `json:"positionSide"`
+	StopPrice     decimal.Decimal `json:"stopPrice"`
+	WorkingType   string          `json:"workingType"`
+	PriceProtect  bool            `json:"priceProtect"`
+	OrigType      string          `json:"origType"`
+	UpdateTime    int64           `json:"updateTime"`
 }
 
 // FuturesAccountResponse represents futures account info
 type FuturesAccountResponse struct {
-	TotalWalletBalance       decimal.Decimal    `json:"totalWalletBalance"`
-	TotalUnrealizedProfit    decimal.Decimal    `json:"totalUnrealizedProfit"`
-	TotalMarginBalance       decimal.Decimal    `json:"totalMarginBalance"`
-	AvailableBalance         decimal.Decimal    `json:"availableBalance"`
-	TotalPositionInitialMargin decimal.Decimal  `json:"totalPositionInitialMargin"`
-	TotalOpenOrderInitialMargin decimal.Decimal `json:"totalOpenOrderInitialMargin"`
-	TotalCrossWalletBalance  decimal.Decimal    `json:"totalCrossWalletBalance"`
-	TotalCrossUnPnl          decimal.Decimal    `json:"totalCrossUnPnl"`
-	MaxWithdrawAmount        decimal.Decimal    `json:"maxWithdrawAmount"`
-	UpdateTime               int64              `json:"updateTime"`
-	Assets                   []FuturesAsset     `json:"assets"`
-	Positions                []FuturesPosition  `json:"positions"`
+	TotalWalletBalance          decimal.Decimal   `json:"totalWalletBalance"`
+	TotalUnrealizedProfit       decimal.Decimal   `json:"totalUnrealizedProfit"`
+	TotalMarginBalance          decimal.Decimal   `json:"totalMarginBalance"`
+	AvailableBalance            decimal.Decimal   `json:"availableBalance"`
+	TotalPositionInitialMargin  decimal.Decimal   `json:"totalPositionInitialMargin"`
+	TotalOpenOrderInitialMargin decimal.Decimal   `json:"totalOpenOrderInitialMargin"`
+	TotalCrossWalletBalance     decimal.Decimal   `json:"totalCrossWalletBalance"`
+	TotalCrossUnPnl             decimal.Decimal   `json:"totalCrossUnPnl"`
+	MaxWithdrawAmount           decimal.Decimal   `json:"maxWithdrawAmount"`
+	UpdateTime                  int64             `json:"updateTime"`
+	Assets                      []FuturesAsset    `json:"assets"`
+	Positions                   []FuturesPosition `json:"positions"`
 }
 
 // FuturesAsset represents a futures account asset
@@ -218,4 +218,3 @@ type FuturesPosition struct {
 	UpdateTime             int64           `json:"updateTime"`
 	MarkPrice              decimal.Decimal `json:"markPrice"`
 }
-

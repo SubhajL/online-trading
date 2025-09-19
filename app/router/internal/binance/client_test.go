@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,24 +28,27 @@ var (
 func TestNewClient_ValidatesConfiguration(t *testing.T) {
 	signer := createTestSigner(t)
 	restClient := createTestRestClient(t)
+	logger := zerolog.Nop()
 
-	client, err := NewClient(testBaseURL, signer, restClient)
+	client, err := NewClient(testBaseURL, signer, restClient, logger)
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 }
 
 func TestNewClient_RequiresSigner(t *testing.T) {
 	restClient := createTestRestClient(t)
+	logger := zerolog.Nop()
 
-	_, err := NewClient(testBaseURL, nil, restClient)
+	_, err := NewClient(testBaseURL, nil, restClient, logger)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "signer")
 }
 
 func TestNewClient_RequiresRestClient(t *testing.T) {
 	signer := createTestSigner(t)
+	logger := zerolog.Nop()
 
-	_, err := NewClient(testBaseURL, signer, nil)
+	_, err := NewClient(testBaseURL, signer, nil, logger)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "rest client")
 }
@@ -244,8 +248,9 @@ func createTestClient(t *testing.T) *Client {
 	t.Helper()
 	signer := createTestSigner(t)
 	restClient := createTestRestClient(t)
+	logger := zerolog.Nop()
 
-	client, err := NewClient(testBaseURL, signer, restClient)
+	client, err := NewClient(testBaseURL, signer, restClient, logger)
 	require.NoError(t, err)
 	return client
 }
