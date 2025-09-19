@@ -145,6 +145,7 @@ func TestValidateConfig(t *testing.T) {
 			Port:      8080,
 			APIKey:    "test-key",
 			RateLimit: 100,
+			LogLevel:  "info",
 		}
 
 		err := ValidateConfig(config)
