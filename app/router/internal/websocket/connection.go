@@ -40,6 +40,7 @@ type Connection struct {
 	// Control channels
 	closeChan   chan struct{}
 	doneChan    chan struct{}
+	doneOnce    sync.Once
 
 	// Reconnection state
 	reconnectAttempts int
@@ -168,6 +169,20 @@ func (c *Connection) Connect(ctx context.Context) error {
 	}
 
 	c.setState(StateConnecting)
+
+	// Reset channels for reconnection
+	select {
+	case <-c.closeChan:
+		c.closeChan = make(chan struct{})
+	default:
+	}
+
+	select {
+	case <-c.doneChan:
+		c.doneChan = make(chan struct{})
+		c.doneOnce = sync.Once{}
+	default:
+	}
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
@@ -317,12 +332,9 @@ func (c *Connection) SetMessageHandler(handler func([]byte)) {
 // startPingLoop sends periodic ping frames
 func (c *Connection) startPingLoop() {
 	defer func() {
-		select {
-		case <-c.doneChan:
-			// Already closed
-		default:
+		c.doneOnce.Do(func() {
 			close(c.doneChan)
-		}
+		})
 	}()
 
 	ticker := time.NewTicker(c.pingInterval)
@@ -381,12 +393,9 @@ func (c *Connection) startPingLoop() {
 // startReadLoop reads messages from WebSocket
 func (c *Connection) startReadLoop() {
 	defer func() {
-		select {
-		case <-c.doneChan:
-			// Already closed
-		default:
+		c.doneOnce.Do(func() {
 			close(c.doneChan)
-		}
+		})
 	}()
 
 	for {

@@ -456,9 +456,13 @@ func TestStreamManager_Close(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
 			defer conn.Close()
 			for {
-				if _, _, err := conn.ReadMessage(); err != nil {
+				var req SubscriptionRequest
+				if err := conn.ReadJSON(&req); err != nil {
 					return
 				}
+				// Send confirmation
+				resp := SubscriptionResponse{Result: nil, ID: req.ID}
+				conn.WriteJSON(resp)
 			}
 		})
 		defer server.Close()
