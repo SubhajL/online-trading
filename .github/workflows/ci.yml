@@ -271,8 +271,6 @@ jobs:
 
       - name: Run CodeQL Analysis
         uses: github/codeql-action/analyze@v3
-        with:
-          languages: 'python,javascript,go'
 
   # E2E Tests
   e2e-tests:

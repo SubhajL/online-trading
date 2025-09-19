@@ -7,7 +7,7 @@ the trading platform, including events, market data, signals, and decisions.
 
 from __future__ import annotations
 
-import enum
+import enum as _enum
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, validator
 
 UUID = uuid.UUID
 uuid4 = uuid.uuid4
-Enum = enum.Enum
+Enum = _enum.Enum
 
 
 # ============================================================================
