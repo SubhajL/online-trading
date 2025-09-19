@@ -365,7 +365,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install jsonschema pydantic pytest
+          pip install jsonschema pydantic pytest pytest-cov
           # Show installed versions for debugging
           python --version
           pytest --version
@@ -381,11 +381,11 @@ jobs:
 
       - name: Run schema validation tests
         run: |
-          # Change to repo root
-          pwd
-          ls -la
-          # Run tests
-          python -m pytest tests/contracts/test_jsonschema_validation.py -v || echo "Exit code: $?"
+          # Run tests with proper coverage for contracts
+          python -m pytest tests/contracts/test_jsonschema_validation.py \
+            tests/contracts/test_codegen.py::TestLoadSchemas \
+            tests/contracts/test_codegen.py::TestValidateSchema \
+            -v --cov --cov-config=.coveragerc-contracts
 
       - name: Check generated code is up to date
         run: |
@@ -408,7 +408,7 @@ jobs:
 
       - name: Test generated Python models
         run: |
-          python -m pytest tests/contracts/test_generated_models.py -v || echo "Exit code: $?"
+          python -m pytest tests/contracts/test_generated_models.py -v
 
       - name: Validate example payloads
         run: |
