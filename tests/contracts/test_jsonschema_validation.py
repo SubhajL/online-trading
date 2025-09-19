@@ -5,7 +5,11 @@ from pathlib import Path
 from typing import Any, Dict
 
 import pytest
-from jsonschema import Draft7Validator, ValidationError
+
+try:
+    from jsonschema import Draft7Validator, ValidationError
+except ImportError:
+    pytest.skip("jsonschema not installed", allow_module_level=True)
 
 
 def load_schema(schema_path: Path) -> Dict[str, Any]:
