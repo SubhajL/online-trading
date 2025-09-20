@@ -110,7 +110,10 @@ export class ApiClient {
     return this.request<T>(endpoint, { ...options, method: 'PUT', body })
   }
 
-  async delete<T = unknown>(endpoint: string, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+  async delete<T = unknown>(
+    endpoint: string,
+    options?: Omit<RequestOptions, 'method'>,
+  ): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' })
   }
 }

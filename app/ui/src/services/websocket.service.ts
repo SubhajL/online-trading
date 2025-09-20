@@ -47,7 +47,7 @@ export class WebSocketService {
     this.emitConnectionState({ connected: false, connecting: false, reconnectAttempts: 0 })
   }
 
-  subscribe<T = any>(event: string, callback: (data: T) => void): () => void {
+  subscribe<T = unknown>(event: string, callback: (data: T) => void): () => void {
     if (!this.socket) {
       throw new Error('WebSocket is not connected')
     }
@@ -60,7 +60,7 @@ export class WebSocketService {
     }
   }
 
-  emit<T = any>(event: string, data: T): void {
+  emit<T = unknown>(event: string, data: T): void {
     if (!this.socket || !this.socket.connected) {
       throw new Error('WebSocket is not connected')
     }
