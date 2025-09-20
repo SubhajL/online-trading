@@ -15,7 +15,7 @@ from app.engine.core.interfaces import (
 )
 from app.engine.core.subscription_manager import EventSubscription
 from app.engine.core.event_processor import EventProcessingResult, EventProcessingStats
-from app.engine.types import EventType, BaseEvent
+from app.engine.models import EventType, BaseEvent
 from uuid import uuid4
 
 

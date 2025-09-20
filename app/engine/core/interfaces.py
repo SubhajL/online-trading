@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Protocol
 from uuid import UUID
 
-from app.engine.types import BaseEvent, EventType
+from app.engine.models import BaseEvent, EventType
 from app.engine.core.subscription_manager import EventSubscription, SubscriptionConfig
 from app.engine.core.event_processor import EventProcessingConfig, EventProcessingResult, EventProcessingStats
 

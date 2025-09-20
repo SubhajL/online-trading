@@ -20,7 +20,7 @@ from app.engine.core.error_handling import (
     handle_error,
     error_boundary
 )
-from app.engine.types import EventType, BaseEvent
+from app.engine.models import EventType, BaseEvent
 
 
 class TestEvent(BaseEvent):

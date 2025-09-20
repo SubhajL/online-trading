@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from app.engine.bus import EventBus
 from app.engine.core.event_bus_factory import EventBusFactory, EventBusConfig
-from app.engine.types import BaseEvent, EventType
+from app.engine.models import BaseEvent, EventType
 from app.engine.core.observability import (
     ObservabilityManager,
     EventBusHealthCheck,

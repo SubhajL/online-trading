@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Set
 from uuid import uuid4
 
-from app.engine.types import BaseEvent, EventType
+from app.engine.models import BaseEvent, EventType
 from .error_handling import (
     SubscriptionError,
     ErrorCategory,

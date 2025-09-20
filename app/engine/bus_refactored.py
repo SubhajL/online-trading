@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Set
 from uuid import UUID, uuid4
 
 from app.engine.config import EventBusConfig
-from app.engine.types import BaseEvent, ErrorEvent, EventType
+from app.engine.models import BaseEvent, ErrorEvent, EventType
 
 
 logger = logging.getLogger(__name__)

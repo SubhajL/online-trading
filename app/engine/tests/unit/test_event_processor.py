@@ -16,7 +16,7 @@ from app.engine.core.event_processor import (
     EventProcessingError
 )
 from app.engine.core.subscription_manager import EventSubscription
-from app.engine.types import EventType, BaseEvent
+from app.engine.models import EventType, BaseEvent
 
 
 class TestEvent(BaseEvent):

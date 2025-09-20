@@ -10,12 +10,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
 
+from app.engine.models import PositionSide
+
 logger = logging.getLogger(__name__)
-
-
-class PositionSide(Enum):
-    LONG = "LONG"
-    SHORT = "SHORT"
 
 
 class CloseReason(Enum):

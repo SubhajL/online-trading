@@ -68,6 +68,30 @@ export class WebSocketService {
     this.socket.emit(event, data)
   }
 
+  on<T = unknown>(event: string, callback: (data: T) => void): void {
+    if (!this.socket) {
+      throw new Error('WebSocket is not connected')
+    }
+
+    this.socket.on(event, callback)
+  }
+
+  off<T = unknown>(event: string, callback: (data: T) => void): void {
+    if (!this.socket) {
+      return
+    }
+
+    this.socket.off(event, callback)
+  }
+
+  unsubscribe(event: string): void {
+    if (!this.socket) {
+      return
+    }
+
+    this.socket.off(event)
+  }
+
   isConnected(): boolean {
     return this.socket?.connected ?? false
   }

@@ -10,7 +10,7 @@ from asyncpg import Connection
 
 from app.engine.adapters.db import timescale
 from app.engine.adapters.db.connection_pool import ConnectionPool, DBConfig
-from app.engine.types import (
+from app.engine.models import (
     Candle,
     TimeFrame,
     TechnicalIndicators,

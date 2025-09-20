@@ -69,6 +69,12 @@ class OrderStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
+class PositionSide(str, Enum):
+    """Position side enumeration"""
+    LONG = "LONG"
+    SHORT = "SHORT"
+
+
 class EventType(str, Enum):
     """Event type enumeration for the event bus"""
     CANDLE_UPDATE = "candle_update"

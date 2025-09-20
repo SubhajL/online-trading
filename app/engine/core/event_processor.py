@@ -11,7 +11,7 @@ from uuid import UUID
 
 from app.engine.core.subscription_manager import EventSubscription
 from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-from app.engine.types import BaseEvent
+from app.engine.models import BaseEvent
 
 
 @dataclass

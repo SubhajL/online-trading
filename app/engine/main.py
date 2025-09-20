@@ -26,7 +26,7 @@ from .smc.smc_service import SMCService
 from .decision.decision_engine import DecisionEngine
 from .decision.risk_manager import RiskManager
 from .adapters import TimescaleDBAdapter, RedisAdapter, RouterHTTPClient
-from .types import RiskParameters, BinanceConfig, DatabaseConfig, RedisConfig, EngineConfig
+from .models import RiskParameters, BinanceConfig, DatabaseConfig, RedisConfig, EngineConfig
 
 
 # Configure logging
@@ -204,7 +204,7 @@ async def initialize_services(config: EngineConfig):
 
         # Initialize ingest service
         symbols = os.getenv("TRADING_SYMBOLS", "BTCUSDT,ETHUSDT").split(",")
-        from .types import TimeFrame
+        from .models import TimeFrame
         timeframes = [TimeFrame.M5, TimeFrame.M15, TimeFrame.H1, TimeFrame.H4]
 
         ingest_service = IngestService(

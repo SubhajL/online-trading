@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import List
 
 from app.engine.core.event_bus_factory import EventBusFactory, EventBusConfig
-from app.engine.types import EventType, BaseEvent
+from app.engine.models import EventType, BaseEvent
 
 
 class TestEvent(BaseEvent):

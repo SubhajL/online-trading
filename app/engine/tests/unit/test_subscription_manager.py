@@ -12,7 +12,7 @@ from app.engine.core.subscription_manager import (
     EventSubscription,
     SubscriptionConfig
 )
-from app.engine.types import EventType, BaseEvent
+from app.engine.models import EventType, BaseEvent
 
 
 @dataclass

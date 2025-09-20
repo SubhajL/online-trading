@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from .types import BaseEvent, EventType
+from .models import BaseEvent, EventType
 from .core.interfaces import (
     EventBusInterface,
     SubscriptionManagerInterface,

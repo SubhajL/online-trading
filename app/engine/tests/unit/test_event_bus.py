@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 from pydantic import ValidationError
 
 from app.engine.bus_refactored import EventBus, EventBusConfig, create_event_bus, CircuitBreakerState
-from app.engine.types import BaseEvent, EventType
+from app.engine.models import BaseEvent, EventType
 
 
 class TestEventBusConfig:
