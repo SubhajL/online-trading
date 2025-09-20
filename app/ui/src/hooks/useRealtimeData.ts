@@ -59,7 +59,11 @@ export function useRealtimeData(subscriptions: Subscription[]) {
       // Create handler for this subscription
       const handler = (data: unknown) => {
         // Filter by symbol if specified
-        if (sub.symbol && (data as { symbol?: string }).symbol && (data as { symbol?: string }).symbol !== sub.symbol) {
+        if (
+          sub.symbol &&
+          (data as { symbol?: string }).symbol &&
+          (data as { symbol?: string }).symbol !== sub.symbol
+        ) {
           return
         }
         sub.onData?.(data)

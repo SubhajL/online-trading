@@ -104,9 +104,8 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
-      // Capture the current ref value to avoid stale closure issues
-      const currentIndicators = indicatorSeriesRef.current
-      currentIndicators.clear()
+      // Clear indicators before chart removal
+      indicatorSeriesRef.current.clear()
       chartInstance.remove()
       setChart(null)
       setCandlestickSeries(null)
