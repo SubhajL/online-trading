@@ -435,6 +435,28 @@ class TimescaleDBAdapter:
             logger.error(f"Error inserting candles batch: {e}")
             return 0
 
+    async def get_latest_candle(
+        self,
+        symbol: str,
+        timeframe: TimeFrame
+    ) -> Optional[Candle]:
+        """
+        Get the latest candle for a symbol and timeframe.
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Candle timeframe
+
+        Returns:
+            Latest candle or None if no data
+        """
+        candles = await self.get_candles(
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=1
+        )
+        return candles[0] if candles else None
+
     async def get_candles(
         self,
         symbol: str,

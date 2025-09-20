@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Set
 
 from .binance_ws import BinanceWebSocketClient
 from .binance_rest import BinanceRestClient
-from ..types import Candle, CandleUpdateEvent, TimeFrame
+from ..models import Candle, CandleUpdateEvent, TimeFrame
 from ..bus import get_event_bus
 
 

@@ -7,6 +7,7 @@ Uses dependency injection for subscription management and event processing.
 
 import asyncio
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -352,3 +353,55 @@ def create_event_bus() -> EventBus:
 
     factory = EventBusFactory()
     return factory.create_event_bus()
+
+# Global event bus instance management
+_global_event_bus: Optional[EventBus] = None
+
+
+def set_event_bus(bus: EventBus) -> None:
+    """
+    Set the global event bus instance.
+
+    Args:
+        bus: The EventBus instance to set as global
+    """
+    global _global_event_bus
+    _global_event_bus = bus
+
+
+def get_event_bus() -> EventBus:
+    """
+    Get the global event bus instance.
+
+    Returns:
+        The global EventBus instance
+
+    Raises:
+        RuntimeError: If no event bus has been set
+    """
+    if _global_event_bus is None:
+        raise RuntimeError("No event bus has been set. Call set_event_bus() first.")
+    return _global_event_bus
+
+
+async def publish_event(topic: str, data: Dict[str, Any]) -> bool:
+    """
+    Simplified interface to publish an event to the global event bus.
+
+    Args:
+        topic: The event topic (e.g., "candles.v1")
+        data: The event data dictionary
+
+    Returns:
+        True if published successfully
+
+    Raises:
+        RuntimeError: If no event bus has been set
+    """
+    bus = get_event_bus()
+    event = BaseEvent(
+        event_type=EventType.CANDLE_UPDATE if topic == "candles.v1" else EventType.CANDLE_UPDATE,
+        timestamp=data.get("timestamp", datetime.utcnow()),
+        data=data
+    )
+    return await bus.publish(event)

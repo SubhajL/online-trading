@@ -18,7 +18,7 @@ from urllib.parse import urlencode
 import aiohttp
 from aiohttp import ClientSession
 
-from ..types import (
+from ..models import (
     Candle,
     Order,
     Position,

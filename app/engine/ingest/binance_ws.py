@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidStatusCode
 
-from ..types import Candle, CandleUpdateEvent, TimeFrame
+from ..models import Candle, CandleUpdateEvent, TimeFrame
 from ..bus import get_event_bus
 
 
