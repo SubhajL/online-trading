@@ -509,25 +509,27 @@ class RedisAdapter:
                 ema_50=Decimal(str(data["ema_50"])) if data["ema_50"] else None,
                 ema_200=Decimal(str(data["ema_200"])) if data["ema_200"] else None,
                 rsi_14=Decimal(str(data["rsi_14"])) if data["rsi_14"] else None,
-                macd_line=Decimal(str(data["macd_line"]))
-                if data["macd_line"]
-                else None,
-                macd_signal=Decimal(str(data["macd_signal"]))
-                if data["macd_signal"]
-                else None,
-                macd_histogram=Decimal(str(data["macd_histogram"]))
-                if data["macd_histogram"]
-                else None,
+                macd_line=(
+                    Decimal(str(data["macd_line"])) if data["macd_line"] else None
+                ),
+                macd_signal=(
+                    Decimal(str(data["macd_signal"])) if data["macd_signal"] else None
+                ),
+                macd_histogram=(
+                    Decimal(str(data["macd_histogram"]))
+                    if data["macd_histogram"]
+                    else None
+                ),
                 atr_14=Decimal(str(data["atr_14"])) if data["atr_14"] else None,
                 bb_upper=Decimal(str(data["bb_upper"])) if data["bb_upper"] else None,
-                bb_middle=Decimal(str(data["bb_middle"]))
-                if data["bb_middle"]
-                else None,
+                bb_middle=(
+                    Decimal(str(data["bb_middle"])) if data["bb_middle"] else None
+                ),
                 bb_lower=Decimal(str(data["bb_lower"])) if data["bb_lower"] else None,
                 bb_width=Decimal(str(data["bb_width"])) if data["bb_width"] else None,
-                bb_percent=Decimal(str(data["bb_percent"]))
-                if data["bb_percent"]
-                else None,
+                bb_percent=(
+                    Decimal(str(data["bb_percent"])) if data["bb_percent"] else None
+                ),
             )
 
         except Exception as e:

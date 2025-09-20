@@ -50,7 +50,9 @@ def migrations_dir(tmp_path):
 
     # Create sample migration files
     (migrations / "001_initial.sql").write_text("CREATE TABLE test1 (id INT);")
-    (migrations / "002_add_column.sql").write_text("ALTER TABLE test1 ADD COLUMN name TEXT;")
+    (migrations / "002_add_column.sql").write_text(
+        "ALTER TABLE test1 ADD COLUMN name TEXT;"
+    )
     (migrations / "000_migration_version.sql").write_text("-- Bootstrap migration")
 
     return migrations
@@ -66,7 +68,9 @@ class TestMigration:
         assert migration.name == "Initial"
         assert migration.filename == "001_initial.sql"
         assert migration.content == "CREATE TABLE test1 (id INT);"
-        assert migration.checksum == hashlib.sha256(migration.content.encode()).hexdigest()
+        assert (
+            migration.checksum == hashlib.sha256(migration.content.encode()).hexdigest()
+        )
 
     def test_from_file_invalid_filename(self, migrations_dir):
         """Test creating migration from invalid filename."""
@@ -100,7 +104,9 @@ class TestMigrationRunner:
         assert mock_connection.fetchval.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_get_current_version_with_migrations(self, mock_pool, mock_connection):
+    async def test_get_current_version_with_migrations(
+        self, mock_pool, mock_connection
+    ):
         """Test getting version with existing migrations."""
         mock_connection.fetchval.side_effect = [True, 5]  # Schema exists, version 5
 
@@ -159,7 +165,9 @@ class TestMigrationRunner:
 
         # Verify history was recorded
         assert mock_connection.fetchval.call_count == 1
-        assert mock_connection.execute.call_count == 3  # SQL, version insert, history update
+        assert (
+            mock_connection.execute.call_count == 3
+        )  # SQL, version insert, history update
 
     @pytest.mark.asyncio
     async def test_apply_migration_failure(self, mock_pool, mock_connection):
@@ -206,12 +214,12 @@ class TestMigrationRunner:
         # Mock current version = 0 (no migrations)
         mock_connection.fetchval.side_effect = [
             False,  # Schema doesn't exist
-            None,   # No current version
-            None,   # History ID for bootstrap
-            None,   # History ID for migration 1
-            None,   # History ID for migration 2
-            True,   # Schema exists after migration
-            2,      # Final version
+            None,  # No current version
+            None,  # History ID for bootstrap
+            None,  # History ID for migration 1
+            None,  # History ID for migration 2
+            True,  # Schema exists after migration
+            2,  # Final version
         ]
 
         runner = MigrationRunner(mock_pool, migrations_dir)
@@ -226,12 +234,12 @@ class TestMigrationRunner:
     ):
         """Test migrating to specific version."""
         mock_connection.fetchval.side_effect = [
-            True,   # Schema exists
-            0,      # Current version
-            None,   # Check migration 1 status
-            123,    # History ID for migration 1
-            True,   # Schema exists after
-            1,      # Final version
+            True,  # Schema exists
+            0,  # Current version
+            None,  # Check migration 1 status
+            123,  # History ID for migration 1
+            True,  # Schema exists after
+            1,  # Final version
         ]
 
         runner = MigrationRunner(mock_pool, migrations_dir)
@@ -241,13 +249,22 @@ class TestMigrationRunner:
         assert final_version == 1
 
     @pytest.mark.asyncio
-    async def test_check_migration_status(self, mock_pool, mock_connection, migrations_dir):
+    async def test_check_migration_status(
+        self, mock_pool, mock_connection, migrations_dir
+    ):
         """Test getting migration status."""
         mock_connection.fetchval.side_effect = [True, 1]  # Current version = 1
 
         # Mock applied migrations
         mock_connection.fetch.side_effect = [
-            [{"version": 1, "name": "Initial", "applied_at": "2024-01-01", "execution_time_ms": 100}],
+            [
+                {
+                    "version": 1,
+                    "name": "Initial",
+                    "applied_at": "2024-01-01",
+                    "execution_time_ms": 100,
+                }
+            ],
             [],  # No failed migrations
         ]
 
@@ -267,13 +284,13 @@ class TestMigrationRunner:
     ):
         """Test that already applied migrations are skipped."""
         mock_connection.fetchval.side_effect = [
-            True,    # Schema exists
-            0,       # Current version
+            True,  # Schema exists
+            0,  # Current version
             "applied",  # Migration 1 already applied
-            None,    # Check migration 2 status
-            124,     # History ID for migration 2
-            True,    # Schema exists
-            2,       # Final version
+            None,  # Check migration 2 status
+            124,  # History ID for migration 2
+            True,  # Schema exists
+            2,  # Final version
         ]
 
         runner = MigrationRunner(mock_pool, migrations_dir)

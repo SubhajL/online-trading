@@ -58,7 +58,7 @@ class TestGeneratedModels:
             trades=1500,
             taker_buy_volume="60.3",
             taker_buy_quote_volume="2715000.0",
-            is_closed=True
+            is_closed=True,
         )
 
         assert candle.symbol == "BTCUSDT"
@@ -83,7 +83,7 @@ class TestGeneratedModels:
             risk_percentage=0.01,
             leverage="1.0",
             confidence=0.8,
-            reason="Test decision"
+            reason="Test decision",
         )
 
         assert decision.action == "open_long"

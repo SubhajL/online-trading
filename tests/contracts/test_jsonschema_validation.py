@@ -26,12 +26,18 @@ def validate_schema_structure(schema: Dict[str, Any], schema_name: str) -> None:
 
     assert "properties" in schema, f"{schema_name}: Missing 'properties' field"
     assert "required" in schema, f"{schema_name}: Missing 'required' field"
-    assert "additionalProperties" in schema, f"{schema_name}: Missing 'additionalProperties' field"
+    assert (
+        "additionalProperties" in schema
+    ), f"{schema_name}: Missing 'additionalProperties' field"
 
     # Validate required fields
-    assert isinstance(schema["required"], list), f"{schema_name}: 'required' must be a list"
+    assert isinstance(
+        schema["required"], list
+    ), f"{schema_name}: 'required' must be a list"
     for field in schema["required"]:
-        assert field in schema["properties"], f"{schema_name}: Required field '{field}' not in properties"
+        assert (
+            field in schema["properties"]
+        ), f"{schema_name}: Required field '{field}' not in properties"
 
 
 class TestJSONSchemaValidation:
@@ -63,7 +69,9 @@ class TestJSONSchemaValidation:
             except json.JSONDecodeError as e:
                 pytest.fail(f"{schema_file.name}: Invalid JSON - {e}")
 
-    def test_all_schemas_are_valid_jsonschema(self, all_schemas: Dict[str, Dict[str, Any]]):
+    def test_all_schemas_are_valid_jsonschema(
+        self, all_schemas: Dict[str, Dict[str, Any]]
+    ):
         """All schemas should be valid JSON Schema Draft 7."""
         for schema_name, schema in all_schemas.items():
             try:
@@ -83,32 +91,48 @@ class TestJSONSchemaValidation:
 
             # Check common fields
             if "version" in properties:
-                assert properties["version"]["type"] == "string", f"{schema_name}: version must be string"
+                assert (
+                    properties["version"]["type"] == "string"
+                ), f"{schema_name}: version must be string"
 
             if "timestamp" in properties:
-                assert properties["timestamp"]["type"] == "string", f"{schema_name}: timestamp must be string"
-                assert properties["timestamp"].get("format") == "date-time", f"{schema_name}: timestamp must have date-time format"
+                assert (
+                    properties["timestamp"]["type"] == "string"
+                ), f"{schema_name}: timestamp must be string"
+                assert (
+                    properties["timestamp"].get("format") == "date-time"
+                ), f"{schema_name}: timestamp must have date-time format"
 
             if "venue" in properties:
-                assert properties["venue"]["type"] == "string", f"{schema_name}: venue must be string"
+                assert (
+                    properties["venue"]["type"] == "string"
+                ), f"{schema_name}: venue must be string"
 
             if "symbol" in properties:
-                assert properties["symbol"]["type"] == "string", f"{schema_name}: symbol must be string"
+                assert (
+                    properties["symbol"]["type"] == "string"
+                ), f"{schema_name}: symbol must be string"
 
-    def test_required_fields_match_properties(self, all_schemas: Dict[str, Dict[str, Any]]):
+    def test_required_fields_match_properties(
+        self, all_schemas: Dict[str, Dict[str, Any]]
+    ):
         """All required fields should exist in properties."""
         for schema_name, schema in all_schemas.items():
             required = set(schema["required"])
             properties = set(schema["properties"].keys())
 
             missing = required - properties
-            assert not missing, f"{schema_name}: Required fields missing from properties: {missing}"
+            assert (
+                not missing
+            ), f"{schema_name}: Required fields missing from properties: {missing}"
 
     def test_no_duplicate_required_fields(self, all_schemas: Dict[str, Dict[str, Any]]):
         """Required fields should not have duplicates."""
         for schema_name, schema in all_schemas.items():
             required = schema["required"]
-            assert len(required) == len(set(required)), f"{schema_name}: Duplicate required fields"
+            assert len(required) == len(
+                set(required)
+            ), f"{schema_name}: Duplicate required fields"
 
     def test_example_payloads_validate(self, all_schemas: Dict[str, Dict[str, Any]]):
         """Example payloads should validate against schemas."""
@@ -127,15 +151,36 @@ class TestJSONSchemaValidation:
             validator = Draft7Validator(schema)
             errors = list(validator.iter_errors(example_data))
             if errors:
-                error_messages = [f"- {err.message} at {'.'.join(str(p) for p in err.path)}"
-                                  for err in errors]
-                pytest.fail(f"{schema_name} example validation failed:\n" + "\n".join(error_messages))
+                error_messages = [
+                    f"- {err.message} at {'.'.join(str(p) for p in err.path)}"
+                    for err in errors
+                ]
+                pytest.fail(
+                    f"{schema_name} example validation failed:\n"
+                    + "\n".join(error_messages)
+                )
 
     def test_numeric_fields_allow_strings(self, all_schemas: Dict[str, Dict[str, Any]]):
         """Numeric fields should allow string representation for precision."""
-        numeric_field_names = {"open", "high", "low", "close", "volume", "value", "price",
-                               "quantity", "size", "leverage", "risk_amount", "atr", "sl", "tp",
-                               "entry", "stop_loss", "take_profit"}
+        numeric_field_names = {
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "value",
+            "price",
+            "quantity",
+            "size",
+            "leverage",
+            "risk_amount",
+            "atr",
+            "sl",
+            "tp",
+            "entry",
+            "stop_loss",
+            "take_profit",
+        }
 
         for schema_name, schema in all_schemas.items():
             properties = schema["properties"]
@@ -145,6 +190,10 @@ class TestJSONSchemaValidation:
                     prop_type = prop_schema.get("type")
                     # Should be either string or array containing string
                     if isinstance(prop_type, list):
-                        assert "string" in prop_type, f"{schema_name}.{prop_name}: Numeric field should allow string"
+                        assert (
+                            "string" in prop_type
+                        ), f"{schema_name}.{prop_name}: Numeric field should allow string"
                     else:
-                        assert prop_type == "string", f"{schema_name}.{prop_name}: Numeric field should be string"
+                        assert (
+                            prop_type == "string"
+                        ), f"{schema_name}.{prop_name}: Numeric field should be string"

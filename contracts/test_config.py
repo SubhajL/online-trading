@@ -51,12 +51,9 @@ class TestContractConfig:
 
         schema = {
             "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "integer"}
-            },
+            "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
             "required": ["name"],
-            "additionalProperties": False
+            "additionalProperties": False,
         }
 
         # Test strict mode - fails on extra fields
@@ -90,13 +87,17 @@ class TestContractConfig:
         # Test when schema is newer than output
         with mock.patch("os.path.exists", return_value=True):
             with mock.patch("os.path.getmtime") as mock_getmtime:
-                mock_getmtime.side_effect = lambda path: 1000 if "schema" in path else 500
+                mock_getmtime.side_effect = lambda path: (
+                    1000 if "schema" in path else 500
+                )
                 assert generator.should_regenerate("schema.json", "output.py") is True
 
         # Test when output is newer than schema
         with mock.patch("os.path.exists", return_value=True):
             with mock.patch("os.path.getmtime") as mock_getmtime:
-                mock_getmtime.side_effect = lambda path: 500 if "schema" in path else 1000
+                mock_getmtime.side_effect = lambda path: (
+                    500 if "schema" in path else 1000
+                )
                 assert generator.should_regenerate("schema.json", "output.py") is False
 
     def test_event_recording_when_enabled(self):
@@ -127,20 +128,15 @@ class TestContractConfig:
 
         old_schema = {
             "type": "object",
-            "properties": {
-                "field1": {"type": "string"}
-            },
-            "required": ["field1"]
+            "properties": {"field1": {"type": "string"}},
+            "required": ["field1"],
         }
 
         # Test backward compatible change (adding optional field)
         new_schema_compatible = {
             "type": "object",
-            "properties": {
-                "field1": {"type": "string"},
-                "field2": {"type": "integer"}
-            },
-            "required": ["field1"]
+            "properties": {"field1": {"type": "string"}, "field2": {"type": "integer"}},
+            "required": ["field1"],
         }
 
         evolution = SchemaEvolution("backward_compatible")
@@ -149,11 +145,8 @@ class TestContractConfig:
         # Test backward incompatible change (adding required field)
         new_schema_incompatible = {
             "type": "object",
-            "properties": {
-                "field1": {"type": "string"},
-                "field2": {"type": "integer"}
-            },
-            "required": ["field1", "field2"]
+            "properties": {"field1": {"type": "string"}, "field2": {"type": "integer"}},
+            "required": ["field1", "field2"],
         }
 
         with pytest.raises(ValueError) as exc:

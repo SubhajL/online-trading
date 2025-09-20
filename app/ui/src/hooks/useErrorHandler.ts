@@ -77,8 +77,8 @@ export function useErrorHandler(options: UseErrorHandlerOptions = {}): UseErrorH
           const result = fn(...args)
 
           // Handle async functions
-          if (result && typeof (result as any).then === 'function') {
-            return (result as Promise<any>).catch((err: unknown) => {
+          if (result && typeof (result as Promise<unknown>).then === 'function') {
+            return (result as Promise<unknown>).catch((err: unknown) => {
               showError(err)
               throw err
             }) as ReturnType<T> extends Promise<infer U> ? Promise<U> : ReturnType<T>

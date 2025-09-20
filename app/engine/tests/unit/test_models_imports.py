@@ -1,4 +1,5 @@
 """Test that models can be imported without conflicts with Python builtins"""
+
 import importlib
 import sys
 from types import ModuleType
@@ -7,25 +8,40 @@ from types import ModuleType
 def test_no_builtin_conflicts():
     """Ensure our module doesn't conflict with Python's built-in types module"""
     # Import Python's built-in types module
-    builtin_types = importlib.import_module('types')
+    builtin_types = importlib.import_module("types")
 
     # Verify it's the actual builtin module by checking for expected attributes
-    assert hasattr(builtin_types, 'ModuleType')
-    assert hasattr(builtin_types, 'FunctionType')
-    assert hasattr(builtin_types, 'MappingProxyType')
+    assert hasattr(builtin_types, "ModuleType")
+    assert hasattr(builtin_types, "FunctionType")
+    assert hasattr(builtin_types, "MappingProxyType")
     assert isinstance(builtin_types, ModuleType)
 
     # The builtin module should be from Python's stdlib
-    assert 'lib/python' in builtin_types.__file__ or 'types.py' not in builtin_types.__file__
+    assert (
+        "lib/python" in builtin_types.__file__
+        or "types.py" not in builtin_types.__file__
+    )
 
 
 def test_models_imports():
     """Verify all model classes can be imported from models module"""
     from app.engine.models import (
-        TimeFrame, OrderSide, OrderType, OrderStatus, PositionSide,
-        MarketRegime, SMCStructure, ZoneType,
-        Candle, TechnicalIndicators, SMCSignal, RetestSignal,
-        TradingDecision, Order, Position, SupplyDemandZone
+        TimeFrame,
+        OrderSide,
+        OrderType,
+        OrderStatus,
+        PositionSide,
+        MarketRegime,
+        SMCStructure,
+        ZoneType,
+        Candle,
+        TechnicalIndicators,
+        SMCSignal,
+        RetestSignal,
+        TradingDecision,
+        Order,
+        Position,
+        SupplyDemandZone,
     )
 
     # Test enum values
@@ -37,6 +53,7 @@ def test_models_imports():
 
     # Test model instantiation
     from datetime import datetime
+
     candle = Candle(
         symbol="BTCUSDT",
         timeframe=TimeFrame.M1,
@@ -50,7 +67,7 @@ def test_models_imports():
         quote_volume="105000.0",
         trades=50,
         taker_buy_base_volume="500.0",
-        taker_buy_quote_volume="52500.0"
+        taker_buy_quote_volume="52500.0",
     )
     assert candle.symbol == "BTCUSDT"
     assert candle.timeframe == TimeFrame.M1
@@ -61,6 +78,7 @@ def test_all_imports_updated():
     # After renaming, attempting to import from types should fail
     try:
         from app.engine.types import TimeFrame
+
         # If we can still import from types, the rename isn't complete
         assert False, "Should not be able to import from app.engine.types after rename"
     except ImportError:

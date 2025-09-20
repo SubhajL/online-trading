@@ -14,15 +14,20 @@ from app.engine.models import EventType, BaseEvent
 
 class TestEvent(BaseEvent):
     """Test event for integration tests."""
+
     test_data: str
 
     def __init__(self, test_data: str, **kwargs):
         super().__init__(
-            event_type=kwargs.get('event_type', EventType.CANDLE_UPDATE),
-            timestamp=kwargs.get('timestamp', datetime.utcnow()),
-            symbol=kwargs.get('symbol', 'BTCUSDT'),
+            event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
+            timestamp=kwargs.get("timestamp", datetime.utcnow()),
+            symbol=kwargs.get("symbol", "BTCUSDT"),
             test_data=test_data,
-            **{k: v for k, v in kwargs.items() if k not in ['event_type', 'timestamp', 'symbol', 'test_data']}
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k not in ["event_type", "timestamp", "symbol", "test_data"]
+            },
         )
 
 
@@ -42,7 +47,7 @@ class TestEventBusIntegration:
         subscription_id = await event_bus.subscribe(
             subscriber_id="test_subscriber",
             handler=test_handler,
-            event_types=[EventType.CANDLE_UPDATE]
+            event_types=[EventType.CANDLE_UPDATE],
         )
 
         try:
@@ -87,7 +92,9 @@ class TestEventBusIntegration:
             # Subscribe with different priorities
             sub1 = await event_bus.subscribe("high", high_priority_handler, priority=10)
             sub2 = await event_bus.subscribe("low", low_priority_handler, priority=1)
-            sub3 = await event_bus.subscribe("medium", medium_priority_handler, priority=5)
+            sub3 = await event_bus.subscribe(
+                "medium", medium_priority_handler, priority=5
+            )
 
             # Publish event
             test_event = TestEvent(test_data="priority_test")
@@ -105,11 +112,7 @@ class TestEventBusIntegration:
     @pytest.mark.asyncio
     async def test_subscription_failure_recovery_with_circuit_breaker(self):
         """Test that failing subscriptions are handled and disabled after retries."""
-        config = EventBusConfig(
-            processing_config={
-                'circuit_breaker_enabled': True
-            }
-        )
+        config = EventBusConfig(processing_config={"circuit_breaker_enabled": True})
         factory = EventBusFactory()
         event_bus = factory.create_with_config(config)
 
@@ -127,7 +130,7 @@ class TestEventBusIntegration:
             subscription_id = await event_bus.subscribe(
                 subscriber_id="failing_subscriber",
                 handler=failing_handler,
-                max_retries=2
+                max_retries=2,
             )
 
             # Publish multiple events to trigger failures
@@ -336,7 +339,7 @@ class TestEventBusIntegration:
         # Test testing creation with mocks
         bus3 = factory.create_for_testing()
         assert bus3 is not None
-        assert hasattr(bus3._subscription_manager, '_is_mock')
+        assert hasattr(bus3._subscription_manager, "_is_mock")
 
         # Verify instances are independent
         assert bus1 is not bus2

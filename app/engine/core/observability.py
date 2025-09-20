@@ -274,9 +274,9 @@ class ObservabilityManager:
                             "operation": operation_name,
                             "duration": duration,
                             "timestamp": start_time,
-                            "success": span.status.code == StatusCode.OK
-                            if span
-                            else True,
+                            "success": (
+                                span.status.code == StatusCode.OK if span else True
+                            ),
                         }
                     )
         else:

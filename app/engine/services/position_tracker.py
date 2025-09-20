@@ -100,9 +100,9 @@ def update_position(
             symbol=position.symbol,
             side=position.side,
             quantity=new_quantity,
-            entry_price=total_value / new_quantity
-            if new_quantity > 0
-            else Decimal("0"),
+            entry_price=(
+                total_value / new_quantity if new_quantity > 0 else Decimal("0")
+            ),
             realized_pnl=position.realized_pnl - fill.commission,
             total_commission=position.total_commission + fill.commission,
             open_time=position.open_time,

@@ -175,7 +175,7 @@ def adapt_order_response_to_legacy(response: OrderResponse) -> Dict[str, Any]:
         "orderId": response.order_id,
         "status": response.status,
         "filledQuantity": str(response.filled_quantity),
-        "averagePrice": None
-        if response.average_price is None
-        else str(response.average_price),
+        "averagePrice": (
+            None if response.average_price is None else str(response.average_price)
+        ),
     }

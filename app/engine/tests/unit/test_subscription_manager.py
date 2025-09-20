@@ -10,7 +10,7 @@ from typing import Any, Callable, List, Optional, Set
 from app.engine.core.subscription_manager import (
     SubscriptionManager,
     EventSubscription,
-    SubscriptionConfig
+    SubscriptionConfig,
 )
 from app.engine.models import EventType, BaseEvent
 
@@ -18,6 +18,7 @@ from app.engine.models import EventType, BaseEvent
 @dataclass
 class TestEvent(BaseEvent):
     """Test event for subscription tests."""
+
     test_data: str
 
 
@@ -31,9 +32,7 @@ class TestSubscriptionManager:
 
     def test_subscription_config_custom_values(self):
         config = SubscriptionConfig(
-            max_subscriptions=500,
-            default_priority=5,
-            default_max_retries=2
+            max_subscriptions=500, default_priority=5, default_max_retries=2
         )
 
         assert config.max_subscriptions == 500
@@ -58,7 +57,7 @@ class TestSubscriptionManager:
         subscription_id = await manager.add_subscription(
             subscriber_id="test_subscriber",
             handler=handler,
-            event_types=[EventType.CANDLE_UPDATE]
+            event_types=[EventType.CANDLE_UPDATE],
         )
 
         assert subscription_id is not None
@@ -75,7 +74,7 @@ class TestSubscriptionManager:
         subscription_id = await manager.add_subscription(
             subscriber_id="test_subscriber",
             handler=handler,
-            event_types=None  # Subscribe to all events
+            event_types=None,  # Subscribe to all events
         )
 
         assert subscription_id is not None
@@ -91,7 +90,7 @@ class TestSubscriptionManager:
         subscription_id = await manager.add_subscription(
             subscriber_id="test_subscriber",
             handler=handler,
-            event_types=[EventType.CANDLE_UPDATE]
+            event_types=[EventType.CANDLE_UPDATE],
         )
 
         removed = await manager.remove_subscription(subscription_id)
@@ -121,14 +120,14 @@ class TestSubscriptionManager:
         await manager.add_subscription(
             subscriber_id="subscriber1",
             handler=handler1,
-            event_types=[EventType.CANDLE_UPDATE]
+            event_types=[EventType.CANDLE_UPDATE],
         )
 
         # Add subscription for ORDER_FILLED
         await manager.add_subscription(
             subscriber_id="subscriber2",
             handler=handler2,
-            event_types=[EventType.ORDER_FILLED]
+            event_types=[EventType.ORDER_FILLED],
         )
 
         candle_subscriptions = await manager.get_subscriptions_for_event(
@@ -157,14 +156,12 @@ class TestSubscriptionManager:
         await manager.add_subscription(
             subscriber_id="specific_subscriber",
             handler=specific_handler,
-            event_types=[EventType.CANDLE_UPDATE]
+            event_types=[EventType.CANDLE_UPDATE],
         )
 
         # Add all-events subscription
         await manager.add_subscription(
-            subscriber_id="all_subscriber",
-            handler=all_handler,
-            event_types=None
+            subscriber_id="all_subscriber", handler=all_handler, event_types=None
         )
 
         subscriptions = await manager.get_subscriptions_for_event(
@@ -195,21 +192,21 @@ class TestSubscriptionManager:
             subscriber_id="low_priority",
             handler=handler1,
             event_types=[EventType.CANDLE_UPDATE],
-            priority=1
+            priority=1,
         )
 
         await manager.add_subscription(
             subscriber_id="high_priority",
             handler=handler2,
             event_types=[EventType.CANDLE_UPDATE],
-            priority=10
+            priority=10,
         )
 
         await manager.add_subscription(
             subscriber_id="medium_priority",
             handler=handler3,
             event_types=[EventType.CANDLE_UPDATE],
-            priority=5
+            priority=5,
         )
 
         subscriptions = await manager.get_subscriptions_for_event(
@@ -234,13 +231,13 @@ class TestSubscriptionManager:
         await manager.add_subscription(
             subscriber_id="subscriber1",
             handler=handler,
-            event_types=[EventType.CANDLE_UPDATE]
+            event_types=[EventType.CANDLE_UPDATE],
         )
 
         await manager.add_subscription(
             subscriber_id="subscriber2",
             handler=handler,
-            event_types=[EventType.ORDER_FILLED]
+            event_types=[EventType.ORDER_FILLED],
         )
 
         # Third subscription should fail
@@ -248,7 +245,7 @@ class TestSubscriptionManager:
             await manager.add_subscription(
                 subscriber_id="subscriber3",
                 handler=handler,
-                event_types=[EventType.TRADING_DECISION]
+                event_types=[EventType.TRADING_DECISION],
             )
 
         assert "maximum number of subscriptions" in str(exc_info.value).lower()
@@ -264,7 +261,7 @@ class TestSubscriptionManager:
             subscriber_id="test_subscriber",
             handler=handler,
             event_types=[EventType.CANDLE_UPDATE],
-            max_retries=3
+            max_retries=3,
         )
 
         # Get subscription to check retry tracking
@@ -300,7 +297,7 @@ class TestSubscriptionManager:
             subscriber_id="test_subscriber",
             handler=handler,
             event_types=[EventType.CANDLE_UPDATE],
-            max_retries=2
+            max_retries=2,
         )
 
         # Simulate failures up to max retries
@@ -325,7 +322,7 @@ class TestSubscriptionManager:
         subscription_id = await manager.add_subscription(
             subscriber_id="test_subscriber",
             handler=handler,
-            event_types=[EventType.CANDLE_UPDATE]
+            event_types=[EventType.CANDLE_UPDATE],
         )
 
         # Record failure then success
@@ -355,7 +352,7 @@ class TestSubscriptionManager:
             task = manager.add_subscription(
                 subscriber_id=f"subscriber_{i}",
                 handler=handler,
-                event_types=[EventType.CANDLE_UPDATE]
+                event_types=[EventType.CANDLE_UPDATE],
             )
             tasks.append(task)
 

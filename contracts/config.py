@@ -37,13 +37,21 @@ class ContractConfig:
         return cls(
             schema_version=os.getenv("CONTRACT_SCHEMA_VERSION", "1.0.0"),
             schema_path=os.getenv("CONTRACT_SCHEMA_PATH", "contracts/jsonschema"),
-            validation_enabled=os.getenv("CONTRACT_VALIDATION_ENABLED", "true").lower() == "true",
+            validation_enabled=os.getenv("CONTRACT_VALIDATION_ENABLED", "true").lower()
+            == "true",
             validation_mode=os.getenv("CONTRACT_VALIDATION_MODE", "strict"),
             max_payload_size=int(os.getenv("CONTRACT_MAX_PAYLOAD_SIZE", "1048576")),
             validation_timeout=int(os.getenv("CONTRACT_VALIDATION_TIMEOUT", "5000")),
-            breaking_change_protection=os.getenv("CONTRACT_BREAKING_CHANGE_PROTECTION", "true").lower() == "true",
-            debug_invalid_events=os.getenv("CONTRACT_DEBUG_INVALID_EVENTS", "false").lower() == "true",
-            metrics_enabled=os.getenv("CONTRACT_METRICS_ENABLED", "false").lower() == "true",
+            breaking_change_protection=os.getenv(
+                "CONTRACT_BREAKING_CHANGE_PROTECTION", "true"
+            ).lower()
+            == "true",
+            debug_invalid_events=os.getenv(
+                "CONTRACT_DEBUG_INVALID_EVENTS", "false"
+            ).lower()
+            == "true",
+            metrics_enabled=os.getenv("CONTRACT_METRICS_ENABLED", "false").lower()
+            == "true",
             event_store_path=os.getenv("CONTRACT_EVENT_STORE_PATH", "contracts/events"),
             evolution_mode=os.getenv("SCHEMA_EVOLUTION_MODE", "backward_compatible"),
         )
@@ -53,7 +61,9 @@ class ContractValidator:
     def __init__(self, mode: ValidationMode):
         self.mode = mode
 
-    def validate_with_mode(self, payload: Dict[str, Any], schema: Dict[str, Any]) -> bool:
+    def validate_with_mode(
+        self, payload: Dict[str, Any], schema: Dict[str, Any]
+    ) -> bool:
         if self.mode == ValidationMode.STRICT:
             # Strict mode - fail on any violation
             try:
@@ -97,8 +107,12 @@ class CodeGenerator:
 
 class EventRecorder:
     def __init__(self):
-        self.enabled = os.getenv("CONTRACT_DEBUG_INVALID_EVENTS", "false").lower() == "true"
-        self.store_path = Path(os.getenv("CONTRACT_EVENT_STORE_PATH", "contracts/events"))
+        self.enabled = (
+            os.getenv("CONTRACT_DEBUG_INVALID_EVENTS", "false").lower() == "true"
+        )
+        self.store_path = Path(
+            os.getenv("CONTRACT_EVENT_STORE_PATH", "contracts/events")
+        )
 
     def record_invalid_event(self, event: Dict[str, Any], error: Exception) -> None:
         if not self.enabled:
@@ -117,10 +131,10 @@ class EventRecorder:
             "timestamp": timestamp,
             "event": event,
             "error": str(error),
-            "error_type": type(error).__name__
+            "error_type": type(error).__name__,
         }
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(record, f, indent=2)
 
 
@@ -128,7 +142,9 @@ class SchemaEvolution:
     def __init__(self, mode: str):
         self.mode = mode
 
-    def check_compatibility(self, old_schema: Dict[str, Any], new_schema: Dict[str, Any]) -> bool:
+    def check_compatibility(
+        self, old_schema: Dict[str, Any], new_schema: Dict[str, Any]
+    ) -> bool:
         if self.mode == "backward_compatible":
             # Check if new schema can read old data
             # New required fields are not allowed

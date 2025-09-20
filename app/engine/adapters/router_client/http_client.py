@@ -153,9 +153,9 @@ class RouterHTTPClient:
                 "quantity": str(decision.quantity) if decision.quantity else None,
                 "price": str(decision.entry_price) if decision.entry_price else None,
                 "stop_loss": str(decision.stop_loss) if decision.stop_loss else None,
-                "take_profit": str(decision.take_profit)
-                if decision.take_profit
-                else None,
+                "take_profit": (
+                    str(decision.take_profit) if decision.take_profit else None
+                ),
                 "decision_id": str(decision.decision_id),
                 "timestamp": decision.timestamp.isoformat(),
                 "reasoning": decision.reasoning,
@@ -353,9 +353,9 @@ class RouterHTTPClient:
                 "symbol": decision.symbol,
                 "action": decision.action,
                 "quantity": str(decision.quantity) if decision.quantity else None,
-                "entry_price": str(decision.entry_price)
-                if decision.entry_price
-                else None,
+                "entry_price": (
+                    str(decision.entry_price) if decision.entry_price else None
+                ),
                 "stop_loss": str(decision.stop_loss) if decision.stop_loss else None,
                 "confidence": str(decision.confidence),
             }

@@ -340,9 +340,11 @@ class FeatureService:
             "tracked_timeframes": total_timeframes,
             "total_candles_buffered": total_candles,
             "calculations_performed": self._calculations_performed,
-            "last_calculation": self._last_calculation_time.isoformat()
-            if self._last_calculation_time
-            else None,
+            "last_calculation": (
+                self._last_calculation_time.isoformat()
+                if self._last_calculation_time
+                else None
+            ),
             "configuration": {
                 "buffer_size": self.buffer_size,
                 "ema_periods": self.ema_periods,

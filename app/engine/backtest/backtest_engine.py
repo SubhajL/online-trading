@@ -493,9 +493,11 @@ class BacktestEngine:
             total_trades=len(closed_trades),
             winning_trades=len(winning_trades),
             losing_trades=len(losing_trades),
-            win_rate=Decimal(len(winning_trades)) / Decimal(len(closed_trades))
-            if closed_trades
-            else Decimal("0"),
+            win_rate=(
+                Decimal(len(winning_trades)) / Decimal(len(closed_trades))
+                if closed_trades
+                else Decimal("0")
+            ),
             total_pnl=final_balance - self.initial_balance,
             max_drawdown=max_drawdown,
             average_win=avg_win,

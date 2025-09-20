@@ -8,6 +8,7 @@ from typing import Dict, Any
 import pytest
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import generated Python models
@@ -126,7 +127,10 @@ class TestCrossLanguageSerialization:
                 # Missing timeframe
                 open_time="2024-01-15T10:00:00.000Z",
             )
-        assert "timeframe" in str(exc_info.value).lower() or "field required" in str(exc_info.value).lower()
+        assert (
+            "timeframe" in str(exc_info.value).lower()
+            or "field required" in str(exc_info.value).lower()
+        )
 
         # Invalid enum value
         decision_data = self.create_sample_decision()

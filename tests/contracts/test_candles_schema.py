@@ -5,7 +5,12 @@ from pathlib import Path
 
 
 def load_schema(name: str) -> dict:
-    schema_path = Path(__file__).parent.parent.parent / "contracts" / "jsonschema" / f"{name}.schema.json"
+    schema_path = (
+        Path(__file__).parent.parent.parent
+        / "contracts"
+        / "jsonschema"
+        / f"{name}.schema.json"
+    )
     with open(schema_path) as f:
         return json.load(f)
 
@@ -30,7 +35,7 @@ class TestCandlesV1Schema:
             "trades": 12345,
             "taker_buy_volume": 600.123,
             "taker_buy_quote_volume": 25000000.00,
-            "is_closed": True
+            "is_closed": True,
         }
 
         # Should not raise
@@ -55,7 +60,7 @@ class TestCandlesV1Schema:
             "trades": 12345,
             "taker_buy_volume": 600.123,
             "taker_buy_quote_volume": 25000000.00,
-            "is_closed": True
+            "is_closed": True,
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -82,7 +87,7 @@ class TestCandlesV1Schema:
             "trades": 12345,
             "taker_buy_volume": 600.123,
             "taker_buy_quote_volume": 25000000.00,
-            "is_closed": True
+            "is_closed": True,
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -109,7 +114,7 @@ class TestCandlesV1Schema:
             "trades": 12345,
             "taker_buy_volume": 600.123,
             "taker_buy_quote_volume": 25000000.00,
-            "is_closed": True
+            "is_closed": True,
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -137,7 +142,7 @@ class TestCandlesV1Schema:
             "taker_buy_volume": 600.123,
             "taker_buy_quote_volume": 25000000.00,
             "is_closed": True,
-            "extra_field": "should not be here"
+            "extra_field": "should not be here",
         }
 
         with pytest.raises(ValidationError) as exc_info:

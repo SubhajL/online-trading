@@ -6,7 +6,9 @@ def test_timescaledb_extension_script_exists():
     """Verify TimescaleDB extension initialization script exists"""
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     extension_script = init_dir / "01-init-timescaledb.sql"
-    assert extension_script.exists(), f"TimescaleDB init script not found at {extension_script}"
+    assert (
+        extension_script.exists()
+    ), f"TimescaleDB init script not found at {extension_script}"
 
 
 def test_timescaledb_extension_script_content():
@@ -14,7 +16,7 @@ def test_timescaledb_extension_script_content():
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     extension_script = init_dir / "01-init-timescaledb.sql"
 
-    with open(extension_script, 'r') as f:
+    with open(extension_script, "r") as f:
         content = f.read()
 
     # Check for TimescaleDB extension creation
@@ -29,7 +31,9 @@ def test_hypertables_script_exists():
     """Verify hypertables creation script exists"""
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     hypertables_script = init_dir / "02-create-hypertables.sql"
-    assert hypertables_script.exists(), f"Hypertables script not found at {hypertables_script}"
+    assert (
+        hypertables_script.exists()
+    ), f"Hypertables script not found at {hypertables_script}"
 
 
 def test_hypertables_script_creates_tables():
@@ -37,7 +41,7 @@ def test_hypertables_script_creates_tables():
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     hypertables_script = init_dir / "02-create-hypertables.sql"
 
-    with open(hypertables_script, 'r') as f:
+    with open(hypertables_script, "r") as f:
         content = f.read()
 
     # Check for table creation
@@ -61,7 +65,7 @@ def test_hypertables_script_creates_hypertables():
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     hypertables_script = init_dir / "02-create-hypertables.sql"
 
-    with open(hypertables_script, 'r') as f:
+    with open(hypertables_script, "r") as f:
         content = f.read()
 
     # Check for hypertable creation
@@ -79,7 +83,7 @@ def test_hypertables_script_creates_indexes():
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     hypertables_script = init_dir / "02-create-hypertables.sql"
 
-    with open(hypertables_script, 'r') as f:
+    with open(hypertables_script, "r") as f:
         content = f.read()
 
     # Check for index creation
@@ -88,7 +92,7 @@ def test_hypertables_script_creates_indexes():
     assert "idx_trades_symbol_time" in content
 
     # Check composite indexes
-    assert "(symbol, time DESC)" in content or "(symbol, \"time\" DESC)" in content
+    assert "(symbol, time DESC)" in content or '(symbol, "time" DESC)' in content
 
 
 def test_hypertables_script_creates_continuous_aggregates():
@@ -96,7 +100,7 @@ def test_hypertables_script_creates_continuous_aggregates():
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     hypertables_script = init_dir / "02-create-hypertables.sql"
 
-    with open(hypertables_script, 'r') as f:
+    with open(hypertables_script, "r") as f:
         content = f.read()
 
     # Check for continuous aggregate creation
@@ -124,11 +128,14 @@ def test_hypertables_script_sets_compression():
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     hypertables_script = init_dir / "02-create-hypertables.sql"
 
-    with open(hypertables_script, 'r') as f:
+    with open(hypertables_script, "r") as f:
         content = f.read()
 
     # Check for compression policy
-    assert "ALTER TABLE candles SET" in content or "SELECT add_compression_policy" in content
+    assert (
+        "ALTER TABLE candles SET" in content
+        or "SELECT add_compression_policy" in content
+    )
     assert "timescaledb.compress" in content or "compress_after" in content
 
     # Check compression is set for old data
@@ -140,7 +147,7 @@ def test_hypertables_script_sets_retention():
     init_dir = Path(__file__).parent.parent / "infra/postgres/init"
     hypertables_script = init_dir / "02-create-hypertables.sql"
 
-    with open(hypertables_script, 'r') as f:
+    with open(hypertables_script, "r") as f:
         content = f.read()
 
     # Check for retention policy

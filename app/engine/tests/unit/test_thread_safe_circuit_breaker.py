@@ -11,7 +11,7 @@ from app.engine.core.clock import FakeClock
 from app.engine.resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerState,
-    CircuitBreakerConfig
+    CircuitBreakerConfig,
 )
 
 
@@ -29,7 +29,7 @@ class TestCircuitBreakerConfig:
             failure_threshold=3,
             success_threshold=1,
             timeout_seconds=30,
-            half_open_max_requests=5
+            half_open_max_requests=5,
         )
 
         assert config.failure_threshold == 3
@@ -85,10 +85,7 @@ class TestCircuitBreaker:
                 await asyncio.sleep(0)
 
         # Run concurrently
-        await asyncio.gather(
-            record_state_changes(),
-            cause_failures()
-        )
+        await asyncio.gather(record_state_changes(), cause_failures())
 
         # Should transition directly from CLOSED to OPEN
         assert CircuitBreakerState.CLOSED in states_seen
@@ -97,10 +94,7 @@ class TestCircuitBreaker:
     @pytest.mark.asyncio
     async def test_timeout_resets_to_half_open(self):
         clock = FakeClock()
-        config = CircuitBreakerConfig(
-            failure_threshold=2,
-            timeout_seconds=30
-        )
+        config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=30)
         breaker = CircuitBreaker(config=config, clock=clock)
 
         # Open the circuit
@@ -121,9 +115,7 @@ class TestCircuitBreaker:
     async def test_success_in_half_open_closes(self):
         clock = FakeClock()
         config = CircuitBreakerConfig(
-            failure_threshold=2,
-            success_threshold=2,
-            timeout_seconds=10
+            failure_threshold=2, success_threshold=2, timeout_seconds=10
         )
         breaker = CircuitBreaker(config=config, clock=clock)
 
@@ -145,10 +137,7 @@ class TestCircuitBreaker:
     @pytest.mark.asyncio
     async def test_failure_in_half_open_opens(self):
         clock = FakeClock()
-        config = CircuitBreakerConfig(
-            failure_threshold=2,
-            timeout_seconds=10
-        )
+        config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=10)
         breaker = CircuitBreaker(config=config, clock=clock)
 
         # Open the circuit
@@ -167,9 +156,7 @@ class TestCircuitBreaker:
     async def test_half_open_limits_concurrent_requests(self):
         clock = FakeClock()
         config = CircuitBreakerConfig(
-            failure_threshold=2,
-            timeout_seconds=10,
-            half_open_max_requests=3
+            failure_threshold=2, timeout_seconds=10, half_open_max_requests=3
         )
         breaker = CircuitBreaker(config=config, clock=clock)
 

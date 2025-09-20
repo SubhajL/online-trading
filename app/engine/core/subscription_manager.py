@@ -135,12 +135,14 @@ class SubscriptionManager:
                 subscriber_id=subscriber_id,
                 handler=handler,
                 event_types=event_type_set,
-                priority=priority
-                if priority is not None
-                else self._config.default_priority,
-                max_retries=max_retries
-                if max_retries is not None
-                else self._config.default_max_retries,
+                priority=(
+                    priority if priority is not None else self._config.default_priority
+                ),
+                max_retries=(
+                    max_retries
+                    if max_retries is not None
+                    else self._config.default_max_retries
+                ),
             )
 
             # Store subscription

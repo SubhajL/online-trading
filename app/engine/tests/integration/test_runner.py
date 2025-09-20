@@ -52,9 +52,7 @@ async def run_integration_example():
 
         # Test 2: Retrieve candle and verify Decimal precision
         candles = await timescale.get_candles(
-            symbol="BTCUSDT",
-            timeframe=TimeFrame.H1,
-            limit=1
+            symbol="BTCUSDT", timeframe=TimeFrame.H1, limit=1
         )
 
         if candles:
@@ -62,7 +60,9 @@ async def run_integration_example():
             print(f"✓ Candle retrieved")
             print(f"  Open price type: {type(retrieved['open_price'])}")
             print(f"  Open price value: {retrieved['open_price']}")
-            print(f"  Precision preserved: {retrieved['open_price'] == candle.open_price}")
+            print(
+                f"  Precision preserved: {retrieved['open_price'] == candle.open_price}"
+            )
 
         # Test 3: Insert technical indicators
         indicator = TechnicalIndicators(
@@ -111,6 +111,7 @@ async def run_integration_example():
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         await timescale.close_pool()

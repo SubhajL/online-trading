@@ -42,8 +42,7 @@ async def ensure_test_database():
     try:
         # Check if test database exists
         exists = await conn.fetchval(
-            "SELECT 1 FROM pg_database WHERE datname = $1",
-            test_db_name
+            "SELECT 1 FROM pg_database WHERE datname = $1", test_db_name
         )
 
         if not exists:
@@ -55,8 +54,7 @@ async def ensure_test_database():
             try:
                 # Create user if not exists
                 user_exists = await test_conn.fetchval(
-                    "SELECT 1 FROM pg_user WHERE usename = $1",
-                    test_user
+                    "SELECT 1 FROM pg_user WHERE usename = $1", test_user
                 )
                 if not user_exists:
                     await test_conn.execute(
@@ -64,7 +62,9 @@ async def ensure_test_database():
                     )
 
                 # Grant privileges
-                await test_conn.execute(f"GRANT ALL PRIVILEGES ON DATABASE {test_db_name} TO {test_user}")
+                await test_conn.execute(
+                    f"GRANT ALL PRIVILEGES ON DATABASE {test_db_name} TO {test_user}"
+                )
                 await test_conn.execute(f"GRANT CREATE ON SCHEMA public TO {test_user}")
 
             finally:
@@ -96,7 +96,9 @@ async def setup_test_environment(ensure_test_database):
 
     try:
         # Run migrations
-        migrations_dir = Path(__file__).parent.parent.parent.parent.parent / "db" / "migrations"
+        migrations_dir = (
+            Path(__file__).parent.parent.parent.parent.parent / "db" / "migrations"
+        )
         if migrations_dir.exists():
             runner = MigrationRunner(pool, migrations_dir)
             await runner.migrate_to_version()
@@ -107,6 +109,5 @@ async def setup_test_environment(ensure_test_database):
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     config.addinivalue_line(
-        "markers",
-        "integration: mark test as an integration test requiring database"
+        "markers", "integration: mark test as an integration test requiring database"
     )

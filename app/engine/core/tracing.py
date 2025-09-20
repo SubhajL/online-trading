@@ -510,6 +510,7 @@ def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL):
                 ) as span:
                     span.set_attribute("function", func.__name__)
                     return await func(*args, **kwargs)
+
         else:
 
             def wrapper(*args, **kwargs):

@@ -125,7 +125,8 @@ class TimescaleDBAdapter:
         """Create all required tables"""
         async with self.get_connection() as conn:
             # Candles table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS candles (
                     timestamp TIMESTAMPTZ NOT NULL,
                     symbol VARCHAR(20) NOT NULL,
@@ -141,10 +142,12 @@ class TimescaleDBAdapter:
                     taker_buy_quote_volume DECIMAL(20,8) NOT NULL,
                     UNIQUE(timestamp, symbol, timeframe)
                 );
-            """)
+            """
+            )
 
             # Technical indicators table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS technical_indicators (
                     timestamp TIMESTAMPTZ NOT NULL,
                     symbol VARCHAR(20) NOT NULL,
@@ -165,10 +168,12 @@ class TimescaleDBAdapter:
                     bb_percent DECIMAL(10,6),
                     UNIQUE(timestamp, symbol, timeframe)
                 );
-            """)
+            """
+            )
 
             # SMC signals table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS smc_signals (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     timestamp TIMESTAMPTZ NOT NULL,
@@ -188,10 +193,12 @@ class TimescaleDBAdapter:
                     is_active BOOLEAN DEFAULT TRUE,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );
-            """)
+            """
+            )
 
             # Trading decisions table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS trading_decisions (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     timestamp TIMESTAMPTZ NOT NULL,
@@ -212,10 +219,12 @@ class TimescaleDBAdapter:
                     is_executed BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );
-            """)
+            """
+            )
 
             # Orders table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS orders (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     client_order_id VARCHAR(50) UNIQUE NOT NULL,
@@ -233,10 +242,12 @@ class TimescaleDBAdapter:
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 );
-            """)
+            """
+            )
 
             # Positions table
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS positions (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     symbol VARCHAR(20) NOT NULL,
@@ -256,10 +267,12 @@ class TimescaleDBAdapter:
                     closed_at TIMESTAMPTZ,
                     is_active BOOLEAN DEFAULT TRUE
                 );
-            """)
+            """
+            )
 
             # Events table for audit trail
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS events (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                     timestamp TIMESTAMPTZ NOT NULL,
@@ -270,7 +283,8 @@ class TimescaleDBAdapter:
                     metadata JSONB,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );
-            """)
+            """
+            )
 
     async def _create_hypertables(self):
         """Create TimescaleDB hypertables for time-series data"""
@@ -285,10 +299,12 @@ class TimescaleDBAdapter:
 
                 for table_name, time_column in hypertables:
                     try:
-                        await conn.execute(f"""
+                        await conn.execute(
+                            f"""
                             SELECT create_hypertable('{table_name}', '{time_column}',
                                                     if_not_exists => TRUE);
-                        """)
+                        """
+                        )
                         logger.info(f"Created hypertable for {table_name}")
                     except Exception as e:
                         if "already a hypertable" not in str(e):
@@ -610,16 +626,20 @@ class TimescaleDBAdapter:
                 await conn.execute("SELECT 1")
 
                 # Get database size
-                size_result = await conn.fetchrow("""
+                size_result = await conn.fetchrow(
+                    """
                     SELECT pg_size_pretty(pg_database_size(current_database())) as size
-                """)
+                """
+                )
 
                 # Get table stats
-                stats_result = await conn.fetch("""
+                stats_result = await conn.fetch(
+                    """
                     SELECT schemaname, tablename, n_tup_ins as inserts, n_tup_upd as updates
                     FROM pg_stat_user_tables
                     WHERE tablename IN ('candles', 'technical_indicators', 'trading_decisions', 'orders', 'positions')
-                """)
+                """
+                )
 
                 table_stats = {
                     row["tablename"]: {
@@ -650,22 +670,26 @@ class TimescaleDBAdapter:
         try:
             async with self.get_connection() as conn:
                 # Get candle counts by symbol and timeframe
-                candle_counts = await conn.fetch("""
+                candle_counts = await conn.fetch(
+                    """
                     SELECT symbol, timeframe, COUNT(*) as count,
                            MIN(timestamp) as oldest,
                            MAX(timestamp) as newest
                     FROM candles
                     GROUP BY symbol, timeframe
                     ORDER BY symbol, timeframe
-                """)
+                """
+                )
 
                 # Get recent activity
-                recent_activity = await conn.fetchrow("""
+                recent_activity = await conn.fetchrow(
+                    """
                     SELECT
                         (SELECT COUNT(*) FROM candles WHERE timestamp > NOW() - INTERVAL '1 hour') as candles_last_hour,
                         (SELECT COUNT(*) FROM technical_indicators WHERE timestamp > NOW() - INTERVAL '1 hour') as indicators_last_hour,
                         (SELECT COUNT(*) FROM trading_decisions WHERE created_at > NOW() - INTERVAL '1 hour') as decisions_last_hour
-                """)
+                """
+                )
 
                 return {
                     "candle_counts": [dict(row) for row in candle_counts],

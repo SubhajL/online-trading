@@ -240,9 +240,9 @@ class PaperBroker:
             close_order = Order(
                 client_order_id=f"close_{uuid4().hex[:8]}",
                 symbol=symbol,
-                side=OrderSide.SELL
-                if position.side == OrderSide.BUY
-                else OrderSide.BUY,
+                side=(
+                    OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
+                ),
                 type=OrderType.MARKET,
                 quantity=position.size,
                 price=position.current_price,

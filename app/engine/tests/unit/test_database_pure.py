@@ -7,11 +7,7 @@ Follows T-4: Avoids heavy mocking.
 import pytest
 from typing import Dict, Any
 
-from app.engine.core.database import (
-    DatabaseConfig,
-    OptimisticLockError,
-    DatabaseError
-)
+from app.engine.core.database import DatabaseConfig, OptimisticLockError, DatabaseError
 
 
 class TestDatabaseConfig:
@@ -25,7 +21,7 @@ class TestDatabaseConfig:
             pool_size=10,
             max_overflow=20,
             pool_timeout=30,
-            retry_attempts=3
+            retry_attempts=3,
         )
 
         assert config.postgres_url == "postgresql://user:pass@localhost:5432/db"
@@ -39,8 +35,7 @@ class TestDatabaseConfig:
         """Test config validation rejects invalid PostgreSQL URL."""
         with pytest.raises(ValueError) as exc_info:
             DatabaseConfig(
-                postgres_url="invalid_url",
-                redis_url="redis://localhost:6379/0"
+                postgres_url="invalid_url", redis_url="redis://localhost:6379/0"
             )
         assert "Invalid PostgreSQL URL scheme" in str(exc_info.value)
 
@@ -49,7 +44,7 @@ class TestDatabaseConfig:
         with pytest.raises(ValueError) as exc_info:
             DatabaseConfig(
                 postgres_url="postgresql://user:pass@localhost:5432/db",
-                redis_url="invalid_redis_url"
+                redis_url="invalid_redis_url",
             )
         assert "Invalid Redis URL scheme" in str(exc_info.value)
 
@@ -59,7 +54,7 @@ class TestDatabaseConfig:
             DatabaseConfig(
                 postgres_url="postgresql://user:pass@localhost:5432/db",
                 redis_url="redis://localhost:6379/0",
-                pool_size=0
+                pool_size=0,
             )
         assert "pool_size must be positive" in str(exc_info.value)
 
@@ -69,7 +64,7 @@ class TestDatabaseConfig:
             DatabaseConfig(
                 postgres_url="postgresql://user:pass@localhost:5432/db",
                 redis_url="redis://localhost:6379/0",
-                max_overflow=-1
+                max_overflow=-1,
             )
         assert "max_overflow cannot be negative" in str(exc_info.value)
 
@@ -79,7 +74,7 @@ class TestDatabaseConfig:
             DatabaseConfig(
                 postgres_url="postgresql://user:pass@localhost:5432/db",
                 redis_url="redis://localhost:6379/0",
-                pool_timeout=0
+                pool_timeout=0,
             )
         assert "pool_timeout must be positive" in str(exc_info.value)
 
@@ -87,7 +82,7 @@ class TestDatabaseConfig:
         """Test config uses sensible defaults."""
         config = DatabaseConfig(
             postgres_url="postgresql://user:pass@localhost:5432/db",
-            redis_url="redis://localhost:6379/0"
+            redis_url="redis://localhost:6379/0",
         )
 
         assert config.pool_size == 10

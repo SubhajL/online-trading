@@ -5,7 +5,12 @@ from pathlib import Path
 
 
 def load_schema(name: str) -> dict:
-    schema_path = Path(__file__).parent.parent.parent / "contracts" / "jsonschema" / f"{name}.schema.json"
+    schema_path = (
+        Path(__file__).parent.parent.parent
+        / "contracts"
+        / "jsonschema"
+        / f"{name}.schema.json"
+    )
     with open(schema_path) as f:
         return json.load(f)
 
@@ -26,7 +31,7 @@ class TestSmcEventsV1Schema:
             "previous_pivot_price": 41500.00,
             "previous_pivot_time": "2024-01-01T00:00:00Z",
             "broken_pivot_price": 41800.00,
-            "broken_pivot_time": "2023-12-31T23:00:00Z"
+            "broken_pivot_time": "2023-12-31T23:00:00Z",
         }
 
         # Should not raise
@@ -47,7 +52,7 @@ class TestSmcEventsV1Schema:
             "previous_pivot_price": 41500.00,
             "previous_pivot_time": "2024-01-01T00:00:00Z",
             "broken_pivot_price": 41200.00,
-            "broken_pivot_time": "2023-12-31T20:00:00Z"
+            "broken_pivot_time": "2023-12-31T20:00:00Z",
         }
 
         # Should not raise
@@ -69,7 +74,7 @@ class TestSmcEventsV1Schema:
             "previous_pivot_price": 41500.00,
             "previous_pivot_time": "2024-01-01T00:00:00Z",
             "broken_pivot_price": 41800.00,
-            "broken_pivot_time": "2023-12-31T23:00:00Z"
+            "broken_pivot_time": "2023-12-31T23:00:00Z",
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -92,7 +97,7 @@ class TestSmcEventsV1Schema:
             "previous_pivot_price": 41500.00,
             "previous_pivot_time": "2024-01-01T00:00:00Z",
             "broken_pivot_price": 41800.00,
-            "broken_pivot_time": "2023-12-31T23:00:00Z"
+            "broken_pivot_time": "2023-12-31T23:00:00Z",
         }
 
         with pytest.raises(ValidationError) as exc_info:

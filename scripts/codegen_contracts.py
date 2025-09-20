@@ -31,22 +31,32 @@ def validate_schema(name: str, schema: Dict[str, Any]) -> List[str]:
         schema_type = schema["type"]
         if isinstance(schema_type, str):
             if schema_type not in VALID_TYPES:
-                errors.append(f"{name}: Invalid type '{schema_type}'. Must be one of: {', '.join(VALID_TYPES)}")
+                errors.append(
+                    f"{name}: Invalid type '{schema_type}'. Must be one of: {', '.join(VALID_TYPES)}"
+                )
         elif isinstance(schema_type, list):
             for t in schema_type:
                 if t not in VALID_TYPES:
-                    errors.append(f"{name}: Invalid type '{t}' in type array. Must be one of: {', '.join(VALID_TYPES)}")
+                    errors.append(
+                        f"{name}: Invalid type '{t}' in type array. Must be one of: {', '.join(VALID_TYPES)}"
+                    )
         else:
-            errors.append(f"{name}: Type must be a string or array, got {type(schema_type).__name__}")
+            errors.append(
+                f"{name}: Type must be a string or array, got {type(schema_type).__name__}"
+            )
 
     # Validate object-specific requirements
-    if schema.get("type") == "object" or (isinstance(schema.get("type"), list) and "object" in schema.get("type", [])):
+    if schema.get("type") == "object" or (
+        isinstance(schema.get("type"), list) and "object" in schema.get("type", [])
+    ):
         if "properties" not in schema:
             errors.append(f"{name}: Missing 'properties' field for object type")
         else:
             # Validate each property
             for prop_name, prop_schema in schema.get("properties", {}).items():
-                prop_errors = validate_property_schema(f"{name}.{prop_name}", prop_schema)
+                prop_errors = validate_property_schema(
+                    f"{name}.{prop_name}", prop_schema
+                )
                 errors.extend(prop_errors)
 
     return errors
@@ -71,12 +81,16 @@ def validate_property_schema(prop_path: str, prop_schema: Dict[str, Any]) -> Lis
 
         # date-time format only valid for strings
         if format_val == "date-time" and prop_type not in ["string", None]:
-            errors.append(f"{prop_path}: Format 'date-time' incompatible with type '{prop_type}'")
+            errors.append(
+                f"{prop_path}: Format 'date-time' incompatible with type '{prop_type}'"
+            )
 
     return errors
 
 
-def safe_load_schema(schema_path: Path) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+def safe_load_schema(
+    schema_path: Path,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """Safely load a JSON schema file with error handling."""
     try:
         if not schema_path.exists():
@@ -386,7 +400,7 @@ def generate_pydantic_models(schemas: Dict[str, Dict[str, Any]]) -> str:
                 default = "None"
 
             # Add field with proper annotations
-            field_def = f'    {prop_name}: {py_type}'
+            field_def = f"    {prop_name}: {py_type}"
             if default == "...":
                 field_def += f' = Field(description="{description}")'
             else:
@@ -475,11 +489,11 @@ import (
             else:
                 json_tag = f'json:"{prop_name}"'
 
-            field_def = f'\t{field_name} {go_type} `{json_tag}`'
+            field_def = f"\t{field_name} {go_type} `{json_tag}`"
 
             # Add comment if description exists
             if desc := prop_schema.get("description"):
-                field_def = f'\t// {desc}\n{field_def}'
+                field_def = f"\t// {desc}\n{field_def}"
 
             fields.append(field_def)
 
@@ -493,11 +507,7 @@ type {struct_name} struct {{
     return "\n".join(structs)
 
 
-def write_generated_files(
-    python_code: str,
-    typescript_code: str,
-    go_code: str
-) -> None:
+def write_generated_files(python_code: str, typescript_code: str, go_code: str) -> None:
     """Write generated code to files."""
     # Create output directories
     (GEN_DIR / "python").mkdir(parents=True, exist_ok=True)
