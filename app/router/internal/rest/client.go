@@ -268,6 +268,24 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 	return nil
 }
 
+// GetTicker24hr retrieves 24 hour ticker statistics for a symbol
+func (c *Client) GetTicker24hr(ctx context.Context, symbol string) (*Ticker24hr, error) {
+	params := url.Values{}
+	params.Set("symbol", symbol)
+
+	body, err := c.doRequest(ctx, "GET", "/api/v3/ticker/24hr", params, false)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetTicker24hr")
+	}
+
+	var ticker Ticker24hr
+	if err := json.Unmarshal(body, &ticker); err != nil {
+		return nil, ErrorWithContext(err, "GetTicker24hr")
+	}
+
+	return &ticker, nil
+}
+
 // GetOpenOrders lists all open orders for a symbol
 func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]Order, error) {
 	if c.signer == nil {

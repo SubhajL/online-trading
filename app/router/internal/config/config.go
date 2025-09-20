@@ -96,8 +96,8 @@ type SecurityConfig struct {
 func Load() (*Config, error) {
 	config := &Config{
 		Server: ServerConfig{
-			Port:            getEnvAsInt("SERVER_PORT", 8080),
-			Host:            getEnv("SERVER_HOST", "0.0.0.0"),
+			Port:            getEnvAsInt("PORT", getEnvAsInt("SERVER_PORT", 8080)),
+			Host:            getEnv("HOST", getEnv("SERVER_HOST", "0.0.0.0")),
 			ReadTimeout:     getEnvAsDuration("SERVER_READ_TIMEOUT", "30s"),
 			WriteTimeout:    getEnvAsDuration("SERVER_WRITE_TIMEOUT", "30s"),
 			IdleTimeout:     getEnvAsDuration("SERVER_IDLE_TIMEOUT", "60s"),
@@ -115,11 +115,11 @@ func Load() (*Config, error) {
 			// Legacy fields
 			APIKey:         getEnv("BINANCE_API_KEY", ""),
 			SecretKey:      getEnv("BINANCE_SECRET_KEY", ""),
-			BaseURL:        getEnv("BINANCE_BASE_URL", "https://api.binance.com"),
+			BaseURL:        getEnv("BINANCE_SPOT_BASE_URL", getEnv("BINANCE_BASE_URL", "https://api.binance.com")),
 			WSBaseURL:      getEnv("BINANCE_WS_BASE_URL", "wss://stream.binance.com:9443"),
 			FuturesBaseURL: getEnv("BINANCE_FUTURES_BASE_URL", "https://fapi.binance.com"),
 			FuturesWSURL:   getEnv("BINANCE_FUTURES_WS_URL", "wss://fstream.binance.com"),
-			Testnet:        getEnvAsBool("BINANCE_TESTNET", false),
+			Testnet:        getEnvAsBool("USE_TESTNET", getEnvAsBool("BINANCE_TESTNET", false)),
 			Timeout:        getEnvAsDuration("BINANCE_TIMEOUT", "30s"),
 			MaxRetries:     getEnvAsInt("BINANCE_MAX_RETRIES", 3),
 			RetryDelay:     getEnvAsDuration("BINANCE_RETRY_DELAY", "1s"),

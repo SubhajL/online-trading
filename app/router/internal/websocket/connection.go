@@ -38,10 +38,10 @@ type Connection struct {
 	handlerMu      sync.RWMutex
 
 	// Control channels
-	closeChan   chan struct{}
-	doneChan    chan struct{}
-	doneOnce    sync.Once
-	doneMutex   sync.Mutex // Protects doneChan recreation
+	closeChan chan struct{}
+	doneChan  chan struct{}
+	doneOnce  sync.Once
+	doneMutex sync.Mutex // Protects doneChan recreation
 
 	// Reconnection state
 	reconnectAttempts int

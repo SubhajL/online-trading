@@ -218,3 +218,28 @@ type FuturesPosition struct {
 	UpdateTime             int64           `json:"updateTime"`
 	MarkPrice              decimal.Decimal `json:"markPrice"`
 }
+
+// Ticker24hr represents a 24hr ticker statistics
+type Ticker24hr struct {
+	Symbol             string          `json:"symbol"`
+	PriceChange        decimal.Decimal `json:"priceChange"`
+	PriceChangePercent decimal.Decimal `json:"priceChangePercent"`
+	WeightedAvgPrice   decimal.Decimal `json:"weightedAvgPrice"`
+	PrevClosePrice     decimal.Decimal `json:"prevClosePrice"`
+	LastPrice          decimal.Decimal `json:"lastPrice"`
+	LastQty            decimal.Decimal `json:"lastQty"`
+	BidPrice           decimal.Decimal `json:"bidPrice"`
+	BidQty             decimal.Decimal `json:"bidQty"`
+	AskPrice           decimal.Decimal `json:"askPrice"`
+	AskQty             decimal.Decimal `json:"askQty"`
+	OpenPrice          decimal.Decimal `json:"openPrice"`
+	HighPrice          decimal.Decimal `json:"highPrice"`
+	LowPrice           decimal.Decimal `json:"lowPrice"`
+	Volume             decimal.Decimal `json:"volume"`
+	QuoteVolume        decimal.Decimal `json:"quoteVolume"`
+	OpenTime           int64           `json:"openTime"`
+	CloseTime          int64           `json:"closeTime"`
+	FirstId            int64           `json:"firstId"`
+	LastId             int64           `json:"lastId"`
+	Count              int64           `json:"count"`
+}

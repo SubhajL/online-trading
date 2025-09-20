@@ -361,7 +361,16 @@ func (c *Client) validateSpotOrder(order SpotOrderRequest) error {
 	if order.Side != "BUY" && order.Side != "SELL" {
 		return fmt.Errorf("invalid side: %s", order.Side)
 	}
-	if order.Type != "MARKET" && order.Type != "LIMIT" {
+	validTypes := map[string]bool{
+		"MARKET":            true,
+		"LIMIT":             true,
+		"STOP_LOSS":         true,
+		"STOP_LOSS_LIMIT":   true,
+		"TAKE_PROFIT":       true,
+		"TAKE_PROFIT_LIMIT": true,
+		"LIMIT_MAKER":       true,
+	}
+	if !validTypes[order.Type] {
 		return fmt.Errorf("invalid order type: %s", order.Type)
 	}
 	if order.Quantity.LessThanOrEqual(decimal.Zero) {
@@ -376,6 +385,22 @@ func (c *Client) validateSpotOrder(order SpotOrderRequest) error {
 
 	if order.Type == "LIMIT" && order.Price.LessThanOrEqual(decimal.Zero) {
 		return fmt.Errorf("price must be positive for limit orders")
+	}
+
+	// Validate stop price for stop orders
+	stopTypes := map[string]bool{
+		"STOP_LOSS":         true,
+		"STOP_LOSS_LIMIT":   true,
+		"TAKE_PROFIT":       true,
+		"TAKE_PROFIT_LIMIT": true,
+	}
+	if stopTypes[order.Type] && order.StopPrice.LessThanOrEqual(decimal.Zero) {
+		return fmt.Errorf("stopPrice must be positive for %s orders", order.Type)
+	}
+
+	// Validate price for stop limit orders
+	if (order.Type == "STOP_LOSS_LIMIT" || order.Type == "TAKE_PROFIT_LIMIT") && order.Price.LessThanOrEqual(decimal.Zero) {
+		return fmt.Errorf("price must be positive for %s orders", order.Type)
 	}
 
 	return nil
