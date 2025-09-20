@@ -307,11 +307,11 @@ func TestSymbolValidator_ConcurrentAccess(t *testing.T) {
 		done := make(chan bool)
 		orders := []Order{
 			{Symbol: "BTCUSDT", Side: "BUY", Type: "LIMIT",
-			 Price: decimal.NewFromFloat(50000), Quantity: decimal.NewFromFloat(0.001)},
+				Price: decimal.NewFromFloat(50000), Quantity: decimal.NewFromFloat(0.001)},
 			{Symbol: "ETHUSDT", Side: "SELL", Type: "LIMIT",
-			 Price: decimal.NewFromFloat(3000), Quantity: decimal.NewFromFloat(0.01)},
+				Price: decimal.NewFromFloat(3000), Quantity: decimal.NewFromFloat(0.01)},
 			{Symbol: "BNBUSDT", Side: "BUY", Type: "MARKET",
-			 Price: decimal.Zero, Quantity: decimal.NewFromFloat(1)},
+				Price: decimal.Zero, Quantity: decimal.NewFromFloat(1)},
 		}
 
 		// Run concurrent validations

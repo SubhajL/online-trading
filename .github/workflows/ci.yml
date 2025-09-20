@@ -446,11 +446,10 @@ jobs:
         run: |
           python -m pytest tests/db -q || echo "DB tests pending implementation"
 
-  # Wave A: Router smoke test
+  # Go Router Smoke Tests
   router-smoke:
-    name: Router Smoke Test
+    name: Router Smoke Tests
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#9') || contains(github.event.pull_request.labels.*.name, 'Prompt 9') || contains(github.event.pull_request.labels.*.name, 'Wave A')
 
     steps:
       - uses: actions/checkout@v4
@@ -459,14 +458,43 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: app/router/go.sum
 
-      - name: Router build
-        run: |
-          cd app/router && go build ./... || echo "Router pending implementation"
+      - name: Install dependencies
+        working-directory: ./app/router
+        run: go mod download
 
-      - name: Smoke test
+      - name: Build router
+        working-directory: ./app/router
+        run: go build -o bin/router cmd/router/main.go
+
+      - name: Run unit tests
+        working-directory: ./app/router
+        run: go test -v ./internal/...
+
+      - name: Health check smoke test
+        working-directory: ./app/router
+        env:
+          BINANCE_SPOT_API_KEY: "test_key"
+          BINANCE_SPOT_SECRET_KEY: "test_secret"
+          BINANCE_FUTURES_API_KEY: "test_key"
+          BINANCE_FUTURES_SECRET_KEY: "test_secret"
+          BINANCE_TESTNET: "true"
         run: |
-          echo "TODO: Router healthz and testnet order placement check"
+          # Start router in background
+          ./bin/router &
+          ROUTER_PID=$!
+
+          # Wait for startup
+          sleep 5
+
+          # Test health endpoint
+          curl -f http://localhost:8080/healthz || exit 1
+          curl -f http://localhost:8080/readyz || exit 1
+
+          # Clean up
+          kill $ROUTER_PID
 
   # Wave B: Features golden test
   features-golden:

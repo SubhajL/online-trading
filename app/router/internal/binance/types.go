@@ -14,6 +14,7 @@ type SpotOrderRequest struct {
 	TimeInForce      string          `json:"timeInForce,omitempty"`
 	Quantity         decimal.Decimal `json:"quantity"`
 	Price            decimal.Decimal `json:"price,omitempty"`
+	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`
 	QuoteOrderQty    decimal.Decimal `json:"quoteOrderQty,omitempty"`
 	NewClientOrderID string          `json:"newClientOrderId,omitempty"`
 }
@@ -26,6 +27,7 @@ type FuturesOrderRequest struct {
 	TimeInForce      string          `json:"timeInForce,omitempty"`
 	Quantity         decimal.Decimal `json:"quantity"`
 	Price            decimal.Decimal `json:"price,omitempty"`
+	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`
 	ReduceOnly       bool            `json:"reduceOnly,omitempty"`
 	ClosePosition    bool            `json:"closePosition,omitempty"`
 	NewClientOrderID string          `json:"newClientOrderId,omitempty"`
@@ -78,16 +80,16 @@ type Balance struct {
 
 // CancelResponse represents order cancellation response
 type CancelResponse struct {
-	Symbol            string          `json:"symbol"`
-	OrderID           int64           `json:"orderId"`
-	ClientOrderID     string          `json:"clientOrderId"`
-	Price             decimal.Decimal `json:"price"`
-	OrigQty           decimal.Decimal `json:"origQty"`
-	ExecutedQty       decimal.Decimal `json:"executedQty"`
-	Status            string          `json:"status"`
-	TimeInForce       string          `json:"timeInForce"`
-	Type              string          `json:"type"`
-	Side              string          `json:"side"`
+	Symbol        string          `json:"symbol"`
+	OrderID       int64           `json:"orderId"`
+	ClientOrderID string          `json:"clientOrderId"`
+	Price         decimal.Decimal `json:"price"`
+	OrigQty       decimal.Decimal `json:"origQty"`
+	ExecutedQty   decimal.Decimal `json:"executedQty"`
+	Status        string          `json:"status"`
+	TimeInForce   string          `json:"timeInForce"`
+	Type          string          `json:"type"`
+	Side          string          `json:"side"`
 }
 
 // Order represents an order in the system
@@ -108,8 +110,8 @@ type Order struct {
 
 // ClientConfig represents Binance client configuration
 type ClientConfig struct {
-	BaseURL    string
-	APIKey     string
-	SecretKey  string
-	Timeout    time.Duration
+	BaseURL   string
+	APIKey    string
+	SecretKey string
+	Timeout   time.Duration
 }

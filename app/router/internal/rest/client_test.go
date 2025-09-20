@@ -447,12 +447,10 @@ func TestClient_PlaceOrder(t *testing.T) {
 			assert.Equal(t, "POST", r.Method)
 			assert.Equal(t, "test-key", r.Header.Get("X-MBX-APIKEY"))
 
-			// Parse body parameters
-			body, _ := io.ReadAll(r.Body)
-			params, _ := url.ParseQuery(string(body))
-			receivedParams = params
+			// Parse query parameters (Binance expects all params in query string)
+			receivedParams = r.URL.Query()
 
-			if params.Get("signature") != "" {
+			if receivedParams.Get("signature") != "" {
 				requestSigned = true
 			}
 

@@ -19,7 +19,7 @@ func NewCollector() *Collector {
 		customHistograms:  make(map[string][]float64),
 		customCounters:    make(map[string]int64),
 		histogramBuckets:  DefaultLatencyBuckets,
-		startTime:        time.Now(),
+		startTime:         time.Now(),
 	}
 }
 
@@ -35,7 +35,7 @@ func NewCollectorWithBuckets(buckets []float64) *Collector {
 		customHistograms:  make(map[string][]float64),
 		customCounters:    make(map[string]int64),
 		histogramBuckets:  buckets,
-		startTime:        time.Now(),
+		startTime:         time.Now(),
 	}
 }
 

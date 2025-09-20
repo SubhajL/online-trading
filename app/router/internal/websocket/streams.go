@@ -11,12 +11,12 @@ import (
 
 // StreamManager manages WebSocket streams and subscriptions
 type StreamManager struct {
-	conn               *Connection
-	subscriptions      map[string]bool
-	subscriptionsMu    sync.RWMutex
-	requestID          int64
-	pendingRequests    map[int]chan SubscriptionResponse
-	pendingRequestsMu  sync.RWMutex
+	conn              *Connection
+	subscriptions     map[string]bool
+	subscriptionsMu   sync.RWMutex
+	requestID         int64
+	pendingRequests   map[int]chan SubscriptionResponse
+	pendingRequestsMu sync.RWMutex
 
 	// Connection state monitoring
 	lastState        ConnectionState

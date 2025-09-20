@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/shopspring/decimal"
 	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 )
 
 // SymbolValidator validates orders against symbol filters

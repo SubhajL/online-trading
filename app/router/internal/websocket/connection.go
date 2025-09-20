@@ -11,18 +11,18 @@ import (
 
 // Connection represents a WebSocket connection with reconnection capabilities
 type Connection struct {
-	url                string
-	state              ConnectionState
-	stateMu            sync.RWMutex
+	url     string
+	state   ConnectionState
+	stateMu sync.RWMutex
 
 	// Connection options
-	pingInterval        time.Duration
-	pongTimeout         time.Duration
-	writeTimeout        time.Duration
-	readTimeout         time.Duration
-	autoReconnect       bool
+	pingInterval         time.Duration
+	pongTimeout          time.Duration
+	writeTimeout         time.Duration
+	readTimeout          time.Duration
+	autoReconnect        bool
 	maxReconnectAttempts int
-	reconnectInterval   time.Duration
+	reconnectInterval    time.Duration
 
 	// Pong tracking
 	lastPongTime time.Time
@@ -38,10 +38,10 @@ type Connection struct {
 	handlerMu      sync.RWMutex
 
 	// Control channels
-	closeChan   chan struct{}
-	doneChan    chan struct{}
-	doneOnce    sync.Once
-	doneMutex   sync.Mutex // Protects doneChan recreation
+	closeChan chan struct{}
+	doneChan  chan struct{}
+	doneOnce  sync.Once
+	doneMutex sync.Mutex // Protects doneChan recreation
 
 	// Reconnection state
 	reconnectAttempts int
@@ -105,16 +105,16 @@ func WithReconnectInterval(interval time.Duration) ConnectionOption {
 func NewConnection(url string, opts ...ConnectionOption) *Connection {
 	conn := &Connection{
 		url:                  url,
-		state:               StateDisconnected,
-		pingInterval:        30 * time.Second,
-		pongTimeout:         60 * time.Second,
-		writeTimeout:        10 * time.Second,
-		readTimeout:         60 * time.Second,
-		autoReconnect:       false,
+		state:                StateDisconnected,
+		pingInterval:         30 * time.Second,
+		pongTimeout:          60 * time.Second,
+		writeTimeout:         10 * time.Second,
+		readTimeout:          60 * time.Second,
+		autoReconnect:        false,
 		maxReconnectAttempts: 5,
-		reconnectInterval:   5 * time.Second,
-		closeChan:           make(chan struct{}),
-		doneChan:            make(chan struct{}),
+		reconnectInterval:    5 * time.Second,
+		closeChan:            make(chan struct{}),
+		doneChan:             make(chan struct{}),
 	}
 
 	for _, opt := range opts {

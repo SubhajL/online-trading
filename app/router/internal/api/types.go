@@ -6,15 +6,15 @@ import (
 
 // OrderRequest represents an order placement request
 type OrderRequest struct {
-	Symbol        string  `json:"symbol"`
-	Side          string  `json:"side"`           // BUY or SELL
-	Type          string  `json:"type"`           // MARKET, LIMIT, etc.
-	Quantity      string  `json:"quantity"`
-	Price         string  `json:"price,omitempty"`
-	ClientOrderID string  `json:"clientOrderId"`
-	StopPrice     string  `json:"stopPrice,omitempty"`
-	TimeInForce   string  `json:"timeInForce,omitempty"`
-	ReduceOnly    bool    `json:"reduceOnly,omitempty"` // For futures
+	Symbol        string `json:"symbol"`
+	Side          string `json:"side"` // BUY or SELL
+	Type          string `json:"type"` // MARKET, LIMIT, etc.
+	Quantity      string `json:"quantity"`
+	Price         string `json:"price,omitempty"`
+	ClientOrderID string `json:"clientOrderId"`
+	StopPrice     string `json:"stopPrice,omitempty"`
+	TimeInForce   string `json:"timeInForce,omitempty"`
+	ReduceOnly    bool   `json:"reduceOnly,omitempty"` // For futures
 }
 
 // OrderResponse represents the response after placing an order

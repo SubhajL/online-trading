@@ -60,7 +60,7 @@ func TestSubscribeToMarketData(t *testing.T) {
 		router.POST("/streams/:id/subscribe", handler.SubscribeToMarketData())
 
 		reqBody := models.SubscribeRequest{
-			Symbol: "", // Missing symbol
+			Symbol:  "", // Missing symbol
 			Streams: []string{"depth"},
 		}
 		body, _ := json.Marshal(reqBody)
