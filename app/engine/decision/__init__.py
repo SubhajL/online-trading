@@ -8,9 +8,4 @@ signal processing, and order execution coordination.
 from .risk_manager import RiskManager, RiskLevel, RiskCheckResult
 from .decision_engine import DecisionEngine
 
-__all__ = [
-    "RiskManager",
-    "RiskLevel",
-    "RiskCheckResult",
-    "DecisionEngine"
-]
+__all__ = ["RiskManager", "RiskLevel", "RiskCheckResult", "DecisionEngine"]

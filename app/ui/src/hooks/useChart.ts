@@ -33,7 +33,9 @@ export type UseChartReturn = {
 export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartReturn {
   const [chart, setChart] = useState<IChartApi | null>(null)
   const [candlestickSeries, setCandlestickSeries] = useState<ISeriesApi<'Candlestick'> | null>(null)
-  const indicatorSeriesRef = useRef<Map<string, ISeriesApi<'Line'> | ISeriesApi<'Histogram'>>>(new Map())
+  const indicatorSeriesRef = useRef<Map<string, ISeriesApi<'Line'> | ISeriesApi<'Histogram'>>>(
+    new Map(),
+  )
 
   useEffect(() => {
     if (!containerRef.current) {

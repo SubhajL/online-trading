@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class CircuitBreakerState(Enum):
     """Circuit breaker states."""
+
     CLOSED = "CLOSED"
     OPEN = "OPEN"
     HALF_OPEN = "HALF_OPEN"
@@ -28,6 +29,7 @@ class CircuitBreakerState(Enum):
 @dataclass
 class PublishResult:
     """Result of publishing an event."""
+
     is_success: bool
     event_id: UUID
     error: Optional[str] = None
@@ -36,6 +38,7 @@ class PublishResult:
 @dataclass
 class SubscriptionStatus:
     """Status of a subscription."""
+
     subscription_id: str
     is_active: bool
     circuit_breaker_state: CircuitBreakerState
@@ -158,7 +161,7 @@ class EventSubscription:
         priority: int = 0,
         max_retries: int = 3,
         retry_delay_ms: int = 100,
-        circuit_breaker_threshold: int = 5
+        circuit_breaker_threshold: int = 5,
     ):
         self.subscription_id = str(uuid4())
         self.subscriber_id = subscriber_id
@@ -173,7 +176,9 @@ class EventSubscription:
         self.created_at = datetime.utcnow()
         self.processed_count = 0
         self.failed_count = 0
-        self.circuit_breaker = CircuitBreaker(failure_threshold=circuit_breaker_threshold)
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=circuit_breaker_threshold
+        )
 
 
 class EventBus:
@@ -185,7 +190,7 @@ class EventBus:
         self,
         config: EventBusConfig,
         persistence_backend: Optional[PersistenceBackend] = None,
-        metrics_backend: Optional[MetricsBackend] = None
+        metrics_backend: Optional[MetricsBackend] = None,
     ):
         self._config = config
         self._max_queue_size = config.max_queue_size
@@ -195,7 +200,9 @@ class EventBus:
         self._persistence_backend = persistence_backend or InMemoryPersistence()
         self._metrics_backend = metrics_backend or InMemoryMetrics()
 
-        self._subscriptions: Dict[EventType, List[EventSubscription]] = defaultdict(list)
+        self._subscriptions: Dict[EventType, List[EventSubscription]] = defaultdict(
+            list
+        )
         self._all_subscriptions: List[EventSubscription] = []
         self._subscription_map: Dict[str, EventSubscription] = {}
 
@@ -249,7 +256,7 @@ class EventBus:
         priority: int = 0,
         max_retries: int = 3,
         retry_delay_ms: int = 100,
-        circuit_breaker_threshold: int = 5
+        circuit_breaker_threshold: int = 5,
     ) -> str:
         """Subscribe to events with enhanced options."""
         async with self._lock:
@@ -261,7 +268,7 @@ class EventBus:
                 priority=priority,
                 max_retries=max_retries,
                 retry_delay_ms=retry_delay_ms,
-                circuit_breaker_threshold=circuit_breaker_threshold
+                circuit_breaker_threshold=circuit_breaker_threshold,
             )
 
             if event_types:
@@ -276,7 +283,9 @@ class EventBus:
 
             self._subscription_map[subscription.subscription_id] = subscription
 
-            logger.info(f"Subscriber '{subscriber_id}' subscribed with ID {subscription.subscription_id}")
+            logger.info(
+                f"Subscriber '{subscriber_id}' subscribed with ID {subscription.subscription_id}"
+            )
             return subscription.subscription_id
 
     async def publish(self, event: BaseEvent, priority: int = 0) -> PublishResult:
@@ -297,14 +306,20 @@ class EventBus:
         except asyncio.QueueFull:
             error_msg = f"Event queue full, dropping event {event.event_id}"
             logger.error(error_msg)
-            return PublishResult(is_success=False, event_id=event.event_id, error=error_msg)
+            return PublishResult(
+                is_success=False, event_id=event.event_id, error=error_msg
+            )
 
         except Exception as e:
             error_msg = f"Error publishing event: {e}"
             logger.error(error_msg)
-            return PublishResult(is_success=False, event_id=event.event_id, error=str(e))
+            return PublishResult(
+                is_success=False, event_id=event.event_id, error=str(e)
+            )
 
-    async def get_subscription_status(self, subscription_id: str) -> Optional[SubscriptionStatus]:
+    async def get_subscription_status(
+        self, subscription_id: str
+    ) -> Optional[SubscriptionStatus]:
         """Get status of a subscription."""
         subscription = self._subscription_map.get(subscription_id)
         if not subscription:
@@ -316,7 +331,7 @@ class EventBus:
             circuit_breaker_state=subscription.circuit_breaker.state,
             processed_count=subscription.processed_count,
             failed_count=subscription.failed_count,
-            last_error=subscription.last_error
+            last_error=subscription.last_error,
         )
 
     async def _worker_loop(self, worker_name: str) -> None:
@@ -326,8 +341,7 @@ class EventBus:
         while self._running:
             try:
                 priority, timestamp, event = await asyncio.wait_for(
-                    self._event_queue.get(),
-                    timeout=1.0
+                    self._event_queue.get(), timeout=1.0
                 )
                 await self._process_event(event, worker_name)
 
@@ -350,9 +364,7 @@ class EventBus:
 
         unique_subscriptions = {sub.subscription_id: sub for sub in subscriptions}
         sorted_subscriptions = sorted(
-            unique_subscriptions.values(),
-            key=lambda s: s.priority,
-            reverse=True
+            unique_subscriptions.values(), key=lambda s: s.priority, reverse=True
         )
 
         for subscription in sorted_subscriptions:
@@ -372,9 +384,7 @@ class EventBus:
                 await self._handle_subscription_error(event, subscription, e)
 
     async def _handle_subscription_with_retry(
-        self,
-        event: BaseEvent,
-        subscription: EventSubscription
+        self, event: BaseEvent, subscription: EventSubscription
     ) -> None:
         """Handle subscription with retry logic."""
         attempt = 0
@@ -398,10 +408,7 @@ class EventBus:
             raise last_error
 
     async def _handle_subscription_error(
-        self,
-        event: BaseEvent,
-        subscription: EventSubscription,
-        error: Exception
+        self, event: BaseEvent, subscription: EventSubscription, error: Exception
     ) -> None:
         """Handle subscription processing error."""
         subscription.failed_count += 1
@@ -409,18 +416,24 @@ class EventBus:
         subscription.circuit_breaker.record_failure()
 
         error_type = type(error).__name__
-        self._metrics_backend.record_event_failed(error_type, subscription.subscriber_id)
+        self._metrics_backend.record_event_failed(
+            error_type, subscription.subscriber_id
+        )
 
         logger.error(f"Error in subscription {subscription.subscription_id}: {error}")
 
         if subscription.circuit_breaker.is_open():
-            logger.error(f"Circuit breaker opened for subscription {subscription.subscription_id}")
+            logger.error(
+                f"Circuit breaker opened for subscription {subscription.subscription_id}"
+            )
 
         # If we got here, it means _handle_subscription_with_retry exhausted all retries
         # and raised an exception, so send to dead letter queue
         await self._send_to_dead_letter_queue(event, str(error))
 
-    async def _send_to_dead_letter_queue(self, event: BaseEvent, error_msg: str) -> None:
+    async def _send_to_dead_letter_queue(
+        self, event: BaseEvent, error_msg: str
+    ) -> None:
         """Send event to dead letter queue."""
         try:
             event.metadata["dead_letter_reason"] = error_msg
@@ -460,7 +473,7 @@ class EventBus:
                 "events_processed": metrics.events_processed,
                 "events_failed": metrics.events_failed,
                 "queue_size": self._event_queue.qsize(),
-                "dead_letter_queue_size": self._dead_letter_queue.qsize()
+                "dead_letter_queue_size": self._dead_letter_queue.qsize(),
             }
         return {}
 
@@ -468,28 +481,28 @@ class EventBus:
 def create_event_bus(
     config: EventBusConfig,
     persistence_backend: Optional[PersistenceBackend] = None,
-    metrics_backend: Optional[MetricsBackend] = None
+    metrics_backend: Optional[MetricsBackend] = None,
 ) -> EventBus:
     """Factory function to create configured EventBus instance."""
     return EventBus(
         config=config,
         persistence_backend=persistence_backend,
-        metrics_backend=metrics_backend
+        metrics_backend=metrics_backend,
     )
 
 
 # Export all public classes and functions
 __all__ = [
-    'EventBus',
-    'EventBusConfig',
-    'CircuitBreakerState',
-    'PublishResult',
-    'SubscriptionStatus',
-    'PersistenceBackend',
-    'MetricsBackend',
-    'InMemoryPersistence',
-    'InMemoryMetrics',
-    'CircuitBreaker',
-    'EventSubscription',
-    'create_event_bus',
+    "EventBus",
+    "EventBusConfig",
+    "CircuitBreakerState",
+    "PublishResult",
+    "SubscriptionStatus",
+    "PersistenceBackend",
+    "MetricsBackend",
+    "InMemoryPersistence",
+    "InMemoryMetrics",
+    "CircuitBreaker",
+    "EventSubscription",
+    "create_event_bus",
 ]

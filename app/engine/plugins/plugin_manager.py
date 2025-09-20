@@ -41,32 +41,31 @@ class PluginManager:
             try:
                 # Import module
                 module_name = plugin_file.stem
-                spec = importlib.util.spec_from_file_location(
-                    module_name, plugin_file
-                )
+                spec = importlib.util.spec_from_file_location(module_name, plugin_file)
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
 
                 # Find plugin classes
                 for name, obj in inspect.getmembers(module):
-                    if (inspect.isclass(obj) and
-                        issubclass(obj, BasePlugin) and
-                        obj != BasePlugin):
+                    if (
+                        inspect.isclass(obj)
+                        and issubclass(obj, BasePlugin)
+                        and obj != BasePlugin
+                    ):
                         await self.register_plugin(obj)
 
             except Exception as e:
                 logger.error(f"Failed to load plugin {plugin_file}: {e}")
 
-    async def register_plugin(self, plugin_class: Type[BasePlugin], config: Optional[Dict] = None):
+    async def register_plugin(
+        self, plugin_class: Type[BasePlugin], config: Optional[Dict] = None
+    ):
         """
         Register a plugin instance.
         """
         try:
             # Create instance
-            plugin = plugin_class(
-                name=plugin_class.__name__,
-                config=config or {}
-            )
+            plugin = plugin_class(name=plugin_class.__name__, config=config or {})
 
             # Validate configuration
             if not plugin.validate_config():
@@ -88,8 +87,7 @@ class PluginManager:
             # Subscribe to events
             for event_type in plugin.inputs:
                 await self.event_bus.subscribe(
-                    event_type,
-                    lambda event: self._handle_plugin_event(plugin, event)
+                    event_type, lambda event: self._handle_plugin_event(plugin, event)
                 )
 
             logger.info(f"Registered plugin: {plugin.name}")

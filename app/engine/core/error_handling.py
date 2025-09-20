@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ErrorSeverity(Enum):
     """Error severity levels for categorizing failures."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -28,6 +29,7 @@ class ErrorSeverity(Enum):
 
 class ErrorCategory(Enum):
     """Categories of errors in the EventBus system."""
+
     SUBSCRIPTION = "subscription"
     PROCESSING = "processing"
     QUEUE = "queue"
@@ -42,6 +44,7 @@ class ErrorCategory(Enum):
 @dataclass
 class ErrorContext:
     """Rich context information for errors."""
+
     error_id: str = field(default_factory=lambda: str(uuid4()))
     timestamp: datetime = field(default_factory=datetime.utcnow)
     category: ErrorCategory = ErrorCategory.PROCESSING
@@ -61,7 +64,7 @@ class EventBusError(Exception):
         self,
         message: str,
         context: Optional[ErrorContext] = None,
-        cause: Optional[Exception] = None
+        cause: Optional[Exception] = None,
     ):
         super().__init__(message)
         self.message = message
@@ -74,71 +77,72 @@ class SubscriptionError(EventBusError):
     """Error related to subscription management."""
 
     def __init__(self, message: str, subscription_id: Optional[str] = None, **kwargs):
-        context = kwargs.get('context', ErrorContext())
+        context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.SUBSCRIPTION
         if subscription_id:
-            context.metadata['subscription_id'] = subscription_id
-        super().__init__(message, context, kwargs.get('cause'))
+            context.metadata["subscription_id"] = subscription_id
+        super().__init__(message, context, kwargs.get("cause"))
 
 
 class ProcessingError(EventBusError):
     """Error during event processing."""
 
     def __init__(self, message: str, event_id: Optional[UUID] = None, **kwargs):
-        context = kwargs.get('context', ErrorContext())
+        context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.PROCESSING
         if event_id:
-            context.metadata['event_id'] = str(event_id)
-        super().__init__(message, context, kwargs.get('cause'))
+            context.metadata["event_id"] = str(event_id)
+        super().__init__(message, context, kwargs.get("cause"))
 
 
 class QueueError(EventBusError):
     """Error related to queue operations."""
 
     def __init__(self, message: str, queue_size: Optional[int] = None, **kwargs):
-        context = kwargs.get('context', ErrorContext())
+        context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.QUEUE
         if queue_size is not None:
-            context.metadata['queue_size'] = queue_size
-        super().__init__(message, context, kwargs.get('cause'))
+            context.metadata["queue_size"] = queue_size
+        super().__init__(message, context, kwargs.get("cause"))
 
 
 class ConfigurationError(EventBusError):
     """Error in system configuration."""
 
     def __init__(self, message: str, config_key: Optional[str] = None, **kwargs):
-        context = kwargs.get('context', ErrorContext())
+        context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CONFIGURATION
         context.severity = ErrorSeverity.HIGH
         if config_key:
-            context.metadata['config_key'] = config_key
-        super().__init__(message, context, kwargs.get('cause'))
+            context.metadata["config_key"] = config_key
+        super().__init__(message, context, kwargs.get("cause"))
 
 
 class TimeoutError(EventBusError):
     """Error due to operation timeout."""
 
     def __init__(self, message: str, timeout_seconds: Optional[float] = None, **kwargs):
-        context = kwargs.get('context', ErrorContext())
+        context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.TIMEOUT
         if timeout_seconds:
-            context.metadata['timeout_seconds'] = timeout_seconds
-        super().__init__(message, context, kwargs.get('cause'))
+            context.metadata["timeout_seconds"] = timeout_seconds
+        super().__init__(message, context, kwargs.get("cause"))
 
 
 class CircuitBreakerError(EventBusError):
     """Error when circuit breaker is open."""
 
     def __init__(self, message: str, **kwargs):
-        context = kwargs.get('context', ErrorContext())
+        context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CIRCUIT_BREAKER
         context.severity = ErrorSeverity.HIGH
-        super().__init__(message, context, kwargs.get('cause'))
+        super().__init__(message, context, kwargs.get("cause"))
 
 
 @dataclass
 class ErrorStats:
     """Statistics for error tracking."""
+
     total_errors: int = 0
     errors_by_category: Dict[ErrorCategory, int] = field(default_factory=dict)
     errors_by_severity: Dict[ErrorSeverity, int] = field(default_factory=dict)
@@ -174,19 +178,19 @@ class LoggingErrorHandler(ErrorHandler):
         """Log error with structured context."""
         try:
             log_data = {
-                'error_id': error.context.error_id,
-                'category': error.context.category.value,
-                'severity': error.context.severity.value,
-                'component': error.context.component,
-                'operation': error.context.operation,
-                'error_message': error.message,  # Use different field name to avoid conflict
-                'metadata': error.context.metadata,
-                'retry_count': error.context.retry_count
+                "error_id": error.context.error_id,
+                "category": error.context.category.value,
+                "severity": error.context.severity.value,
+                "component": error.context.component,
+                "operation": error.context.operation,
+                "error_message": error.message,  # Use different field name to avoid conflict
+                "metadata": error.context.metadata,
+                "retry_count": error.context.retry_count,
             }
 
             if error.cause:
-                log_data['cause'] = str(error.cause)
-                log_data['cause_type'] = type(error.cause).__name__
+                log_data["cause"] = str(error.cause)
+                log_data["cause_type"] = type(error.cause).__name__
 
             # Log at appropriate level based on severity
             if error.context.severity == ErrorSeverity.CRITICAL:
@@ -252,8 +256,7 @@ class MetricsErrorHandler(ErrorHandler):
         minute_ago = now - timedelta(minutes=1)
 
         recent_count = sum(
-            1 for ctx in self._stats.recent_errors
-            if ctx.timestamp >= minute_ago
+            1 for ctx in self._stats.recent_errors if ctx.timestamp >= minute_ago
         )
 
         self._stats.error_rate_per_minute = recent_count
@@ -268,7 +271,7 @@ class MetricsErrorHandler(ErrorHandler):
                 errors_by_severity=self._stats.errors_by_severity.copy(),
                 recent_errors=self._stats.recent_errors.copy(),
                 error_rate_per_minute=self._stats.error_rate_per_minute,
-                last_reset=self._stats.last_reset
+                last_reset=self._stats.last_reset,
             )
 
     async def reset_stats(self):
@@ -285,7 +288,7 @@ class RetryableErrorHandler(ErrorHandler):
         max_retries: int = 3,
         base_delay: float = 1.0,
         max_delay: float = 60.0,
-        backoff_factor: float = 2.0
+        backoff_factor: float = 2.0,
     ):
         self.max_retries = max_retries
         self.base_delay = base_delay
@@ -304,8 +307,7 @@ class RetryableErrorHandler(ErrorHandler):
 
         # Calculate delay with exponential backoff
         delay = min(
-            self.base_delay * (self.backoff_factor ** retry_count),
-            self.max_delay
+            self.base_delay * (self.backoff_factor**retry_count), self.max_delay
         )
 
         logger.info(f"Retrying operation after {delay}s (attempt {retry_count + 1})")
@@ -377,7 +379,7 @@ class ErrorManager:
     async def handle_error(
         self,
         error: Union[Exception, EventBusError],
-        context: Optional[ErrorContext] = None
+        context: Optional[ErrorContext] = None,
     ) -> bool:
         """
         Handle an error through all registered handlers.
@@ -392,9 +394,7 @@ class ErrorManager:
         # Convert regular exceptions to EventBusError
         if not isinstance(error, EventBusError):
             eventbus_error = EventBusError(
-                message=str(error),
-                context=context or ErrorContext(),
-                cause=error
+                message=str(error), context=context or ErrorContext(), cause=error
             )
         else:
             eventbus_error = error
@@ -426,8 +426,7 @@ error_manager = ErrorManager()
 
 # Convenience functions for error handling
 async def handle_error(
-    error: Union[Exception, EventBusError],
-    context: Optional[ErrorContext] = None
+    error: Union[Exception, EventBusError], context: Optional[ErrorContext] = None
 ) -> bool:
     """Handle an error using the global error manager."""
     return await error_manager.handle_error(error, context)
@@ -438,7 +437,7 @@ def create_error_context(
     severity: ErrorSeverity = ErrorSeverity.MEDIUM,
     component: str = "",
     operation: str = "",
-    **metadata
+    **metadata,
 ) -> ErrorContext:
     """Create an error context with the specified parameters."""
     return ErrorContext(
@@ -446,7 +445,7 @@ def create_error_context(
         severity=severity,
         component=component,
         operation=operation,
-        metadata=metadata
+        metadata=metadata,
     )
 
 
@@ -459,7 +458,7 @@ class error_boundary:
         operation: str = "",
         category: ErrorCategory = ErrorCategory.PROCESSING,
         severity: ErrorSeverity = ErrorSeverity.MEDIUM,
-        reraise: bool = True
+        reraise: bool = True,
     ):
         self.component = component
         self.operation = operation
@@ -470,14 +469,18 @@ class error_boundary:
     def __call__(self, func):
         """Use as decorator."""
         if asyncio.iscoroutinefunction(func):
+
             async def async_wrapper(*args, **kwargs):
                 async with self:
                     return await func(*args, **kwargs)
+
             return async_wrapper
         else:
+
             def sync_wrapper(*args, **kwargs):
                 with self:
                     return func(*args, **kwargs)
+
             return sync_wrapper
 
     async def __aenter__(self):
@@ -491,7 +494,7 @@ class error_boundary:
                 category=self.category,
                 severity=self.severity,
                 component=self.component,
-                operation=self.operation
+                operation=self.operation,
             )
 
             await handle_error(exc_val, context)
@@ -512,16 +515,14 @@ class error_boundary:
                 category=self.category,
                 severity=self.severity,
                 component=self.component,
-                operation=self.operation
+                operation=self.operation,
             )
 
             # For sync context, we handle the error synchronously
             # by using the logging handler directly
             try:
                 eventbus_error = EventBusError(
-                    message=str(exc_val),
-                    context=context,
-                    cause=exc_val
+                    message=str(exc_val), context=context, cause=exc_val
                 )
 
                 # Use the global error manager's logging handler directly
@@ -535,12 +536,12 @@ class error_boundary:
                     logger.error(
                         f"Error in {self.component}.{self.operation}: {exc_val}",
                         extra={
-                            'error_id': context.error_id,
-                            'category': context.category.value,
-                            'severity': context.severity.value,
-                            'component': context.component,
-                            'operation': context.operation
-                        }
+                            "error_id": context.error_id,
+                            "category": context.category.value,
+                            "severity": context.severity.value,
+                            "component": context.component,
+                            "operation": context.operation,
+                        },
                     )
             except Exception as e:
                 # Fallback logging

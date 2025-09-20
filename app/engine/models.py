@@ -24,8 +24,10 @@ Enum = _enum.Enum
 # Base Types and Enums
 # ============================================================================
 
+
 class TimeFrame(str, Enum):
     """Supported timeframes for candle data"""
+
     M1 = "1m"
     M3 = "3m"
     M5 = "5m"
@@ -45,12 +47,14 @@ class TimeFrame(str, Enum):
 
 class OrderSide(str, Enum):
     """Order side enumeration"""
+
     BUY = "BUY"
     SELL = "SELL"
 
 
 class OrderType(str, Enum):
     """Order type enumeration"""
+
     MARKET = "MARKET"
     LIMIT = "LIMIT"
     STOP_LOSS = "STOP_LOSS"
@@ -61,6 +65,7 @@ class OrderType(str, Enum):
 
 class OrderStatus(str, Enum):
     """Order status enumeration"""
+
     NEW = "NEW"
     PARTIALLY_FILLED = "PARTIALLY_FILLED"
     FILLED = "FILLED"
@@ -71,12 +76,14 @@ class OrderStatus(str, Enum):
 
 class PositionSide(str, Enum):
     """Position side enumeration"""
+
     LONG = "LONG"
     SHORT = "SHORT"
 
 
 class EventType(str, Enum):
     """Event type enumeration for the event bus"""
+
     CANDLE_UPDATE = "candle_update"
     FEATURES_CALCULATED = "features_calculated"
     SMC_SIGNAL = "smc_signal"
@@ -95,6 +102,7 @@ class EventType(str, Enum):
 
 class MarketRegime(str, Enum):
     """Market regime classification"""
+
     TRENDING_UP = "trending_up"
     TRENDING_DOWN = "trending_down"
     RANGING = "ranging"
@@ -104,6 +112,7 @@ class MarketRegime(str, Enum):
 
 class SMCStructure(str, Enum):
     """Smart Money Concepts structure types"""
+
     HIGHER_HIGH = "HH"
     HIGHER_LOW = "HL"
     LOWER_HIGH = "LH"
@@ -114,6 +123,7 @@ class SMCStructure(str, Enum):
 
 class ZoneType(str, Enum):
     """Supply/Demand zone types"""
+
     SUPPLY = "SUPPLY"
     DEMAND = "DEMAND"
     ORDER_BLOCK_BULLISH = "ORDER_BLOCK_BULLISH"
@@ -125,8 +135,10 @@ class ZoneType(str, Enum):
 # Base Event Model
 # ============================================================================
 
+
 class BaseEvent(BaseModel):
     """Base event model for all events in the system"""
+
     event_id: UUID = Field(default_factory=uuid4)
     event_type: EventType
     timestamp: datetime
@@ -138,7 +150,7 @@ class BaseEvent(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat(),
             Decimal: lambda v: str(v),
-            UUID: lambda v: str(v)
+            UUID: lambda v: str(v),
         }
 
 
@@ -146,8 +158,10 @@ class BaseEvent(BaseModel):
 # Market Data Models
 # ============================================================================
 
+
 class Candle(BaseModel):
     """OHLCV candle data"""
+
     symbol: str
     timeframe: TimeFrame
     open_time: datetime
@@ -162,16 +176,25 @@ class Candle(BaseModel):
     taker_buy_base_volume: Decimal
     taker_buy_quote_volume: Decimal
 
-    @validator('open_price', 'high_price', 'low_price', 'close_price',
-              'volume', 'quote_volume', 'taker_buy_base_volume', 'taker_buy_quote_volume')
+    @validator(
+        "open_price",
+        "high_price",
+        "low_price",
+        "close_price",
+        "volume",
+        "quote_volume",
+        "taker_buy_base_volume",
+        "taker_buy_quote_volume",
+    )
     def ensure_positive(cls, v):
         if v <= 0:
-            raise ValueError('Price and volume values must be positive')
+            raise ValueError("Price and volume values must be positive")
         return v
 
 
 class Ticker(BaseModel):
     """24hr ticker data"""
+
     symbol: str
     price_change: Decimal
     price_change_percent: Decimal
@@ -195,8 +218,10 @@ class Ticker(BaseModel):
 # Technical Analysis Models
 # ============================================================================
 
+
 class TechnicalIndicators(BaseModel):
     """Technical indicators calculated for a candle"""
+
     symbol: str
     timeframe: TimeFrame
     timestamp: datetime
@@ -230,8 +255,10 @@ class TechnicalIndicators(BaseModel):
 # Smart Money Concepts Models
 # ============================================================================
 
+
 class PivotPoint(BaseModel):
     """Pivot point identification"""
+
     symbol: str
     timeframe: TimeFrame
     timestamp: datetime
@@ -243,6 +270,7 @@ class PivotPoint(BaseModel):
 
 class SupplyDemandZone(BaseModel):
     """Supply/Demand zone identification"""
+
     zone_id: UUID = Field(default_factory=uuid4)
     symbol: str
     timeframe: TimeFrame
@@ -259,6 +287,7 @@ class SupplyDemandZone(BaseModel):
 
 class MarketStructure(BaseModel):
     """Market structure analysis"""
+
     symbol: str
     timeframe: TimeFrame
     timestamp: datetime
@@ -272,8 +301,10 @@ class MarketStructure(BaseModel):
 # Signal Models
 # ============================================================================
 
+
 class SMCSignal(BaseModel):
     """Smart Money Concepts signal"""
+
     signal_id: UUID = Field(default_factory=uuid4)
     symbol: str
     timeframe: TimeFrame
@@ -290,6 +321,7 @@ class SMCSignal(BaseModel):
 
 class RetestSignal(BaseModel):
     """Retest signal for zones and levels"""
+
     signal_id: UUID = Field(default_factory=uuid4)
     symbol: str
     timeframe: TimeFrame
@@ -305,8 +337,10 @@ class RetestSignal(BaseModel):
 # Risk Management Models
 # ============================================================================
 
+
 class RiskParameters(BaseModel):
     """Risk management parameters"""
+
     max_position_size: Decimal = Field(gt=0)
     max_daily_loss: Decimal = Field(gt=0)
     max_drawdown: Decimal = Field(gt=0)
@@ -319,6 +353,7 @@ class RiskParameters(BaseModel):
 
 class PositionSizing(BaseModel):
     """Position sizing calculation"""
+
     symbol: str
     entry_price: Decimal
     stop_loss: Decimal
@@ -332,8 +367,10 @@ class PositionSizing(BaseModel):
 # Trading Decision Models
 # ============================================================================
 
+
 class TradingDecision(BaseModel):
     """Trading decision with full context"""
+
     decision_id: UUID = Field(default_factory=uuid4)
     symbol: str
     timestamp: datetime
@@ -369,8 +406,10 @@ class TradingDecision(BaseModel):
 # Order and Position Models
 # ============================================================================
 
+
 class Order(BaseModel):
     """Order representation"""
+
     order_id: UUID = Field(default_factory=uuid4)
     client_order_id: str
     symbol: str
@@ -392,6 +431,7 @@ class Order(BaseModel):
 
 class Position(BaseModel):
     """Position representation"""
+
     position_id: UUID = Field(default_factory=uuid4)
     symbol: str
     side: OrderSide
@@ -417,44 +457,52 @@ class Position(BaseModel):
 # Event Models
 # ============================================================================
 
+
 class CandleUpdateEvent(BaseEvent):
     """Candle update event"""
+
     event_type: EventType = EventType.CANDLE_UPDATE
     candle: Candle
 
 
 class FeaturesCalculatedEvent(BaseEvent):
     """Features calculated event"""
+
     event_type: EventType = EventType.FEATURES_CALCULATED
     features: TechnicalIndicators
 
 
 class SMCSignalEvent(BaseEvent):
     """SMC signal event"""
+
     event_type: EventType = EventType.SMC_SIGNAL
     signal: SMCSignal
 
 
 class RetestSignalEvent(BaseEvent):
     """Retest signal event"""
+
     event_type: EventType = EventType.RETEST_SIGNAL
     signal: RetestSignal
 
 
 class TradingDecisionEvent(BaseEvent):
     """Trading decision event"""
+
     event_type: EventType = EventType.TRADING_DECISION
     decision: TradingDecision
 
 
 class OrderPlacedEvent(BaseEvent):
     """Order placed event"""
+
     event_type: EventType = EventType.ORDER_PLACED
     order: Order
 
 
 class OrderFilledEvent(BaseEvent):
     """Order filled event"""
+
     event_type: EventType = EventType.ORDER_FILLED
     order: Order
     fill_price: Decimal
@@ -464,12 +512,14 @@ class OrderFilledEvent(BaseEvent):
 
 class PositionUpdateEvent(BaseEvent):
     """Position update event"""
+
     event_type: EventType = EventType.POSITION_UPDATE
     position: Position
 
 
 class ErrorEvent(BaseEvent):
     """Error event"""
+
     event_type: EventType = EventType.ERROR
     error_type: str
     error_message: str
@@ -481,8 +531,10 @@ class ErrorEvent(BaseEvent):
 # Health and Metrics Models
 # ============================================================================
 
+
 class HealthStatus(BaseModel):
     """Health status model"""
+
     service: str
     status: str  # "healthy", "degraded", "unhealthy"
     timestamp: datetime
@@ -492,6 +544,7 @@ class HealthStatus(BaseModel):
 
 class SystemMetrics(BaseModel):
     """System metrics"""
+
     timestamp: datetime
     cpu_usage: float
     memory_usage: float
@@ -505,6 +558,7 @@ class SystemMetrics(BaseModel):
 
 class TradingMetrics(BaseModel):
     """Trading performance metrics"""
+
     timestamp: datetime
     total_trades: int
     winning_trades: int
@@ -524,8 +578,10 @@ class TradingMetrics(BaseModel):
 # Configuration Models
 # ============================================================================
 
+
 class DatabaseConfig(BaseModel):
     """Database configuration"""
+
     host: str
     port: int
     database: str
@@ -538,6 +594,7 @@ class DatabaseConfig(BaseModel):
 
 class RedisConfig(BaseModel):
     """Redis configuration"""
+
     host: str
     port: int = 6379
     password: Optional[str] = None
@@ -547,6 +604,7 @@ class RedisConfig(BaseModel):
 
 class BinanceConfig(BaseModel):
     """Binance API configuration"""
+
     api_key: str
     api_secret: str
     testnet: bool = True
@@ -556,6 +614,7 @@ class BinanceConfig(BaseModel):
 
 class EngineConfig(BaseModel):
     """Main engine configuration"""
+
     environment: str = "development"
     log_level: str = "INFO"
 
@@ -581,38 +640,52 @@ class EngineConfig(BaseModel):
 
 __all__ = [
     # Enums
-    "TimeFrame", "OrderSide", "OrderType", "OrderStatus", "EventType",
-    "MarketRegime", "SMCStructure", "ZoneType",
-
+    "TimeFrame",
+    "OrderSide",
+    "OrderType",
+    "OrderStatus",
+    "EventType",
+    "MarketRegime",
+    "SMCStructure",
+    "ZoneType",
     # Base types
     "BaseEvent",
-
     # Market data
-    "Candle", "Ticker",
-
+    "Candle",
+    "Ticker",
     # Technical analysis
     "TechnicalIndicators",
-
     # Smart Money Concepts
-    "PivotPoint", "SupplyDemandZone", "MarketStructure",
-
+    "PivotPoint",
+    "SupplyDemandZone",
+    "MarketStructure",
     # Signals
-    "SMCSignal", "RetestSignal",
-
+    "SMCSignal",
+    "RetestSignal",
     # Risk management
-    "RiskParameters", "PositionSizing",
-
+    "RiskParameters",
+    "PositionSizing",
     # Trading
-    "TradingDecision", "Order", "Position",
-
+    "TradingDecision",
+    "Order",
+    "Position",
     # Events
-    "CandleUpdateEvent", "FeaturesCalculatedEvent", "SMCSignalEvent",
-    "RetestSignalEvent", "TradingDecisionEvent", "OrderPlacedEvent",
-    "OrderFilledEvent", "PositionUpdateEvent", "ErrorEvent",
-
+    "CandleUpdateEvent",
+    "FeaturesCalculatedEvent",
+    "SMCSignalEvent",
+    "RetestSignalEvent",
+    "TradingDecisionEvent",
+    "OrderPlacedEvent",
+    "OrderFilledEvent",
+    "PositionUpdateEvent",
+    "ErrorEvent",
     # Health and metrics
-    "HealthStatus", "SystemMetrics", "TradingMetrics",
-
+    "HealthStatus",
+    "SystemMetrics",
+    "TradingMetrics",
     # Configuration
-    "DatabaseConfig", "RedisConfig", "BinanceConfig", "EngineConfig"
+    "DatabaseConfig",
+    "RedisConfig",
+    "BinanceConfig",
+    "EngineConfig",
 ]

@@ -13,7 +13,7 @@ import os
 from app.engine.core.interfaces import (
     EventBusInterface,
     SubscriptionManagerInterface,
-    EventProcessorInterface
+    EventProcessorInterface,
 )
 
 if TYPE_CHECKING:
@@ -25,12 +25,14 @@ from app.engine.core.security import SecureConfig, SecurityLevel, validate_envir
 
 class InvalidConfigurationError(Exception):
     """Raised when configuration is invalid."""
+
     pass
 
 
 @dataclass
 class EventBusConfig:
     """Configuration for EventBus creation."""
+
     max_queue_size: int = 10000
     num_workers: int = 4
     enable_persistence: bool = False
@@ -56,47 +58,72 @@ class EventBusConfig:
             raise ValueError("dead_letter_queue_size must be non-negative")
 
     @classmethod
-    def from_secure_config(cls, secure_config: Optional[SecureConfig] = None) -> 'EventBusConfig':
+    def from_secure_config(
+        cls, secure_config: Optional[SecureConfig] = None
+    ) -> "EventBusConfig":
         """Create configuration from secure config with validation."""
         if not secure_config:
             # Determine security level from environment
-            env = os.getenv('ENVIRONMENT', 'development').lower()
-            security_level = SecurityLevel.PRODUCTION if env == 'production' else SecurityLevel.DEVELOPMENT
+            env = os.getenv("ENVIRONMENT", "development").lower()
+            security_level = (
+                SecurityLevel.PRODUCTION
+                if env == "production"
+                else SecurityLevel.DEVELOPMENT
+            )
             secure_config = SecureConfig(security_level)
 
         # Validate environment before loading
         audit = secure_config.audit()
-        if audit.security_score < 0.5 and secure_config.security_level == SecurityLevel.PRODUCTION:
+        if (
+            audit.security_score < 0.5
+            and secure_config.security_level == SecurityLevel.PRODUCTION
+        ):
             raise InvalidConfigurationError(
                 f"Security audit failed with score {audit.security_score}. "
                 f"Missing required: {', '.join(audit.missing_required)}"
             )
 
         return cls(
-            max_queue_size=int(secure_config.get('EVENT_BUS_MAX_QUEUE_SIZE', 10000)),
-            num_workers=int(secure_config.get('EVENT_BUS_NUM_WORKERS', 4)),
-            enable_persistence=secure_config.get('EVENT_BUS_ENABLE_PERSISTENCE', 'false').lower() == 'true',
-            dead_letter_queue_size=int(secure_config.get('EVENT_BUS_DEAD_LETTER_SIZE', 1000)),
+            max_queue_size=int(secure_config.get("EVENT_BUS_MAX_QUEUE_SIZE", 10000)),
+            num_workers=int(secure_config.get("EVENT_BUS_NUM_WORKERS", 4)),
+            enable_persistence=secure_config.get(
+                "EVENT_BUS_ENABLE_PERSISTENCE", "false"
+            ).lower()
+            == "true",
+            dead_letter_queue_size=int(
+                secure_config.get("EVENT_BUS_DEAD_LETTER_SIZE", 1000)
+            ),
             subscription_config=cls._load_subscription_config(secure_config),
-            processing_config=cls._load_processing_config(secure_config)
+            processing_config=cls._load_processing_config(secure_config),
         )
 
     @staticmethod
     def _load_subscription_config(secure_config: SecureConfig) -> Dict[str, Any]:
         """Load subscription configuration from secure config."""
         return {
-            'max_subscriptions': int(secure_config.get('SUBSCRIPTION_MAX_COUNT', 1000)),
-            'default_priority': int(secure_config.get('SUBSCRIPTION_DEFAULT_PRIORITY', 0)),
-            'default_max_retries': int(secure_config.get('SUBSCRIPTION_DEFAULT_RETRIES', 3))
+            "max_subscriptions": int(secure_config.get("SUBSCRIPTION_MAX_COUNT", 1000)),
+            "default_priority": int(
+                secure_config.get("SUBSCRIPTION_DEFAULT_PRIORITY", 0)
+            ),
+            "default_max_retries": int(
+                secure_config.get("SUBSCRIPTION_DEFAULT_RETRIES", 3)
+            ),
         }
 
     @staticmethod
     def _load_processing_config(secure_config: SecureConfig) -> Dict[str, Any]:
         """Load processing configuration from secure config."""
         return {
-            'max_processing_time_seconds': float(secure_config.get('PROCESSING_MAX_TIME', 30.0)),
-            'max_concurrent_handlers': int(secure_config.get('PROCESSING_MAX_CONCURRENT', 10)),
-            'circuit_breaker_enabled': secure_config.get('CIRCUIT_BREAKER_ENABLED', 'true').lower() == 'true'
+            "max_processing_time_seconds": float(
+                secure_config.get("PROCESSING_MAX_TIME", 30.0)
+            ),
+            "max_concurrent_handlers": int(
+                secure_config.get("PROCESSING_MAX_CONCURRENT", 10)
+            ),
+            "circuit_breaker_enabled": secure_config.get(
+                "CIRCUIT_BREAKER_ENABLED", "true"
+            ).lower()
+            == "true",
         }
 
 
@@ -107,7 +134,7 @@ class EventBusFactory:
     Supports default configurations, custom configurations, and testing mocks.
     """
 
-    def create_event_bus(self) -> 'EventBus':
+    def create_event_bus(self) -> "EventBus":
         """
         Create EventBus with default configuration.
 
@@ -117,7 +144,9 @@ class EventBusFactory:
         config = EventBusConfig()
         return self.create_with_config(config)
 
-    def create_secure_event_bus(self, security_level: Optional[SecurityLevel] = None) -> 'EventBus':
+    def create_secure_event_bus(
+        self, security_level: Optional[SecurityLevel] = None
+    ) -> "EventBus":
         """
         Create EventBus with secure configuration and validation.
 
@@ -132,8 +161,12 @@ class EventBusFactory:
         """
         # Create secure config with validation
         if security_level is None:
-            env = os.getenv('ENVIRONMENT', 'development').lower()
-            security_level = SecurityLevel.PRODUCTION if env == 'production' else SecurityLevel.DEVELOPMENT
+            env = os.getenv("ENVIRONMENT", "development").lower()
+            security_level = (
+                SecurityLevel.PRODUCTION
+                if env == "production"
+                else SecurityLevel.DEVELOPMENT
+            )
 
         secure_config = SecureConfig(security_level)
 
@@ -142,7 +175,7 @@ class EventBusFactory:
 
         return self.create_with_config(config)
 
-    def create_with_config(self, config: EventBusConfig) -> 'EventBus':
+    def create_with_config(self, config: EventBusConfig) -> "EventBus":
         """
         Create EventBus with custom configuration.
 
@@ -180,7 +213,7 @@ class EventBusFactory:
             return self.create_with_dependencies(
                 subscription_manager=subscription_manager,
                 event_processor=event_processor,
-                config=config
+                config=config,
             )
 
         except Exception as e:
@@ -188,7 +221,7 @@ class EventBusFactory:
                 raise
             raise InvalidConfigurationError(f"Failed to create EventBus: {e}")
 
-    def create_for_testing(self) -> 'EventBus':
+    def create_for_testing(self) -> "EventBus":
         """
         Create EventBus with mock dependencies for testing.
 
@@ -213,7 +246,10 @@ class EventBusFactory:
         event_processor._is_mock = True
 
         # Setup async methods
-        from app.engine.core.event_processor import EventProcessingResult, EventProcessingStats
+        from app.engine.core.event_processor import (
+            EventProcessingResult,
+            EventProcessingStats,
+        )
         from uuid import uuid4
 
         mock_result = EventProcessingResult(
@@ -221,7 +257,7 @@ class EventBusFactory:
             successful_handlers=1,
             failed_handlers=0,
             errors=[],
-            processing_time=0.001
+            processing_time=0.001,
         )
         mock_stats = EventProcessingStats()
 
@@ -230,16 +266,15 @@ class EventBusFactory:
         event_processor.reset_stats = AsyncMock()
 
         return self.create_with_dependencies(
-            subscription_manager=subscription_manager,
-            event_processor=event_processor
+            subscription_manager=subscription_manager, event_processor=event_processor
         )
 
     def create_with_dependencies(
         self,
         subscription_manager: SubscriptionManagerInterface,
         event_processor: EventProcessorInterface,
-        config: Optional[EventBusConfig] = None
-    ) -> 'EventBus':
+        config: Optional[EventBusConfig] = None,
+    ) -> "EventBus":
         """
         Create EventBus with custom dependencies.
 
@@ -267,7 +302,7 @@ class EventBusFactory:
         return EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=config
+            config=config,
         )
 
     def _validate_subscription_manager(self, manager: Any) -> None:
@@ -281,9 +316,13 @@ class EventBusFactory:
             InvalidConfigurationError: If manager is invalid
         """
         required_methods = [
-            'add_subscription', 'remove_subscription', 'get_subscriptions_for_event',
-            'get_subscription_count', 'get_active_subscription_count',
-            'record_subscription_failure', 'record_subscription_success'
+            "add_subscription",
+            "remove_subscription",
+            "get_subscriptions_for_event",
+            "get_subscription_count",
+            "get_active_subscription_count",
+            "record_subscription_failure",
+            "record_subscription_success",
         ]
 
         for method in required_methods:
@@ -302,7 +341,7 @@ class EventBusFactory:
         Raises:
             InvalidConfigurationError: If processor is invalid
         """
-        required_methods = ['process_event', 'get_stats', 'reset_stats']
+        required_methods = ["process_event", "get_stats", "reset_stats"]
 
         for method in required_methods:
             if not hasattr(processor, method):

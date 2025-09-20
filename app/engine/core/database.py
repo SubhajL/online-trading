@@ -20,32 +20,38 @@ from enum import Enum
 # Custom Exceptions
 class DatabaseError(Exception):
     """Base database error."""
+
     pass
 
 
 class ConnectionError(DatabaseError):
     """Connection-related errors."""
+
     pass
 
 
 class TransactionError(DatabaseError):
     """Transaction-related errors."""
+
     pass
 
 
 class OptimisticLockError(DatabaseError):
     """Optimistic locking conflicts."""
+
     pass
 
 
 class PoolExhaustionError(ConnectionError):
     """Connection pool exhausted."""
+
     pass
 
 
 @dataclass
 class DatabaseConfig:
     """Database configuration with validation."""
+
     postgres_url: str
     redis_url: str
     pool_size: int = 10
@@ -64,11 +70,11 @@ class DatabaseConfig:
         """Validate database URLs."""
         try:
             pg_parsed = urlparse(self.postgres_url)
-            if pg_parsed.scheme not in ('postgresql', 'postgres'):
+            if pg_parsed.scheme not in ("postgresql", "postgres"):
                 raise ValueError(f"Invalid PostgreSQL URL scheme: {pg_parsed.scheme}")
 
             redis_parsed = urlparse(self.redis_url)
-            if redis_parsed.scheme != 'redis':
+            if redis_parsed.scheme != "redis":
                 raise ValueError(f"Invalid Redis URL scheme: {redis_parsed.scheme}")
 
         except Exception as e:
@@ -107,20 +113,20 @@ class ConnectionPool:
                 max_size=self.config.pool_size + self.config.max_overflow,
                 command_timeout=self.config.pool_timeout,
                 server_settings={
-                    'jit': 'off',  # Disable JIT for better performance on small queries
-                    'application_name': 'trading_engine'
-                }
+                    "jit": "off",  # Disable JIT for better performance on small queries
+                    "application_name": "trading_engine",
+                },
             )
 
             # Initialize Redis pool
             self._redis_pool = redis.from_url(
                 self.config.redis_url,
-                encoding='utf-8',
+                encoding="utf-8",
                 decode_responses=True,
                 socket_timeout=self.config.pool_timeout,
                 socket_connect_timeout=self.config.pool_timeout,
                 retry_on_timeout=True,
-                health_check_interval=self.config.health_check_interval
+                health_check_interval=self.config.health_check_interval,
             )
 
             self._initialized = True
@@ -199,7 +205,7 @@ class TransactionContext:
         self.transaction: Optional[asyncpg.Transaction] = None
         self.logger = logging.getLogger(__name__)
 
-    async def __aenter__(self) -> 'TransactionContext':
+    async def __aenter__(self) -> "TransactionContext":
         """Start transaction."""
         try:
             self.transaction = self.connection.transaction()
@@ -266,10 +272,7 @@ class OptimisticLockMixin:
     """Mixin providing optimistic locking functionality."""
 
     async def update_with_version(
-        self,
-        connection: asyncpg.Connection,
-        query: str,
-        *args
+        self, connection: asyncpg.Connection, query: str, *args
     ) -> bool:
         """
         Execute update with version check for optimistic locking.
@@ -289,7 +292,7 @@ class OptimisticLockMixin:
             result = await connection.execute(query, *args)
 
             # Extract number of affected rows
-            if hasattr(result, 'split'):
+            if hasattr(result, "split"):
                 rows_affected = int(result.split()[-1])
             else:
                 rows_affected = 0
@@ -307,11 +310,7 @@ class OptimisticLockMixin:
             raise DatabaseError(f"Update with version check failed: {e}")
 
     async def increment_version(
-        self,
-        connection: asyncpg.Connection,
-        table: str,
-        where_clause: str,
-        *args
+        self, connection: asyncpg.Connection, table: str, where_clause: str, *args
     ) -> int:
         """
         Increment version field and return new version.
@@ -369,7 +368,9 @@ class DatabaseManager:
             raise
 
     @asynccontextmanager
-    async def get_connection(self, retry: bool = True) -> AsyncGenerator[asyncpg.Connection, None]:
+    async def get_connection(
+        self, retry: bool = True
+    ) -> AsyncGenerator[asyncpg.Connection, None]:
         """
         Get database connection with retry logic.
 
@@ -396,10 +397,14 @@ class DatabaseManager:
             except Exception as e:
                 last_error = e
                 if attempt < attempts - 1:
-                    await asyncio.sleep(self.config.retry_delay * (2 ** attempt))
-                    self.logger.warning(f"Connection attempt {attempt + 1} failed, retrying: {e}")
+                    await asyncio.sleep(self.config.retry_delay * (2**attempt))
+                    self.logger.warning(
+                        f"Connection attempt {attempt + 1} failed, retrying: {e}"
+                    )
 
-        raise ConnectionError(f"Failed to get connection after {attempts} attempts: {last_error}")
+        raise ConnectionError(
+            f"Failed to get connection after {attempts} attempts: {last_error}"
+        )
 
     @asynccontextmanager
     async def transaction(self) -> AsyncGenerator[TransactionContext, None]:
@@ -426,10 +431,7 @@ class DatabaseManager:
             yield redis_conn
 
     async def execute_with_retry(
-        self,
-        query: str,
-        *args,
-        max_retries: int = None
+        self, query: str, *args, max_retries: int = None
     ) -> str:
         """
         Execute query with automatic retry on transient failures.
@@ -449,14 +451,18 @@ class DatabaseManager:
             try:
                 async with self._pool.get_postgres_connection() as conn:
                     return await conn.execute(query, *args)
-            except (asyncpg.ConnectionDoesNotExistError,
-                    asyncpg.InterfaceError,
-                    ConnectionError) as e:
+            except (
+                asyncpg.ConnectionDoesNotExistError,
+                asyncpg.InterfaceError,
+                ConnectionError,
+            ) as e:
                 last_error = e
                 if attempt < max_retries - 1:
-                    delay = self.config.retry_delay * (2 ** attempt)
+                    delay = self.config.retry_delay * (2**attempt)
                     await asyncio.sleep(delay)
-                    self.logger.warning(f"Query retry {attempt + 1}/{max_retries} after {delay}s: {e}")
+                    self.logger.warning(
+                        f"Query retry {attempt + 1}/{max_retries} after {delay}s: {e}"
+                    )
             except Exception as e:
                 # Don't retry on non-transient errors
                 raise DatabaseError(f"Query execution failed: {e}")
@@ -475,7 +481,7 @@ class DatabaseManager:
                 "postgres": False,
                 "redis": False,
                 "overall": False,
-                "error": "Database manager not initialized"
+                "error": "Database manager not initialized",
             }
 
         try:
@@ -488,8 +494,8 @@ class DatabaseManager:
                 "timestamp": time.time(),
                 "pool_info": {
                     "pool_size": self.config.pool_size,
-                    "max_overflow": self.config.max_overflow
-                }
+                    "max_overflow": self.config.max_overflow,
+                },
             }
         except Exception as e:
             self.logger.error(f"Health check failed: {e}")
@@ -497,7 +503,7 @@ class DatabaseManager:
                 "postgres": False,
                 "redis": False,
                 "overall": False,
-                "error": str(e)
+                "error": str(e),
             }
 
     async def shutdown(self) -> None:

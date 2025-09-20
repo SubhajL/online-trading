@@ -12,7 +12,4 @@ Implements various technical indicators including:
 from .indicators import TechnicalIndicators
 from .feature_service import FeatureService
 
-__all__ = [
-    "TechnicalIndicators",
-    "FeatureService"
-]
+__all__ = ["TechnicalIndicators", "FeatureService"]

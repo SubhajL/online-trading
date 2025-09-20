@@ -90,13 +90,15 @@ class IndicatorPlugin(BasePlugin):
             indicators = await self.calculate(event.metadata.get("candle"))
             if indicators:
                 # Create custom indicator event
-                return [BaseEvent(
-                    event_type=event.event_type,
-                    timestamp=datetime.utcnow(),
-                    symbol=event.symbol,
-                    timeframe=event.timeframe,
-                    metadata={"custom_indicators": indicators}
-                )]
+                return [
+                    BaseEvent(
+                        event_type=event.event_type,
+                        timestamp=datetime.utcnow(),
+                        symbol=event.symbol,
+                        timeframe=event.timeframe,
+                        metadata={"custom_indicators": indicators},
+                    )
+                ]
         return None
 
 
@@ -114,9 +116,9 @@ class SignalPlugin(BasePlugin):
         return {"signals"}
 
     @abstractmethod
-    async def generate_signal(self,
-                             candle: Candle,
-                             indicators: TechnicalIndicators) -> Optional[Dict[str, Any]]:
+    async def generate_signal(
+        self, candle: Candle, indicators: TechnicalIndicators
+    ) -> Optional[Dict[str, Any]]:
         """
         Generate trading signal from candle and indicators.
         """

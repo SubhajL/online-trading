@@ -34,7 +34,7 @@ class FundingRateGuard:
     """Guards against trading during extreme funding rates"""
 
     def __init__(self):
-        self.funding_threshold = Decimal('0.01')  # 1%
+        self.funding_threshold = Decimal("0.01")  # 1%
 
     def is_funding_safe(self, symbol: str) -> bool:
         """Check if funding rates are within safe limits"""
@@ -56,9 +56,9 @@ class RiskGuards:
     def is_safe_to_trade(self, symbol: str) -> Dict[str, bool]:
         """Check all guards for trading safety"""
         return {
-            'news_safe': self.news_guard.is_news_safe(symbol),
-            'funding_safe': self.funding_guard.is_funding_safe(symbol),
-            'overall_safe': True  # Simplified
+            "news_safe": self.news_guard.is_news_safe(symbol),
+            "funding_safe": self.funding_guard.is_funding_safe(symbol),
+            "overall_safe": True,  # Simplified
         }
 
     async def health_check(self) -> Dict:

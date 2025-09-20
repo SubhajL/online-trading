@@ -13,9 +13,20 @@ from typing import Dict, List, Optional, Any
 
 from .risk_manager import RiskManager, RiskCheckResult
 from ..types import (
-    BaseEvent, TradingDecision, TradingDecisionEvent, SMCSignal, SMCSignalEvent,
-    RetestSignal, RetestSignalEvent, TechnicalIndicators, FeaturesCalculatedEvent,
-    OrderSide, OrderType, PositionSizing, MarketRegime, Position
+    BaseEvent,
+    TradingDecision,
+    TradingDecisionEvent,
+    SMCSignal,
+    SMCSignalEvent,
+    RetestSignal,
+    RetestSignalEvent,
+    TechnicalIndicators,
+    FeaturesCalculatedEvent,
+    OrderSide,
+    OrderType,
+    PositionSizing,
+    MarketRegime,
+    Position,
 )
 from ..bus import get_event_bus
 from ..adapters import RouterHTTPClient
@@ -38,16 +49,16 @@ class DecisionEngine:
         self,
         risk_manager: RiskManager,
         router_client: RouterHTTPClient,
-        config: Dict = None
+        config: Dict = None,
     ):
         self.risk_manager = risk_manager
         self.router_client = router_client
         self.config = config or {}
 
         # Signal processing configuration
-        self.min_signal_confidence = self.config.get('min_signal_confidence', 0.7)
-        self.max_signals_per_decision = self.config.get('max_signals_per_decision', 3)
-        self.decision_timeout_minutes = self.config.get('decision_timeout_minutes', 15)
+        self.min_signal_confidence = self.config.get("min_signal_confidence", 0.7)
+        self.max_signals_per_decision = self.config.get("max_signals_per_decision", 3)
+        self.decision_timeout_minutes = self.config.get("decision_timeout_minutes", 15)
 
         # Signal storage
         self._pending_signals: Dict[str, List[SMCSignal]] = {}  # symbol -> signals
@@ -60,7 +71,7 @@ class DecisionEngine:
 
         # Market state
         self._market_regime: Dict[str, MarketRegime] = {}
-        self._account_balance = Decimal('100000')  # Default
+        self._account_balance = Decimal("100000")  # Default
         self._current_positions: List[Position] = []
 
         self._event_bus = get_event_bus()
@@ -84,9 +95,21 @@ class DecisionEngine:
 
         # Subscribe to relevant events
         subscription_configs = [
-            ("smc_signal_handler", self._handle_smc_signal, [BaseEvent.EventType.SMC_SIGNAL]),
-            ("retest_signal_handler", self._handle_retest_signal, [BaseEvent.EventType.RETEST_SIGNAL]),
-            ("features_handler", self._handle_features_calculated, [BaseEvent.EventType.FEATURES_CALCULATED])
+            (
+                "smc_signal_handler",
+                self._handle_smc_signal,
+                [BaseEvent.EventType.SMC_SIGNAL],
+            ),
+            (
+                "retest_signal_handler",
+                self._handle_retest_signal,
+                [BaseEvent.EventType.RETEST_SIGNAL],
+            ),
+            (
+                "features_handler",
+                self._handle_features_calculated,
+                [BaseEvent.EventType.FEATURES_CALCULATED],
+            ),
         ]
 
         for subscriber_id, handler, event_types in subscription_configs:
@@ -94,7 +117,7 @@ class DecisionEngine:
                 subscriber_id=subscriber_id,
                 handler=handler,
                 event_types=event_types,
-                priority=2  # Lower priority to process after feature calculation
+                priority=2,  # Lower priority to process after feature calculation
             )
             self._subscription_ids.append(sub_id)
 
@@ -137,7 +160,9 @@ class DecisionEngine:
 
             # Limit number of signals per symbol
             if len(self._pending_signals[symbol]) > self.max_signals_per_decision:
-                self._pending_signals[symbol] = self._pending_signals[symbol][-self.max_signals_per_decision:]
+                self._pending_signals[symbol] = self._pending_signals[symbol][
+                    -self.max_signals_per_decision :
+                ]
 
             logger.debug(f"Added SMC signal for {symbol}: {signal.signal_type}")
 
@@ -172,9 +197,13 @@ class DecisionEngine:
             symbol = indicators.symbol
 
             # Store latest indicators
-            self._latest_indicators[f"{symbol}_{indicators.timeframe.value}"] = indicators
+            self._latest_indicators[f"{symbol}_{indicators.timeframe.value}"] = (
+                indicators
+            )
 
-            logger.debug(f"Updated indicators for {symbol} {indicators.timeframe.value}")
+            logger.debug(
+                f"Updated indicators for {symbol} {indicators.timeframe.value}"
+            )
 
         except Exception as e:
             logger.error(f"Error handling features calculated: {e}")
@@ -205,12 +234,15 @@ class DecisionEngine:
         """Background task to clean up old signals"""
         while self._running:
             try:
-                cutoff_time = datetime.utcnow() - timedelta(minutes=self.decision_timeout_minutes)
+                cutoff_time = datetime.utcnow() - timedelta(
+                    minutes=self.decision_timeout_minutes
+                )
 
                 # Clean up SMC signals
                 for symbol in list(self._pending_signals.keys()):
                     self._pending_signals[symbol] = [
-                        s for s in self._pending_signals[symbol]
+                        s
+                        for s in self._pending_signals[symbol]
                         if s.timestamp > cutoff_time
                     ]
                     if not self._pending_signals[symbol]:
@@ -219,7 +251,8 @@ class DecisionEngine:
                 # Clean up retest signals
                 for symbol in list(self._retest_signals.keys()):
                     self._retest_signals[symbol] = [
-                        s for s in self._retest_signals[symbol]
+                        s
+                        for s in self._retest_signals[symbol]
                         if s.timestamp > cutoff_time
                     ]
                     if not self._retest_signals[symbol]:
@@ -241,17 +274,23 @@ class DecisionEngine:
                     continue
 
                 # Check if we have sufficient signals for decision
-                high_confidence_signals = [s for s in signals if s.confidence >= self.min_signal_confidence]
+                high_confidence_signals = [
+                    s for s in signals if s.confidence >= self.min_signal_confidence
+                ]
 
                 if high_confidence_signals:
-                    decision = await self._generate_decision(symbol, high_confidence_signals)
+                    decision = await self._generate_decision(
+                        symbol, high_confidence_signals
+                    )
                     if decision:
                         await self._evaluate_and_queue_decision(decision)
 
         except Exception as e:
             logger.error(f"Error processing pending signals: {e}")
 
-    async def _generate_decision(self, symbol: str, signals: List[SMCSignal]) -> Optional[TradingDecision]:
+    async def _generate_decision(
+        self, symbol: str, signals: List[SMCSignal]
+    ) -> Optional[TradingDecision]:
         """Generate trading decision from signals"""
         try:
             if not signals:
@@ -273,7 +312,9 @@ class DecisionEngine:
 
             # Calculate decision parameters
             strongest_signal = max(relevant_signals, key=lambda s: s.confidence)
-            avg_confidence = sum(s.confidence for s in relevant_signals) / len(relevant_signals)
+            avg_confidence = sum(s.confidence for s in relevant_signals) / len(
+                relevant_signals
+            )
 
             # Get current market price
             market_prices = await self.router_client.get_market_prices([symbol])
@@ -293,10 +334,10 @@ class DecisionEngine:
                     stop_loss=strongest_signal.stop_loss,
                     take_profit=strongest_signal.take_profit,
                     confidence=avg_confidence,
-                    reasoning="Initial calculation"
+                    reasoning="Initial calculation",
                 ),
                 account_balance=self._account_balance,
-                current_price=current_price
+                current_price=current_price,
             )
 
             # Get latest technical indicators
@@ -304,7 +345,9 @@ class DecisionEngine:
             indicators = self._latest_indicators.get(indicators_key)
 
             # Compile reasoning
-            signal_descriptions = [f"{s.signal_type}({s.confidence:.2f})" for s in relevant_signals]
+            signal_descriptions = [
+                f"{s.signal_type}({s.confidence:.2f})" for s in relevant_signals
+            ]
             reasoning = f"Decision based on {len(relevant_signals)} signals: {', '.join(signal_descriptions)}"
 
             # Add confluence factors
@@ -344,13 +387,15 @@ class DecisionEngine:
                 risk_reward_ratio=self._calculate_risk_reward_ratio(
                     strongest_signal.entry_price,
                     strongest_signal.stop_loss,
-                    strongest_signal.take_profit
+                    strongest_signal.take_profit,
                 ),
-                volatility_filter=True
+                volatility_filter=True,
             )
 
             self._decisions_generated += 1
-            logger.info(f"Generated decision for {symbol}: {action} at {strongest_signal.entry_price}")
+            logger.info(
+                f"Generated decision for {symbol}: {action} at {strongest_signal.entry_price}"
+            )
 
             return decision
 
@@ -362,7 +407,7 @@ class DecisionEngine:
         self,
         entry_price: Decimal,
         stop_loss: Optional[Decimal],
-        take_profit: Optional[Decimal]
+        take_profit: Optional[Decimal],
     ) -> Optional[Decimal]:
         """Calculate risk-reward ratio"""
         try:
@@ -388,14 +433,14 @@ class DecisionEngine:
             risk_result = self.risk_manager.check_risk_limits(
                 decision=decision,
                 account_balance=self._account_balance,
-                current_positions=self._current_positions
+                current_positions=self._current_positions,
             )
 
             if risk_result.approved:
                 # Additional checks with router service
                 router_risk_check = await self.router_client.check_risk_limits(decision)
 
-                if router_risk_check.get('approved', False):
+                if router_risk_check.get("approved", False):
                     # Add to execution queue
                     self._execution_queue.append(decision)
 
@@ -403,15 +448,21 @@ class DecisionEngine:
                     event = TradingDecisionEvent(
                         timestamp=datetime.utcnow(),
                         symbol=decision.symbol,
-                        decision=decision
+                        decision=decision,
                     )
                     await self._event_bus.publish(event, priority=8)
 
-                    logger.info(f"Decision approved and queued for execution: {decision.symbol} {decision.action}")
+                    logger.info(
+                        f"Decision approved and queued for execution: {decision.symbol} {decision.action}"
+                    )
                 else:
-                    logger.warning(f"Decision rejected by router risk check: {router_risk_check}")
+                    logger.warning(
+                        f"Decision rejected by router risk check: {router_risk_check}"
+                    )
             else:
-                logger.warning(f"Decision rejected by risk manager: {risk_result.reasons}")
+                logger.warning(
+                    f"Decision rejected by risk manager: {risk_result.reasons}"
+                )
 
             # Store decision for analysis
             self._recent_decisions.append(decision)
@@ -433,9 +484,11 @@ class DecisionEngine:
                     # Send order to router
                     order_result = await self.router_client.place_order(decision)
 
-                    if order_result.get('success', False):
+                    if order_result.get("success", False):
                         self._decisions_executed += 1
-                        logger.info(f"Successfully executed decision: {decision.symbol} {decision.action}")
+                        logger.info(
+                            f"Successfully executed decision: {decision.symbol} {decision.action}"
+                        )
 
                         # Remove processed signals
                         if decision.symbol in self._pending_signals:
@@ -456,7 +509,7 @@ class DecisionEngine:
             # Get account balance
             balance_info = await self.router_client.get_balance()
             if balance_info:
-                self._account_balance = Decimal(str(balance_info.get('total', 100000)))
+                self._account_balance = Decimal(str(balance_info.get("total", 100000)))
 
             # Get current positions
             positions_data = await self.router_client.get_positions()
@@ -465,14 +518,14 @@ class DecisionEngine:
             for pos_data in positions_data:
                 # Convert to Position object (simplified)
                 position = Position(
-                    symbol=pos_data['symbol'],
-                    side=OrderSide(pos_data['side']),
-                    size=Decimal(str(pos_data['size'])),
-                    entry_price=Decimal(str(pos_data['entry_price'])),
-                    current_price=Decimal(str(pos_data['current_price'])),
-                    unrealized_pnl=Decimal(str(pos_data['unrealized_pnl'])),
-                    margin_used=Decimal(str(pos_data['margin_used'])),
-                    opened_at=datetime.fromisoformat(pos_data['opened_at'])
+                    symbol=pos_data["symbol"],
+                    side=OrderSide(pos_data["side"]),
+                    size=Decimal(str(pos_data["size"])),
+                    entry_price=Decimal(str(pos_data["entry_price"])),
+                    current_price=Decimal(str(pos_data["current_price"])),
+                    unrealized_pnl=Decimal(str(pos_data["unrealized_pnl"])),
+                    margin_used=Decimal(str(pos_data["margin_used"])),
+                    opened_at=datetime.fromisoformat(pos_data["opened_at"]),
                 )
                 self._current_positions.append(position)
 
@@ -483,24 +536,21 @@ class DecisionEngine:
             logger.error(f"Error updating account state: {e}")
 
     def force_decision(
-        self,
-        symbol: str,
-        action: str,
-        reasoning: str = "Manual decision"
+        self, symbol: str, action: str, reasoning: str = "Manual decision"
     ) -> Optional[TradingDecision]:
         """Force a trading decision (for manual intervention)"""
         try:
             # Get current market price
             # This would need to be made async, simplified for now
-            current_price = Decimal('50000')  # Placeholder
+            current_price = Decimal("50000")  # Placeholder
 
             decision = TradingDecision(
                 symbol=symbol,
                 timestamp=datetime.utcnow(),
                 action=action,
                 entry_price=current_price,
-                confidence=Decimal('1.0'),
-                reasoning=f"Manual: {reasoning}"
+                confidence=Decimal("1.0"),
+                reasoning=f"Manual: {reasoning}",
             )
 
             self._recent_decisions.append(decision)
@@ -516,7 +566,10 @@ class DecisionEngine:
         """Get current status of the decision engine"""
         return {
             "running": self._running,
-            "pending_signals": {symbol: len(signals) for symbol, signals in self._pending_signals.items()},
+            "pending_signals": {
+                symbol: len(signals)
+                for symbol, signals in self._pending_signals.items()
+            },
             "execution_queue_size": len(self._execution_queue),
             "recent_decisions": len(self._recent_decisions),
             "decisions_generated": self._decisions_generated,
@@ -524,7 +577,7 @@ class DecisionEngine:
             "signals_processed": self._signals_processed,
             "account_balance": float(self._account_balance),
             "open_positions": len(self._current_positions),
-            "risk_metrics": self.risk_manager.get_risk_metrics()
+            "risk_metrics": self.risk_manager.get_risk_metrics(),
         }
 
     async def health_check(self) -> Dict[str, Any]:
@@ -537,7 +590,7 @@ class DecisionEngine:
                 "status": "healthy" if self._running else "stopped",
                 "router_connection": router_health.get("status", "unknown"),
                 "engine_status": status,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
@@ -545,5 +598,5 @@ class DecisionEngine:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }

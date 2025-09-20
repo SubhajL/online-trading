@@ -35,8 +35,11 @@ class EventBusConfig(BaseModel):
         return cls(
             max_queue_size=int(os.getenv("EVENT_BUS_MAX_QUEUE_SIZE", "10000")),
             num_workers=int(os.getenv("EVENT_BUS_NUM_WORKERS", "4")),
-            enable_persistence=os.getenv("EVENT_BUS_ENABLE_PERSISTENCE", "false").lower() == "true",
-            dead_letter_queue_size=int(os.getenv("EVENT_BUS_DEAD_LETTER_SIZE", "1000"))
+            enable_persistence=os.getenv(
+                "EVENT_BUS_ENABLE_PERSISTENCE", "false"
+            ).lower()
+            == "true",
+            dead_letter_queue_size=int(os.getenv("EVENT_BUS_DEAD_LETTER_SIZE", "1000")),
         )
 
 
@@ -97,7 +100,7 @@ class VaultConfig(BaseModel):
             namespace=os.getenv("VAULT_NAMESPACE"),
             mount_point=os.getenv("VAULT_MOUNT_POINT", "secret"),
             transit_mount=os.getenv("VAULT_TRANSIT_MOUNT", "transit"),
-            key_name=os.getenv("VAULT_KEY_NAME", "trading-platform")
+            key_name=os.getenv("VAULT_KEY_NAME", "trading-platform"),
         )
 
 
@@ -126,11 +129,13 @@ class ObservabilityConfig(BaseModel):
     structured_logging: bool = Field(default=True)
 
     health_check_interval: int = Field(default=30, ge=1)
-    slo_targets: Dict[str, float] = Field(default_factory=lambda: {
-        "availability": 0.999,
-        "latency_p99": 1.0,
-        "error_rate": 0.001
-    })
+    slo_targets: Dict[str, float] = Field(
+        default_factory=lambda: {
+            "availability": 0.999,
+            "latency_p99": 1.0,
+            "error_rate": 0.001,
+        }
+    )
 
 
 class CircuitBreakerConfig(BaseModel):
@@ -179,7 +184,7 @@ class AppConfig(BaseSettings):
             environment=os.getenv("ENVIRONMENT", "development"),
             debug=os.getenv("DEBUG", "false").lower() == "true",
             event_bus=EventBusConfig.from_env(),
-            vault=VaultConfig.from_env()
+            vault=VaultConfig.from_env(),
         )
 
     def validate_secrets(self) -> None:

@@ -15,7 +15,7 @@ from ..types import (
     TechnicalIndicators,
     TimeFrame,
     OrderSide,
-    TradingMetrics
+    TradingMetrics,
 )
 from ..features.indicators import IndicatorCalculator
 from ..smc.smc_service import SMCService
@@ -27,10 +27,12 @@ class BacktestEngine:
     Backtesting engine with vectorized and event-driven modes.
     """
 
-    def __init__(self,
-                 initial_balance: Decimal = Decimal("10000"),
-                 commission: Decimal = Decimal("0.001"),
-                 slippage: Decimal = Decimal("0.001")):
+    def __init__(
+        self,
+        initial_balance: Decimal = Decimal("10000"),
+        commission: Decimal = Decimal("0.001"),
+        slippage: Decimal = Decimal("0.001"),
+    ):
         self.initial_balance = initial_balance
         self.commission = commission
         self.slippage = slippage
@@ -45,10 +47,9 @@ class BacktestEngine:
         self.equity_curve: List[Tuple[datetime, Decimal]] = []
         self.positions: Dict[str, Dict] = {}
 
-    async def run_backtest(self,
-                          candles: pd.DataFrame,
-                          symbol: str,
-                          timeframe: TimeFrame) -> TradingMetrics:
+    async def run_backtest(
+        self, candles: pd.DataFrame, symbol: str, timeframe: TimeFrame
+    ) -> TradingMetrics:
         """
         Run backtest on historical data.
         """
@@ -67,7 +68,7 @@ class BacktestEngine:
         # Iterate through candles
         for i in range(50, len(candles)):  # Start after warmup period
             candle = candles.iloc[i]
-            timestamp = candle['close_time']
+            timestamp = candle["close_time"]
 
             # Update open positions
             balance = self._update_positions(candle, balance)
@@ -89,11 +90,11 @@ class BacktestEngine:
                     trade = self._execute_trade(decision, candle, balance)
                     if trade:
                         self.trades.append(trade)
-                        balance -= trade['cost']
+                        balance -= trade["cost"]
 
             # Record equity
             total_equity = balance + sum(
-                p['unrealized_pnl'] for p in self.positions.values()
+                p["unrealized_pnl"] for p in self.positions.values()
             )
             self.equity_curve.append((timestamp, total_equity))
 
@@ -110,29 +111,29 @@ class BacktestEngine:
         df = candles.copy()
 
         # EMAs
-        df['ema_9'] = df['close'].ewm(span=9, adjust=False).mean()
-        df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
-        df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
-        df['ema_200'] = df['close'].ewm(span=200, adjust=False).mean()
+        df["ema_9"] = df["close"].ewm(span=9, adjust=False).mean()
+        df["ema_21"] = df["close"].ewm(span=21, adjust=False).mean()
+        df["ema_50"] = df["close"].ewm(span=50, adjust=False).mean()
+        df["ema_200"] = df["close"].ewm(span=200, adjust=False).mean()
 
         # RSI
-        df['rsi_14'] = self._calculate_rsi(df['close'], 14)
+        df["rsi_14"] = self._calculate_rsi(df["close"], 14)
 
         # MACD
-        exp1 = df['close'].ewm(span=12, adjust=False).mean()
-        exp2 = df['close'].ewm(span=26, adjust=False).mean()
-        df['macd'] = exp1 - exp2
-        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
-        df['macd_histogram'] = df['macd'] - df['macd_signal']
+        exp1 = df["close"].ewm(span=12, adjust=False).mean()
+        exp2 = df["close"].ewm(span=26, adjust=False).mean()
+        df["macd"] = exp1 - exp2
+        df["macd_signal"] = df["macd"].ewm(span=9, adjust=False).mean()
+        df["macd_histogram"] = df["macd"] - df["macd_signal"]
 
         # ATR
-        df['atr_14'] = self._calculate_atr(df, 14)
+        df["atr_14"] = self._calculate_atr(df, 14)
 
         # Bollinger Bands
-        df['bb_middle'] = df['close'].rolling(window=20).mean()
-        std = df['close'].rolling(window=20).std()
-        df['bb_upper'] = df['bb_middle'] + (std * 2)
-        df['bb_lower'] = df['bb_middle'] - (std * 2)
+        df["bb_middle"] = df["close"].rolling(window=20).mean()
+        std = df["close"].rolling(window=20).std()
+        df["bb_upper"] = df["bb_middle"] + (std * 2)
+        df["bb_lower"] = df["bb_middle"] - (std * 2)
 
         return df
 
@@ -151,18 +152,17 @@ class BacktestEngine:
         """
         Calculate ATR indicator.
         """
-        high_low = df['high'] - df['low']
-        high_close = np.abs(df['high'] - df['close'].shift())
-        low_close = np.abs(df['low'] - df['close'].shift())
+        high_low = df["high"] - df["low"]
+        high_close = np.abs(df["high"] - df["close"].shift())
+        low_close = np.abs(df["low"] - df["close"].shift())
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         true_range = ranges.max(axis=1)
         atr = true_range.rolling(window=period).mean()
         return atr
 
-    async def _detect_smc_patterns(self,
-                                   candles: pd.DataFrame,
-                                   symbol: str,
-                                   timeframe: TimeFrame) -> Dict[int, Dict]:
+    async def _detect_smc_patterns(
+        self, candles: pd.DataFrame, symbol: str, timeframe: TimeFrame
+    ) -> Dict[int, Dict]:
         """
         Detect SMC patterns in historical data.
         """
@@ -181,12 +181,12 @@ class BacktestEngine:
                     structure = self._check_structure_break(candles, i)
                     if structure:
                         signals[i] = {
-                            'type': 'structure_break',
-                            'direction': structure['direction'],
-                            'entry_price': candles.iloc[i]['close'],
-                            'stop_loss': self._calculate_stop_loss(
-                                candles.iloc[i], structure['direction']
-                            )
+                            "type": "structure_break",
+                            "direction": structure["direction"],
+                            "entry_price": candles.iloc[i]["close"],
+                            "stop_loss": self._calculate_stop_loss(
+                                candles.iloc[i], structure["direction"]
+                            ),
                         }
 
         return signals
@@ -198,9 +198,9 @@ class BacktestEngine:
         if index < window or index >= len(df) - window:
             return False
 
-        high = df.iloc[index]['high']
+        high = df.iloc[index]["high"]
         for i in range(index - window, index + window + 1):
-            if i != index and df.iloc[i]['high'] >= high:
+            if i != index and df.iloc[i]["high"] >= high:
                 return False
         return True
 
@@ -211,9 +211,9 @@ class BacktestEngine:
         if index < window or index >= len(df) - window:
             return False
 
-        low = df.iloc[index]['low']
+        low = df.iloc[index]["low"]
         for i in range(index - window, index + window + 1):
-            if i != index and df.iloc[i]['low'] <= low:
+            if i != index and df.iloc[i]["low"] <= low:
                 return False
         return True
 
@@ -223,18 +223,18 @@ class BacktestEngine:
         """
         # Simplified structure break detection
         lookback = 20
-        current_price = df.iloc[index]['close']
+        current_price = df.iloc[index]["close"]
 
         # Find recent highs and lows
-        recent_data = df.iloc[max(0, index - lookback):index]
-        recent_high = recent_data['high'].max()
-        recent_low = recent_data['low'].min()
+        recent_data = df.iloc[max(0, index - lookback) : index]
+        recent_high = recent_data["high"].max()
+        recent_low = recent_data["low"].min()
 
         # Check for break
         if current_price > recent_high:
-            return {'direction': 'bullish', 'level': recent_high}
+            return {"direction": "bullish", "level": recent_high}
         elif current_price < recent_low:
-            return {'direction': 'bearish', 'level': recent_low}
+            return {"direction": "bearish", "level": recent_low}
 
         return None
 
@@ -242,14 +242,14 @@ class BacktestEngine:
         """
         Calculate stop loss for a position.
         """
-        atr = Decimal(str(candle.get('atr_14', 0)))
+        atr = Decimal(str(candle.get("atr_14", 0)))
         if atr == 0:
-            atr = Decimal(str((candle['high'] - candle['low']) * 1.5))
+            atr = Decimal(str((candle["high"] - candle["low"]) * 1.5))
 
-        if direction == 'bullish':
-            return Decimal(str(candle['close'])) - (atr * 2)
+        if direction == "bullish":
+            return Decimal(str(candle["close"])) - (atr * 2)
         else:
-            return Decimal(str(candle['close'])) + (atr * 2)
+            return Decimal(str(candle["close"])) + (atr * 2)
 
     def _get_indicators_at(self, df: pd.DataFrame, index: int) -> TechnicalIndicators:
         """
@@ -260,25 +260,27 @@ class BacktestEngine:
             symbol="",
             timeframe=TimeFrame.M15,
             timestamp=datetime.now(),
-            ema_9=Decimal(str(row.get('ema_9', 0))),
-            ema_21=Decimal(str(row.get('ema_21', 0))),
-            ema_50=Decimal(str(row.get('ema_50', 0))),
-            ema_200=Decimal(str(row.get('ema_200', 0))),
-            rsi_14=Decimal(str(row.get('rsi_14', 50))),
-            macd_line=Decimal(str(row.get('macd', 0))),
-            macd_signal=Decimal(str(row.get('macd_signal', 0))),
-            macd_histogram=Decimal(str(row.get('macd_histogram', 0))),
-            atr_14=Decimal(str(row.get('atr_14', 0))),
-            bb_upper=Decimal(str(row.get('bb_upper', 0))),
-            bb_middle=Decimal(str(row.get('bb_middle', 0))),
-            bb_lower=Decimal(str(row.get('bb_lower', 0)))
+            ema_9=Decimal(str(row.get("ema_9", 0))),
+            ema_21=Decimal(str(row.get("ema_21", 0))),
+            ema_50=Decimal(str(row.get("ema_50", 0))),
+            ema_200=Decimal(str(row.get("ema_200", 0))),
+            rsi_14=Decimal(str(row.get("rsi_14", 50))),
+            macd_line=Decimal(str(row.get("macd", 0))),
+            macd_signal=Decimal(str(row.get("macd_signal", 0))),
+            macd_histogram=Decimal(str(row.get("macd_histogram", 0))),
+            atr_14=Decimal(str(row.get("atr_14", 0))),
+            bb_upper=Decimal(str(row.get("bb_upper", 0))),
+            bb_middle=Decimal(str(row.get("bb_middle", 0))),
+            bb_lower=Decimal(str(row.get("bb_lower", 0))),
         )
 
-    async def _make_decision(self,
-                           candle: pd.Series,
-                           signal: Dict,
-                           indicators: TechnicalIndicators,
-                           balance: Decimal) -> Optional[TradingDecision]:
+    async def _make_decision(
+        self,
+        candle: pd.Series,
+        signal: Dict,
+        indicators: TechnicalIndicators,
+        balance: Decimal,
+    ) -> Optional[TradingDecision]:
         """
         Make trading decision based on signals and indicators.
         """
@@ -289,7 +291,7 @@ class BacktestEngine:
 
         # Position sizing (1% risk)
         risk_amount = balance * Decimal("0.01")
-        stop_distance = abs(Decimal(str(candle['close'])) - signal['stop_loss'])
+        stop_distance = abs(Decimal(str(candle["close"])) - signal["stop_loss"])
 
         if stop_distance == 0:
             return None
@@ -300,21 +302,23 @@ class BacktestEngine:
         return TradingDecision(
             symbol="",
             timestamp=datetime.now(),
-            action="BUY" if signal['direction'] == 'bullish' else "SELL",
-            entry_price=Decimal(str(signal['entry_price'])),
+            action="BUY" if signal["direction"] == "bullish" else "SELL",
+            entry_price=Decimal(str(signal["entry_price"])),
             quantity=position_size,
-            stop_loss=signal['stop_loss'],
-            take_profit=Decimal(str(signal['entry_price'])) +
-                       (stop_distance * 2 if signal['direction'] == 'bullish'
-                        else -stop_distance * 2),
+            stop_loss=signal["stop_loss"],
+            take_profit=Decimal(str(signal["entry_price"]))
+            + (
+                stop_distance * 2
+                if signal["direction"] == "bullish"
+                else -stop_distance * 2
+            ),
             confidence=Decimal("0.7"),
-            reasoning=f"Structure break {signal['direction']}"
+            reasoning=f"Structure break {signal['direction']}",
         )
 
-    def _execute_trade(self,
-                      decision: TradingDecision,
-                      candle: pd.Series,
-                      balance: Decimal) -> Optional[Dict]:
+    def _execute_trade(
+        self, decision: TradingDecision, candle: pd.Series, balance: Decimal
+    ) -> Optional[Dict]:
         """
         Execute a trade in backtest.
         """
@@ -334,16 +338,16 @@ class BacktestEngine:
 
         # Create trade record
         trade = {
-            'timestamp': candle['close_time'],
-            'symbol': decision.symbol,
-            'side': decision.action,
-            'entry_price': entry_price,
-            'quantity': decision.quantity,
-            'stop_loss': decision.stop_loss,
-            'take_profit': decision.take_profit,
-            'cost': total_cost,
-            'status': 'open',
-            'unrealized_pnl': Decimal("0")
+            "timestamp": candle["close_time"],
+            "symbol": decision.symbol,
+            "side": decision.action,
+            "entry_price": entry_price,
+            "quantity": decision.quantity,
+            "stop_loss": decision.stop_loss,
+            "take_profit": decision.take_profit,
+            "cost": total_cost,
+            "status": "open",
+            "unrealized_pnl": Decimal("0"),
         }
 
         # Add to positions
@@ -356,71 +360,69 @@ class BacktestEngine:
         """
         Update open positions with current prices.
         """
-        current_price = Decimal(str(candle['close']))
+        current_price = Decimal(str(candle["close"]))
 
         for key, position in list(self.positions.items()):
-            if position['status'] == 'open':
+            if position["status"] == "open":
                 # Check stop loss
-                if position['side'] == 'BUY':
-                    if current_price <= position['stop_loss']:
+                if position["side"] == "BUY":
+                    if current_price <= position["stop_loss"]:
                         balance = self._close_position(
-                            position, position['stop_loss'], balance, 'stop_loss'
+                            position, position["stop_loss"], balance, "stop_loss"
                         )
-                    elif current_price >= position['take_profit']:
+                    elif current_price >= position["take_profit"]:
                         balance = self._close_position(
-                            position, position['take_profit'], balance, 'take_profit'
+                            position, position["take_profit"], balance, "take_profit"
                         )
                     else:
                         # Update unrealized P&L
-                        position['unrealized_pnl'] = (
-                            position['quantity'] * (current_price - position['entry_price'])
+                        position["unrealized_pnl"] = position["quantity"] * (
+                            current_price - position["entry_price"]
                         )
                 else:  # SELL
-                    if current_price >= position['stop_loss']:
+                    if current_price >= position["stop_loss"]:
                         balance = self._close_position(
-                            position, position['stop_loss'], balance, 'stop_loss'
+                            position, position["stop_loss"], balance, "stop_loss"
                         )
-                    elif current_price <= position['take_profit']:
+                    elif current_price <= position["take_profit"]:
                         balance = self._close_position(
-                            position, position['take_profit'], balance, 'take_profit'
+                            position, position["take_profit"], balance, "take_profit"
                         )
                     else:
                         # Update unrealized P&L
-                        position['unrealized_pnl'] = (
-                            position['quantity'] * (position['entry_price'] - current_price)
+                        position["unrealized_pnl"] = position["quantity"] * (
+                            position["entry_price"] - current_price
                         )
 
         return balance
 
-    def _close_position(self,
-                       position: Dict,
-                       exit_price: Decimal,
-                       balance: Decimal,
-                       exit_reason: str) -> Decimal:
+    def _close_position(
+        self, position: Dict, exit_price: Decimal, balance: Decimal, exit_reason: str
+    ) -> Decimal:
         """
         Close a position and update balance.
         """
         # Calculate P&L
-        if position['side'] == 'BUY':
-            pnl = position['quantity'] * (exit_price - position['entry_price'])
+        if position["side"] == "BUY":
+            pnl = position["quantity"] * (exit_price - position["entry_price"])
         else:
-            pnl = position['quantity'] * (position['entry_price'] - exit_price)
+            pnl = position["quantity"] * (position["entry_price"] - exit_price)
 
         # Apply commission
-        exit_cost = position['quantity'] * exit_price * self.commission
+        exit_cost = position["quantity"] * exit_price * self.commission
         net_pnl = pnl - exit_cost
 
         # Update position
-        position['status'] = 'closed'
-        position['exit_price'] = exit_price
-        position['exit_reason'] = exit_reason
-        position['realized_pnl'] = net_pnl
+        position["status"] = "closed"
+        position["exit_price"] = exit_price
+        position["exit_reason"] = exit_reason
+        position["realized_pnl"] = net_pnl
 
         # Update balance
-        if position['side'] == 'BUY':
-            balance += position['quantity'] * exit_price - exit_cost
+        if position["side"] == "BUY":
+            balance += position["quantity"] * exit_price - exit_cost
         else:
-            balance += position['cost'] + net_pnl
+            balance += position["cost"] + net_pnl
 
         return balance
 
@@ -428,12 +430,12 @@ class BacktestEngine:
         """
         Close all remaining positions at market.
         """
-        current_price = Decimal(str(last_candle['close']))
+        current_price = Decimal(str(last_candle["close"]))
 
         for position in self.positions.values():
-            if position['status'] == 'open':
+            if position["status"] == "open":
                 balance = self._close_position(
-                    position, current_price, balance, 'end_of_backtest'
+                    position, current_price, balance, "end_of_backtest"
                 )
 
         return balance
@@ -454,13 +456,13 @@ class BacktestEngine:
                 average_win=Decimal("0"),
                 average_loss=Decimal("0"),
                 largest_win=Decimal("0"),
-                largest_loss=Decimal("0")
+                largest_loss=Decimal("0"),
             )
 
         # Calculate trade statistics
-        closed_trades = [t for t in self.trades if t.get('status') == 'closed']
-        winning_trades = [t for t in closed_trades if t.get('realized_pnl', 0) > 0]
-        losing_trades = [t for t in closed_trades if t.get('realized_pnl', 0) <= 0]
+        closed_trades = [t for t in self.trades if t.get("status") == "closed"]
+        winning_trades = [t for t in closed_trades if t.get("realized_pnl", 0) > 0]
+        losing_trades = [t for t in closed_trades if t.get("realized_pnl", 0) <= 0]
 
         # Calculate drawdown
         equity_values = [e[1] for e in self.equity_curve]
@@ -475,10 +477,16 @@ class BacktestEngine:
                 max_drawdown = drawdown
 
         # Calculate averages
-        avg_win = (sum(t['realized_pnl'] for t in winning_trades) / len(winning_trades)
-                  if winning_trades else Decimal("0"))
-        avg_loss = (sum(abs(t['realized_pnl']) for t in losing_trades) / len(losing_trades)
-                   if losing_trades else Decimal("0"))
+        avg_win = (
+            sum(t["realized_pnl"] for t in winning_trades) / len(winning_trades)
+            if winning_trades
+            else Decimal("0")
+        )
+        avg_loss = (
+            sum(abs(t["realized_pnl"]) for t in losing_trades) / len(losing_trades)
+            if losing_trades
+            else Decimal("0")
+        )
 
         return TradingMetrics(
             timestamp=datetime.now(),
@@ -486,11 +494,16 @@ class BacktestEngine:
             winning_trades=len(winning_trades),
             losing_trades=len(losing_trades),
             win_rate=Decimal(len(winning_trades)) / Decimal(len(closed_trades))
-                    if closed_trades else Decimal("0"),
+            if closed_trades
+            else Decimal("0"),
             total_pnl=final_balance - self.initial_balance,
             max_drawdown=max_drawdown,
             average_win=avg_win,
             average_loss=avg_loss,
-            largest_win=max((t['realized_pnl'] for t in winning_trades), default=Decimal("0")),
-            largest_loss=min((t['realized_pnl'] for t in losing_trades), default=Decimal("0"))
+            largest_win=max(
+                (t["realized_pnl"] for t in winning_trades), default=Decimal("0")
+            ),
+            largest_loss=min(
+                (t["realized_pnl"] for t in losing_trades), default=Decimal("0")
+            ),
         )

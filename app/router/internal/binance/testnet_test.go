@@ -24,7 +24,6 @@ func getTestCredentials(t *testing.T) (apiKey, secretKey string) {
 	apiKey = os.Getenv("BINANCE_TESTNET_API_KEY")
 	secretKey = os.Getenv("BINANCE_TESTNET_SECRET_KEY")
 
-
 	if apiKey == "" || secretKey == "" {
 		t.Skip("BINANCE_TESTNET_API_KEY and BINANCE_TESTNET_SECRET_KEY must be set")
 	}
@@ -98,7 +97,6 @@ func TestTestnetAccountInfo(t *testing.T) {
 		}
 	}
 }
-
 
 // findTestSymbol finds a suitable symbol for testing
 func findTestSymbol(t *testing.T, client *Client) string {

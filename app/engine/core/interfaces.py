@@ -9,7 +9,11 @@ from uuid import UUID
 
 from app.engine.models import BaseEvent, EventType
 from app.engine.core.subscription_manager import EventSubscription, SubscriptionConfig
-from app.engine.core.event_processor import EventProcessingConfig, EventProcessingResult, EventProcessingStats
+from app.engine.core.event_processor import (
+    EventProcessingConfig,
+    EventProcessingResult,
+    EventProcessingStats,
+)
 
 
 class SubscriptionManagerInterface(Protocol):
@@ -21,7 +25,7 @@ class SubscriptionManagerInterface(Protocol):
         handler: Any,
         event_types: Optional[List[EventType]] = None,
         priority: Optional[int] = None,
-        max_retries: Optional[int] = None
+        max_retries: Optional[int] = None,
     ) -> str:
         """Add a new subscription and return subscription ID."""
         ...
@@ -30,7 +34,9 @@ class SubscriptionManagerInterface(Protocol):
         """Remove subscription by ID. Returns True if found and removed."""
         ...
 
-    async def get_subscriptions_for_event(self, event_type: EventType) -> List[EventSubscription]:
+    async def get_subscriptions_for_event(
+        self, event_type: EventType
+    ) -> List[EventSubscription]:
         """Get all active subscriptions for an event type."""
         ...
 
@@ -42,7 +48,9 @@ class SubscriptionManagerInterface(Protocol):
         """Get number of active subscriptions."""
         ...
 
-    async def record_subscription_failure(self, subscription_id: str, error_message: str) -> None:
+    async def record_subscription_failure(
+        self, subscription_id: str, error_message: str
+    ) -> None:
         """Record a subscription failure."""
         ...
 
@@ -55,9 +63,7 @@ class EventProcessorInterface(Protocol):
     """Protocol for event processing components."""
 
     async def process_event(
-        self,
-        event: BaseEvent,
-        subscriptions: List[EventSubscription]
+        self, event: BaseEvent, subscriptions: List[EventSubscription]
     ) -> EventProcessingResult:
         """Process an event with given subscriptions."""
         ...
@@ -88,7 +94,7 @@ class EventBusInterface(Protocol):
         handler: Any,
         event_types: Optional[List[EventType]] = None,
         priority: int = 0,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> str:
         """Subscribe to events and return subscription ID."""
         ...

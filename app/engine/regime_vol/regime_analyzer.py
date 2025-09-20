@@ -12,8 +12,13 @@ from typing import Dict, List, Optional
 from collections import deque
 
 from ..types import (
-    BaseEvent, Candle, CandleUpdateEvent, MarketRegime, TimeFrame,
-    TechnicalIndicators, FeaturesCalculatedEvent
+    BaseEvent,
+    Candle,
+    CandleUpdateEvent,
+    MarketRegime,
+    TimeFrame,
+    TechnicalIndicators,
+    FeaturesCalculatedEvent,
 )
 from ..bus import get_event_bus
 
@@ -36,7 +41,7 @@ class RegimeVolatilityAnalyzer:
         self,
         lookback_periods: int = 20,
         volatility_threshold: float = 0.02,
-        trend_threshold: float = 0.01
+        trend_threshold: float = 0.01,
     ):
         self.lookback_periods = lookback_periods
         self.volatility_threshold = volatility_threshold
@@ -48,7 +53,9 @@ class RegimeVolatilityAnalyzer:
 
         # Current regime state
         self._current_regime: Dict[str, MarketRegime] = {}  # symbol_timeframe -> regime
-        self._volatility_state: Dict[str, str] = {}  # symbol_timeframe -> volatility level
+        self._volatility_state: Dict[
+            str, str
+        ] = {}  # symbol_timeframe -> volatility level
 
         # Event bus
         self._event_bus = get_event_bus()
@@ -66,8 +73,16 @@ class RegimeVolatilityAnalyzer:
 
         # Subscribe to events
         subscriptions = [
-            ("regime_candle_handler", self._handle_candle_update, [BaseEvent.EventType.CANDLE_UPDATE]),
-            ("regime_features_handler", self._handle_features_calculated, [BaseEvent.EventType.FEATURES_CALCULATED])
+            (
+                "regime_candle_handler",
+                self._handle_candle_update,
+                [BaseEvent.EventType.CANDLE_UPDATE],
+            ),
+            (
+                "regime_features_handler",
+                self._handle_features_calculated,
+                [BaseEvent.EventType.FEATURES_CALCULATED],
+            ),
         ]
 
         for subscriber_id, handler, event_types in subscriptions:
@@ -75,7 +90,7 @@ class RegimeVolatilityAnalyzer:
                 subscriber_id=subscriber_id,
                 handler=handler,
                 event_types=event_types,
-                priority=3
+                priority=3,
             )
             self._subscription_ids.append(sub_id)
 
@@ -143,7 +158,9 @@ class RegimeVolatilityAnalyzer:
 
             # Log regime changes
             if prev_regime and prev_regime != regime:
-                logger.info(f"Regime change detected: {symbol} {timeframe.value} from {prev_regime.value} to {regime.value}")
+                logger.info(
+                    f"Regime change detected: {symbol} {timeframe.value} from {prev_regime.value} to {regime.value}"
+                )
 
         except Exception as e:
             logger.error(f"Error analyzing regime: {e}")
@@ -151,7 +168,7 @@ class RegimeVolatilityAnalyzer:
     def _detect_market_regime(self, candles: List[Candle]) -> MarketRegime:
         """Detect market regime from price action"""
         try:
-            recent_candles = candles[-self.lookback_periods:]
+            recent_candles = candles[-self.lookback_periods :]
 
             # Calculate price movement metrics
             highs = [c.high_price for c in recent_candles]
@@ -167,8 +184,10 @@ class RegimeVolatilityAnalyzer:
             avg_volatility = sum(price_ranges) / len(price_ranges)
 
             # Higher highs and higher lows detection
-            higher_highs = sum(1 for i in range(1, len(highs)) if highs[i] > highs[i-1])
-            lower_lows = sum(1 for i in range(1, len(lows)) if lows[i] < lows[i-1])
+            higher_highs = sum(
+                1 for i in range(1, len(highs)) if highs[i] > highs[i - 1]
+            )
+            lower_lows = sum(1 for i in range(1, len(lows)) if lows[i] < lows[i - 1])
 
             # Regime classification
             if trend_strength > self.trend_threshold:
@@ -191,13 +210,13 @@ class RegimeVolatilityAnalyzer:
     def _classify_volatility(self, candles: List[Candle]) -> str:
         """Classify volatility level"""
         try:
-            recent_candles = candles[-self.lookback_periods:]
+            recent_candles = candles[-self.lookback_periods :]
 
             # Calculate ATR-like volatility
             volatilities = []
             for i in range(1, len(recent_candles)):
                 current = recent_candles[i]
-                previous = recent_candles[i-1]
+                previous = recent_candles[i - 1]
 
                 tr1 = current.high_price - current.low_price
                 tr2 = abs(current.high_price - previous.close_price)
@@ -238,13 +257,13 @@ class RegimeVolatilityAnalyzer:
             candles = self._candles.get(key)
 
             if not candles or len(candles) < self.lookback_periods:
-                return Decimal('0.5')
+                return Decimal("0.5")
 
-            recent_candles = list(candles)[-self.lookback_periods:]
+            recent_candles = list(candles)[-self.lookback_periods :]
 
             # Calculate regime stability (simplified)
             closes = [c.close_price for c in recent_candles]
-            price_changes = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+            price_changes = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
 
             # Count directional consistency
             positive_changes = sum(1 for pc in price_changes if pc > 0)
@@ -252,20 +271,22 @@ class RegimeVolatilityAnalyzer:
 
             total_changes = len(price_changes)
             if total_changes == 0:
-                return Decimal('0.5')
+                return Decimal("0.5")
 
             # Higher consistency = higher confidence
             max_direction = max(positive_changes, negative_changes)
             consistency_ratio = max_direction / total_changes
 
             # Convert to confidence (0.5 to 1.0)
-            confidence = Decimal('0.5') + (Decimal(str(consistency_ratio)) * Decimal('0.5'))
+            confidence = Decimal("0.5") + (
+                Decimal(str(consistency_ratio)) * Decimal("0.5")
+            )
 
-            return min(Decimal('1.0'), confidence)
+            return min(Decimal("1.0"), confidence)
 
         except Exception as e:
             logger.error(f"Error calculating regime confidence: {e}")
-            return Decimal('0.5')
+            return Decimal("0.5")
 
     def is_regime_change(self, symbol: str, timeframe: TimeFrame) -> bool:
         """Check if regime has recently changed"""
@@ -281,5 +302,5 @@ class RegimeVolatilityAnalyzer:
             "current_regimes": {
                 key: regime.value for key, regime in self._current_regime.items()
             },
-            "volatility_states": dict(self._volatility_state)
+            "volatility_states": dict(self._volatility_state),
         }

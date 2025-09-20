@@ -18,7 +18,15 @@ from urllib.parse import urlencode
 import aiohttp
 from aiohttp import ClientSession
 
-from ..types import Candle, Order, Position, TimeFrame, OrderSide, OrderType, OrderStatus
+from ..types import (
+    Candle,
+    Order,
+    Position,
+    TimeFrame,
+    OrderSide,
+    OrderType,
+    OrderStatus,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -42,7 +50,7 @@ class BinanceRestClient:
         base_url: str = "https://api.binance.com",
         testnet: bool = False,
         request_timeout: int = 30,
-        rate_limit_per_minute: int = 1200
+        rate_limit_per_minute: int = 1200,
     ):
         self.api_key = api_key
         self.api_secret = api_secret
@@ -95,13 +103,17 @@ class BinanceRestClient:
 
             # Remove timestamps older than 1 minute
             cutoff = now - 60
-            self._request_timestamps = [ts for ts in self._request_timestamps if ts > cutoff]
+            self._request_timestamps = [
+                ts for ts in self._request_timestamps if ts > cutoff
+            ]
 
             # Check if we're at the rate limit
             if len(self._request_timestamps) >= self.rate_limit_per_minute:
                 sleep_time = 60 - (now - self._request_timestamps[0])
                 if sleep_time > 0:
-                    logger.warning(f"Rate limit reached, sleeping for {sleep_time:.2f} seconds")
+                    logger.warning(
+                        f"Rate limit reached, sleeping for {sleep_time:.2f} seconds"
+                    )
                     await asyncio.sleep(sleep_time)
 
             # Add current timestamp
@@ -111,9 +123,9 @@ class BinanceRestClient:
         """Generate HMAC SHA256 signature for authenticated requests"""
         query_string = urlencode(params)
         return hmac.new(
-            self.api_secret.encode('utf-8'),
-            query_string.encode('utf-8'),
-            hashlib.sha256
+            self.api_secret.encode("utf-8"),
+            query_string.encode("utf-8"),
+            hashlib.sha256,
         ).hexdigest()
 
     async def _make_request(
@@ -121,11 +133,13 @@ class BinanceRestClient:
         method: str,
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
-        signed: bool = False
+        signed: bool = False,
     ) -> Dict[str, Any]:
         """Make HTTP request to Binance API"""
         if not self._session:
-            raise RuntimeError("Client not started. Use async context manager or call start()")
+            raise RuntimeError(
+                "Client not started. Use async context manager or call start()"
+            )
 
         await self._rate_limit_check()
 
@@ -134,23 +148,29 @@ class BinanceRestClient:
 
         # Add timestamp for signed requests
         if signed:
-            params['timestamp'] = int(time.time() * 1000)
-            params['signature'] = self._generate_signature(params)
+            params["timestamp"] = int(time.time() * 1000)
+            params["signature"] = self._generate_signature(params)
 
         # Set headers
         headers = {}
         if self.api_key:
-            headers['X-MBX-APIKEY'] = self.api_key
+            headers["X-MBX-APIKEY"] = self.api_key
 
         try:
-            if method.upper() == 'GET':
-                async with self._session.get(url, params=params, headers=headers) as response:
+            if method.upper() == "GET":
+                async with self._session.get(
+                    url, params=params, headers=headers
+                ) as response:
                     return await self._handle_response(response)
-            elif method.upper() == 'POST':
-                async with self._session.post(url, data=params, headers=headers) as response:
+            elif method.upper() == "POST":
+                async with self._session.post(
+                    url, data=params, headers=headers
+                ) as response:
                     return await self._handle_response(response)
-            elif method.upper() == 'DELETE':
-                async with self._session.delete(url, params=params, headers=headers) as response:
+            elif method.upper() == "DELETE":
+                async with self._session.delete(
+                    url, params=params, headers=headers
+                ) as response:
                     return await self._handle_response(response)
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
@@ -162,7 +182,9 @@ class BinanceRestClient:
             logger.error(f"Request error for {method} {endpoint}: {e}")
             raise
 
-    async def _handle_response(self, response: aiohttp.ClientResponse) -> Dict[str, Any]:
+    async def _handle_response(
+        self, response: aiohttp.ClientResponse
+    ) -> Dict[str, Any]:
         """Handle HTTP response"""
         try:
             data = await response.json()
@@ -170,7 +192,7 @@ class BinanceRestClient:
             if response.status == 200:
                 return data
             else:
-                error_msg = data.get('msg', f'HTTP {response.status}')
+                error_msg = data.get("msg", f"HTTP {response.status}")
                 logger.error(f"API error {response.status}: {error_msg}")
                 raise Exception(f"Binance API error: {error_msg}")
 
@@ -184,15 +206,15 @@ class BinanceRestClient:
 
     async def get_server_time(self) -> datetime:
         """Get server time"""
-        data = await self._make_request('GET', '/api/v3/time')
-        return datetime.fromtimestamp(data['serverTime'] / 1000)
+        data = await self._make_request("GET", "/api/v3/time")
+        return datetime.fromtimestamp(data["serverTime"] / 1000)
 
     async def get_exchange_info(self, symbol: Optional[str] = None) -> Dict[str, Any]:
         """Get exchange information"""
         params = {}
         if symbol:
-            params['symbol'] = symbol
-        return await self._make_request('GET', '/api/v3/exchangeInfo', params)
+            params["symbol"] = symbol
+        return await self._make_request("GET", "/api/v3/exchangeInfo", params)
 
     async def get_klines(
         self,
@@ -200,7 +222,7 @@ class BinanceRestClient:
         timeframe: TimeFrame,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 1000
+        limit: int = 1000,
     ) -> List[Candle]:
         """
         Get historical kline/candlestick data
@@ -216,17 +238,17 @@ class BinanceRestClient:
             List of Candle objects
         """
         params = {
-            'symbol': symbol,
-            'interval': timeframe.value,
-            'limit': min(limit, 1000)
+            "symbol": symbol,
+            "interval": timeframe.value,
+            "limit": min(limit, 1000),
         }
 
         if start_time:
-            params['startTime'] = int(start_time.timestamp() * 1000)
+            params["startTime"] = int(start_time.timestamp() * 1000)
         if end_time:
-            params['endTime'] = int(end_time.timestamp() * 1000)
+            params["endTime"] = int(end_time.timestamp() * 1000)
 
-        data = await self._make_request('GET', '/api/v3/klines', params)
+        data = await self._make_request("GET", "/api/v3/klines", params)
 
         candles = []
         for kline in data:
@@ -243,17 +265,14 @@ class BinanceRestClient:
                 quote_volume=Decimal(kline[7]),
                 trades=int(kline[8]),
                 taker_buy_base_volume=Decimal(kline[9]),
-                taker_buy_quote_volume=Decimal(kline[10])
+                taker_buy_quote_volume=Decimal(kline[10]),
             )
             candles.append(candle)
 
         return candles
 
     async def get_historical_data(
-        self,
-        symbol: str,
-        timeframe: TimeFrame,
-        days_back: int
+        self, symbol: str, timeframe: TimeFrame, days_back: int
     ) -> List[Candle]:
         """
         Get historical data for specified number of days
@@ -279,7 +298,7 @@ class BinanceRestClient:
                 timeframe=timeframe,
                 start_time=current_start,
                 end_time=end_time,
-                limit=1000
+                limit=1000,
             )
 
             if not candles:
@@ -299,23 +318,20 @@ class BinanceRestClient:
         """Get 24hr ticker price change statistics"""
         params = {}
         if symbol:
-            params['symbol'] = symbol
-        return await self._make_request('GET', '/api/v3/ticker/24hr', params)
+            params["symbol"] = symbol
+        return await self._make_request("GET", "/api/v3/ticker/24hr", params)
 
     async def get_price(self, symbol: Optional[str] = None) -> Dict[str, Any]:
         """Get latest price for symbol(s)"""
         params = {}
         if symbol:
-            params['symbol'] = symbol
-        return await self._make_request('GET', '/api/v3/ticker/price', params)
+            params["symbol"] = symbol
+        return await self._make_request("GET", "/api/v3/ticker/price", params)
 
     async def get_order_book(self, symbol: str, limit: int = 100) -> Dict[str, Any]:
         """Get order book depth"""
-        params = {
-            'symbol': symbol,
-            'limit': limit
-        }
-        return await self._make_request('GET', '/api/v3/depth', params)
+        params = {"symbol": symbol, "limit": limit}
+        return await self._make_request("GET", "/api/v3/depth", params)
 
     # ============================================================================
     # Account and Trading Methods (Require API key and secret)
@@ -323,29 +339,27 @@ class BinanceRestClient:
 
     async def get_account_info(self) -> Dict[str, Any]:
         """Get account information"""
-        return await self._make_request('GET', '/api/v3/account', signed=True)
+        return await self._make_request("GET", "/api/v3/account", signed=True)
 
-    async def get_open_orders(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_open_orders(
+        self, symbol: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get open orders"""
         params = {}
         if symbol:
-            params['symbol'] = symbol
-        return await self._make_request('GET', '/api/v3/openOrders', params, signed=True)
+            params["symbol"] = symbol
+        return await self._make_request(
+            "GET", "/api/v3/openOrders", params, signed=True
+        )
 
     async def get_all_orders(
-        self,
-        symbol: str,
-        limit: int = 500,
-        order_id: Optional[int] = None
+        self, symbol: str, limit: int = 500, order_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Get all orders for a symbol"""
-        params = {
-            'symbol': symbol,
-            'limit': limit
-        }
+        params = {"symbol": symbol, "limit": limit}
         if order_id:
-            params['orderId'] = order_id
-        return await self._make_request('GET', '/api/v3/allOrders', params, signed=True)
+            params["orderId"] = order_id
+        return await self._make_request("GET", "/api/v3/allOrders", params, signed=True)
 
     async def place_order(
         self,
@@ -355,7 +369,7 @@ class BinanceRestClient:
         quantity: Decimal,
         price: Optional[Decimal] = None,
         stop_price: Optional[Decimal] = None,
-        time_in_force: str = "GTC"
+        time_in_force: str = "GTC",
     ) -> Dict[str, Any]:
         """
         Place a new order
@@ -373,40 +387,36 @@ class BinanceRestClient:
             Order response from API
         """
         params = {
-            'symbol': symbol,
-            'side': side.value,
-            'type': order_type.value,
-            'quantity': str(quantity),
-            'timeInForce': time_in_force
+            "symbol": symbol,
+            "side": side.value,
+            "type": order_type.value,
+            "quantity": str(quantity),
+            "timeInForce": time_in_force,
         }
 
         if price:
-            params['price'] = str(price)
+            params["price"] = str(price)
         if stop_price:
-            params['stopPrice'] = str(stop_price)
+            params["stopPrice"] = str(stop_price)
 
-        return await self._make_request('POST', '/api/v3/order', params, signed=True)
+        return await self._make_request("POST", "/api/v3/order", params, signed=True)
 
     async def cancel_order(self, symbol: str, order_id: int) -> Dict[str, Any]:
         """Cancel an order"""
-        params = {
-            'symbol': symbol,
-            'orderId': order_id
-        }
-        return await self._make_request('DELETE', '/api/v3/order', params, signed=True)
+        params = {"symbol": symbol, "orderId": order_id}
+        return await self._make_request("DELETE", "/api/v3/order", params, signed=True)
 
     async def cancel_all_orders(self, symbol: str) -> List[Dict[str, Any]]:
         """Cancel all open orders for a symbol"""
-        params = {'symbol': symbol}
-        return await self._make_request('DELETE', '/api/v3/openOrders', params, signed=True)
+        params = {"symbol": symbol}
+        return await self._make_request(
+            "DELETE", "/api/v3/openOrders", params, signed=True
+        )
 
     async def get_order_status(self, symbol: str, order_id: int) -> Dict[str, Any]:
         """Get order status"""
-        params = {
-            'symbol': symbol,
-            'orderId': order_id
-        }
-        return await self._make_request('GET', '/api/v3/order', params, signed=True)
+        params = {"symbol": symbol, "orderId": order_id}
+        return await self._make_request("GET", "/api/v3/order", params, signed=True)
 
     # ============================================================================
     # Utility Methods
@@ -415,7 +425,7 @@ class BinanceRestClient:
     async def test_connectivity(self) -> bool:
         """Test API connectivity"""
         try:
-            await self._make_request('GET', '/api/v3/ping')
+            await self._make_request("GET", "/api/v3/ping")
             return True
         except Exception as e:
             logger.error(f"Connectivity test failed: {e}")
@@ -432,6 +442,6 @@ class BinanceRestClient:
             "base_url": self.base_url,
             "rate_limit_status": {
                 "requests_in_last_minute": len(self._request_timestamps),
-                "rate_limit": self.rate_limit_per_minute
-            }
+                "rate_limit": self.rate_limit_per_minute,
+            },
         }

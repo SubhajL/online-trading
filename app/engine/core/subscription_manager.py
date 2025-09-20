@@ -17,13 +17,14 @@ from .error_handling import (
     ErrorSeverity,
     error_boundary,
     create_error_context,
-    handle_error
+    handle_error,
 )
 
 
 @dataclass
 class SubscriptionConfig:
     """Configuration for subscription manager."""
+
     max_subscriptions: int = 1000
     default_priority: int = 0
     default_max_retries: int = 3
@@ -32,6 +33,7 @@ class SubscriptionConfig:
 @dataclass
 class EventSubscription:
     """Event subscription with metadata and retry tracking."""
+
     subscription_id: str
     subscriber_id: str
     handler: Callable[[BaseEvent], Any]
@@ -43,7 +45,7 @@ class EventSubscription:
     is_active: bool = True
     created_at: datetime = field(default_factory=datetime.utcnow)
 
-    def __lt__(self, other: 'EventSubscription') -> bool:
+    def __lt__(self, other: "EventSubscription") -> bool:
         """Compare by priority for sorting (higher priority first)."""
         return self.priority > other.priority
 
@@ -66,7 +68,9 @@ class SubscriptionManager:
         self._config = config or SubscriptionConfig()
 
         # Subscriptions by event type
-        self._specific_subscriptions: Dict[EventType, List[EventSubscription]] = defaultdict(list)
+        self._specific_subscriptions: Dict[EventType, List[EventSubscription]] = (
+            defaultdict(list)
+        )
 
         # Subscriptions for all events
         self._all_event_subscriptions: List[EventSubscription] = []
@@ -83,7 +87,7 @@ class SubscriptionManager:
         handler: Callable[[BaseEvent], Any],
         event_types: Optional[List[EventType]] = None,
         priority: Optional[int] = None,
-        max_retries: Optional[int] = None
+        max_retries: Optional[int] = None,
     ) -> str:
         """
         Add a new subscription.
@@ -110,13 +114,13 @@ class SubscriptionManager:
                     component="SubscriptionManager",
                     operation="add_subscription",
                     max_subscriptions=self._config.max_subscriptions,
-                    current_subscriptions=len(self._subscriptions_by_id)
+                    current_subscriptions=len(self._subscriptions_by_id),
                 )
                 # Override the default SUBSCRIPTION category for resource limits
                 error = SubscriptionError(
                     f"Maximum number of subscriptions ({self._config.max_subscriptions}) exceeded",
                     subscription_id=None,
-                    context=context
+                    context=context,
                 )
                 error.context.category = ErrorCategory.RESOURCE
                 await handle_error(error)
@@ -131,8 +135,12 @@ class SubscriptionManager:
                 subscriber_id=subscriber_id,
                 handler=handler,
                 event_types=event_type_set,
-                priority=priority if priority is not None else self._config.default_priority,
-                max_retries=max_retries if max_retries is not None else self._config.default_max_retries
+                priority=priority
+                if priority is not None
+                else self._config.default_priority,
+                max_retries=max_retries
+                if max_retries is not None
+                else self._config.default_max_retries,
             )
 
             # Store subscription
@@ -187,7 +195,9 @@ class SubscriptionManager:
 
             return True
 
-    async def get_subscriptions_for_event(self, event_type: EventType) -> List[EventSubscription]:
+    async def get_subscriptions_for_event(
+        self, event_type: EventType
+    ) -> List[EventSubscription]:
         """
         Get all active subscriptions for an event type.
 
@@ -202,23 +212,23 @@ class SubscriptionManager:
 
             # Add specific event type subscriptions
             if event_type in self._specific_subscriptions:
-                subscriptions.extend([
-                    sub for sub in self._specific_subscriptions[event_type]
-                    if sub.is_active
-                ])
+                subscriptions.extend(
+                    [
+                        sub
+                        for sub in self._specific_subscriptions[event_type]
+                        if sub.is_active
+                    ]
+                )
 
             # Add all-events subscriptions
-            subscriptions.extend([
-                sub for sub in self._all_event_subscriptions
-                if sub.is_active
-            ])
+            subscriptions.extend(
+                [sub for sub in self._all_event_subscriptions if sub.is_active]
+            )
 
             # Remove duplicates and sort by priority
             unique_subscriptions = {sub.subscription_id: sub for sub in subscriptions}
             sorted_subscriptions = sorted(
-                unique_subscriptions.values(),
-                key=lambda s: s.priority,
-                reverse=True
+                unique_subscriptions.values(), key=lambda s: s.priority, reverse=True
             )
 
             return sorted_subscriptions
@@ -233,7 +243,9 @@ class SubscriptionManager:
         async with self._lock:
             return sum(1 for sub in self._subscriptions_by_id.values() if sub.is_active)
 
-    async def record_subscription_failure(self, subscription_id: str, error_message: str) -> None:
+    async def record_subscription_failure(
+        self, subscription_id: str, error_message: str
+    ) -> None:
         """
         Record a subscription failure and update retry tracking.
 
@@ -252,12 +264,12 @@ class SubscriptionManager:
                     severity=ErrorSeverity.MEDIUM,
                     component="SubscriptionManager",
                     operation="record_subscription_failure",
-                    subscription_id=subscription_id
+                    subscription_id=subscription_id,
                 )
                 error = SubscriptionError(
                     f"Subscription {subscription_id} not found",
                     subscription_id=subscription_id,
-                    context=context
+                    context=context,
                 )
                 await handle_error(error)
                 raise error
@@ -287,12 +299,12 @@ class SubscriptionManager:
                     severity=ErrorSeverity.MEDIUM,
                     component="SubscriptionManager",
                     operation="record_subscription_success",
-                    subscription_id=subscription_id
+                    subscription_id=subscription_id,
                 )
                 error = SubscriptionError(
                     f"Subscription {subscription_id} not found",
                     subscription_id=subscription_id,
-                    context=context
+                    context=context,
                 )
                 await handle_error(error)
                 raise error

@@ -16,8 +16,17 @@ import asyncpg
 from asyncpg import Connection, Pool
 
 from ...types import (
-    Candle, TechnicalIndicators, SMCSignal, TradingDecision, Order, Position,
-    TimeFrame, OrderSide, OrderType, OrderStatus, ZoneType
+    Candle,
+    TechnicalIndicators,
+    SMCSignal,
+    TradingDecision,
+    Order,
+    Position,
+    TimeFrame,
+    OrderSide,
+    OrderType,
+    OrderStatus,
+    ZoneType,
 )
 
 
@@ -45,7 +54,7 @@ class TimescaleDBAdapter:
         password: str,
         pool_size: int = 10,
         max_overflow: int = 20,
-        pool_timeout: int = 30
+        pool_timeout: int = 30,
     ):
         self.host = host
         self.port = port
@@ -76,7 +85,7 @@ class TimescaleDBAdapter:
                 password=self.password,
                 min_size=1,
                 max_size=self.pool_size,
-                command_timeout=self.pool_timeout
+                command_timeout=self.pool_timeout,
             )
 
             # Create tables and hypertables
@@ -271,7 +280,7 @@ class TimescaleDBAdapter:
                 hypertables = [
                     ("candles", "timestamp"),
                     ("technical_indicators", "timestamp"),
-                    ("events", "timestamp")
+                    ("events", "timestamp"),
                 ]
 
                 for table_name, time_column in hypertables:
@@ -283,7 +292,9 @@ class TimescaleDBAdapter:
                         logger.info(f"Created hypertable for {table_name}")
                     except Exception as e:
                         if "already a hypertable" not in str(e):
-                            logger.warning(f"Error creating hypertable for {table_name}: {e}")
+                            logger.warning(
+                                f"Error creating hypertable for {table_name}: {e}"
+                            )
 
             except Exception as e:
                 logger.error(f"Error creating hypertables: {e}")
@@ -295,29 +306,23 @@ class TimescaleDBAdapter:
                 # Candles indexes
                 "CREATE INDEX IF NOT EXISTS idx_candles_symbol_timeframe ON candles (symbol, timeframe, timestamp DESC);",
                 "CREATE INDEX IF NOT EXISTS idx_candles_timestamp ON candles (timestamp DESC);",
-
                 # Technical indicators indexes
                 "CREATE INDEX IF NOT EXISTS idx_indicators_symbol_timeframe ON technical_indicators (symbol, timeframe, timestamp DESC);",
-
                 # SMC signals indexes
                 "CREATE INDEX IF NOT EXISTS idx_smc_signals_symbol_timestamp ON smc_signals (symbol, timestamp DESC);",
                 "CREATE INDEX IF NOT EXISTS idx_smc_signals_active ON smc_signals (is_active, timestamp DESC);",
-
                 # Trading decisions indexes
                 "CREATE INDEX IF NOT EXISTS idx_decisions_symbol_timestamp ON trading_decisions (symbol, timestamp DESC);",
                 "CREATE INDEX IF NOT EXISTS idx_decisions_executed ON trading_decisions (is_executed, timestamp DESC);",
-
                 # Orders indexes
                 "CREATE INDEX IF NOT EXISTS idx_orders_symbol_status ON orders (symbol, status, created_at DESC);",
                 "CREATE INDEX IF NOT EXISTS idx_orders_decision ON orders (decision_id);",
-
                 # Positions indexes
                 "CREATE INDEX IF NOT EXISTS idx_positions_symbol_active ON positions (symbol, is_active, opened_at DESC);",
                 "CREATE INDEX IF NOT EXISTS idx_positions_decision ON positions (decision_id);",
-
                 # Events indexes
                 "CREATE INDEX IF NOT EXISTS idx_events_type_timestamp ON events (event_type, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_events_symbol ON events (symbol, timestamp DESC) WHERE symbol IS NOT NULL;"
+                "CREATE INDEX IF NOT EXISTS idx_events_symbol ON events (symbol, timestamp DESC) WHERE symbol IS NOT NULL;",
             ]
 
             for index_sql in indexes:
@@ -334,7 +339,8 @@ class TimescaleDBAdapter:
         """Insert a single candle"""
         try:
             async with self.get_connection() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO candles (
                         timestamp, symbol, timeframe, open_price, high_price, low_price,
                         close_price, volume, quote_volume, trades,
@@ -350,10 +356,19 @@ class TimescaleDBAdapter:
                         trades = EXCLUDED.trades,
                         taker_buy_base_volume = EXCLUDED.taker_buy_base_volume,
                         taker_buy_quote_volume = EXCLUDED.taker_buy_quote_volume
-                """, candle.open_time, candle.symbol, candle.timeframe.value,
-                    candle.open_price, candle.high_price, candle.low_price,
-                    candle.close_price, candle.volume, candle.quote_volume,
-                    candle.trades, candle.taker_buy_base_volume, candle.taker_buy_quote_volume
+                """,
+                    candle.open_time,
+                    candle.symbol,
+                    candle.timeframe.value,
+                    candle.open_price,
+                    candle.high_price,
+                    candle.low_price,
+                    candle.close_price,
+                    candle.volume,
+                    candle.quote_volume,
+                    candle.trades,
+                    candle.taker_buy_base_volume,
+                    candle.taker_buy_quote_volume,
                 )
                 return True
 
@@ -369,20 +384,34 @@ class TimescaleDBAdapter:
         try:
             async with self.get_connection() as conn:
                 records = [
-                    (c.open_time, c.symbol, c.timeframe.value, c.open_price, c.high_price,
-                     c.low_price, c.close_price, c.volume, c.quote_volume, c.trades,
-                     c.taker_buy_base_volume, c.taker_buy_quote_volume)
+                    (
+                        c.open_time,
+                        c.symbol,
+                        c.timeframe.value,
+                        c.open_price,
+                        c.high_price,
+                        c.low_price,
+                        c.close_price,
+                        c.volume,
+                        c.quote_volume,
+                        c.trades,
+                        c.taker_buy_base_volume,
+                        c.taker_buy_quote_volume,
+                    )
                     for c in candles
                 ]
 
-                await conn.executemany("""
+                await conn.executemany(
+                    """
                     INSERT INTO candles (
                         timestamp, symbol, timeframe, open_price, high_price, low_price,
                         close_price, volume, quote_volume, trades,
                         taker_buy_base_volume, taker_buy_quote_volume
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     ON CONFLICT (timestamp, symbol, timeframe) DO NOTHING
-                """, records)
+                """,
+                    records,
+                )
 
                 return len(candles)
 
@@ -396,7 +425,7 @@ class TimescaleDBAdapter:
         timeframe: TimeFrame,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 1000
+        limit: int = 1000,
     ) -> List[Candle]:
         """Retrieve candles for a symbol and timeframe"""
         try:
@@ -426,19 +455,19 @@ class TimescaleDBAdapter:
                 candles = []
                 for row in rows:
                     candle = Candle(
-                        symbol=row['symbol'],
-                        timeframe=TimeFrame(row['timeframe']),
-                        open_time=row['timestamp'],
-                        close_time=row['timestamp'],  # Simplified
-                        open_price=row['open_price'],
-                        high_price=row['high_price'],
-                        low_price=row['low_price'],
-                        close_price=row['close_price'],
-                        volume=row['volume'],
-                        quote_volume=row['quote_volume'],
-                        trades=row['trades'],
-                        taker_buy_base_volume=row['taker_buy_base_volume'],
-                        taker_buy_quote_volume=row['taker_buy_quote_volume']
+                        symbol=row["symbol"],
+                        timeframe=TimeFrame(row["timeframe"]),
+                        open_time=row["timestamp"],
+                        close_time=row["timestamp"],  # Simplified
+                        open_price=row["open_price"],
+                        high_price=row["high_price"],
+                        low_price=row["low_price"],
+                        close_price=row["close_price"],
+                        volume=row["volume"],
+                        quote_volume=row["quote_volume"],
+                        trades=row["trades"],
+                        taker_buy_base_volume=row["taker_buy_base_volume"],
+                        taker_buy_quote_volume=row["taker_buy_quote_volume"],
                     )
                     candles.append(candle)
 
@@ -452,11 +481,14 @@ class TimescaleDBAdapter:
     # Technical Indicators Operations
     # ============================================================================
 
-    async def insert_technical_indicators(self, indicators: TechnicalIndicators) -> bool:
+    async def insert_technical_indicators(
+        self, indicators: TechnicalIndicators
+    ) -> bool:
         """Insert technical indicators"""
         try:
             async with self.get_connection() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO technical_indicators (
                         timestamp, symbol, timeframe, ema_9, ema_21, ema_50, ema_200,
                         rsi_14, macd_line, macd_signal, macd_histogram, atr_14,
@@ -477,12 +509,24 @@ class TimescaleDBAdapter:
                         bb_lower = EXCLUDED.bb_lower,
                         bb_width = EXCLUDED.bb_width,
                         bb_percent = EXCLUDED.bb_percent
-                """, indicators.timestamp, indicators.symbol, indicators.timeframe.value,
-                    indicators.ema_9, indicators.ema_21, indicators.ema_50, indicators.ema_200,
-                    indicators.rsi_14, indicators.macd_line, indicators.macd_signal,
-                    indicators.macd_histogram, indicators.atr_14,
-                    indicators.bb_upper, indicators.bb_middle, indicators.bb_lower,
-                    indicators.bb_width, indicators.bb_percent
+                """,
+                    indicators.timestamp,
+                    indicators.symbol,
+                    indicators.timeframe.value,
+                    indicators.ema_9,
+                    indicators.ema_21,
+                    indicators.ema_50,
+                    indicators.ema_200,
+                    indicators.rsi_14,
+                    indicators.macd_line,
+                    indicators.macd_signal,
+                    indicators.macd_histogram,
+                    indicators.atr_14,
+                    indicators.bb_upper,
+                    indicators.bb_middle,
+                    indicators.bb_lower,
+                    indicators.bb_width,
+                    indicators.bb_percent,
                 )
                 return True
 
@@ -498,19 +542,30 @@ class TimescaleDBAdapter:
         """Insert a trading decision"""
         try:
             async with self.get_connection() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO trading_decisions (
                         id, timestamp, symbol, action, entry_price, quantity, order_type,
                         stop_loss, take_profit, confidence, reasoning, risk_reward_ratio,
                         market_regime, news_sentiment, funding_rate_impact, volatility_filter
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-                """, decision.decision_id, decision.timestamp, decision.symbol, decision.action,
-                    decision.entry_price, decision.quantity,
+                """,
+                    decision.decision_id,
+                    decision.timestamp,
+                    decision.symbol,
+                    decision.action,
+                    decision.entry_price,
+                    decision.quantity,
                     decision.order_type.value if decision.order_type else None,
-                    decision.stop_loss, decision.take_profit, decision.confidence,
-                    decision.reasoning, decision.risk_reward_ratio,
+                    decision.stop_loss,
+                    decision.take_profit,
+                    decision.confidence,
+                    decision.reasoning,
+                    decision.risk_reward_ratio,
                     decision.market_regime.value if decision.market_regime else None,
-                    decision.news_sentiment, decision.funding_rate_impact, decision.volatility_filter
+                    decision.news_sentiment,
+                    decision.funding_rate_impact,
+                    decision.volatility_filter,
                 )
                 return True
 
@@ -519,9 +574,7 @@ class TimescaleDBAdapter:
             return False
 
     async def get_recent_decisions(
-        self,
-        symbol: Optional[str] = None,
-        limit: int = 100
+        self, symbol: Optional[str] = None, limit: int = 100
     ) -> List[Dict]:
         """Get recent trading decisions"""
         try:
@@ -568,15 +621,20 @@ class TimescaleDBAdapter:
                     WHERE tablename IN ('candles', 'technical_indicators', 'trading_decisions', 'orders', 'positions')
                 """)
 
-                table_stats = {row['tablename']: {'inserts': row['inserts'], 'updates': row['updates']}
-                              for row in stats_result}
+                table_stats = {
+                    row["tablename"]: {
+                        "inserts": row["inserts"],
+                        "updates": row["updates"],
+                    }
+                    for row in stats_result
+                }
 
                 return {
                     "status": "healthy",
-                    "database_size": size_result['size'] if size_result else "unknown",
+                    "database_size": size_result["size"] if size_result else "unknown",
                     "pool_size": self._pool.get_size() if self._pool else 0,
                     "table_statistics": table_stats,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 }
 
         except Exception as e:
@@ -584,7 +642,7 @@ class TimescaleDBAdapter:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
     async def get_database_stats(self) -> Dict[str, Any]:
@@ -612,7 +670,7 @@ class TimescaleDBAdapter:
                 return {
                     "candle_counts": [dict(row) for row in candle_counts],
                     "recent_activity": dict(recent_activity) if recent_activity else {},
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 }
 
         except Exception as e:
@@ -627,17 +685,23 @@ class TimescaleDBAdapter:
 
             async with self.get_connection() as conn:
                 # Clean up old events
-                result = await conn.execute("""
+                result = await conn.execute(
+                    """
                     DELETE FROM events WHERE timestamp < $1
-                """, cutoff_date)
-                cleanup_results['events'] = int(result.split()[-1])
+                """,
+                    cutoff_date,
+                )
+                cleanup_results["events"] = int(result.split()[-1])
 
                 # Clean up old inactive signals
-                result = await conn.execute("""
+                result = await conn.execute(
+                    """
                     DELETE FROM smc_signals
                     WHERE timestamp < $1 AND is_active = FALSE
-                """, cutoff_date)
-                cleanup_results['smc_signals'] = int(result.split()[-1])
+                """,
+                    cutoff_date,
+                )
+                cleanup_results["smc_signals"] = int(result.split()[-1])
 
                 logger.info(f"Cleaned up old data: {cleanup_results}")
                 return cleanup_results

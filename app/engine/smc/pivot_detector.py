@@ -30,7 +30,7 @@ class PivotDetector:
         left_bars: int = 5,
         right_bars: int = 5,
         min_strength: int = 1,
-        max_strength: int = 10
+        max_strength: int = 10,
     ):
         """
         Initialize pivot detector
@@ -123,7 +123,7 @@ class PivotDetector:
                     price=pivot_high,
                     is_high=True,
                     strength=min(strength, self.max_strength),
-                    volume_profile=pivot_candle.volume
+                    volume_profile=pivot_candle.volume,
                 )
 
         except Exception as e:
@@ -166,7 +166,7 @@ class PivotDetector:
                     price=pivot_low,
                     is_high=False,
                     strength=min(strength, self.max_strength),
-                    volume_profile=pivot_candle.volume
+                    volume_profile=pivot_candle.volume,
                 )
 
         except Exception as e:
@@ -221,8 +221,12 @@ class PivotDetector:
             distance_strength = min(int(avg_distance * 1000), 5)  # Scale to 0-5
 
             # Volume strength (higher volume = stronger pivot)
-            volume_avg = sum(candle.volume for candle in self._candle_buffer) / len(self._candle_buffer)
-            volume_ratio = float(pivot_candle.volume / volume_avg) if volume_avg > 0 else 1
+            volume_avg = sum(candle.volume for candle in self._candle_buffer) / len(
+                self._candle_buffer
+            )
+            volume_ratio = (
+                float(pivot_candle.volume / volume_avg) if volume_avg > 0 else 1
+            )
             volume_strength = min(int(volume_ratio), 5)  # Scale to 0-5
 
             # Combine factors
@@ -247,9 +251,7 @@ class PivotDetector:
         return self._confirmed_pivots[-count:] if self._confirmed_pivots else []
 
     def get_pivots_in_range(
-        self,
-        start_time: datetime,
-        end_time: datetime
+        self, start_time: datetime, end_time: datetime
     ) -> List[PivotPoint]:
         """
         Get pivots within a specific time range
@@ -262,7 +264,8 @@ class PivotDetector:
             List of PivotPoint objects in the time range
         """
         return [
-            pivot for pivot in self._confirmed_pivots
+            pivot
+            for pivot in self._confirmed_pivots
             if start_time <= pivot.timestamp <= end_time
         ]
 
@@ -324,7 +327,9 @@ class PivotDetector:
 
         return min(recent_lows, key=lambda p: p.price)
 
-    def detect_double_top(self, tolerance: float = 0.001) -> Optional[Tuple[PivotPoint, PivotPoint]]:
+    def detect_double_top(
+        self, tolerance: float = 0.001
+    ) -> Optional[Tuple[PivotPoint, PivotPoint]]:
         """
         Detect double top pattern in recent pivots
 
@@ -341,14 +346,18 @@ class PivotDetector:
         for i in range(len(highs) - 1):
             for j in range(i + 1, len(highs)):
                 peak1, peak2 = highs[i], highs[j]
-                price_diff = abs(peak1.price - peak2.price) / max(peak1.price, peak2.price)
+                price_diff = abs(peak1.price - peak2.price) / max(
+                    peak1.price, peak2.price
+                )
 
                 if price_diff <= tolerance:
                     return (peak1, peak2)
 
         return None
 
-    def detect_double_bottom(self, tolerance: float = 0.001) -> Optional[Tuple[PivotPoint, PivotPoint]]:
+    def detect_double_bottom(
+        self, tolerance: float = 0.001
+    ) -> Optional[Tuple[PivotPoint, PivotPoint]]:
         """
         Detect double bottom pattern in recent pivots
 
@@ -365,7 +374,9 @@ class PivotDetector:
         for i in range(len(lows) - 1):
             for j in range(i + 1, len(lows)):
                 trough1, trough2 = lows[i], lows[j]
-                price_diff = abs(trough1.price - trough2.price) / max(trough1.price, trough2.price)
+                price_diff = abs(trough1.price - trough2.price) / max(
+                    trough1.price, trough2.price
+                )
 
                 if price_diff <= tolerance:
                     return (trough1, trough2)
@@ -386,13 +397,15 @@ class PivotDetector:
                 "swing_highs": 0,
                 "swing_lows": 0,
                 "average_strength": 0,
-                "strongest_pivot": None
+                "strongest_pivot": None,
             }
 
         highs = [p for p in self._confirmed_pivots if p.is_high]
         lows = [p for p in self._confirmed_pivots if not p.is_high]
 
-        avg_strength = sum(p.strength for p in self._confirmed_pivots) / len(self._confirmed_pivots)
+        avg_strength = sum(p.strength for p in self._confirmed_pivots) / len(
+            self._confirmed_pivots
+        )
         strongest = max(self._confirmed_pivots, key=lambda p: p.strength)
 
         return {
@@ -404,6 +417,6 @@ class PivotDetector:
                 "price": strongest.price,
                 "strength": strongest.strength,
                 "is_high": strongest.is_high,
-                "timestamp": strongest.timestamp
-            }
+                "timestamp": strongest.timestamp,
+            },
         }
