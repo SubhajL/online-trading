@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -293,31 +296,147 @@ func CORSMiddleware(config CORSConfig) gin.HandlerFunc {
 // TimeoutMiddleware sets a timeout for request processing
 func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Create a context with timeout
 		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 
+		// Create channels to communicate between goroutines
+		finished := make(chan struct{})
+		panicChan := make(chan interface{}, 1)
+
+		// Store original writer and replace with buffer
+		w := c.Writer
+		buffer := &responseBuffer{
+			header: make(http.Header),
+			body:   &bytes.Buffer{},
+			code:   http.StatusOK,
+			mu:     &sync.Mutex{},
+		}
+		c.Writer = buffer
+
+		// Update request with timeout context
 		c.Request = c.Request.WithContext(ctx)
 
-		done := make(chan bool)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					panicChan <- r
+				}
+				close(finished)
+			}()
 			c.Next()
-			done <- true
 		}()
 
 		select {
-		case <-done:
-			// Request completed within timeout
-			return
+		case <-finished:
+			// Handler completed successfully, write the buffered response
+			c.Writer = w
+			buffer.WriteTo(w)
+		case p := <-panicChan:
+			// Handler panicked, restore writer and propagate panic
+			c.Writer = w
+			panic(p)
 		case <-ctx.Done():
 			// Timeout occurred
-			c.JSON(http.StatusRequestTimeout, models.NewErrorResponse(
+
+			// Write timeout response to original writer
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusRequestTimeout)
+			json.NewEncoder(w).Encode(models.NewErrorResponse(
 				"REQUEST_TIMEOUT",
 				"Request timeout exceeded",
 				c.GetString("request_id"),
 			))
-			c.Abort()
+
+			// Wait for handler goroutine to finish
+			// This prevents the handler from continuing to execute after timeout
+			<-finished
+
+			// Restore the original writer and set a high abort index
+			// to prevent any further middleware from running
+			c.Writer = w
+			c.AbortWithStatus(http.StatusRequestTimeout)
 		}
 	}
+}
+
+// responseBuffer captures the response for delayed writing
+type responseBuffer struct {
+	header http.Header
+	body   *bytes.Buffer
+	code   int
+	mu     *sync.Mutex
+}
+
+func (r *responseBuffer) Header() http.Header {
+	return r.header
+}
+
+func (r *responseBuffer) Write(b []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.Write(b)
+}
+
+func (r *responseBuffer) WriteHeader(code int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.code = code
+}
+
+func (r *responseBuffer) WriteTo(w gin.ResponseWriter) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Copy headers
+	for k, v := range r.header {
+		w.Header()[k] = v
+	}
+	// Write status code
+	w.WriteHeader(r.code)
+	// Write body
+	w.Write(r.body.Bytes())
+}
+
+// Implement other required methods for gin.ResponseWriter
+func (r *responseBuffer) WriteString(s string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.WriteString(s)
+}
+
+func (r *responseBuffer) Written() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.Len() > 0
+}
+
+func (r *responseBuffer) WriteHeaderNow() {}
+
+func (r *responseBuffer) Status() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.code
+}
+
+func (r *responseBuffer) Size() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.Len()
+}
+
+func (r *responseBuffer) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return nil, nil, fmt.Errorf("hijack not supported")
+}
+
+func (r *responseBuffer) CloseNotify() <-chan bool {
+	return nil
+}
+
+func (r *responseBuffer) Flush() {}
+
+func (r *responseBuffer) Pusher() http.Pusher {
+	return nil
 }
 
 // ValidationMiddleware performs basic request validation

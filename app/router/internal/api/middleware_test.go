@@ -381,11 +381,6 @@ func TestCORSMiddleware(t *testing.T) {
 func TestTimeoutMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// TODO: Fix race condition in timeout test
-	// The test has a race condition when the handler and timeout goroutines
-	// access the response writer concurrently. This is a test-only issue.
-	t.Skip("Skipping due to race condition in test - see TODO")
-
 	t.Run("completes request within timeout", func(t *testing.T) {
 		router := gin.New()
 		router.Use(TimeoutMiddleware(100 * time.Millisecond))
