@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 
 from .pivot_detector import PivotDetector
 from .zone_identifier import ZoneIdentifier
-from ..types import (
+from ..models import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,

@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 from collections import deque
 
-from ..types import (
+from ..models import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,

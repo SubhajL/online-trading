@@ -15,7 +15,7 @@ from urllib.parse import urljoin
 import aiohttp
 from aiohttp import ClientSession, ClientTimeout
 
-from ...types import Order, Position, OrderSide, OrderType, TradingDecision
+from ...models import Order, Position, OrderSide, OrderType, TradingDecision
 
 
 logger = logging.getLogger(__name__)

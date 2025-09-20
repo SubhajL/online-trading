@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Tuple
 from datetime import datetime
 
-from ..types import Candle, PivotPoint, TimeFrame
+from ..models import Candle, PivotPoint, TimeFrame
 
 
 logger = logging.getLogger(__name__)

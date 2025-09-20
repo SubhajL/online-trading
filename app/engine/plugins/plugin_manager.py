@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Type
 
 from .base_plugin import BasePlugin
 from ..bus import EventBus
-from ..types import BaseEvent
+from ..models import BaseEvent
 
 
 logger = logging.getLogger(__name__)

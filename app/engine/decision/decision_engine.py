@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any
 
 from .risk_manager import RiskManager, RiskCheckResult
-from ..types import (
+from ..models import (
     BaseEvent,
     TradingDecision,
     TradingDecisionEvent,

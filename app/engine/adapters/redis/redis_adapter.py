@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 import aioredis
 from aioredis import Redis
 
-from ...types import Candle, TechnicalIndicators, SMCSignal, TimeFrame
+from ...models import Candle, TechnicalIndicators, SMCSignal, TimeFrame
 
 
 logger = logging.getLogger(__name__)

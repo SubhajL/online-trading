@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 import asyncpg
 from asyncpg import Connection, Pool
 
-from ...types import (
+from ...models import (
     Candle,
     TechnicalIndicators,
     SMCSignal,

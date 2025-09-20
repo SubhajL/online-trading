@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import List, Optional, Tuple
 import logging
 
-from ..types import Candle, TechnicalIndicators
+from ..models import Candle, TechnicalIndicators
 
 
 logger = logging.getLogger(__name__)

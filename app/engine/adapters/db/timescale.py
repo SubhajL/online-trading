@@ -13,7 +13,7 @@ from uuid import UUID
 import asyncpg
 from asyncpg import Connection
 
-from ...types import Candle, TechnicalIndicators, TimeFrame, SupplyDemandZone
+from ...models import Candle, TechnicalIndicators, TimeFrame, SupplyDemandZone
 from .connection_pool import ConnectionPool, DBConfig
 
 logger = logging.getLogger(__name__)

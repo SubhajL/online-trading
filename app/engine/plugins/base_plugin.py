@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Set
 from datetime import datetime
 
-from ..types import Candle, TechnicalIndicators, BaseEvent
+from ..models import Candle, TechnicalIndicators, BaseEvent
 
 
 class BasePlugin(ABC):

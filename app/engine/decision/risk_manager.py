@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
 
-from ..types import (
+from ..models import (
     TradingDecision,
     Position,
     RiskParameters,

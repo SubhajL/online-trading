@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 from uuid import uuid4
 
-from ..types import (
+from ..models import (
     Order,
     OrderSide,
     OrderStatus,

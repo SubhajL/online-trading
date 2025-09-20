@@ -12,7 +12,7 @@ from typing import List, Optional, Dict
 from uuid import uuid4
 
 from .pivot_detector import PivotDetector
-from ..types import Candle, PivotPoint, SupplyDemandZone, ZoneType, TimeFrame
+from ..models import Candle, PivotPoint, SupplyDemandZone, ZoneType, TimeFrame
 
 
 logger = logging.getLogger(__name__)

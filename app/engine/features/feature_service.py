@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Deque
 
 from .indicators import TechnicalIndicatorsCalculator
-from ..types import (
+from ..models import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,
