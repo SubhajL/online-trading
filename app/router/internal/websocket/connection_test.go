@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -236,7 +237,7 @@ func TestConnection_Send(t *testing.T) {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
-				message := []byte(`{"id":` + string(rune(id)) + `}`)
+				message := []byte(`{"id":` + strconv.Itoa(id) + `}`)
 				err := wsConn.Send(ctx, message)
 				assert.NoError(t, err)
 			}(i)
