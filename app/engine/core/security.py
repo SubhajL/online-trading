@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 class SecurityLevel(Enum):
     """Security levels for different environments."""
+
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
@@ -36,17 +37,20 @@ class SecurityLevel(Enum):
 
 class ValidationError(Exception):
     """Raised when validation fails."""
+
     pass
 
 
 class SecurityError(Exception):
     """Raised when security checks fail."""
+
     pass
 
 
 @dataclass
 class ValidationRule:
     """Rule for validating environment variables."""
+
     name: str
     pattern: Optional[str] = None
     min_length: Optional[int] = None
@@ -61,6 +65,7 @@ class ValidationRule:
 @dataclass
 class ValidationResult:
     """Result of validation check."""
+
     is_valid: bool
     variable_name: str
     error: Optional[str] = None
@@ -70,6 +75,7 @@ class ValidationResult:
 @dataclass
 class SecurityAudit:
     """Security audit information."""
+
     timestamp: datetime = field(default_factory=datetime.utcnow)
     total_variables: int = 0
     validated_variables: int = 0
@@ -84,14 +90,14 @@ class EnvironmentValidator:
 
     # Common patterns for validation
     PATTERNS = {
-        'url': r'^https?://[a-zA-Z0-9.-]+(?:\.[a-zA-Z]{2,})+(?::\d+)?(?:/.*)?$',
-        'email': r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-        'uuid': r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-        'jwt': r'^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$',
-        'api_key': r'^[A-Za-z0-9_\-]{32,}$',
-        'port': r'^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
-        'ip_address': r'^(\d{1,3}\.){3}\d{1,3}$',
-        'hostname': r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+        "url": r"^https?://[a-zA-Z0-9.-]+(?:\.[a-zA-Z]{2,})+(?::\d+)?(?:/.*)?$",
+        "email": r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+        "uuid": r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "jwt": r"^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$",
+        "api_key": r"^[A-Za-z0-9_\-]{32,}$",
+        "port": r"^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$",
+        "ip_address": r"^(\d{1,3}\.){3}\d{1,3}$",
+        "hostname": r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
     }
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT):
@@ -102,79 +108,89 @@ class EnvironmentValidator:
     def _setup_default_rules(self):
         """Setup default validation rules for common variables."""
         # Database configuration
-        self.add_rule(ValidationRule(
-            name="DATABASE_URL",
-            pattern=self.PATTERNS['url'],
-            required=self.security_level == SecurityLevel.PRODUCTION,
-            sensitive=True
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="DATABASE_URL",
+                pattern=self.PATTERNS["url"],
+                required=self.security_level == SecurityLevel.PRODUCTION,
+                sensitive=True,
+            )
+        )
 
-        self.add_rule(ValidationRule(
-            name="DATABASE_PASSWORD",
-            min_length=12 if self.security_level == SecurityLevel.PRODUCTION else 8,
-            required=self.security_level == SecurityLevel.PRODUCTION,
-            sensitive=True,
-            custom_validator=self._validate_password_strength
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="DATABASE_PASSWORD",
+                min_length=12 if self.security_level == SecurityLevel.PRODUCTION else 8,
+                required=self.security_level == SecurityLevel.PRODUCTION,
+                sensitive=True,
+                custom_validator=self._validate_password_strength,
+            )
+        )
 
         # Redis configuration
-        self.add_rule(ValidationRule(
-            name="REDIS_HOST",
-            pattern=self.PATTERNS['hostname'],
-            required=False
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="REDIS_HOST", pattern=self.PATTERNS["hostname"], required=False
+            )
+        )
 
-        self.add_rule(ValidationRule(
-            name="REDIS_PORT",
-            pattern=self.PATTERNS['port'],
-            required=False
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="REDIS_PORT", pattern=self.PATTERNS["port"], required=False
+            )
+        )
 
         # JWT and authentication
-        self.add_rule(ValidationRule(
-            name="JWT_SECRET",
-            min_length=32,
-            required=self.security_level != SecurityLevel.DEVELOPMENT,
-            sensitive=True,
-            custom_validator=self._validate_jwt_secret
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="JWT_SECRET",
+                min_length=32,
+                required=self.security_level != SecurityLevel.DEVELOPMENT,
+                sensitive=True,
+                custom_validator=self._validate_jwt_secret,
+            )
+        )
 
         # API keys
-        self.add_rule(ValidationRule(
-            name="BINANCE_API_KEY",
-            pattern=self.PATTERNS['api_key'],
-            required=False,
-            sensitive=True
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="BINANCE_API_KEY",
+                pattern=self.PATTERNS["api_key"],
+                required=False,
+                sensitive=True,
+            )
+        )
 
-        self.add_rule(ValidationRule(
-            name="BINANCE_SECRET_KEY",
-            min_length=32,
-            required=False,
-            sensitive=True
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="BINANCE_SECRET_KEY", min_length=32, required=False, sensitive=True
+            )
+        )
 
         # Vault configuration
-        self.add_rule(ValidationRule(
-            name="VAULT_TOKEN",
-            min_length=20,
-            required=False,
-            sensitive=True
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="VAULT_TOKEN", min_length=20, required=False, sensitive=True
+            )
+        )
 
         # Environment
-        self.add_rule(ValidationRule(
-            name="ENVIRONMENT",
-            allowed_values=["development", "staging", "production"],
-            required=True
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="ENVIRONMENT",
+                allowed_values=["development", "staging", "production"],
+                required=True,
+            )
+        )
 
         # Logging
-        self.add_rule(ValidationRule(
-            name="LOG_LEVEL",
-            allowed_values=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-            required=False
-        ))
+        self.add_rule(
+            ValidationRule(
+                name="LOG_LEVEL",
+                allowed_values=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                required=False,
+            )
+        )
 
     def add_rule(self, rule: ValidationRule):
         """Add a validation rule."""
@@ -193,7 +209,7 @@ class EnvironmentValidator:
                 is_valid=False,
                 variable_name=name,
                 error=f"Required variable {name} is not set",
-                suggestion=f"Set {name} environment variable"
+                suggestion=f"Set {name} environment variable",
             )
 
         # If not required and not set, it's valid
@@ -207,7 +223,8 @@ class EnvironmentValidator:
                     is_valid=False,
                     variable_name=name,
                     error=f"Variable {name} does not match required pattern",
-                    suggestion=rule.error_message or f"Ensure {name} matches the expected format"
+                    suggestion=rule.error_message
+                    or f"Ensure {name} matches the expected format",
                 )
 
         # Check length constraints
@@ -216,7 +233,7 @@ class EnvironmentValidator:
                 is_valid=False,
                 variable_name=name,
                 error=f"Variable {name} is too short (min: {rule.min_length})",
-                suggestion=f"Use at least {rule.min_length} characters"
+                suggestion=f"Use at least {rule.min_length} characters",
             )
 
         if rule.max_length and len(value) > rule.max_length:
@@ -224,7 +241,7 @@ class EnvironmentValidator:
                 is_valid=False,
                 variable_name=name,
                 error=f"Variable {name} is too long (max: {rule.max_length})",
-                suggestion=f"Use at most {rule.max_length} characters"
+                suggestion=f"Use at most {rule.max_length} characters",
             )
 
         # Check allowed values
@@ -233,7 +250,7 @@ class EnvironmentValidator:
                 is_valid=False,
                 variable_name=name,
                 error=f"Variable {name} has invalid value: {value}",
-                suggestion=f"Use one of: {', '.join(rule.allowed_values)}"
+                suggestion=f"Use one of: {', '.join(rule.allowed_values)}",
             )
 
         # Custom validation
@@ -242,8 +259,9 @@ class EnvironmentValidator:
                 return ValidationResult(
                     is_valid=False,
                     variable_name=name,
-                    error=rule.error_message or f"Variable {name} failed custom validation",
-                    suggestion=f"Check {name} meets security requirements"
+                    error=rule.error_message
+                    or f"Variable {name} failed custom validation",
+                    suggestion=f"Check {name} meets security requirements",
                 )
 
         return ValidationResult(is_valid=True, variable_name=name)
@@ -285,11 +303,11 @@ class EnvironmentValidator:
             # Production requirements
             if len(password) < 12:
                 return False
-            if not re.search(r'[A-Z]', password):
+            if not re.search(r"[A-Z]", password):
                 return False
-            if not re.search(r'[a-z]', password):
+            if not re.search(r"[a-z]", password):
                 return False
-            if not re.search(r'[0-9]', password):
+            if not re.search(r"[0-9]", password):
                 return False
             if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
                 return False
@@ -303,8 +321,14 @@ class EnvironmentValidator:
 
         # Check for common weak secrets
         weak_patterns = [
-            'secret', 'password', '123456', 'admin',
-            'default', 'changeme', 'test', 'demo'
+            "secret",
+            "password",
+            "123456",
+            "admin",
+            "default",
+            "changeme",
+            "test",
+            "demo",
         ]
 
         secret_lower = secret.lower()
@@ -318,8 +342,14 @@ class EnvironmentValidator:
         """Check if a secret value is weak."""
         # Common weak values
         weak_values = {
-            'password', '123456', 'admin', 'secret',
-            'changeme', 'default', 'test', 'demo'
+            "password",
+            "123456",
+            "admin",
+            "secret",
+            "changeme",
+            "default",
+            "test",
+            "demo",
         }
 
         if value.lower() in weak_values:
@@ -346,7 +376,7 @@ class SecretManager:
 
     def _get_or_create_master_key(self) -> bytes:
         """Get master key from environment or create one."""
-        master_key = os.getenv('MASTER_ENCRYPTION_KEY')
+        master_key = os.getenv("MASTER_ENCRYPTION_KEY")
 
         if master_key:
             return b64decode(master_key.encode())
@@ -365,9 +395,9 @@ class SecretManager:
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=b'stable_salt',  # Use stable salt for deterministic key
+            salt=b"stable_salt",  # Use stable salt for deterministic key
             iterations=100000,
-            backend=default_backend()
+            backend=default_backend(),
         )
         key = b64encode(kdf.derive(self.master_key))
         return Fernet(key)
@@ -392,13 +422,13 @@ class SecretManager:
             salt = secrets.token_hex(16)
 
         hash_input = f"{salt}{value}".encode()
-        hash_value = hashlib.pbkdf2_hmac('sha256', hash_input, salt.encode(), 100000)
+        hash_value = hashlib.pbkdf2_hmac("sha256", hash_input, salt.encode(), 100000)
         return f"{salt}${hash_value.hex()}"
 
     def verify_hash(self, value: str, hashed: str) -> bool:
         """Verify value against hash."""
         try:
-            salt, hash_hex = hashed.split('$')
+            salt, hash_hex = hashed.split("$")
             test_hash = self.hash_value(value, salt)
             return secrets.compare_digest(test_hash, hashed)
         except Exception:
@@ -411,7 +441,7 @@ class SecureConfig:
     def __init__(
         self,
         security_level: SecurityLevel = SecurityLevel.DEVELOPMENT,
-        enable_encryption: bool = True
+        enable_encryption: bool = True,
     ):
         self.security_level = security_level
         self.validator = EnvironmentValidator(security_level)
@@ -452,7 +482,7 @@ class SecureConfig:
             return None
 
         # Check if value is encrypted (starts with 'enc:')
-        if value.startswith('enc:') and self.secret_manager:
+        if value.startswith("enc:") and self.secret_manager:
             try:
                 return self.secret_manager.decrypt(value[4:])
             except SecurityError as e:
@@ -500,14 +530,25 @@ class SecureConfig:
     def _is_sensitive_key(self, key: str) -> bool:
         """Check if key name indicates sensitive data."""
         sensitive_patterns = [
-            'password', 'secret', 'token', 'api_key', 'apikey',
-            'credential', 'auth', 'private', 'cert'
+            "password",
+            "secret",
+            "token",
+            "api_key",
+            "apikey",
+            "credential",
+            "auth",
+            "private",
+            "cert",
         ]
 
         key_lower = key.lower()
         # Exact match or contains the pattern as a word
         for pattern in sensitive_patterns:
-            if pattern == key_lower or f'_{pattern}' in key_lower or f'{pattern}_' in key_lower:
+            if (
+                pattern == key_lower
+                or f"_{pattern}" in key_lower
+                or f"{pattern}_" in key_lower
+            ):
                 return True
         return False
 
@@ -549,9 +590,7 @@ class SecurityGuard:
         # Check if others have read permission
         if mode & 0o004:
             self.log_violation(
-                "file_permissions",
-                f"File {path} is world-readable",
-                severity="HIGH"
+                "file_permissions", f"File {path} is world-readable", severity="HIGH"
             )
             return False
 
@@ -563,11 +602,11 @@ class SecurityGuard:
 
         # Check for HTTPS enforcement
         if self.config.security_level == SecurityLevel.PRODUCTION:
-            if not os.getenv('ENFORCE_HTTPS', 'false').lower() == 'true':
+            if not os.getenv("ENFORCE_HTTPS", "false").lower() == "true":
                 issues.append("HTTPS not enforced in production")
 
             # Check TLS version
-            tls_version = os.getenv('TLS_MIN_VERSION', '1.2')
+            tls_version = os.getenv("TLS_MIN_VERSION", "1.2")
             if float(tls_version) < 1.2:
                 issues.append(f"TLS version {tls_version} is below minimum 1.2")
 
@@ -578,13 +617,15 @@ class SecurityGuard:
 
         return True
 
-    def log_violation(self, violation_type: str, message: str, severity: str = "MEDIUM"):
+    def log_violation(
+        self, violation_type: str, message: str, severity: str = "MEDIUM"
+    ):
         """Log a security violation."""
         violation = {
             "timestamp": datetime.utcnow().isoformat(),
             "type": violation_type,
             "message": message,
-            "severity": severity
+            "severity": severity,
         }
 
         self.violations.append(violation)
@@ -604,10 +645,10 @@ class SecurityGuard:
                 "validated": audit.validated_variables,
                 "failed": len(audit.failed_validations),
                 "missing_required": audit.missing_required,
-                "weak_secrets": len(audit.weak_secrets)
+                "weak_secrets": len(audit.weak_secrets),
             },
             "violations": self.violations,
-            "recommendations": self._get_recommendations(audit)
+            "recommendations": self._get_recommendations(audit),
         }
 
     def _get_recommendations(self, audit: SecurityAudit) -> List[str]:

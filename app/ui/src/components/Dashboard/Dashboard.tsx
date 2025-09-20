@@ -184,11 +184,11 @@ export function Dashboard({
       <div className="dashboard-content">
         <div className="main-section">
           <div className="chart-container">
-            <CandlestickChart data={[]} loading={loading} />
+            <CandlestickChart symbol="BTCUSDT" candles={[]} loading={loading} />
           </div>
 
           <div className="volume-chart-container">
-            <VolumeChart data={[]} loading={loading} />
+            <VolumeChart candles={[]} loading={loading} />
           </div>
         </div>
 

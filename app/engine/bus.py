@@ -10,11 +10,11 @@ import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from .types import BaseEvent, EventType
+from .models import BaseEvent, EventType
 from .core.interfaces import (
     EventBusInterface,
     SubscriptionManagerInterface,
-    EventProcessorInterface
+    EventProcessorInterface,
 )
 from .core.event_bus_factory import EventBusConfig
 from .core.error_handling import (
@@ -24,7 +24,7 @@ from .core.error_handling import (
     ProcessingError,
     error_boundary,
     create_error_context,
-    handle_error
+    handle_error,
 )
 
 
@@ -43,7 +43,7 @@ class EventBus:
         self,
         subscription_manager: SubscriptionManagerInterface,
         event_processor: EventProcessorInterface,
-        config: EventBusConfig
+        config: EventBusConfig,
     ):
         """
         Initialize EventBus with injected dependencies.
@@ -67,7 +67,9 @@ class EventBus:
 
         logger.info(f"EventBus initialized with {config.num_workers} workers")
 
-    @error_boundary("EventBus", "start", ErrorCategory.CONFIGURATION, ErrorSeverity.HIGH)
+    @error_boundary(
+        "EventBus", "start", ErrorCategory.CONFIGURATION, ErrorSeverity.HIGH
+    )
     async def start(self, num_workers: Optional[int] = None) -> None:
         """Start the event bus workers."""
         if self._running:
@@ -107,7 +109,7 @@ class EventBus:
         handler: Any,
         event_types: Optional[List[EventType]] = None,
         priority: int = 0,
-        max_retries: int = 3
+        max_retries: int = 3,
     ) -> str:
         """
         Subscribe to events.
@@ -127,7 +129,7 @@ class EventBus:
             handler=handler,
             event_types=event_types,
             priority=priority,
-            max_retries=max_retries
+            max_retries=max_retries,
         )
 
     async def unsubscribe(self, subscription_id: str) -> bool:
@@ -174,12 +176,12 @@ class EventBus:
                 component="EventBus",
                 operation="publish",
                 event_id=str(event.event_id),
-                queue_size=self._event_queue.qsize()
+                queue_size=self._event_queue.qsize(),
             )
             error = QueueError(
                 f"Event queue full, dropping event {event.event_id}",
                 queue_size=self._event_queue.qsize(),
-                context=context
+                context=context,
             )
             await handle_error(error)
             return False
@@ -189,13 +191,13 @@ class EventBus:
                 severity=ErrorSeverity.MEDIUM,
                 component="EventBus",
                 operation="publish",
-                event_id=str(event.event_id)
+                event_id=str(event.event_id),
             )
             error = ProcessingError(
                 f"Error publishing event: {e}",
                 event_id=event.event_id,
                 context=context,
-                cause=e
+                cause=e,
             )
             await handle_error(error)
             return False
@@ -225,7 +227,9 @@ class EventBus:
         """
         # Get subscription manager metrics
         subscription_count = await self._subscription_manager.get_subscription_count()
-        active_subscription_count = await self._subscription_manager.get_active_subscription_count()
+        active_subscription_count = (
+            await self._subscription_manager.get_active_subscription_count()
+        )
 
         # Get event processor metrics
         processor_stats = await self._event_processor.get_stats()
@@ -241,7 +245,7 @@ class EventBus:
             "queue_size": self._event_queue.qsize(),
             "queue_max_size": self._event_queue.maxsize,
             "worker_count": len(self._worker_tasks),
-            "is_running": self._running
+            "is_running": self._running,
         }
 
     async def health_check(self) -> Dict[str, Any]:
@@ -252,7 +256,9 @@ class EventBus:
             Dictionary containing health information
         """
         subscription_count = await self._subscription_manager.get_subscription_count()
-        active_subscription_count = await self._subscription_manager.get_active_subscription_count()
+        active_subscription_count = (
+            await self._subscription_manager.get_active_subscription_count()
+        )
         processor_stats = await self._event_processor.get_stats()
 
         return {
@@ -261,7 +267,7 @@ class EventBus:
             "queue_usage": f"{self._event_queue.qsize()}/{self._event_queue.maxsize}",
             "subscription_count": subscription_count,
             "active_subscription_count": active_subscription_count,
-            "events_processed": processor_stats.events_processed
+            "events_processed": processor_stats.events_processed,
         }
 
     async def reset_metrics(self) -> None:
@@ -280,10 +286,7 @@ class EventBus:
         while self._running:
             try:
                 # Get event from queue with timeout
-                event = await asyncio.wait_for(
-                    self._event_queue.get(),
-                    timeout=1.0
-                )
+                event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
 
                 await self._process_event_with_subscriptions(event)
 
@@ -296,7 +299,9 @@ class EventBus:
 
         logger.info(f"Worker {worker_name} stopped")
 
-    @error_boundary("EventBus", "process_event", ErrorCategory.PROCESSING, ErrorSeverity.MEDIUM)
+    @error_boundary(
+        "EventBus", "process_event", ErrorCategory.PROCESSING, ErrorSeverity.MEDIUM
+    )
     async def _process_event_with_subscriptions(self, event: BaseEvent) -> None:
         """
         Process an event by getting subscriptions and delegating to processor.
@@ -344,5 +349,6 @@ def create_event_bus() -> EventBus:
     For production use, prefer using EventBusFactory directly.
     """
     from .core.event_bus_factory import EventBusFactory
+
     factory = EventBusFactory()
     return factory.create_event_bus()

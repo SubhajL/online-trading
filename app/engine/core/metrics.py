@@ -17,6 +17,7 @@ from contextlib import contextmanager
 
 class MetricType(Enum):
     """Types of metrics supported."""
+
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
@@ -26,6 +27,7 @@ class MetricType(Enum):
 @dataclass
 class Metric:
     """Base metric with metadata."""
+
     name: str
     type: MetricType
     description: str
@@ -70,14 +72,16 @@ class Counter:
         with self._lock:
             for label_tuple, value in self._values.items():
                 labels = dict(label_tuple)
-                metrics.append(Metric(
-                    name=self.name,
-                    type=MetricType.COUNTER,
-                    description=self.description,
-                    labels=labels,
-                    value=value,
-                    unit=self.unit
-                ))
+                metrics.append(
+                    Metric(
+                        name=self.name,
+                        type=MetricType.COUNTER,
+                        description=self.description,
+                        labels=labels,
+                        value=value,
+                        unit=self.unit,
+                    )
+                )
         return metrics
 
 
@@ -121,14 +125,16 @@ class Gauge:
         with self._lock:
             for label_tuple, value in self._values.items():
                 labels = dict(label_tuple)
-                metrics.append(Metric(
-                    name=self.name,
-                    type=MetricType.GAUGE,
-                    description=self.description,
-                    labels=labels,
-                    value=value,
-                    unit=self.unit
-                ))
+                metrics.append(
+                    Metric(
+                        name=self.name,
+                        type=MetricType.GAUGE,
+                        description=self.description,
+                        labels=labels,
+                        value=value,
+                        unit=self.unit,
+                    )
+                )
         return metrics
 
 
@@ -140,14 +146,26 @@ class Histogram:
         name: str,
         description: str,
         buckets: Optional[List[float]] = None,
-        unit: Optional[str] = None
+        unit: Optional[str] = None,
     ):
         self.name = name
         self.description = description
         self.unit = unit
-        self.buckets = buckets or [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
-        self._buckets: Dict[Tuple[Tuple[str, str], ...], Dict[float, int]] = defaultdict(
-            lambda: {b: 0 for b in self.buckets + [float('inf')]}
+        self.buckets = buckets or [
+            0.005,
+            0.01,
+            0.025,
+            0.05,
+            0.1,
+            0.25,
+            0.5,
+            1,
+            2.5,
+            5,
+            10,
+        ]
+        self._buckets: Dict[Tuple[Tuple[str, str], ...], Dict[float, int]] = (
+            defaultdict(lambda: {b: 0 for b in self.buckets + [float("inf")]})
         )
         self._sums: Dict[Tuple[Tuple[str, str], ...], float] = defaultdict(float)
         self._counts: Dict[Tuple[Tuple[str, str], ...], int] = defaultdict(int)
@@ -161,11 +179,13 @@ class Histogram:
             self._counts[label_key] += 1
 
             # Update buckets (cumulative count)
-            for bucket in self.buckets + [float('inf')]:
+            for bucket in self.buckets + [float("inf")]:
                 if value <= bucket:
                     self._buckets[label_key][bucket] += 1
 
-    def get_percentile(self, percentile: float, labels: Optional[Dict[str, str]] = None) -> float:
+    def get_percentile(
+        self, percentile: float, labels: Optional[Dict[str, str]] = None
+    ) -> float:
         """Get percentile value."""
         if not 0 <= percentile <= 100:
             raise ValueError("Percentile must be between 0 and 100")
@@ -183,7 +203,7 @@ class Histogram:
                 if self._buckets[label_key][bucket] >= target_count:
                     return bucket
 
-            return float('inf')
+            return float("inf")
 
     def collect(self) -> List[Metric]:
         """Collect all metrics for export."""
@@ -193,36 +213,44 @@ class Histogram:
                 labels = dict(label_tuple)
 
                 # Add bucket metrics
-                for bucket in self.buckets + [float('inf')]:
+                for bucket in self.buckets + [float("inf")]:
                     bucket_labels = labels.copy()
-                    bucket_labels['le'] = str(bucket) if bucket != float('inf') else '+Inf'
-                    metrics.append(Metric(
-                        name=f"{self.name}_bucket",
-                        type=MetricType.COUNTER,
-                        description=f"{self.description} (bucket)",
-                        labels=bucket_labels,
-                        value=float(self._buckets[label_tuple][bucket]),
-                        unit=self.unit
-                    ))
+                    bucket_labels["le"] = (
+                        str(bucket) if bucket != float("inf") else "+Inf"
+                    )
+                    metrics.append(
+                        Metric(
+                            name=f"{self.name}_bucket",
+                            type=MetricType.COUNTER,
+                            description=f"{self.description} (bucket)",
+                            labels=bucket_labels,
+                            value=float(self._buckets[label_tuple][bucket]),
+                            unit=self.unit,
+                        )
+                    )
 
                 # Add sum and count
-                metrics.append(Metric(
-                    name=f"{self.name}_sum",
-                    type=MetricType.COUNTER,
-                    description=f"{self.description} (sum)",
-                    labels=labels,
-                    value=self._sums[label_tuple],
-                    unit=self.unit
-                ))
+                metrics.append(
+                    Metric(
+                        name=f"{self.name}_sum",
+                        type=MetricType.COUNTER,
+                        description=f"{self.description} (sum)",
+                        labels=labels,
+                        value=self._sums[label_tuple],
+                        unit=self.unit,
+                    )
+                )
 
-                metrics.append(Metric(
-                    name=f"{self.name}_count",
-                    type=MetricType.COUNTER,
-                    description=f"{self.description} (count)",
-                    labels=labels,
-                    value=float(self._counts[label_tuple]),
-                    unit=self.unit
-                ))
+                metrics.append(
+                    Metric(
+                        name=f"{self.name}_count",
+                        type=MetricType.COUNTER,
+                        description=f"{self.description} (count)",
+                        labels=labels,
+                        value=float(self._counts[label_tuple]),
+                        unit=self.unit,
+                    )
+                )
 
         return metrics
 
@@ -256,7 +284,7 @@ class MetricsRegistry:
         all_metrics = []
         with self._lock:
             for metric in self._metrics.values():
-                if hasattr(metric, 'collect'):
+                if hasattr(metric, "collect"):
                     all_metrics.extend(metric.collect())
         return all_metrics
 
@@ -287,8 +315,12 @@ class PrometheusExporter:
 
                 # Add TYPE line
                 metric_type = first_metric.type.value
-                if name.endswith('_bucket') or name.endswith('_count') or name.endswith('_sum'):
-                    metric_type = 'counter'
+                if (
+                    name.endswith("_bucket")
+                    or name.endswith("_count")
+                    or name.endswith("_sum")
+                ):
+                    metric_type = "counter"
                 lines.append(f"# TYPE {name} {metric_type}")
 
                 # Add metric lines
@@ -299,7 +331,7 @@ class PrometheusExporter:
                     else:
                         lines.append(f"{name} {metric.value}")
 
-        return '\n'.join(lines) + '\n'
+        return "\n".join(lines) + "\n"
 
     def _format_labels(self, labels: Dict[str, str]) -> str:
         """Format labels for Prometheus."""
@@ -309,10 +341,12 @@ class PrometheusExporter:
         label_pairs = []
         for key, value in sorted(labels.items()):
             # Escape special characters
-            escaped_value = value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+            escaped_value = (
+                value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            )
             label_pairs.append(f'{key}="{escaped_value}"')
 
-        return ','.join(label_pairs)
+        return ",".join(label_pairs)
 
 
 class MetricsCollector:
@@ -323,7 +357,9 @@ class MetricsCollector:
         self.exporter = PrometheusExporter(self.registry)
         self._start_time = time.time()
 
-    def counter(self, name: str, description: str, unit: Optional[str] = None) -> Counter:
+    def counter(
+        self, name: str, description: str, unit: Optional[str] = None
+    ) -> Counter:
         """Create and register a counter."""
         counter = Counter(name, description, unit)
         self.registry.register(counter)
@@ -340,7 +376,7 @@ class MetricsCollector:
         name: str,
         description: str,
         buckets: Optional[List[float]] = None,
-        unit: Optional[str] = None
+        unit: Optional[str] = None,
     ) -> Histogram:
         """Create and register a histogram."""
         histogram = Histogram(name, description, buckets, unit)
@@ -349,9 +385,7 @@ class MetricsCollector:
 
     @contextmanager
     def record_duration(
-        self,
-        histogram: Histogram,
-        labels: Optional[Dict[str, str]] = None
+        self, histogram: Histogram, labels: Optional[Dict[str, str]] = None
     ):
         """Context manager to record operation duration."""
         start = time.time()
@@ -373,6 +407,7 @@ class MetricsCollector:
 # Global metrics collector instance
 metrics_collector = MetricsCollector()
 
+
 # Convenience functions
 def create_counter(name: str, description: str, unit: Optional[str] = None) -> Counter:
     """Create a counter metric."""
@@ -388,7 +423,7 @@ def create_histogram(
     name: str,
     description: str,
     buckets: Optional[List[float]] = None,
-    unit: Optional[str] = None
+    unit: Optional[str] = None,
 ) -> Histogram:
     """Create a histogram metric."""
     return metrics_collector.histogram(name, description, buckets, unit)

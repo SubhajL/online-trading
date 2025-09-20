@@ -11,13 +11,13 @@ from uuid import uuid4
 
 from app.engine.bus import EventBus
 from app.engine.core.event_bus_factory import EventBusFactory, EventBusConfig
-from app.engine.types import BaseEvent, EventType
+from app.engine.models import BaseEvent, EventType
 from app.engine.core.observability import (
     ObservabilityManager,
     EventBusHealthCheck,
     HealthStatus,
     init_observability,
-    get_observability
+    get_observability,
 )
 from app.engine.core.metrics import metrics_collector
 from app.engine.core.tracing import get_tracer, StatusCode
@@ -26,6 +26,7 @@ from app.engine.core.tracing import get_tracer, StatusCode
 # Test event class
 class TestEvent(BaseEvent):
     """Test event for integration tests."""
+
     event_type: EventType = EventType.HEALTH_CHECK
     test_data: Dict[str, Any] = {}
 
@@ -39,15 +40,12 @@ class TestObservabilityIntegration:
             service_name="eventbus-test",
             enable_metrics=True,
             enable_tracing=True,
-            enable_console_export=False
+            enable_console_export=False,
         )
 
         # Create EventBus
         factory = EventBusFactory()
-        config = EventBusConfig(
-            max_queue_size=1000,
-            num_workers=2
-        )
+        config = EventBusConfig(max_queue_size=1000, num_workers=2)
         event_bus = factory.create_with_config(config)
 
         # We can't use sync health checks with async functions in tests
@@ -62,8 +60,7 @@ class TestObservabilityIntegration:
         async def test_handler(event: TestEvent) -> None:
             """Test event handler with tracing."""
             async with observability.trace_operation(
-                "process_event",
-                attributes={"event_type": event.event_type.value}
+                "process_event", attributes={"event_type": event.event_type.value}
             ) as span:
                 await asyncio.sleep(0.01)
                 events_processed.append(event)
@@ -76,14 +73,13 @@ class TestObservabilityIntegration:
         # Publish events with tracing
         for i in range(5):
             async with observability.trace_operation(
-                "publish_event",
-                attributes={"event_id": i}
+                "publish_event", attributes={"event_id": i}
             ):
                 test_event = TestEvent(
                     event_id=uuid4(),
                     timestamp=datetime.now(),
                     symbol="TEST",
-                    test_data={"id": i, "data": f"test_{i}"}
+                    test_data={"id": i, "data": f"test_{i}"},
                 )
                 await event_bus.publish(test_event)
 
@@ -126,9 +122,7 @@ class TestObservabilityIntegration:
     async def test_eventbus_error_tracking(self):
         """Test error tracking in EventBus with observability."""
         observability = ObservabilityManager(
-            service_name="error-test",
-            enable_metrics=True,
-            enable_tracing=True
+            service_name="error-test", enable_metrics=True, enable_tracing=True
         )
 
         factory = EventBusFactory()
@@ -141,12 +135,13 @@ class TestObservabilityIntegration:
             """Handler that fails on certain events."""
             nonlocal error_count
             async with observability.trace_operation(
-                "failing_handler",
-                attributes={"event_id": str(event.event_id)}
+                "failing_handler", attributes={"event_id": str(event.event_id)}
             ) as span:
                 if event.test_data.get("fail", False):
                     error_count += 1
-                    raise ValueError(f"Intentional failure for event {event.test_data.get('id')}")
+                    raise ValueError(
+                        f"Intentional failure for event {event.test_data.get('id')}"
+                    )
                 await asyncio.sleep(0.01)
 
         await event_bus.subscribe(EventType.HEALTH_CHECK, failing_handler)
@@ -157,7 +152,7 @@ class TestObservabilityIntegration:
                 event_id=uuid4(),
                 timestamp=datetime.now(),
                 symbol="TEST",
-                test_data={"id": i, "fail": i % 3 == 0}  # Fail every 3rd event
+                test_data={"id": i, "fail": i % 3 == 0},  # Fail every 3rd event
             )
             await event_bus.publish(test_event)
 
@@ -180,9 +175,7 @@ class TestObservabilityIntegration:
     async def test_eventbus_performance_monitoring(self):
         """Test performance monitoring of EventBus operations."""
         observability = ObservabilityManager(
-            service_name="performance-test",
-            enable_metrics=True,
-            enable_tracing=True
+            service_name="performance-test", enable_metrics=True, enable_tracing=True
         )
 
         factory = EventBusFactory()
@@ -204,14 +197,13 @@ class TestObservabilityIntegration:
         delays = [0.001, 0.005, 0.01, 0.02, 0.05]
         for i, delay in enumerate(delays * 2):  # 10 events total
             async with observability.trace_operation(
-                "publish_timed_event",
-                attributes={"delay": delay}
+                "publish_timed_event", attributes={"delay": delay}
             ):
                 test_event = TestEvent(
                     event_id=uuid4(),
                     timestamp=datetime.now(),
                     symbol="TEST",
-                    test_data={"id": i, "delay": delay}
+                    test_data={"id": i, "delay": delay},
                 )
                 await event_bus.publish(test_event)
 
@@ -239,16 +231,11 @@ class TestObservabilityIntegration:
     @pytest.mark.asyncio
     async def test_eventbus_queue_health_monitoring(self):
         """Test queue health monitoring under load."""
-        observability = ObservabilityManager(
-            service_name="queue-health-test"
-        )
+        observability = ObservabilityManager(service_name="queue-health-test")
 
         # Create EventBus with small queue for testing
         factory = EventBusFactory()
-        config = EventBusConfig(
-            max_queue_size=50,
-            num_workers=1
-        )
+        config = EventBusConfig(max_queue_size=50, num_workers=1)
         event_bus = factory.create_with_config(config)
         await event_bus.start()
 
@@ -272,7 +259,7 @@ class TestObservabilityIntegration:
                 event_id=uuid4(),
                 timestamp=datetime.now(),
                 symbol="TEST",
-                test_data={"id": i}
+                test_data={"id": i},
             )
             task = event_bus.publish(test_event)
             publish_tasks.append(task)
@@ -308,10 +295,9 @@ class TestObservabilityIntegration:
             """First handler in chain."""
             with tracer.start_as_current_span("handler_1") as span:
                 span.set_attribute("handler", "1")
-                trace_contexts.append({
-                    "handler": "1",
-                    "trace_id": span.context.trace_id
-                })
+                trace_contexts.append(
+                    {"handler": "1", "trace_id": span.context.trace_id}
+                )
                 # Publish downstream event
                 downstream_event = TestEvent(
                     event_id=uuid4(),
@@ -320,8 +306,8 @@ class TestObservabilityIntegration:
                     event_type=EventType.POSITION_UPDATE,  # Different type for downstream
                     test_data={
                         "original_id": str(event.event_id),
-                        "trace_id": span.context.trace_id
-                    }
+                        "trace_id": span.context.trace_id,
+                    },
                 )
                 await event_bus.publish(downstream_event)
 
@@ -329,11 +315,12 @@ class TestObservabilityIntegration:
             """Second handler in chain."""
             with tracer.start_as_current_span("handler_2") as span:
                 span.set_attribute("handler", "2")
-                span.set_attribute("original_id", event.test_data.get("original_id", ""))
-                trace_contexts.append({
-                    "handler": "2",
-                    "trace_id": span.context.trace_id
-                })
+                span.set_attribute(
+                    "original_id", event.test_data.get("original_id", "")
+                )
+                trace_contexts.append(
+                    {"handler": "2", "trace_id": span.context.trace_id}
+                )
 
         await event_bus.subscribe(EventType.HEALTH_CHECK, handler_1)
         await event_bus.subscribe(EventType.POSITION_UPDATE, handler_2)
@@ -345,7 +332,7 @@ class TestObservabilityIntegration:
                 event_id=uuid4(),
                 timestamp=datetime.now(),
                 symbol="TEST",
-                test_data={"id": "test_123"}
+                test_data={"id": "test_123"},
             )
             await event_bus.publish(test_event)
 
@@ -363,9 +350,7 @@ class TestObservabilityIntegration:
     @pytest.mark.asyncio
     async def test_observability_with_circuit_breaker(self):
         """Test observability with circuit breaker patterns."""
-        observability = ObservabilityManager(
-            service_name="circuit-breaker-test"
-        )
+        observability = ObservabilityManager(service_name="circuit-breaker-test")
 
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
@@ -379,8 +364,7 @@ class TestObservabilityIntegration:
             nonlocal failure_count, success_count
 
             async with observability.trace_operation(
-                "flaky_operation",
-                attributes={"event_id": str(event.event_id)}
+                "flaky_operation", attributes={"event_id": str(event.event_id)}
             ) as span:
                 # Fail first 5 events
                 event_num = event.test_data.get("id", 0)
@@ -400,7 +384,7 @@ class TestObservabilityIntegration:
                     event_id=uuid4(),
                     timestamp=datetime.now(),
                     symbol="TEST",
-                    test_data={"id": i}
+                    test_data={"id": i},
                 )
                 await event_bus.publish(test_event)
             except Exception:
@@ -421,8 +405,7 @@ class TestObservabilityIntegration:
     async def test_metrics_export_formats(self):
         """Test different metric export formats."""
         observability = ObservabilityManager(
-            service_name="export-test",
-            enable_metrics=True
+            service_name="export-test", enable_metrics=True
         )
 
         # Record various metrics

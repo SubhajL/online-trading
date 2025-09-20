@@ -53,7 +53,9 @@ def migrations_dir(tmp_path):
 
     # Create some base migrations
     (migrations / "001_initial.sql").write_text("CREATE TABLE test1 (id INT);")
-    (migrations / "002_add_column.sql").write_text("ALTER TABLE test1 ADD COLUMN name TEXT;")
+    (migrations / "002_add_column.sql").write_text(
+        "ALTER TABLE test1 ADD COLUMN name TEXT;"
+    )
 
     # Create foreign key migration
     fk_content = """
@@ -88,16 +90,18 @@ class TestForeignKeyMigration:
         assert "ADD CONSTRAINT fk_positions_decision" in migration.content
 
     @pytest.mark.asyncio
-    async def test_foreign_key_migration_applies(self, mock_pool, mock_connection, migrations_dir):
+    async def test_foreign_key_migration_applies(
+        self, mock_pool, mock_connection, migrations_dir
+    ):
         """Test foreign key migration can be applied."""
         # Mock current version as 7 (before foreign keys)
         mock_connection.fetchval.side_effect = [
-            True,   # Schema exists
-            7,      # Current version
-            None,   # Check if migration 8 is already applied
-            125,    # History ID for migration 8
-            True,   # Schema exists after
-            8,      # Final version
+            True,  # Schema exists
+            7,  # Current version
+            None,  # Check if migration 8 is already applied
+            125,  # History ID for migration 8
+            True,  # Schema exists after
+            8,  # Final version
         ]
 
         runner = MigrationRunner(mock_pool, migrations_dir)
@@ -118,13 +122,15 @@ class TestForeignKeyMigration:
         assert "REFERENCES decisions(decision_id)" in executed_sql
 
     @pytest.mark.asyncio
-    async def test_foreign_key_migration_rollback_on_error(self, mock_pool, mock_connection, migrations_dir):
+    async def test_foreign_key_migration_rollback_on_error(
+        self, mock_pool, mock_connection, migrations_dir
+    ):
         """Test foreign key migration rolls back on constraint violation."""
         mock_connection.fetchval.side_effect = [
-            True,   # Schema exists
-            7,      # Current version
-            None,   # Check if migration 8 is already applied
-            125,    # History ID
+            True,  # Schema exists
+            7,  # Current version
+            None,  # Check if migration 8 is already applied
+            125,  # History ID
         ]
 
         # Simulate foreign key constraint violation
@@ -143,16 +149,33 @@ class TestForeignKeyMigration:
         assert mock_connection.execute.call_count >= 1
 
     @pytest.mark.asyncio
-    async def test_check_foreign_key_constraints(self, mock_pool, mock_connection, migrations_dir):
+    async def test_check_foreign_key_constraints(
+        self, mock_pool, mock_connection, migrations_dir
+    ):
         """Test checking status after foreign key migration."""
         mock_connection.fetchval.side_effect = [True, 8]  # Schema exists, version 8
 
         # Mock applied migrations including foreign keys
         mock_connection.fetch.side_effect = [
             [
-                {"version": 1, "name": "Initial", "applied_at": datetime.utcnow(), "execution_time_ms": 100},
-                {"version": 2, "name": "Add Column", "applied_at": datetime.utcnow(), "execution_time_ms": 50},
-                {"version": 8, "name": "Add Foreign Keys", "applied_at": datetime.utcnow(), "execution_time_ms": 200},
+                {
+                    "version": 1,
+                    "name": "Initial",
+                    "applied_at": datetime.utcnow(),
+                    "execution_time_ms": 100,
+                },
+                {
+                    "version": 2,
+                    "name": "Add Column",
+                    "applied_at": datetime.utcnow(),
+                    "execution_time_ms": 50,
+                },
+                {
+                    "version": 8,
+                    "name": "Add Foreign Keys",
+                    "applied_at": datetime.utcnow(),
+                    "execution_time_ms": 200,
+                },
             ],
             [],  # No failed migrations
         ]
@@ -166,8 +189,7 @@ class TestForeignKeyMigration:
 
         # Find foreign key migration in applied list
         fk_migration = next(
-            (m for m in status["applied_migrations"] if m["version"] == 8),
-            None
+            (m for m in status["applied_migrations"] if m["version"] == 8), None
         )
         assert fk_migration is not None
         assert fk_migration["name"] == "Add Foreign Keys"

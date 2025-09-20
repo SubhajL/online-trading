@@ -19,7 +19,7 @@ from app.engine.core.metrics import (
     create_counter,
     create_gauge,
     create_histogram,
-    record_duration
+    record_duration,
 )
 
 
@@ -92,9 +92,7 @@ class TestGauge:
 class TestHistogram:
     def test_histogram_observations(self):
         histogram = Histogram(
-            "request_duration",
-            "Request duration",
-            buckets=[0.1, 0.5, 1.0, 5.0]
+            "request_duration", "Request duration", buckets=[0.1, 0.5, 1.0, 5.0]
         )
 
         histogram.observe(0.05)
@@ -110,20 +108,20 @@ class TestHistogram:
         assert len(bucket_metrics) == 5  # 4 buckets + inf
 
         # Check sum and count
-        sum_metric = next((m for m in metrics if m.name == "request_duration_sum"), None)
+        sum_metric = next(
+            (m for m in metrics if m.name == "request_duration_sum"), None
+        )
         assert sum_metric is not None
         assert sum_metric.value == pytest.approx(13.05)
 
-        count_metric = next((m for m in metrics if m.name == "request_duration_count"), None)
+        count_metric = next(
+            (m for m in metrics if m.name == "request_duration_count"), None
+        )
         assert count_metric is not None
         assert count_metric.value == 5
 
     def test_histogram_percentiles(self):
-        histogram = Histogram(
-            "test_hist",
-            "Test histogram",
-            buckets=[1, 2, 3, 4, 5]
-        )
+        histogram = Histogram("test_hist", "Test histogram", buckets=[1, 2, 3, 4, 5])
 
         # Add values: 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5
         for i in range(10):
@@ -252,7 +250,9 @@ class TestMetricsCollector:
             time.sleep(0.01)
 
         metrics = histogram.collect()
-        count_metric = next((m for m in metrics if m.name == "operation_duration_count"), None)
+        count_metric = next(
+            (m for m in metrics if m.name == "operation_duration_count"), None
+        )
         assert count_metric is not None
         assert count_metric.value == 1
 
@@ -319,7 +319,9 @@ class TestThreadSafety:
                 future.result()
 
         metrics = histogram.collect()
-        count_metric = next((m for m in metrics if m.name == "concurrent_hist_count"), None)
+        count_metric = next(
+            (m for m in metrics if m.name == "concurrent_hist_count"), None
+        )
         assert count_metric.value == 1000
 
 

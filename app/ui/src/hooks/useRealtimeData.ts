@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { WebSocketService } from '@/services/websocket.service'
+import { getWebSocketUrl } from '@/config/constants'
 import type { Symbol } from '@/types'
 
 export type Subscription = {
@@ -25,7 +26,7 @@ export function useRealtimeData(subscriptions: Subscription[]) {
       try {
         setIsLoading(true)
         setError(null)
-        await ws.connect()
+        ws.connect(getWebSocketUrl())
         const connected = ws.isConnected()
         setIsConnected(connected)
       } catch (err) {
@@ -58,7 +59,11 @@ export function useRealtimeData(subscriptions: Subscription[]) {
       // Create handler for this subscription
       const handler = (data: unknown) => {
         // Filter by symbol if specified
-        if (sub.symbol && data.symbol && data.symbol !== sub.symbol) {
+        if (
+          sub.symbol &&
+          (data as { symbol?: string }).symbol &&
+          (data as { symbol?: string }).symbol !== sub.symbol
+        ) {
           return
         }
         sub.onData?.(data)
@@ -68,8 +73,6 @@ export function useRealtimeData(subscriptions: Subscription[]) {
 
       // Subscribe if not already subscribed
       if (!activeSubscriptionsRef.current.has(key)) {
-        const params = sub.symbol ? { symbol: sub.symbol } : undefined
-        ws.subscribe(sub.channel, params)
         ws.on(sub.channel, handler)
       }
     })
@@ -77,15 +80,12 @@ export function useRealtimeData(subscriptions: Subscription[]) {
     // Unsubscribe from removed subscriptions
     activeSubscriptionsRef.current.forEach(key => {
       if (!currentSubscriptions.has(key)) {
-        const [channel, symbol] = key.split(':')
+        const [channel] = key.split(':')
         const handler = handlersRef.current.get(key)
 
         if (handler) {
           ws.off(channel!, handler)
         }
-
-        const params = symbol !== 'all' ? { symbol } : undefined
-        ws.unsubscribe(channel!, params)
       }
     })
 
@@ -121,7 +121,7 @@ export function useRealtimeData(subscriptions: Subscription[]) {
       setError(null)
 
       try {
-        await wsRef.current.connect()
+        wsRef.current.connect(getWebSocketUrl())
         setIsConnected(wsRef.current.isConnected())
       } catch (err) {
         setError(err as Error)

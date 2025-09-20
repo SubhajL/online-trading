@@ -11,23 +11,25 @@ from typing import Any, Generic, List, Optional, TypeVar
 from app.engine.core.clock import Clock, SystemClock
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class QueueFullError(Exception):
     """Raised when queue is at maximum capacity."""
+
     pass
 
 
 @dataclass
 class QueueItem(Generic[T]):
     """Item in the priority queue with expiration."""
+
     data: T
     priority: int
     added_at: datetime
     expires_at: datetime
 
-    def __lt__(self, other: 'QueueItem') -> bool:
+    def __lt__(self, other: "QueueItem") -> bool:
         """Compare by priority (higher priority = smaller value for min-heap)."""
         return -self.priority < -other.priority
 
@@ -35,6 +37,7 @@ class QueueItem(Generic[T]):
 @dataclass
 class QueueStats:
     """Statistics for the queue."""
+
     current_size: int
     max_size: int
     total_added: int
@@ -52,10 +55,7 @@ class BoundedPriorityQueue(Generic[T]):
     """
 
     def __init__(
-        self,
-        max_size: int,
-        ttl_seconds: float,
-        clock: Optional[Clock] = None
+        self, max_size: int, ttl_seconds: float, clock: Optional[Clock] = None
     ):
         """Initialize queue with bounds."""
         self._max_size = max_size
@@ -75,10 +75,7 @@ class BoundedPriorityQueue(Generic[T]):
         self._item_available = asyncio.Event()
 
     async def put_with_ttl(
-        self,
-        item: T,
-        priority: int,
-        custom_ttl: Optional[float] = None
+        self, item: T, priority: int, custom_ttl: Optional[float] = None
     ) -> None:
         """
         Add item with priority and TTL.
@@ -106,7 +103,7 @@ class BoundedPriorityQueue(Generic[T]):
                 data=item,
                 priority=priority,
                 added_at=now,
-                expires_at=now + timedelta(seconds=ttl)
+                expires_at=now + timedelta(seconds=ttl),
             )
 
             # Add to heap
@@ -141,7 +138,9 @@ class BoundedPriorityQueue(Generic[T]):
             self._item_available.clear()
             return None
 
-    async def wait_for_item(self, timeout: Optional[float] = None) -> Optional[QueueItem[T]]:
+    async def wait_for_item(
+        self, timeout: Optional[float] = None
+    ) -> Optional[QueueItem[T]]:
         """
         Wait for an item to become available.
 
@@ -222,7 +221,7 @@ class BoundedPriorityQueue(Generic[T]):
             total_added=self._total_added,
             total_retrieved=self._total_retrieved,
             expired_count=self._expired_count,
-            oldest_item_age=oldest_age
+            oldest_item_age=oldest_age,
         )
 
     def __len__(self) -> int:

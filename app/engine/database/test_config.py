@@ -95,7 +95,10 @@ class TestDatabaseConfig:
     @pytest.mark.asyncio
     async def test_migration_metrics_exported(self):
         """Test that migration metrics are properly exported"""
-        from app.engine.database.migrations import setup_migration_metrics, record_migration_metric
+        from app.engine.database.migrations import (
+            setup_migration_metrics,
+            record_migration_metric,
+        )
 
         metrics = setup_migration_metrics()
         assert "migration_duration_seconds" in metrics

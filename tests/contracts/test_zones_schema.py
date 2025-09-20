@@ -5,7 +5,12 @@ from pathlib import Path
 
 
 def load_schema(name: str) -> dict:
-    schema_path = Path(__file__).parent.parent.parent / "contracts" / "jsonschema" / f"{name}.schema.json"
+    schema_path = (
+        Path(__file__).parent.parent.parent
+        / "contracts"
+        / "jsonschema"
+        / f"{name}.schema.json"
+    )
     with open(schema_path) as f:
         return json.load(f)
 
@@ -28,7 +33,7 @@ class TestZonesV1Schema:
             "candle_count": 3,
             "strength": 0.85,
             "touches": 0,
-            "is_active": True
+            "is_active": True,
         }
 
         # Should not raise
@@ -51,7 +56,7 @@ class TestZonesV1Schema:
             "candle_count": 1,
             "strength": 0.70,
             "touches": 1,
-            "is_active": False
+            "is_active": False,
         }
 
         # Should not raise
@@ -75,12 +80,15 @@ class TestZonesV1Schema:
             "candle_count": 3,
             "strength": 0.85,
             "touches": 0,
-            "is_active": True
+            "is_active": True,
         }
 
         with pytest.raises(ValidationError) as exc_info:
             validate(instance=invalid_payload, schema=schema)
-        assert "'support_resistance' is not one of ['order_block', 'fair_value_gap']" in str(exc_info.value)
+        assert (
+            "'support_resistance' is not one of ['order_block', 'fair_value_gap']"
+            in str(exc_info.value)
+        )
 
     def test_direction_enum_validation(self):
         schema = load_schema("zones.v1")
@@ -100,7 +108,7 @@ class TestZonesV1Schema:
             "candle_count": 3,
             "strength": 0.85,
             "touches": 0,
-            "is_active": True
+            "is_active": True,
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -125,7 +133,7 @@ class TestZonesV1Schema:
             "candle_count": 3,
             "strength": 1.5,  # Must be 0-1
             "touches": 0,
-            "is_active": True
+            "is_active": True,
         }
 
         with pytest.raises(ValidationError) as exc_info:

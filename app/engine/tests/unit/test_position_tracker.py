@@ -19,7 +19,7 @@ from app.engine.services.position_tracker import (
     OrderFill,
     MarketData,
     CloseSignal,
-    CloseReason
+    CloseReason,
 )
 
 
@@ -34,7 +34,7 @@ class TestUpdatePosition:
             quantity=Decimal("0.1"),
             price=Decimal("50000"),
             commission=Decimal("10"),  # $10 commission
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         position = update_position(fill)
@@ -55,7 +55,7 @@ class TestUpdatePosition:
             quantity=Decimal("0.1"),
             price=Decimal("50000"),
             commission=Decimal("10"),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
         position = update_position(fill1)
 
@@ -66,7 +66,7 @@ class TestUpdatePosition:
             quantity=Decimal("0.1"),
             price=Decimal("51000"),
             commission=Decimal("10.2"),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
         position = update_position(fill2, position)
 
@@ -85,7 +85,7 @@ class TestUpdatePosition:
             entry_price=Decimal("50000"),
             realized_pnl=Decimal("-20"),  # Commission from entry
             total_commission=Decimal("20"),
-            open_time=datetime.now(timezone.utc)
+            open_time=datetime.now(timezone.utc),
         )
 
         # Close half the position at profit
@@ -95,7 +95,7 @@ class TestUpdatePosition:
             quantity=Decimal("0.1"),
             price=Decimal("52000"),
             commission=Decimal("10.4"),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
         position = update_position(close_fill, initial)
 
@@ -115,7 +115,7 @@ class TestUpdatePosition:
             entry_price=Decimal("50000"),
             realized_pnl=Decimal("-10"),
             total_commission=Decimal("10"),
-            open_time=datetime.now(timezone.utc)
+            open_time=datetime.now(timezone.utc),
         )
 
         # Close entire short position (buy back)
@@ -125,7 +125,7 @@ class TestUpdatePosition:
             quantity=Decimal("0.1"),
             price=Decimal("49000"),  # Profit on short
             commission=Decimal("9.8"),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
         position = update_position(close_fill, initial)
 
@@ -148,7 +148,7 @@ class TestCalculateUnrealizedPnl:
             entry_price=Decimal("50000"),
             realized_pnl=Decimal("0"),
             total_commission=Decimal("10"),
-            open_time=datetime.now(timezone.utc)
+            open_time=datetime.now(timezone.utc),
         )
 
         pnl = calculate_unrealized_pnl(position, Decimal("52000"))
@@ -165,7 +165,7 @@ class TestCalculateUnrealizedPnl:
             entry_price=Decimal("50000"),
             realized_pnl=Decimal("0"),
             total_commission=Decimal("10"),
-            open_time=datetime.now(timezone.utc)
+            open_time=datetime.now(timezone.utc),
         )
 
         pnl = calculate_unrealized_pnl(position, Decimal("51000"))
@@ -183,7 +183,7 @@ class TestCalculateUnrealizedPnl:
             realized_pnl=Decimal("100"),
             total_commission=Decimal("20"),
             open_time=datetime.now(timezone.utc),
-            is_closed=True
+            is_closed=True,
         )
 
         pnl = calculate_unrealized_pnl(position, Decimal("52000"))
@@ -204,7 +204,7 @@ class TestShouldClosePosition:
             stop_loss=Decimal("49000"),
             realized_pnl=Decimal("0"),
             total_commission=Decimal("10"),
-            open_time=datetime.now(timezone.utc)
+            open_time=datetime.now(timezone.utc),
         )
 
         market = MarketData(
@@ -212,7 +212,7 @@ class TestShouldClosePosition:
             current_price=Decimal("48900"),  # Below stop loss
             bid=Decimal("48899"),
             ask=Decimal("48901"),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         signal = should_close_position(position, market)
@@ -231,7 +231,7 @@ class TestShouldClosePosition:
             take_profit=Decimal("48000"),
             realized_pnl=Decimal("0"),
             total_commission=Decimal("10"),
-            open_time=datetime.now(timezone.utc)
+            open_time=datetime.now(timezone.utc),
         )
 
         market = MarketData(
@@ -239,7 +239,7 @@ class TestShouldClosePosition:
             current_price=Decimal("47900"),  # Below take profit for short
             bid=Decimal("47899"),
             ask=Decimal("47901"),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         signal = should_close_position(position, market)
@@ -262,7 +262,7 @@ class TestShouldClosePosition:
             realized_pnl=Decimal("0"),
             total_commission=Decimal("10"),
             open_time=old_time,
-            max_hold_time=timedelta(hours=24)
+            max_hold_time=timedelta(hours=24),
         )
 
         market = MarketData(
@@ -270,7 +270,7 @@ class TestShouldClosePosition:
             current_price=Decimal("50100"),
             bid=Decimal("50099"),
             ask=Decimal("50101"),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         signal = should_close_position(position, market)
@@ -290,7 +290,7 @@ class TestShouldClosePosition:
             take_profit=Decimal("52000"),
             realized_pnl=Decimal("0"),
             total_commission=Decimal("10"),
-            open_time=datetime.now(timezone.utc)
+            open_time=datetime.now(timezone.utc),
         )
 
         market = MarketData(
@@ -298,7 +298,7 @@ class TestShouldClosePosition:
             current_price=Decimal("50500"),  # Between SL and TP
             bid=Decimal("50499"),
             ask=Decimal("50501"),
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         signal = should_close_position(position, market)

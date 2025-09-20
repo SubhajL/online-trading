@@ -13,7 +13,7 @@ __version__ = "1.0.0"
 __author__ = "Trading Platform Team"
 
 from .bus import EventBus
-from .types import *
+from .models import *
 
 __all__ = [
     "EventBus",

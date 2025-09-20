@@ -26,17 +26,13 @@ from app.engine.core.tracing import (
     get_tracer_provider,
     set_tracer_provider,
     get_tracer,
-    trace
+    trace,
 )
 
 
 class TestSpanContext:
     def test_span_context_creation(self):
-        context = SpanContext(
-            trace_id="trace123",
-            span_id="span456",
-            trace_flags=1
-        )
+        context = SpanContext(trace_id="trace123", span_id="span456", trace_flags=1)
 
         assert context.trace_id == "trace123"
         assert context.span_id == "span456"
@@ -54,11 +50,7 @@ class TestSpanContext:
 class TestSpan:
     def test_span_creation(self):
         context = SpanContext("trace123", "span456")
-        span = Span(
-            name="test_span",
-            context=context,
-            kind=SpanKind.INTERNAL
-        )
+        span = Span(name="test_span", context=context, kind=SpanKind.INTERNAL)
 
         assert span.name == "test_span"
         assert span.context == context
@@ -135,7 +127,7 @@ class TestSpan:
             name="test",
             context=context,
             kind=SpanKind.SERVER,
-            attributes={"key": "value"}
+            attributes={"key": "value"},
         )
         span.add_event("event1")
         span.end()
@@ -163,9 +155,7 @@ class TestTracer:
         tracer = Tracer("test_tracer")
 
         span = tracer.start_span(
-            "operation",
-            kind=SpanKind.CLIENT,
-            attributes={"key": "value"}
+            "operation", kind=SpanKind.CLIENT, attributes={"key": "value"}
         )
 
         assert span.name == "operation"
@@ -282,7 +272,7 @@ class TestSpanExporters:
         span = Span("test", context)
         span.end()
 
-        with patch('sys.stdout', new=StringIO()) as fake_stdout:
+        with patch("sys.stdout", new=StringIO()) as fake_stdout:
             exporter.on_end(span)
             output = fake_stdout.getvalue()
 
@@ -293,9 +283,7 @@ class TestSpanExporters:
     def test_batch_span_processor(self):
         mock_exporter = Mock(spec=SpanProcessor)
         processor = BatchSpanProcessor(
-            exporter=mock_exporter,
-            max_batch_size=2,
-            schedule_delay_millis=100
+            exporter=mock_exporter, max_batch_size=2, schedule_delay_millis=100
         )
 
         context = SpanContext("trace123", "span456")
@@ -324,7 +312,7 @@ class TestW3CTraceContextPropagator:
         context = SpanContext(
             trace_id="0123456789abcdef0123456789abcdef",
             span_id="0123456789abcdef",
-            trace_flags=1
+            trace_flags=1,
         )
         span = Span("test", context)
 
@@ -332,14 +320,17 @@ class TestW3CTraceContextPropagator:
         propagator.inject(span, carrier)
 
         assert "traceparent" in carrier
-        assert carrier["traceparent"] == "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"
+        assert (
+            carrier["traceparent"]
+            == "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"
+        )
 
     def test_extract_trace_context(self):
         propagator = W3CTraceContextPropagator()
 
         carrier = {
             "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
-            "tracestate": "vendor1=value1"
+            "tracestate": "vendor1=value1",
         }
 
         context = propagator.extract(carrier)
@@ -416,10 +407,7 @@ class TestSpanWithLinks:
         linked_context = SpanContext("linked_trace", "linked_span")
         link = Link(linked_context, {"relationship": "caused_by"})
 
-        span = tracer.start_span(
-            "operation",
-            links=[link]
-        )
+        span = tracer.start_span("operation", links=[link])
 
         assert len(span.links) == 1
         assert span.links[0].context.trace_id == "linked_trace"

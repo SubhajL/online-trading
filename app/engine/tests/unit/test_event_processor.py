@@ -13,23 +13,28 @@ from app.engine.core.event_processor import (
     EventProcessor,
     EventProcessingConfig,
     EventProcessingStats,
-    EventProcessingError
+    EventProcessingError,
 )
 from app.engine.core.subscription_manager import EventSubscription
-from app.engine.types import EventType, BaseEvent
+from app.engine.models import EventType, BaseEvent
 
 
 class TestEvent(BaseEvent):
     """Test event for processor tests."""
+
     test_data: str
 
     def __init__(self, test_data: str, **kwargs):
         super().__init__(
-            event_type=kwargs.get('event_type', EventType.CANDLE_UPDATE),
-            timestamp=kwargs.get('timestamp', datetime.utcnow()),
-            symbol=kwargs.get('symbol', 'BTCUSDT'),
+            event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
+            timestamp=kwargs.get("timestamp", datetime.utcnow()),
+            symbol=kwargs.get("symbol", "BTCUSDT"),
             test_data=test_data,
-            **{k: v for k, v in kwargs.items() if k not in ['event_type', 'timestamp', 'symbol', 'test_data']}
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k not in ["event_type", "timestamp", "symbol", "test_data"]
+            },
         )
 
 
@@ -47,7 +52,7 @@ class TestEventProcessingConfig:
             max_processing_time_seconds=60.0,
             max_concurrent_handlers=20,
             enable_metrics=False,
-            circuit_breaker_enabled=False
+            circuit_breaker_enabled=False,
         )
 
         assert config.max_processing_time_seconds == 60.0
@@ -80,7 +85,7 @@ class TestEventProcessor:
             handler=handler,
             event_types={EventType.CANDLE_UPDATE},
             priority=1,
-            max_retries=3
+            max_retries=3,
         )
 
         result = await processor.process_event(event, [subscription])
@@ -114,7 +119,7 @@ class TestEventProcessor:
                 handler=low_priority_handler,
                 event_types={EventType.CANDLE_UPDATE},
                 priority=1,
-                max_retries=3
+                max_retries=3,
             ),
             EventSubscription(
                 subscription_id="high",
@@ -122,7 +127,7 @@ class TestEventProcessor:
                 handler=high_priority_handler,
                 event_types={EventType.CANDLE_UPDATE},
                 priority=10,
-                max_retries=3
+                max_retries=3,
             ),
             EventSubscription(
                 subscription_id="medium",
@@ -130,8 +135,8 @@ class TestEventProcessor:
                 handler=medium_priority_handler,
                 event_types={EventType.CANDLE_UPDATE},
                 priority=5,
-                max_retries=3
-            )
+                max_retries=3,
+            ),
         ]
 
         result = await processor.process_event(event, subscriptions)
@@ -159,7 +164,7 @@ class TestEventProcessor:
                 handler=failing_handler,
                 event_types={EventType.CANDLE_UPDATE},
                 priority=2,
-                max_retries=3
+                max_retries=3,
             ),
             EventSubscription(
                 subscription_id="success",
@@ -167,8 +172,8 @@ class TestEventProcessor:
                 handler=success_handler,
                 event_types={EventType.CANDLE_UPDATE},
                 priority=1,
-                max_retries=3
-            )
+                max_retries=3,
+            ),
         ]
 
         result = await processor.process_event(event, subscriptions)
@@ -194,7 +199,7 @@ class TestEventProcessor:
             handler=slow_handler,
             event_types={EventType.CANDLE_UPDATE},
             priority=1,
-            max_retries=3
+            max_retries=3,
         )
 
         result = await processor.process_event(event, [subscription])
@@ -219,7 +224,7 @@ class TestEventProcessor:
             handler=sync_handler,
             event_types={EventType.CANDLE_UPDATE},
             priority=1,
-            max_retries=3
+            max_retries=3,
         )
 
         result = await processor.process_event(event, [subscription])
@@ -257,7 +262,7 @@ class TestEventProcessor:
                 handler=concurrent_handler,
                 event_types={EventType.CANDLE_UPDATE},
                 priority=1,
-                max_retries=3
+                max_retries=3,
             )
             for i in range(5)
         ]
@@ -284,7 +289,7 @@ class TestEventProcessor:
             handler=handler,
             event_types={EventType.CANDLE_UPDATE},
             priority=1,
-            max_retries=3
+            max_retries=3,
         )
 
         await processor.process_event(event, [subscription])
@@ -311,7 +316,7 @@ class TestEventProcessor:
             handler=handler,
             event_types={EventType.CANDLE_UPDATE},
             priority=1,
-            max_retries=3
+            max_retries=3,
         )
 
         await processor.process_event(event, [subscription])
@@ -336,7 +341,7 @@ class TestEventProcessor:
             handler=failing_handler,
             event_types={EventType.CANDLE_UPDATE},
             priority=1,
-            max_retries=3
+            max_retries=3,
         )
 
         # Process multiple events to trigger circuit breaker
@@ -361,7 +366,7 @@ class TestEventProcessor:
             handler=handler,
             event_types={EventType.CANDLE_UPDATE},
             priority=1,
-            max_retries=3
+            max_retries=3,
         )
 
         # Process some events
@@ -390,14 +395,14 @@ class TestEventProcessor:
             handler=handler,
             event_types={EventType.CANDLE_UPDATE},
             priority=1,
-            max_retries=3
+            max_retries=3,
         )
 
         result = await processor.process_event(event, [subscription])
 
-        assert hasattr(result, 'successful_handlers')
-        assert hasattr(result, 'failed_handlers')
-        assert hasattr(result, 'errors')
-        assert hasattr(result, 'processing_time')
-        assert hasattr(result, 'event_id')
+        assert hasattr(result, "successful_handlers")
+        assert hasattr(result, "failed_handlers")
+        assert hasattr(result, "errors")
+        assert hasattr(result, "processing_time")
+        assert hasattr(result, "event_id")
         assert result.event_id == event.event_id

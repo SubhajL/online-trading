@@ -37,14 +37,20 @@ class DecisionV1(BaseModel):
     symbol: str = Field(description="Trading pair symbol")
     decision_id: str = Field(description="Unique identifier for the decision")
     decision_time: str = Field(description="Time when the decision was made")
-    action: Literal["open_long", "open_short", "close_position", "no_action"] = Field(description="Trading action to take")
-    signal_ids: List[str] = Field(description="IDs of signals that contributed to this decision")
+    action: Literal["open_long", "open_short", "close_position", "no_action"] = Field(
+        description="Trading action to take"
+    )
+    signal_ids: List[str] = Field(
+        description="IDs of signals that contributed to this decision"
+    )
     entry_price: str | None = Field(description="Entry price for new positions")
     stop_loss: str | None = Field(description="Stop loss price")
     take_profit: str | None = Field(description="Take profit price")
     position_size: str | None = Field(description="Position size in base currency")
     risk_amount: str | None = Field(description="Risk amount in quote currency")
-    risk_percentage: float | None = Field(description="Risk as percentage of capital (0-1)")
+    risk_percentage: float | None = Field(
+        description="Risk as percentage of capital (0-1)"
+    )
     leverage: str | None = Field(description="Leverage to use (1 for spot)")
     confidence: float = Field(description="Decision confidence score (0-1)")
     reason: str = Field(description="Human-readable reason for the decision")
@@ -86,11 +92,19 @@ class FundingWindowV1(BaseModel):
     symbol: str = Field(description="Trading pair symbol")
     funding_time: str = Field(description="Time of the funding rate event")
     current_rate: float = Field(description="Current funding rate percentage")
-    predicted_rate: float | None = Field(description="Predicted next funding rate percentage")
-    window_start: str = Field(description="Start of the risk window (typically 30min before funding)")
-    window_end: str = Field(description="End of the risk window (typically 15min after funding)")
+    predicted_rate: float | None = Field(
+        description="Predicted next funding rate percentage"
+    )
+    window_start: str = Field(
+        description="Start of the risk window (typically 30min before funding)"
+    )
+    window_end: str = Field(
+        description="End of the risk window (typically 15min after funding)"
+    )
     is_active: bool = Field(description="Whether the risk window is currently active")
-    risk_level: Literal["low", "medium", "high"] = Field(description="Risk level based on funding rate magnitude")
+    risk_level: Literal["low", "medium", "high"] = Field(
+        description="Risk level based on funding rate magnitude"
+    )
 
     class Config:
         extra = "forbid"  # Equivalent to additionalProperties: false
@@ -104,7 +118,9 @@ class NewsWindowV1(BaseModel):
     symbol: str = Field(description="Trading pair symbol")
     event_id: str = Field(description="Unique identifier for the news event")
     event_name: str = Field(description="Name of the news event")
-    impact: Literal["low", "medium", "high"] = Field(description="Expected market impact level")
+    impact: Literal["low", "medium", "high"] = Field(
+        description="Expected market impact level"
+    )
     window_start: str = Field(description="Start of the risk window")
     window_end: str = Field(description="End of the risk window")
     is_active: bool = Field(description="Whether the risk window is currently active")
@@ -123,9 +139,19 @@ class OrderUpdateV1(BaseModel):
     client_order_id: str = Field(description="Our unique order identifier")
     decision_id: str = Field(description="ID of the decision that triggered this order")
     update_time: str = Field(description="Time of the status update")
-    status: Literal["pending", "new", "partially_filled", "filled", "cancelled", "rejected", "expired"] = Field(description="Current order status")
+    status: Literal[
+        "pending",
+        "new",
+        "partially_filled",
+        "filled",
+        "cancelled",
+        "rejected",
+        "expired",
+    ] = Field(description="Current order status")
     side: Literal["buy", "sell"] = Field(description="Order side")
-    order_type: Literal["market", "limit", "stop_market", "stop_limit"] = Field(description="Order type")
+    order_type: Literal["market", "limit", "stop_market", "stop_limit"] = Field(
+        description="Order type"
+    )
     price: str | None = Field(description="Order price (null for market orders)")
     stop_price: str | None = Field(description="Stop price (for stop orders)")
     quantity: str = Field(description="Order quantity")
@@ -134,7 +160,9 @@ class OrderUpdateV1(BaseModel):
     commission: float | None = Field(description="Commission paid")
     commission_asset: str | None = Field(description="Commission asset")
     error_message: str | None = Field(description="Error message if order failed")
-    is_reduce_only: bool = Field(description="Whether this is a reduce-only order (futures)")
+    is_reduce_only: bool = Field(
+        description="Whether this is a reduce-only order (futures)"
+    )
 
     class Config:
         extra = "forbid"  # Equivalent to additionalProperties: false
@@ -147,11 +175,17 @@ class RegimeV1(BaseModel):
     venue: str = Field(description="Exchange/venue name")
     symbol: str = Field(description="Trading pair symbol")
     timeframe: str = Field(description="Candle timeframe")
-    analysis_time: str = Field(description="Time when the regime analysis was performed")
-    regime_type: Literal["trending_up", "trending_down", "ranging", "volatile"] = Field(description="Current market regime classification")
+    analysis_time: str = Field(
+        description="Time when the regime analysis was performed"
+    )
+    regime_type: Literal["trending_up", "trending_down", "ranging", "volatile"] = Field(
+        description="Current market regime classification"
+    )
     strength: float = Field(description="Regime strength/confidence (0-1)")
     volatility: float = Field(description="Current volatility level")
-    trend_direction: float | None = Field(description="Trend direction score (-1 to 1, null if ranging)")
+    trend_direction: float | None = Field(
+        description="Trend direction score (-1 to 1, null if ranging)"
+    )
     lookback_periods: int = Field(description="Number of periods analyzed")
 
     class Config:
@@ -190,7 +224,9 @@ class SmcEventsV1(BaseModel):
     timeframe: str = Field(description="Candle timeframe")
     event_time: str = Field(description="Time when the event occurred")
     event_type: Literal["choch", "bos"] = Field(description="Type of SMC event")
-    direction: Literal["bullish", "bearish"] = Field(description="Direction of the structure break")
+    direction: Literal["bullish", "bearish"] = Field(
+        description="Direction of the structure break"
+    )
     price_level: str = Field(description="Price at which the event occurred")
     previous_pivot_price: str = Field(description="Price of the previous pivot point")
     previous_pivot_time: str = Field(description="Time of the previous pivot point")
@@ -209,8 +245,12 @@ class ZonesV1(BaseModel):
     symbol: str = Field(description="Trading pair symbol")
     timeframe: str = Field(description="Candle timeframe")
     zone_id: str = Field(description="Unique identifier for the zone")
-    zone_type: Literal["order_block", "fair_value_gap"] = Field(description="Type of SMC zone")
-    direction: Literal["demand", "supply"] = Field(description="Zone direction - demand (bullish) or supply (bearish)")
+    zone_type: Literal["order_block", "fair_value_gap"] = Field(
+        description="Type of SMC zone"
+    )
+    direction: Literal["demand", "supply"] = Field(
+        description="Zone direction - demand (bullish) or supply (bearish)"
+    )
     upper_bound: str = Field(description="Upper price boundary of the zone")
     lower_bound: str = Field(description="Lower price boundary of the zone")
     created_time: str = Field(description="Time when the zone was created")

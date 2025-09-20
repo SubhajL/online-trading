@@ -17,7 +17,7 @@ from ..types import (
     TradingDecision,
     OrderFilledEvent,
     PositionUpdateEvent,
-    EventType
+    EventType,
 )
 from ..bus import EventBus
 
@@ -27,7 +27,9 @@ class PaperBroker:
     Paper trading broker that simulates order execution.
     """
 
-    def __init__(self, event_bus: EventBus, initial_balance: Decimal = Decimal("10000")):
+    def __init__(
+        self, event_bus: EventBus, initial_balance: Decimal = Decimal("10000")
+    ):
         self.event_bus = event_bus
         self.balance = initial_balance
         self.available_balance = initial_balance
@@ -55,7 +57,7 @@ class PaperBroker:
             stop_price=decision.stop_loss,
             status=OrderStatus.NEW,
             created_at=datetime.utcnow(),
-            decision_id=decision.decision_id
+            decision_id=decision.decision_id,
         )
 
         self.orders[order.client_order_id] = order
@@ -100,15 +102,17 @@ class PaperBroker:
         await self._update_position(order, fill_price)
 
         # Emit fill event
-        await self.event_bus.publish(OrderFilledEvent(
-            event_type=EventType.ORDER_FILLED,
-            timestamp=datetime.utcnow(),
-            symbol=order.symbol,
-            order=order,
-            fill_price=fill_price,
-            fill_quantity=order.quantity,
-            fill_timestamp=datetime.utcnow()
-        ))
+        await self.event_bus.publish(
+            OrderFilledEvent(
+                event_type=EventType.ORDER_FILLED,
+                timestamp=datetime.utcnow(),
+                symbol=order.symbol,
+                order=order,
+                fill_price=fill_price,
+                fill_quantity=order.quantity,
+                fill_timestamp=datetime.utcnow(),
+            )
+        )
 
         self.order_history.append(order)
 
@@ -130,15 +134,17 @@ class PaperBroker:
                 margin_used=order.filled_quantity * fill_price,
                 opened_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
-                decision_id=order.decision_id
+                decision_id=order.decision_id,
             )
         else:
             position = self.positions[symbol]
 
             if order.side == position.side:
                 # Add to position
-                total_cost = (position.size * position.entry_price +
-                            order.filled_quantity * fill_price)
+                total_cost = (
+                    position.size * position.entry_price
+                    + order.filled_quantity * fill_price
+                )
                 position.size += order.filled_quantity
                 position.entry_price = total_cost / position.size
             else:
@@ -151,7 +157,9 @@ class PaperBroker:
                     return
                 else:
                     # Partial close
-                    partial_pnl = self._calculate_pnl(position, fill_price, order.filled_quantity)
+                    partial_pnl = self._calculate_pnl(
+                        position, fill_price, order.filled_quantity
+                    )
                     position.realized_pnl += partial_pnl
                     position.size -= order.filled_quantity
 
@@ -159,15 +167,18 @@ class PaperBroker:
 
         # Emit position update
         if symbol in self.positions:
-            await self.event_bus.publish(PositionUpdateEvent(
-                event_type=EventType.POSITION_UPDATE,
-                timestamp=datetime.utcnow(),
-                symbol=symbol,
-                position=self.positions[symbol]
-            ))
+            await self.event_bus.publish(
+                PositionUpdateEvent(
+                    event_type=EventType.POSITION_UPDATE,
+                    timestamp=datetime.utcnow(),
+                    symbol=symbol,
+                    position=self.positions[symbol],
+                )
+            )
 
-    def _calculate_pnl(self, position: Position, price: Decimal,
-                       quantity: Optional[Decimal] = None) -> Decimal:
+    def _calculate_pnl(
+        self, position: Position, price: Decimal, quantity: Optional[Decimal] = None
+    ) -> Decimal:
         """
         Calculate P&L for a position.
         """
@@ -193,12 +204,8 @@ class PaperBroker:
         """
         Get account summary including balance and positions.
         """
-        total_unrealized_pnl = sum(
-            p.unrealized_pnl for p in self.positions.values()
-        )
-        total_realized_pnl = sum(
-            p.realized_pnl for p in self.positions.values()
-        )
+        total_unrealized_pnl = sum(p.unrealized_pnl for p in self.positions.values())
+        total_realized_pnl = sum(p.realized_pnl for p in self.positions.values())
 
         return {
             "balance": self.balance,
@@ -207,8 +214,9 @@ class PaperBroker:
             "total_realized_pnl": total_realized_pnl,
             "equity": self.balance + total_unrealized_pnl + total_realized_pnl,
             "positions": len(self.positions),
-            "open_orders": len([o for o in self.orders.values()
-                              if o.status == OrderStatus.NEW])
+            "open_orders": len(
+                [o for o in self.orders.values() if o.status == OrderStatus.NEW]
+            ),
         }
 
     async def cancel_order(self, client_order_id: str) -> bool:
@@ -232,12 +240,14 @@ class PaperBroker:
             close_order = Order(
                 client_order_id=f"close_{uuid4().hex[:8]}",
                 symbol=symbol,
-                side=OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY,
+                side=(
+                    OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
+                ),
                 type=OrderType.MARKET,
                 quantity=position.size,
                 price=position.current_price,
                 status=OrderStatus.NEW,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
 
             await self._fill_market_order(close_order)

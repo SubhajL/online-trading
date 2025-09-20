@@ -14,19 +14,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from contracts.config import ContractConfig, ContractValidator, ValidationMode
 
 
-def validate_payload(schema_path: Path, payload_path: Path, config: ContractConfig) -> bool:
+def validate_payload(
+    schema_path: Path, payload_path: Path, config: ContractConfig
+) -> bool:
     """Validate a payload against a schema using configured validation mode"""
     # Check payload size
     payload_size = payload_path.stat().st_size
     if payload_size > config.max_payload_size:
-        print(f"ERROR: Payload size {payload_size} exceeds max {config.max_payload_size}")
+        print(
+            f"ERROR: Payload size {payload_size} exceeds max {config.max_payload_size}"
+        )
         return False
 
     # Load schema and payload
-    with open(schema_path, 'r') as f:
+    with open(schema_path, "r") as f:
         schema = json.load(f)
 
-    with open(payload_path, 'r') as f:
+    with open(payload_path, "r") as f:
         payload = json.load(f)
 
     # Validate using configured mode
@@ -43,10 +47,12 @@ def validate_payload(schema_path: Path, payload_path: Path, config: ContractConf
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Validate contract payloads')
-    parser.add_argument('schema', help='Path to JSON schema file')
-    parser.add_argument('payload', help='Path to payload file to validate')
-    parser.add_argument('--show-config', action='store_true', help='Show current configuration')
+    parser = argparse.ArgumentParser(description="Validate contract payloads")
+    parser.add_argument("schema", help="Path to JSON schema file")
+    parser.add_argument("payload", help="Path to payload file to validate")
+    parser.add_argument(
+        "--show-config", action="store_true", help="Show current configuration"
+    )
 
     args = parser.parse_args()
 

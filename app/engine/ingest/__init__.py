@@ -9,8 +9,4 @@ from .binance_ws import BinanceWebSocketClient
 from .binance_rest import BinanceRestClient
 from .ingest_service import IngestService
 
-__all__ = [
-    "BinanceWebSocketClient",
-    "BinanceRestClient",
-    "IngestService"
-]
+__all__ = ["BinanceWebSocketClient", "BinanceRestClient", "IngestService"]

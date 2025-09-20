@@ -20,7 +20,7 @@ from app.engine.core.database import (
     ConnectionError,
     TransactionError,
     OptimisticLockError,
-    PoolExhaustionError
+    PoolExhaustionError,
 )
 
 
@@ -32,7 +32,7 @@ class TestDatabaseConfig:
             pool_size=10,
             max_overflow=20,
             pool_timeout=30,
-            retry_attempts=3
+            retry_attempts=3,
         )
 
         assert config.postgres_url == "postgresql://user:pass@localhost:5432/db"
@@ -45,8 +45,7 @@ class TestDatabaseConfig:
     def test_database_config_validation(self):
         with pytest.raises(ValueError):
             DatabaseConfig(
-                postgres_url="invalid_url",
-                redis_url="redis://localhost:6379/0"
+                postgres_url="invalid_url", redis_url="redis://localhost:6379/0"
             )
 
 
@@ -57,13 +56,17 @@ class TestConnectionPool:
             postgres_url="postgresql://user:pass@localhost:5432/test",
             redis_url="redis://localhost:6379/1",
             pool_size=5,
-            max_overflow=10
+            max_overflow=10,
         )
 
     @pytest.mark.asyncio
     async def test_connection_pool_initialization(self, pool_config):
-        with patch('app.engine.core.database.asyncpg.create_pool', new_callable=AsyncMock) as mock_postgres, \
-             patch('app.engine.core.database.redis.from_url') as mock_redis:
+        with (
+            patch(
+                "app.engine.core.database.asyncpg.create_pool", new_callable=AsyncMock
+            ) as mock_postgres,
+            patch("app.engine.core.database.redis.from_url") as mock_redis,
+        ):
 
             # Mock postgres pool
             mock_postgres_pool = AsyncMock()
@@ -81,17 +84,18 @@ class TestConnectionPool:
                 min_size=pool_config.pool_size,
                 max_size=pool_config.pool_size + pool_config.max_overflow,
                 command_timeout=pool_config.pool_timeout,
-                server_settings={
-                    'jit': 'off',
-                    'application_name': 'trading_engine'
-                }
+                server_settings={"jit": "off", "application_name": "trading_engine"},
             )
             mock_redis.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_postgres_connection_success(self, pool_config):
-        with patch('app.engine.core.database.asyncpg.create_pool', new_callable=AsyncMock) as mock_create_pool, \
-             patch('app.engine.core.database.redis.from_url') as mock_redis:
+        with (
+            patch(
+                "app.engine.core.database.asyncpg.create_pool", new_callable=AsyncMock
+            ) as mock_create_pool,
+            patch("app.engine.core.database.redis.from_url") as mock_redis,
+        ):
 
             # Mock postgres pool
             mock_pool = AsyncMock()
@@ -114,8 +118,12 @@ class TestConnectionPool:
 
     @pytest.mark.asyncio
     async def test_get_postgres_connection_pool_exhaustion(self, pool_config):
-        with patch('app.engine.core.database.asyncpg.create_pool', new_callable=AsyncMock) as mock_create_pool, \
-             patch('app.engine.core.database.redis.from_url') as mock_redis:
+        with (
+            patch(
+                "app.engine.core.database.asyncpg.create_pool", new_callable=AsyncMock
+            ) as mock_create_pool,
+            patch("app.engine.core.database.redis.from_url") as mock_redis,
+        ):
 
             mock_pool = AsyncMock()
             mock_pool.acquire.side_effect = asyncpg.TooManyConnectionsError()
@@ -131,8 +139,12 @@ class TestConnectionPool:
 
     @pytest.mark.asyncio
     async def test_connection_health_check(self, pool_config):
-        with patch('app.engine.core.database.asyncpg.create_pool', new_callable=AsyncMock) as mock_create_pool, \
-             patch('app.engine.core.database.redis.from_url') as mock_redis_create:
+        with (
+            patch(
+                "app.engine.core.database.asyncpg.create_pool", new_callable=AsyncMock
+            ) as mock_create_pool,
+            patch("app.engine.core.database.redis.from_url") as mock_redis_create,
+        ):
 
             mock_postgres_pool = AsyncMock()
             mock_redis_pool = AsyncMock()
@@ -184,7 +196,9 @@ class TestTransactionContext:
         mock_connection.transaction.assert_called_once()
         mock_transaction.start.assert_called_once()
         mock_transaction.commit.assert_called_once()
-        mock_connection.execute.assert_called_once_with("INSERT INTO test VALUES ($1)", "value")
+        mock_connection.execute.assert_called_once_with(
+            "INSERT INTO test VALUES ($1)", "value"
+        )
 
     @pytest.mark.asyncio
     async def test_transaction_rollback_on_exception(self):
@@ -209,7 +223,9 @@ class TestTransactionContext:
         mock_connection.transaction.assert_called_once()
         mock_transaction.start.assert_called_once()
         mock_transaction.rollback.assert_called_once()
-        mock_connection.execute.assert_called_once_with("INSERT INTO test VALUES ($1)", "value")
+        mock_connection.execute.assert_called_once_with(
+            "INSERT INTO test VALUES ($1)", "value"
+        )
 
     @pytest.mark.asyncio
     async def test_transaction_deadlock_detection(self):
@@ -239,13 +255,17 @@ class TestOptimisticLockMixin:
         result = await optimistic_lock_mixin.update_with_version(
             mock_connection,
             "UPDATE test SET value = $1 WHERE id = $2 AND version = $3",
-            "new_value", 123, 1
+            "new_value",
+            123,
+            1,
         )
 
         assert result is True
         mock_connection.execute.assert_called_once_with(
             "UPDATE test SET value = $1 WHERE id = $2 AND version = $3",
-            "new_value", 123, 1
+            "new_value",
+            123,
+            1,
         )
 
     @pytest.mark.asyncio
@@ -257,7 +277,9 @@ class TestOptimisticLockMixin:
             await optimistic_lock_mixin.update_with_version(
                 mock_connection,
                 "UPDATE test SET value = $1 WHERE id = $2 AND version = $3",
-                "new_value", 123, 1
+                "new_value",
+                123,
+                1,
             )
 
 
@@ -268,12 +290,12 @@ class TestDatabaseManager:
             postgres_url="postgresql://test:test@localhost:5432/test",
             redis_url="redis://localhost:6379/1",
             pool_size=5,
-            max_overflow=10
+            max_overflow=10,
         )
 
     @pytest.mark.asyncio
     async def test_database_manager_initialization(self, db_config):
-        with patch('app.engine.core.database.ConnectionPool') as mock_pool_class:
+        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
 
@@ -285,7 +307,7 @@ class TestDatabaseManager:
 
     @pytest.mark.asyncio
     async def test_get_connection_with_retry(self, db_config):
-        with patch('app.engine.core.database.ConnectionPool') as mock_pool_class:
+        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
             mock_pool = AsyncMock()
 
             # Create async context managers for connections
@@ -297,7 +319,7 @@ class TestDatabaseManager:
             # First call fails, second succeeds
             mock_pool.get_postgres_connection.side_effect = [
                 ConnectionError("Connection failed"),
-                success_ctx
+                success_ctx,
             ]
             mock_pool_class.return_value = mock_pool
 
@@ -310,7 +332,7 @@ class TestDatabaseManager:
 
     @pytest.mark.asyncio
     async def test_transaction_context_manager(self, db_config):
-        with patch('app.engine.core.database.ConnectionPool') as mock_pool_class:
+        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
             mock_pool = AsyncMock()
             mock_connection = AsyncMock()
 
@@ -336,7 +358,7 @@ class TestDatabaseManager:
 
     @pytest.mark.asyncio
     async def test_concurrent_connection_handling(self, db_config):
-        with patch('app.engine.core.database.ConnectionPool') as mock_pool_class:
+        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
 
@@ -367,12 +389,9 @@ class TestDatabaseManager:
 
     @pytest.mark.asyncio
     async def test_health_check_aggregation(self, db_config):
-        with patch('app.engine.core.database.ConnectionPool') as mock_pool_class:
+        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
             mock_pool = AsyncMock()
-            mock_pool.health_check.return_value = {
-                "postgres": True,
-                "redis": False
-            }
+            mock_pool.health_check.return_value = {"postgres": True, "redis": False}
             mock_pool_class.return_value = mock_pool
 
             db_manager = DatabaseManager(db_config)
@@ -382,11 +401,13 @@ class TestDatabaseManager:
 
             assert health["postgres"] is True
             assert health["redis"] is False
-            assert health["overall"] is False  # Should be False if any component unhealthy
+            assert (
+                health["overall"] is False
+            )  # Should be False if any component unhealthy
 
     @pytest.mark.asyncio
     async def test_graceful_shutdown(self, db_config):
-        with patch('app.engine.core.database.ConnectionPool') as mock_pool_class:
+        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
 
@@ -405,10 +426,10 @@ class TestDatabaseManagerConcurrency:
             postgres_url="postgresql://test:test@localhost:5432/test",
             redis_url="redis://localhost:6379/1",
             pool_size=2,  # Small pool to test contention
-            max_overflow=1
+            max_overflow=1,
         )
 
-        with patch('app.engine.core.database.ConnectionPool') as mock_pool_class:
+        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
 

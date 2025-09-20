@@ -41,7 +41,7 @@ class BinanceWebSocketClient:
         testnet: bool = False,
         reconnect_interval: int = 5,
         ping_interval: int = 20,
-        ping_timeout: int = 10
+        ping_timeout: int = 10,
     ):
         self.base_url = base_url
         if testnet:
@@ -61,15 +61,19 @@ class BinanceWebSocketClient:
         self._event_bus = get_event_bus()
 
         # Stream message handlers
-        self._handlers.update({
-            "kline": self._handle_kline_message,
-            "24hrTicker": self._handle_ticker_message,
-            "!ticker": self._handle_all_tickers_message,
-            "depthUpdate": self._handle_depth_message,
-            "trade": self._handle_trade_message,
-        })
+        self._handlers.update(
+            {
+                "kline": self._handle_kline_message,
+                "24hrTicker": self._handle_ticker_message,
+                "!ticker": self._handle_all_tickers_message,
+                "depthUpdate": self._handle_depth_message,
+                "trade": self._handle_trade_message,
+            }
+        )
 
-        logger.info(f"BinanceWebSocketClient initialized with base_url: {self.base_url}")
+        logger.info(
+            f"BinanceWebSocketClient initialized with base_url: {self.base_url}"
+        )
 
     async def start(self):
         """Start the WebSocket client"""
@@ -121,7 +125,9 @@ class BinanceWebSocketClient:
         if self._websocket and not self._websocket.closed:
             await self._subscribe_streams(streams)
 
-        logger.info(f"Subscribed to klines for {len(symbols)} symbols and {len(timeframes)} timeframes")
+        logger.info(
+            f"Subscribed to klines for {len(symbols)} symbols and {len(timeframes)} timeframes"
+        )
 
     async def subscribe_ticker(self, symbols: List[str]):
         """
@@ -149,7 +155,9 @@ class BinanceWebSocketClient:
 
         logger.info("Subscribed to all market tickers")
 
-    async def subscribe_depth(self, symbols: List[str], levels: int = 20, update_speed: str = "1000ms"):
+    async def subscribe_depth(
+        self, symbols: List[str], levels: int = 20, update_speed: str = "1000ms"
+    ):
         """
         Subscribe to partial book depth streams
 
@@ -158,7 +166,9 @@ class BinanceWebSocketClient:
             levels: Number of price levels (5, 10, or 20)
             update_speed: Update speed (1000ms or 100ms)
         """
-        streams = [f"{symbol.lower()}@depth{levels}@{update_speed}" for symbol in symbols]
+        streams = [
+            f"{symbol.lower()}@depth{levels}@{update_speed}" for symbol in symbols
+        ]
         self._subscriptions.update(streams)
         self._symbols.update(symbols)
 
@@ -227,7 +237,7 @@ class BinanceWebSocketClient:
                 ping_interval=self.ping_interval,
                 ping_timeout=self.ping_timeout,
                 max_size=2**20,  # 1MB max message size
-                compression=None  # Disable compression for lower latency
+                compression=None,  # Disable compression for lower latency
             ) as websocket:
                 self._websocket = websocket
                 logger.info("WebSocket connected successfully")
@@ -302,7 +312,7 @@ class BinanceWebSocketClient:
                 quote_volume=Decimal(kline_data["q"]),
                 trades=int(kline_data["n"]),
                 taker_buy_base_volume=Decimal(kline_data["V"]),
-                taker_buy_quote_volume=Decimal(kline_data["Q"])
+                taker_buy_quote_volume=Decimal(kline_data["Q"]),
             )
 
             # Create and publish candle update event
@@ -310,12 +320,14 @@ class BinanceWebSocketClient:
                 timestamp=datetime.utcnow(),
                 symbol=candle.symbol,
                 timeframe=candle.timeframe,
-                candle=candle
+                candle=candle,
             )
 
             await self._event_bus.publish(event)
 
-            logger.debug(f"Published candle update for {candle.symbol} {candle.timeframe}")
+            logger.debug(
+                f"Published candle update for {candle.symbol} {candle.timeframe}"
+            )
 
         except Exception as e:
             logger.error(f"Error handling kline message: {e}")
@@ -355,7 +367,9 @@ class BinanceWebSocketClient:
             bids = data["b"]
             asks = data["a"]
 
-            logger.debug(f"Depth update for {symbol}: {len(bids)} bids, {len(asks)} asks")
+            logger.debug(
+                f"Depth update for {symbol}: {len(bids)} bids, {len(asks)} asks"
+            )
 
         except Exception as e:
             logger.error(f"Error handling depth message: {e}")
@@ -368,7 +382,9 @@ class BinanceWebSocketClient:
             quantity = Decimal(data["q"])
             is_buyer_maker = data["m"]
 
-            logger.debug(f"Trade: {symbol} {quantity} @ {price} (buyer_maker: {is_buyer_maker})")
+            logger.debug(
+                f"Trade: {symbol} {quantity} @ {price} (buyer_maker: {is_buyer_maker})"
+            )
 
         except Exception as e:
             logger.error(f"Error handling trade message: {e}")
@@ -378,11 +394,7 @@ class BinanceWebSocketClient:
         if not streams:
             return
 
-        subscribe_msg = {
-            "method": "SUBSCRIBE",
-            "params": streams,
-            "id": 1
-        }
+        subscribe_msg = {"method": "SUBSCRIBE", "params": streams, "id": 1}
 
         try:
             await self._websocket.send(json.dumps(subscribe_msg))
@@ -395,11 +407,7 @@ class BinanceWebSocketClient:
         if not streams:
             return
 
-        unsubscribe_msg = {
-            "method": "UNSUBSCRIBE",
-            "params": streams,
-            "id": 2
-        }
+        unsubscribe_msg = {"method": "UNSUBSCRIBE", "params": streams, "id": 2}
 
         try:
             await self._websocket.send(json.dumps(unsubscribe_msg))
@@ -427,5 +435,5 @@ class BinanceWebSocketClient:
             "subscriptions": len(self._subscriptions),
             "symbols": len(self._symbols),
             "timeframes": len(self._timeframes),
-            "running": self._running
+            "running": self._running,
         }

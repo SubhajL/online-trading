@@ -5,7 +5,12 @@ from pathlib import Path
 
 
 def load_schema(name: str) -> dict:
-    schema_path = Path(__file__).parent.parent.parent / "contracts" / "jsonschema" / f"{name}.schema.json"
+    schema_path = (
+        Path(__file__).parent.parent.parent
+        / "contracts"
+        / "jsonschema"
+        / f"{name}.schema.json"
+    )
     with open(schema_path) as f:
         return json.load(f)
 
@@ -31,7 +36,7 @@ class TestFeaturesV1Schema:
             "bb_upper": 43000.00,
             "bb_middle": 42000.00,
             "bb_lower": 41000.00,
-            "volume_ma": 1500.50
+            "volume_ma": 1500.50,
         }
 
         # Should not raise
@@ -58,7 +63,7 @@ class TestFeaturesV1Schema:
             "bb_upper": None,
             "bb_middle": None,
             "bb_lower": None,
-            "volume_ma": None
+            "volume_ma": None,
         }
 
         # Should not raise
@@ -85,7 +90,7 @@ class TestFeaturesV1Schema:
             "bb_upper": 43000.00,
             "bb_middle": 42000.00,
             "bb_lower": 41000.00,
-            "volume_ma": 1500.50
+            "volume_ma": 1500.50,
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -113,7 +118,7 @@ class TestFeaturesV1Schema:
             "bb_upper": 43000.00,
             "bb_middle": 42000.00,
             "bb_lower": 41000.00,
-            "volume_ma": 1500.50
+            "volume_ma": 1500.50,
         }
 
         with pytest.raises(ValidationError) as exc_info:
@@ -141,7 +146,7 @@ class TestFeaturesV1Schema:
             "bb_upper": 43000.00,
             "bb_middle": 42000.00,
             "bb_lower": 41000.00,
-            "volume_ma": 1500.50
+            "volume_ma": 1500.50,
         }
 
         with pytest.raises(ValidationError) as exc_info:

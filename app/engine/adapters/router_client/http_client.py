@@ -39,9 +39,9 @@ class RouterHTTPClient:
         api_key: Optional[str] = None,
         timeout: int = 30,
         retry_attempts: int = 3,
-        retry_delay: float = 1.0
+        retry_delay: float = 1.0,
     ):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
         self.retry_attempts = retry_attempts
@@ -85,7 +85,7 @@ class RouterHTTPClient:
         """Get HTTP headers for requests"""
         headers = {
             "Content-Type": "application/json",
-            "User-Agent": "TradingEngine/1.0"
+            "User-Agent": "TradingEngine/1.0",
         }
 
         if self.api_key:
@@ -98,7 +98,7 @@ class RouterHTTPClient:
         method: str,
         endpoint: str,
         data: Optional[Dict] = None,
-        params: Optional[Dict] = None
+        params: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """Make HTTP request with retry logic"""
         self._ensure_initialized()
@@ -109,11 +109,7 @@ class RouterHTTPClient:
         for attempt in range(self.retry_attempts):
             try:
                 async with self._session.request(
-                    method=method,
-                    url=url,
-                    json=data,
-                    params=params,
-                    headers=headers
+                    method=method, url=url, json=data, params=params, headers=headers
                 ) as response:
                     if response.status == 200:
                         return await response.json()
@@ -126,7 +122,9 @@ class RouterHTTPClient:
                         return {"error": error_text, "status": response.status}
 
             except asyncio.TimeoutError:
-                logger.warning(f"Request timeout for {method} {endpoint} (attempt {attempt + 1})")
+                logger.warning(
+                    f"Request timeout for {method} {endpoint} (attempt {attempt + 1})"
+                )
                 if attempt == self.retry_attempts - 1:
                     raise
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
@@ -137,7 +135,9 @@ class RouterHTTPClient:
                     raise
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
 
-        raise Exception(f"Failed to complete request after {self.retry_attempts} attempts")
+        raise Exception(
+            f"Failed to complete request after {self.retry_attempts} attempts"
+        )
 
     # ============================================================================
     # Order Management
@@ -153,10 +153,12 @@ class RouterHTTPClient:
                 "quantity": str(decision.quantity) if decision.quantity else None,
                 "price": str(decision.entry_price) if decision.entry_price else None,
                 "stop_loss": str(decision.stop_loss) if decision.stop_loss else None,
-                "take_profit": str(decision.take_profit) if decision.take_profit else None,
+                "take_profit": (
+                    str(decision.take_profit) if decision.take_profit else None
+                ),
                 "decision_id": str(decision.decision_id),
                 "timestamp": decision.timestamp.isoformat(),
-                "reasoning": decision.reasoning
+                "reasoning": decision.reasoning,
             }
 
             # Remove None values
@@ -190,7 +192,9 @@ class RouterHTTPClient:
             logger.error(f"Error canceling order: {e}")
             return False
 
-    async def get_open_orders(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_open_orders(
+        self, symbol: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get open orders"""
         try:
             params = {}
@@ -211,9 +215,7 @@ class RouterHTTPClient:
             return []
 
     async def get_order_history(
-        self,
-        symbol: Optional[str] = None,
-        limit: int = 100
+        self, symbol: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Get order history"""
         try:
@@ -258,7 +260,9 @@ class RouterHTTPClient:
             logger.error(f"Error getting positions: {e}")
             return []
 
-    async def close_position(self, symbol: str, quantity: Optional[Decimal] = None) -> bool:
+    async def close_position(
+        self, symbol: str, quantity: Optional[Decimal] = None
+    ) -> bool:
         """Close a position"""
         try:
             data = {"symbol": symbol}
@@ -276,7 +280,7 @@ class RouterHTTPClient:
         self,
         symbol: str,
         stop_loss: Optional[Decimal] = None,
-        take_profit: Optional[Decimal] = None
+        take_profit: Optional[Decimal] = None,
     ) -> bool:
         """Update position stop loss and take profit"""
         try:
@@ -349,9 +353,11 @@ class RouterHTTPClient:
                 "symbol": decision.symbol,
                 "action": decision.action,
                 "quantity": str(decision.quantity) if decision.quantity else None,
-                "entry_price": str(decision.entry_price) if decision.entry_price else None,
+                "entry_price": (
+                    str(decision.entry_price) if decision.entry_price else None
+                ),
                 "stop_loss": str(decision.stop_loss) if decision.stop_loss else None,
-                "confidence": str(decision.confidence)
+                "confidence": str(decision.confidence),
             }
 
             # Remove None values
@@ -416,7 +422,7 @@ class RouterHTTPClient:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
     async def get_service_status(self) -> Dict[str, Any]:
@@ -430,7 +436,7 @@ class RouterHTTPClient:
             return {
                 "status": "error",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
     # ============================================================================

@@ -81,7 +81,7 @@ class TechnicalIndicatorsCalculator:
         sma_values = [None] * (period - 1)
 
         for i in range(period - 1, len(values)):
-            window = values[i - period + 1:i + 1]
+            window = values[i - period + 1 : i + 1]
             avg = sum(window) / len(window)
             sma_values.append(avg)
 
@@ -105,11 +105,11 @@ class TechnicalIndicatorsCalculator:
         # Calculate price changes
         deltas = []
         for i in range(1, len(values)):
-            deltas.append(values[i] - values[i-1])
+            deltas.append(values[i] - values[i - 1])
 
         # Separate gains and losses
-        gains = [max(delta, Decimal('0')) for delta in deltas]
-        losses = [abs(min(delta, Decimal('0'))) for delta in deltas]
+        gains = [max(delta, Decimal("0")) for delta in deltas]
+        losses = [abs(min(delta, Decimal("0"))) for delta in deltas]
 
         # Calculate initial averages
         avg_gain = sum(gains[:period]) / period
@@ -124,10 +124,10 @@ class TechnicalIndicatorsCalculator:
             avg_loss = (avg_loss * (period - 1) + losses[i]) / period
 
             if avg_loss == 0:
-                rsi = Decimal('100')
+                rsi = Decimal("100")
             else:
                 rs = avg_gain / avg_loss
-                rsi = Decimal('100') - (Decimal('100') / (Decimal('1') + rs))
+                rsi = Decimal("100") - (Decimal("100") / (Decimal("1") + rs))
 
             rsi_values.append(rsi)
 
@@ -138,8 +138,10 @@ class TechnicalIndicatorsCalculator:
         values: List[Decimal],
         fast_period: int = 12,
         slow_period: int = 26,
-        signal_period: int = 9
-    ) -> Tuple[List[Optional[Decimal]], List[Optional[Decimal]], List[Optional[Decimal]]]:
+        signal_period: int = 9,
+    ) -> Tuple[
+        List[Optional[Decimal]], List[Optional[Decimal]], List[Optional[Decimal]]
+    ]:
         """
         Calculate MACD (Moving Average Convergence Divergence)
 
@@ -174,7 +176,9 @@ class TechnicalIndicatorsCalculator:
             signal_line = [None] * len(values)
             histogram = [None] * len(values)
         else:
-            signal_ema = TechnicalIndicatorsCalculator.ema(macd_values_for_signal, signal_period)
+            signal_ema = TechnicalIndicatorsCalculator.ema(
+                macd_values_for_signal, signal_period
+            )
 
             # Align signal line with MACD line
             signal_line = [None] * len(values)
@@ -216,7 +220,7 @@ class TechnicalIndicatorsCalculator:
                 # First candle: TR = High - Low
                 tr = candle.high_price - candle.low_price
             else:
-                prev_close = candles[i-1].close_price
+                prev_close = candles[i - 1].close_price
                 tr1 = candle.high_price - candle.low_price
                 tr2 = abs(candle.high_price - prev_close)
                 tr3 = abs(candle.low_price - prev_close)
@@ -240,10 +244,10 @@ class TechnicalIndicatorsCalculator:
 
     @staticmethod
     def bollinger_bands(
-        values: List[Decimal],
-        period: int = 20,
-        std_dev: float = 2.0
-    ) -> Tuple[List[Optional[Decimal]], List[Optional[Decimal]], List[Optional[Decimal]]]:
+        values: List[Decimal], period: int = 20, std_dev: float = 2.0
+    ) -> Tuple[
+        List[Optional[Decimal]], List[Optional[Decimal]], List[Optional[Decimal]]
+    ]:
         """
         Calculate Bollinger Bands
 
@@ -272,13 +276,15 @@ class TechnicalIndicatorsCalculator:
             else:
                 # Calculate standard deviation for the period
                 start_idx = i - period + 1
-                window = values[start_idx:i + 1]
+                window = values[start_idx : i + 1]
 
                 # Convert to float for std calculation
                 window_float = [float(v) for v in window]
                 mean_val = sum(window_float) / len(window_float)
-                variance = sum((x - mean_val) ** 2 for x in window_float) / len(window_float)
-                std = variance ** 0.5
+                variance = sum((x - mean_val) ** 2 for x in window_float) / len(
+                    window_float
+                )
+                std = variance**0.5
 
                 upper_band.append(middle_band[i] + Decimal(str(std_dev * std)))
                 lower_band.append(middle_band[i] - Decimal(str(std_dev * std)))
@@ -287,9 +293,7 @@ class TechnicalIndicatorsCalculator:
 
     @staticmethod
     def bb_percent(
-        price: Decimal,
-        upper_band: Decimal,
-        lower_band: Decimal
+        price: Decimal, upper_band: Decimal, lower_band: Decimal
     ) -> Optional[Decimal]:
         """
         Calculate Bollinger Band Percent (%B)
@@ -308,7 +312,9 @@ class TechnicalIndicatorsCalculator:
         return (price - lower_band) / (upper_band - lower_band)
 
     @staticmethod
-    def bb_width(upper_band: Decimal, lower_band: Decimal, middle_band: Decimal) -> Decimal:
+    def bb_width(
+        upper_band: Decimal, lower_band: Decimal, middle_band: Decimal
+    ) -> Decimal:
         """
         Calculate Bollinger Band Width
 
@@ -331,7 +337,7 @@ class TechnicalIndicatorsCalculator:
         macd_params: Tuple[int, int, int] = (12, 26, 9),
         atr_period: int = 14,
         bb_period: int = 20,
-        bb_std_dev: float = 2.0
+        bb_std_dev: float = 2.0,
     ) -> TechnicalIndicators:
         """
         Calculate all technical indicators for the latest candle
@@ -358,26 +364,34 @@ class TechnicalIndicatorsCalculator:
         indicators = TechnicalIndicators(
             symbol=latest_candle.symbol,
             timeframe=latest_candle.timeframe,
-            timestamp=latest_candle.close_time
+            timestamp=latest_candle.close_time,
         )
 
         try:
             # Calculate EMAs
             if 9 in ema_periods:
                 ema_9_values = cls.ema(close_prices, 9)
-                indicators.ema_9 = ema_9_values[-1] if ema_9_values[-1] is not None else None
+                indicators.ema_9 = (
+                    ema_9_values[-1] if ema_9_values[-1] is not None else None
+                )
 
             if 21 in ema_periods:
                 ema_21_values = cls.ema(close_prices, 21)
-                indicators.ema_21 = ema_21_values[-1] if ema_21_values[-1] is not None else None
+                indicators.ema_21 = (
+                    ema_21_values[-1] if ema_21_values[-1] is not None else None
+                )
 
             if 50 in ema_periods:
                 ema_50_values = cls.ema(close_prices, 50)
-                indicators.ema_50 = ema_50_values[-1] if ema_50_values[-1] is not None else None
+                indicators.ema_50 = (
+                    ema_50_values[-1] if ema_50_values[-1] is not None else None
+                )
 
             if 200 in ema_periods:
                 ema_200_values = cls.ema(close_prices, 200)
-                indicators.ema_200 = ema_200_values[-1] if ema_200_values[-1] is not None else None
+                indicators.ema_200 = (
+                    ema_200_values[-1] if ema_200_values[-1] is not None else None
+                )
 
             # Calculate RSI
             rsi_values = cls.rsi(close_prices, rsi_period)
@@ -385,14 +399,15 @@ class TechnicalIndicatorsCalculator:
 
             # Calculate MACD
             macd_line, signal_line, histogram = cls.macd(
-                close_prices,
-                macd_params[0],
-                macd_params[1],
-                macd_params[2]
+                close_prices, macd_params[0], macd_params[1], macd_params[2]
             )
             indicators.macd_line = macd_line[-1] if macd_line[-1] is not None else None
-            indicators.macd_signal = signal_line[-1] if signal_line[-1] is not None else None
-            indicators.macd_histogram = histogram[-1] if histogram[-1] is not None else None
+            indicators.macd_signal = (
+                signal_line[-1] if signal_line[-1] is not None else None
+            )
+            indicators.macd_histogram = (
+                histogram[-1] if histogram[-1] is not None else None
+            )
 
             # Calculate ATR
             atr_values = cls.atr(candles, atr_period)
@@ -400,25 +415,28 @@ class TechnicalIndicatorsCalculator:
 
             # Calculate Bollinger Bands
             upper_band, middle_band, lower_band = cls.bollinger_bands(
-                close_prices,
-                bb_period,
-                bb_std_dev
+                close_prices, bb_period, bb_std_dev
             )
             indicators.bb_upper = upper_band[-1] if upper_band[-1] is not None else None
-            indicators.bb_middle = middle_band[-1] if middle_band[-1] is not None else None
+            indicators.bb_middle = (
+                middle_band[-1] if middle_band[-1] is not None else None
+            )
             indicators.bb_lower = lower_band[-1] if lower_band[-1] is not None else None
 
             # Calculate BB width and percent
-            if all(v is not None for v in [indicators.bb_upper, indicators.bb_middle, indicators.bb_lower]):
-                indicators.bb_width = cls.bb_width(
+            if all(
+                v is not None
+                for v in [
                     indicators.bb_upper,
+                    indicators.bb_middle,
                     indicators.bb_lower,
-                    indicators.bb_middle
+                ]
+            ):
+                indicators.bb_width = cls.bb_width(
+                    indicators.bb_upper, indicators.bb_lower, indicators.bb_middle
                 )
                 indicators.bb_percent = cls.bb_percent(
-                    latest_candle.close_price,
-                    indicators.bb_upper,
-                    indicators.bb_lower
+                    latest_candle.close_price, indicators.bb_upper, indicators.bb_lower
                 )
 
         except Exception as e:

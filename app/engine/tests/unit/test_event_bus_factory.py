@@ -10,18 +10,19 @@ from unittest.mock import Mock, AsyncMock
 from app.engine.core.event_bus_factory import (
     EventBusFactory,
     EventBusConfig,
-    InvalidConfigurationError
+    InvalidConfigurationError,
 )
 from app.engine.core.interfaces import (
     EventBusInterface,
     SubscriptionManagerInterface,
-    EventProcessorInterface
+    EventProcessorInterface,
 )
 
 
 @dataclass
 class TestConfig:
     """Test configuration for factory."""
+
     max_queue_size: int = 1000
     num_workers: int = 4
     subscription_limit: int = 500
@@ -42,7 +43,7 @@ class TestEventBusConfig:
             max_queue_size=5000,
             num_workers=8,
             enable_persistence=True,
-            dead_letter_queue_size=500
+            dead_letter_queue_size=500,
         )
 
         assert config.max_queue_size == 5000
@@ -80,17 +81,14 @@ class TestEventBusFactory:
         event_bus = factory.create_event_bus()
 
         assert event_bus is not None
-        assert hasattr(event_bus, 'start')
-        assert hasattr(event_bus, 'stop')
-        assert hasattr(event_bus, 'publish')
-        assert hasattr(event_bus, 'subscribe')
+        assert hasattr(event_bus, "start")
+        assert hasattr(event_bus, "stop")
+        assert hasattr(event_bus, "publish")
+        assert hasattr(event_bus, "subscribe")
 
     def test_create_event_bus_with_custom_config(self):
         factory = EventBusFactory()
-        config = EventBusConfig(
-            max_queue_size=5000,
-            num_workers=2
-        )
+        config = EventBusConfig(max_queue_size=5000, num_workers=2)
 
         event_bus = factory.create_with_config(config)
 
@@ -106,8 +104,8 @@ class TestEventBusFactory:
 
         assert event_bus is not None
         # Should have mock dependencies
-        assert hasattr(event_bus._subscription_manager, '_is_mock')
-        assert hasattr(event_bus._event_processor, '_is_mock')
+        assert hasattr(event_bus._subscription_manager, "_is_mock")
+        assert hasattr(event_bus._event_processor, "_is_mock")
 
     def test_create_with_custom_dependencies(self):
         factory = EventBusFactory()
@@ -120,8 +118,7 @@ class TestEventBusFactory:
         event_processor._is_mock = True
 
         event_bus = factory.create_with_dependencies(
-            subscription_manager=subscription_manager,
-            event_processor=event_processor
+            subscription_manager=subscription_manager, event_processor=event_processor
         )
 
         assert event_bus is not None
@@ -149,10 +146,7 @@ class TestEventBusFactory:
     def test_factory_with_custom_subscription_config(self):
         factory = EventBusFactory()
         config = EventBusConfig(
-            subscription_config={
-                'max_subscriptions': 100,
-                'default_priority': 5
-            }
+            subscription_config={"max_subscriptions": 100, "default_priority": 5}
         )
 
         event_bus = factory.create_with_config(config)
@@ -166,8 +160,8 @@ class TestEventBusFactory:
         factory = EventBusFactory()
         config = EventBusConfig(
             processing_config={
-                'max_processing_time_seconds': 60.0,
-                'max_concurrent_handlers': 20
+                "max_processing_time_seconds": 60.0,
+                "max_concurrent_handlers": 20,
             }
         )
 
@@ -190,7 +184,7 @@ class TestEventBusFactory:
         with pytest.raises(InvalidConfigurationError) as exc_info:
             factory.create_with_dependencies(
                 subscription_manager=invalid_manager,
-                event_processor=Mock(spec=EventProcessorInterface)
+                event_processor=Mock(spec=EventProcessorInterface),
             )
 
         assert "Invalid subscription manager" in str(exc_info.value)

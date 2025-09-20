@@ -38,7 +38,7 @@ class IngestService:
         timeframes: List[TimeFrame],
         backfill_days: int = 30,
         enable_realtime: bool = True,
-        enable_backfill: bool = True
+        enable_backfill: bool = True,
     ):
         self.symbols = symbols
         self.timeframes = timeframes
@@ -48,16 +48,16 @@ class IngestService:
 
         # Initialize clients
         self.ws_client = BinanceWebSocketClient(
-            testnet=binance_config.get('testnet', True),
-            base_url=binance_config.get('ws_base_url'),
-            reconnect_interval=binance_config.get('reconnect_interval', 5)
+            testnet=binance_config.get("testnet", True),
+            base_url=binance_config.get("ws_base_url"),
+            reconnect_interval=binance_config.get("reconnect_interval", 5),
         )
 
         self.rest_client = BinanceRestClient(
-            api_key=binance_config['api_key'],
-            api_secret=binance_config['api_secret'],
-            testnet=binance_config.get('testnet', True),
-            base_url=binance_config.get('base_url')
+            api_key=binance_config["api_key"],
+            api_secret=binance_config["api_secret"],
+            testnet=binance_config.get("testnet", True),
+            base_url=binance_config.get("base_url"),
         )
 
         self._event_bus = get_event_bus()
@@ -160,12 +160,12 @@ class IngestService:
 
             # Get historical data
             candles = await self.rest_client.get_historical_data(
-                symbol=symbol,
-                timeframe=timeframe,
-                days_back=self.backfill_days
+                symbol=symbol, timeframe=timeframe, days_back=self.backfill_days
             )
 
-            logger.info(f"Retrieved {len(candles)} candles for {symbol} {timeframe.value}")
+            logger.info(
+                f"Retrieved {len(candles)} candles for {symbol} {timeframe.value}"
+            )
 
             # Publish historical candles as events
             for candle in candles:
@@ -173,9 +173,9 @@ class IngestService:
                     timestamp=datetime.utcnow(),
                     symbol=symbol,
                     timeframe=timeframe,
-                    candle=candle
+                    candle=candle,
                 )
-                event.metadata['is_historical'] = True
+                event.metadata["is_historical"] = True
                 await self._event_bus.publish(event)
 
                 # Update latest candle tracking
@@ -266,7 +266,9 @@ class IngestService:
 
         logger.info(f"Added timeframe {timeframe.value} to ingestion")
 
-    async def get_latest_candle(self, symbol: str, timeframe: TimeFrame) -> Optional[Candle]:
+    async def get_latest_candle(
+        self, symbol: str, timeframe: TimeFrame
+    ) -> Optional[Candle]:
         """Get the latest candle for a symbol and timeframe"""
         return self._latest_candles.get(symbol, {}).get(timeframe)
 
@@ -285,15 +287,15 @@ class IngestService:
         """Fill detected gaps in historical data"""
         for gap in gaps:
             try:
-                start_time = gap['start_time']
-                end_time = gap['end_time']
+                start_time = gap["start_time"]
+                end_time = gap["end_time"]
 
                 # Fetch missing data
                 candles = await self.rest_client.get_klines(
                     symbol=symbol,
                     timeframe=timeframe,
                     start_time=start_time,
-                    end_time=end_time
+                    end_time=end_time,
                 )
 
                 # Publish gap-fill candles
@@ -302,12 +304,14 @@ class IngestService:
                         timestamp=datetime.utcnow(),
                         symbol=symbol,
                         timeframe=timeframe,
-                        candle=candle
+                        candle=candle,
                     )
-                    event.metadata['is_gap_fill'] = True
+                    event.metadata["is_gap_fill"] = True
                     await self._event_bus.publish(event)
 
-                logger.info(f"Filled gap for {symbol} {timeframe.value}: {len(candles)} candles")
+                logger.info(
+                    f"Filled gap for {symbol} {timeframe.value}: {len(candles)} candles"
+                )
 
             except Exception as e:
                 logger.error(f"Error filling gap for {symbol} {timeframe.value}: {e}")
@@ -323,12 +327,18 @@ class IngestService:
         for symbol in self.symbols:
             progress[symbol] = {}
             for timeframe in self.timeframes:
-                progress[symbol][timeframe.value] = self.is_backfill_complete(symbol, timeframe)
+                progress[symbol][timeframe.value] = self.is_backfill_complete(
+                    symbol, timeframe
+                )
         return progress
 
     async def health_check(self) -> Dict[str, any]:
         """Get health status of the ingestion service"""
-        ws_health = await self.ws_client.health_check() if self.enable_realtime else {"status": "disabled"}
+        ws_health = (
+            await self.ws_client.health_check()
+            if self.enable_realtime
+            else {"status": "disabled"}
+        )
         rest_health = await self.rest_client.health_check()
 
         return {
@@ -339,5 +349,5 @@ class IngestService:
             "backfill_complete": len(self._backfill_complete),
             "websocket": ws_health,
             "rest_api": rest_health,
-            "latest_candles": len(self._latest_candles)
+            "latest_candles": len(self._latest_candles),
         }

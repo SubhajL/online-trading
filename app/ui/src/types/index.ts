@@ -115,3 +115,21 @@ export type Indicator = {
   data: { time: number; value: number }[]
   color?: string
 }
+
+export type Balance = {
+  asset: string
+  free: number
+  locked: number
+  total: number
+  venue: Venue
+  usdValue?: number
+}
+
+export type OrderFormValues = {
+  symbol: string
+  side: OrderSide
+  type: OrderType
+  quantity: number
+  price?: number
+  stopPrice?: number
+}

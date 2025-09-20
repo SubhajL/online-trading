@@ -11,25 +11,30 @@ from unittest.mock import Mock, AsyncMock, patch
 from app.engine.core.event_bus_factory import EventBusConfig
 from app.engine.core.interfaces import (
     SubscriptionManagerInterface,
-    EventProcessorInterface
+    EventProcessorInterface,
 )
 from app.engine.core.subscription_manager import EventSubscription
 from app.engine.core.event_processor import EventProcessingResult, EventProcessingStats
-from app.engine.types import EventType, BaseEvent
+from app.engine.models import EventType, BaseEvent
 from uuid import uuid4
 
 
 class TestEvent(BaseEvent):
     """Test event for EventBus tests."""
+
     test_data: str
 
     def __init__(self, test_data: str, **kwargs):
         super().__init__(
-            event_type=kwargs.get('event_type', EventType.CANDLE_UPDATE),
-            timestamp=kwargs.get('timestamp', datetime.utcnow()),
-            symbol=kwargs.get('symbol', 'BTCUSDT'),
+            event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
+            timestamp=kwargs.get("timestamp", datetime.utcnow()),
+            symbol=kwargs.get("symbol", "BTCUSDT"),
             test_data=test_data,
-            **{k: v for k, v in kwargs.items() if k not in ['event_type', 'timestamp', 'symbol', 'test_data']}
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k not in ["event_type", "timestamp", "symbol", "test_data"]
+            },
         )
 
 
@@ -46,7 +51,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=config
+            config=config,
         )
 
         assert event_bus._subscription_manager is subscription_manager
@@ -65,7 +70,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         event = TestEvent(test_data="test")
@@ -95,7 +100,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         async def test_handler(event: BaseEvent):
@@ -106,7 +111,7 @@ class TestRefactoredEventBus:
             handler=test_handler,
             event_types=[EventType.CANDLE_UPDATE],
             priority=5,
-            max_retries=3
+            max_retries=3,
         )
 
         assert subscription_id == "test-sub-id"
@@ -115,7 +120,7 @@ class TestRefactoredEventBus:
             handler=test_handler,
             event_types=[EventType.CANDLE_UPDATE],
             priority=5,
-            max_retries=3
+            max_retries=3,
         )
 
     @pytest.mark.asyncio
@@ -130,7 +135,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         result = await event_bus.unsubscribe("test-sub-id")
@@ -151,7 +156,7 @@ class TestRefactoredEventBus:
             events_failed=1,
             successful_handlers=15,
             failed_handlers=2,
-            total_processing_time=1.5
+            total_processing_time=1.5,
         )
         event_processor = Mock(spec=EventProcessorInterface)
         event_processor.get_stats = AsyncMock(return_value=mock_stats)
@@ -159,7 +164,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         metrics = await event_bus.get_metrics()
@@ -182,7 +187,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig(num_workers=2)
+            config=EventBusConfig(num_workers=2),
         )
 
         assert not event_bus._running
@@ -205,14 +210,16 @@ class TestRefactoredEventBus:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
-        subscription_manager.add_subscription = AsyncMock(side_effect=ValueError("Test error"))
+        subscription_manager.add_subscription = AsyncMock(
+            side_effect=ValueError("Test error")
+        )
 
         event_processor = Mock(spec=EventProcessorInterface)
 
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         async def test_handler(event: BaseEvent):
@@ -221,8 +228,7 @@ class TestRefactoredEventBus:
         # Error should propagate
         with pytest.raises(ValueError) as exc_info:
             await event_bus.subscribe(
-                subscriber_id="test_subscriber",
-                handler=test_handler
+                subscriber_id="test_subscriber", handler=test_handler
             )
 
         assert "Test error" in str(exc_info.value)
@@ -240,7 +246,7 @@ class TestRefactoredEventBus:
             successful_handlers=0,
             failed_handlers=0,
             errors=[],
-            processing_time=0.0
+            processing_time=0.0,
         )
         event_processor = Mock(spec=EventProcessorInterface)
         event_processor.process_event = AsyncMock(return_value=mock_result)
@@ -248,7 +254,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         # Should work with mocks without side effects
@@ -280,7 +286,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         health = await event_bus.health_check()
@@ -302,7 +308,7 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         await event_bus.reset_metrics()
@@ -319,13 +325,13 @@ class TestRefactoredEventBus:
         event_bus = EventBus(
             subscription_manager=subscription_manager,
             event_processor=event_processor,
-            config=EventBusConfig()
+            config=EventBusConfig(),
         )
 
         events = [
             TestEvent(test_data="test1"),
             TestEvent(test_data="test2"),
-            TestEvent(test_data="test3")
+            TestEvent(test_data="test3"),
         ]
 
         await event_bus.start()

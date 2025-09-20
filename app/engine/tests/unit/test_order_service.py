@@ -18,7 +18,7 @@ from app.engine.services.order_service import (
     ValidationResult,
     AccountInfo,
     TradingSignal,
-    OrderResponse
+    OrderResponse,
 )
 
 
@@ -31,7 +31,7 @@ class TestValidateOrderParams:
             symbol="BTCUSDT",
             side=OrderSide.BUY,
             quantity=Decimal("0.001"),
-            order_type=OrderType.MARKET
+            order_type=OrderType.MARKET,
         )
 
         result = validate_order_params(order)
@@ -45,7 +45,7 @@ class TestValidateOrderParams:
             symbol="BTCUSDT",
             side=OrderSide.BUY,
             quantity=Decimal("0.00001"),  # Too small for BTC
-            order_type=OrderType.MARKET
+            order_type=OrderType.MARKET,
         )
 
         result = validate_order_params(order)
@@ -60,7 +60,7 @@ class TestValidateOrderParams:
             side=OrderSide.BUY,
             quantity=Decimal("0.001"),
             order_type=OrderType.LIMIT,
-            price=Decimal("50000.12345")  # Too many decimals
+            price=Decimal("50000.12345"),  # Too many decimals
         )
 
         result = validate_order_params(order)
@@ -75,7 +75,7 @@ class TestValidateOrderParams:
             side=OrderSide.SELL,
             quantity=Decimal("0.001"),
             order_type=OrderType.LIMIT,
-            price=None
+            price=None,
         )
 
         result = validate_order_params(order)
@@ -90,7 +90,7 @@ class TestValidateOrderParams:
             side=OrderSide.BUY,
             quantity=Decimal("0.0001"),
             order_type=OrderType.LIMIT,
-            price=Decimal("50")  # Notional = 0.0001 * 50 = 0.005 USDT (too small)
+            price=Decimal("50"),  # Notional = 0.0001 * 50 = 0.005 USDT (too small)
         )
 
         result = validate_order_params(order)
@@ -109,11 +109,10 @@ class TestCalculatePositionSize:
             side=OrderSide.BUY,
             entry_price=Decimal("50000"),
             stop_loss=Decimal("49000"),  # 2% risk
-            confidence=Decimal("0.8")
+            confidence=Decimal("0.8"),
         )
         account = AccountInfo(
-            balance=Decimal("10000"),
-            risk_per_trade=Decimal("0.005")  # 0.5% = $50 risk
+            balance=Decimal("10000"), risk_per_trade=Decimal("0.005")  # 0.5% = $50 risk
         )
 
         # Risk is $50, stop loss is $1000 per BTC, so position = 0.05 BTC
@@ -129,11 +128,10 @@ class TestCalculatePositionSize:
             side=OrderSide.BUY,
             entry_price=Decimal("50000"),
             stop_loss=Decimal("49500"),  # 1% risk
-            confidence=Decimal("0.8")
+            confidence=Decimal("0.8"),
         )
         account = AccountInfo(
-            balance=Decimal("100"),  # Only $100
-            risk_per_trade=Decimal("0.005")
+            balance=Decimal("100"), risk_per_trade=Decimal("0.005")  # Only $100
         )
 
         position_size = calculate_position_size(signal, account)
@@ -148,12 +146,12 @@ class TestCalculatePositionSize:
             side=OrderSide.BUY,
             entry_price=Decimal("50000"),
             stop_loss=Decimal("49500"),  # 1% risk
-            confidence=Decimal("0.9")
+            confidence=Decimal("0.9"),
         )
         account = AccountInfo(
             balance=Decimal("1000"),
             max_leverage=Decimal("3.0"),
-            risk_per_trade=Decimal("0.01")  # 1% = $10 risk
+            risk_per_trade=Decimal("0.01"),  # 1% = $10 risk
         )
 
         position_size = calculate_position_size(signal, account)
@@ -168,19 +166,16 @@ class TestCalculatePositionSize:
             side=OrderSide.BUY,
             entry_price=Decimal("50000"),
             stop_loss=Decimal("49000"),
-            confidence=Decimal("0.9")
+            confidence=Decimal("0.9"),
         )
         signal_low = TradingSignal(
             symbol="BTCUSDT",
             side=OrderSide.BUY,
             entry_price=Decimal("50000"),
             stop_loss=Decimal("49000"),
-            confidence=Decimal("0.5")
+            confidence=Decimal("0.5"),
         )
-        account = AccountInfo(
-            balance=Decimal("10000"),
-            risk_per_trade=Decimal("0.005")
-        )
+        account = AccountInfo(balance=Decimal("10000"), risk_per_trade=Decimal("0.005"))
 
         size_high = calculate_position_size(signal_high, account)
         size_low = calculate_position_size(signal_low, account)
@@ -200,7 +195,7 @@ class TestCreateOrderWithRetry:
             symbol="BTCUSDT",
             side=OrderSide.BUY,
             quantity=Decimal("0.001"),
-            order_type=OrderType.MARKET
+            order_type=OrderType.MARKET,
         )
 
         response = await create_order_with_retry(order, max_retries=3)
@@ -216,7 +211,7 @@ class TestCreateOrderWithRetry:
             symbol="BTCUSDT",
             side=OrderSide.BUY,
             quantity=Decimal("0.001"),
-            order_type=OrderType.MARKET
+            order_type=OrderType.MARKET,
         )
 
         # This will fail first time, then succeed
@@ -232,7 +227,7 @@ class TestCreateOrderWithRetry:
             symbol="INVALID",  # Invalid symbol
             side=OrderSide.BUY,
             quantity=Decimal("0.001"),
-            order_type=OrderType.MARKET
+            order_type=OrderType.MARKET,
         )
 
         with pytest.raises(Exception) as exc_info:
@@ -247,10 +242,13 @@ class TestCreateOrderWithRetry:
             symbol="BTCUSDT",
             side=OrderSide.BUY,
             quantity=Decimal("1000000"),  # Huge order that might timeout
-            order_type=OrderType.MARKET
+            order_type=OrderType.MARKET,
         )
 
         with pytest.raises(Exception) as exc_info:
             await create_order_with_retry(order, max_retries=1)
 
-        assert "timeout" in str(exc_info.value).lower() or "insufficient" in str(exc_info.value).lower()
+        assert (
+            "timeout" in str(exc_info.value).lower()
+            or "insufficient" in str(exc_info.value).lower()
+        )

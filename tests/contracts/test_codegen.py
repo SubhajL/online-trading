@@ -7,6 +7,7 @@ from typing import Dict, Any
 import pytest
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.codegen_contracts import (
@@ -243,18 +244,8 @@ class TestLoadSchemas:
     def test_load_valid_schemas(self, tmp_path):
         """Should load all valid JSON schema files."""
         # Create test schemas
-        schema1 = {
-            "type": "object",
-            "properties": {
-                "field1": {"type": "string"}
-            }
-        }
-        schema2 = {
-            "type": "object",
-            "properties": {
-                "field2": {"type": "number"}
-            }
-        }
+        schema1 = {"type": "object", "properties": {"field1": {"type": "string"}}}
+        schema2 = {"type": "object", "properties": {"field2": {"type": "number"}}}
 
         # Write to temp directory
         schema_dir = tmp_path / "jsonschema"
@@ -265,6 +256,7 @@ class TestLoadSchemas:
 
         # Mock the SCHEMA_DIR
         import scripts.codegen_contracts
+
         original_schema_dir = scripts.codegen_contracts.SCHEMA_DIR
         scripts.codegen_contracts.SCHEMA_DIR = schema_dir
 
@@ -284,6 +276,7 @@ class TestLoadSchemas:
         schema_dir.mkdir()
 
         import scripts.codegen_contracts
+
         original_schema_dir = scripts.codegen_contracts.SCHEMA_DIR
         scripts.codegen_contracts.SCHEMA_DIR = schema_dir
 
@@ -305,11 +298,15 @@ class TestGeneratePydanticModels:
                 "description": "Order status update",
                 "properties": {
                     "order_id": {"type": "string", "description": "Unique order ID"},
-                    "status": {"type": "string", "enum": ["FILLED", "CANCELED"], "description": "Order status"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["FILLED", "CANCELED"],
+                        "description": "Order status",
+                    },
                     "filled_qty": {"type": "number", "description": "Filled quantity"},
                 },
                 "required": ["order_id", "status"],
-                "additionalProperties": False
+                "additionalProperties": False,
             }
         }
 
@@ -325,10 +322,16 @@ class TestGeneratePydanticModels:
 
         # Check required fields
         assert 'order_id: str = Field(description="Unique order ID")' in result
-        assert 'status: Literal["FILLED", "CANCELED"] = Field(description="Order status")' in result
+        assert (
+            'status: Literal["FILLED", "CANCELED"] = Field(description="Order status")'
+            in result
+        )
 
         # Check optional field
-        assert 'filled_qty: float = Field(default=None, description="Filled quantity")' in result
+        assert (
+            'filled_qty: float = Field(default=None, description="Filled quantity")'
+            in result
+        )
 
         # Check config
         assert 'extra = "forbid"' in result
@@ -339,14 +342,20 @@ class TestGeneratePydanticModels:
             "test_model": {
                 "type": "object",
                 "properties": {
-                    "nullable_field": {"type": ["string", "null"], "description": "Can be null"},
+                    "nullable_field": {
+                        "type": ["string", "null"],
+                        "description": "Can be null",
+                    },
                 },
                 "required": [],
             }
         }
 
         result = generate_pydantic_models(schemas)
-        assert 'nullable_field: str | None = Field(default=None, description="Can be null")' in result
+        assert (
+            'nullable_field: str | None = Field(default=None, description="Can be null")'
+            in result
+        )
 
 
 class TestGenerateTypescriptTypes:
@@ -360,7 +369,11 @@ class TestGenerateTypescriptTypes:
                 "description": "Order status update",
                 "properties": {
                     "order_id": {"type": "string", "description": "Unique order ID"},
-                    "status": {"type": "string", "enum": ["FILLED", "CANCELED"], "description": "Order status"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["FILLED", "CANCELED"],
+                        "description": "Order status",
+                    },
                     "filled_qty": {"type": "number", "description": "Filled quantity"},
                 },
                 "required": ["order_id", "status"],
@@ -392,7 +405,7 @@ class TestGenerateTypescriptTypes:
                 "properties": {
                     "snake_case_field": {"type": "string", "description": "Test field"},
                 },
-                "required": []
+                "required": [],
             }
         }
 
@@ -445,9 +458,12 @@ class TestGenerateGoStructs:
             "test": {
                 "type": "object",
                 "properties": {
-                    "nullable_field": {"type": ["string", "null"], "description": "Can be null"},
+                    "nullable_field": {
+                        "type": ["string", "null"],
+                        "description": "Can be null",
+                    },
                 },
-                "required": []
+                "required": [],
             }
         }
 
@@ -464,7 +480,7 @@ class TestValidateSchema:
             "type": "object",
             "properties": {
                 "field1": {"type": "string"},
-            }
+            },
         }
         errors = validate_schema("test_schema", schema)
         assert errors == []
@@ -482,19 +498,14 @@ class TestValidateSchema:
 
     def test_invalid_type(self):
         """Schema with invalid type should fail validation."""
-        schema = {
-            "type": "invalid_type",
-            "properties": {}
-        }
+        schema = {"type": "invalid_type", "properties": {}}
         errors = validate_schema("test_schema", schema)
         assert len(errors) == 1
         assert "invalid type" in errors[0].lower()
 
     def test_missing_properties_for_object(self):
         """Object type without properties should fail validation."""
-        schema = {
-            "type": "object"
-        }
+        schema = {"type": "object"}
         errors = validate_schema("test_schema", schema)
         assert len(errors) == 1
         assert "missing 'properties'" in errors[0].lower()
@@ -503,9 +514,7 @@ class TestValidateSchema:
         """Schema with multiple errors should report all."""
         schema = {
             "type": ["object", "invalid"],
-            "properties": {
-                "field1": {}  # Missing type
-            }
+            "properties": {"field1": {}},  # Missing type
         }
         errors = validate_schema("test_schema", schema)
         assert len(errors) >= 2

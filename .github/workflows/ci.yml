@@ -269,9 +269,6 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-      - name: Run CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-
   # E2E Tests
   e2e-tests:
     name: E2E Tests

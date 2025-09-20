@@ -13,7 +13,7 @@ from asyncpg import Connection
 from app.engine.adapters.db import timescale
 from app.engine.adapters.db.connection_pool import ConnectionPool, DBConfig
 from app.engine.adapters.db.migrations import MigrationRunner
-from app.engine.types import (
+from app.engine.models import (
     Candle,
     TimeFrame,
     TechnicalIndicators,
@@ -153,7 +153,7 @@ class TestCandleOperations:
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.H1,
                 open_time=base_time + timedelta(hours=i),
-                close_time=base_time + timedelta(hours=i+1),
+                close_time=base_time + timedelta(hours=i + 1),
                 open_price=Decimal(f"50000.{i}"),
                 high_price=Decimal(f"51000.{i}"),
                 low_price=Decimal(f"49000.{i}"),
@@ -293,13 +293,15 @@ class TestOrderOperations:
         assert result is True
 
         # Update order as filled
-        order_data.update({
-            "status": "FILLED",
-            "filled_quantity": "0.01",
-            "average_fill_price": "50100.25",
-            "commission": "0.00001",
-            "commission_asset": "BTC",
-        })
+        order_data.update(
+            {
+                "status": "FILLED",
+                "filled_quantity": "0.01",
+                "average_fill_price": "50100.25",
+                "commission": "0.00001",
+                "commission_asset": "BTC",
+            }
+        )
 
         result = await timescale.upsert_order(order_data)
         assert result is True
@@ -427,17 +429,27 @@ class TestTransactionHandling:
                             taker_buy_base_volume, taker_buy_quote_volume
                         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                         """,
-                        "binance", "BTCUSDT", "1h",
-                        datetime.utcnow(), datetime.utcnow() + timedelta(hours=1),
-                        Decimal("50000"), Decimal("51000"), Decimal("49000"), Decimal("50500"),
-                        Decimal("100"), Decimal("5000000"), 1000,
-                        Decimal("50"), Decimal("2500000"),
+                        "binance",
+                        "BTCUSDT",
+                        "1h",
+                        datetime.utcnow(),
+                        datetime.utcnow() + timedelta(hours=1),
+                        Decimal("50000"),
+                        Decimal("51000"),
+                        Decimal("49000"),
+                        Decimal("50500"),
+                        Decimal("100"),
+                        Decimal("5000000"),
+                        1000,
+                        Decimal("50"),
+                        Decimal("2500000"),
                     )
 
                     # Force error with constraint violation
                     await conn.execute(
                         "INSERT INTO candles (venue, symbol) VALUES ($1, $2)",
-                        "binance", "INVALID"
+                        "binance",
+                        "INVALID",
                     )
             except Exception:
                 pass
@@ -451,12 +463,13 @@ class TestConnectionPoolResilience:
     @pytest.mark.asyncio
     async def test_concurrent_operations(self, test_pool):
         """Test pool handles concurrent operations."""
+
         async def insert_candle(i):
             candle = Candle(
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
-                open_time=datetime.utcnow() + timedelta(minutes=i*5),
-                close_time=datetime.utcnow() + timedelta(minutes=(i+1)*5),
+                open_time=datetime.utcnow() + timedelta(minutes=i * 5),
+                close_time=datetime.utcnow() + timedelta(minutes=(i + 1) * 5),
                 open_price=Decimal(f"50000.{i}"),
                 high_price=Decimal(f"50100.{i}"),
                 low_price=Decimal(f"49900.{i}"),
@@ -470,9 +483,7 @@ class TestConnectionPoolResilience:
             return await timescale.upsert_candle(candle)
 
         # Run multiple concurrent inserts
-        results = await asyncio.gather(
-            *[insert_candle(i) for i in range(10)]
-        )
+        results = await asyncio.gather(*[insert_candle(i) for i in range(10)])
 
         assert all(results)
 
