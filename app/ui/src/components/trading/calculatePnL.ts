@@ -1,4 +1,4 @@
-import type { Position, OrderSide } from '@/types'
+import type { Position } from '@/types'
 
 export function calculatePnL(
   position: Pick<Position, 'side' | 'quantity' | 'entryPrice'>,

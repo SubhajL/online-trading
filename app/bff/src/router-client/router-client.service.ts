@@ -3,8 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { AxiosRequestConfig } from 'axios';
 import { firstValueFrom } from 'rxjs';
-import { retry, catchError } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { retry } from 'rxjs/operators';
 
 export interface OrderRequest {
   symbol: string;

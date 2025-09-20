@@ -14,6 +14,7 @@ __author__ = "Trading Platform Team"
 
 from .bus import EventBus, get_event_bus, set_event_bus, publish_event
 from .types import *
+from .models import *
 
 __all__ = [
     "EventBus",

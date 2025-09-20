@@ -9,8 +9,13 @@ from datetime import datetime
 from unittest.mock import MagicMock
 from pydantic import ValidationError
 
-from app.engine.bus_refactored import EventBus, EventBusConfig, create_event_bus, CircuitBreakerState
-from app.engine.types import BaseEvent, EventType
+from app.engine.bus_refactored import (
+    EventBus,
+    EventBusConfig,
+    create_event_bus,
+    CircuitBreakerState,
+)
+from app.engine.models import BaseEvent, EventType
 
 
 class TestEventBusConfig:
@@ -48,9 +53,7 @@ class TestEventBusConfig:
 class TestEventBusFactory:
     def test_create_event_bus_returns_configured_instance(self):
         config = EventBusConfig(
-            max_queue_size=100,
-            num_workers=2,
-            enable_persistence=True
+            max_queue_size=100, num_workers=2, enable_persistence=True
         )
 
         event_bus = create_event_bus(config)
@@ -66,9 +69,7 @@ class TestEventBusFactory:
         metrics = MagicMock()
 
         event_bus = create_event_bus(
-            config,
-            persistence_backend=persistence,
-            metrics_backend=metrics
+            config, persistence_backend=persistence, metrics_backend=metrics
         )
 
         assert event_bus._persistence_backend is persistence
@@ -86,7 +87,7 @@ class TestEventBus:
             event = BaseEvent(
                 event_type=EventType.CANDLE_UPDATE,
                 timestamp=datetime.utcnow(),
-                symbol="BTCUSDT"
+                symbol="BTCUSDT",
             )
 
             result = await event_bus.publish(event)
@@ -117,7 +118,7 @@ class TestEventBus:
             event = BaseEvent(
                 event_type=EventType.CANDLE_UPDATE,
                 timestamp=datetime.utcnow(),
-                symbol="BTCUSDT"
+                symbol="BTCUSDT",
             )
 
             await event_bus.publish(event)
@@ -147,7 +148,7 @@ class TestEventBus:
                 event = BaseEvent(
                     event_type=EventType.CANDLE_UPDATE,
                     timestamp=datetime.utcnow(),
-                    symbol="BTCUSDT"
+                    symbol="BTCUSDT",
                 )
                 await event_bus.publish(event, priority=priority)
 
@@ -164,20 +165,18 @@ class TestEventBus:
         await event_bus.start()
 
         try:
+
             async def failing_handler(event):
                 raise ValueError("Simulated failure")
 
             await event_bus.subscribe(
-                "failing_sub",
-                failing_handler,
-                [EventType.CANDLE_UPDATE],
-                max_retries=1
+                "failing_sub", failing_handler, [EventType.CANDLE_UPDATE], max_retries=1
             )
 
             event = BaseEvent(
                 event_type=EventType.CANDLE_UPDATE,
                 timestamp=datetime.utcnow(),
-                symbol="BTCUSDT"
+                symbol="BTCUSDT",
             )
 
             await event_bus.publish(event)
@@ -196,6 +195,7 @@ class TestEventBus:
         await event_bus.start()
 
         try:
+
             async def failing_handler(event):
                 raise ValueError("Simulated error")
 
@@ -204,7 +204,7 @@ class TestEventBus:
                 failing_handler,
                 [EventType.CANDLE_UPDATE],
                 circuit_breaker_threshold=2,
-                max_retries=0  # No retries to make test clearer
+                max_retries=0,  # No retries to make test clearer
             )
 
             # Send 2 events that will fail (circuit breaker threshold is 2)
@@ -212,7 +212,7 @@ class TestEventBus:
                 event = BaseEvent(
                     event_type=EventType.CANDLE_UPDATE,
                     timestamp=datetime.utcnow(),
-                    symbol="BTCUSDT"
+                    symbol="BTCUSDT",
                 )
                 await event_bus.publish(event)
                 await asyncio.sleep(0.1)  # Wait between events
@@ -246,7 +246,7 @@ class TestEventBus:
                 event = BaseEvent(
                     event_type=EventType.CANDLE_UPDATE,
                     timestamp=datetime.utcnow(),
-                    symbol=f"SYMBOL{i}"
+                    symbol=f"SYMBOL{i}",
                 )
                 expected_ids.add(event.event_id)
                 tasks.append(event_bus.publish(event))
@@ -280,13 +280,13 @@ class TestEventBus:
                 flaky_handler,
                 [EventType.CANDLE_UPDATE],
                 max_retries=3,
-                retry_delay_ms=10
+                retry_delay_ms=10,
             )
 
             event = BaseEvent(
                 event_type=EventType.CANDLE_UPDATE,
                 timestamp=datetime.utcnow(),
-                symbol="BTCUSDT"
+                symbol="BTCUSDT",
             )
 
             await event_bus.publish(event)
@@ -317,7 +317,7 @@ class TestEventBus:
                 event = BaseEvent(
                     event_type=EventType.CANDLE_UPDATE,
                     timestamp=datetime.utcnow(),
-                    symbol=f"SYMBOL{i}"
+                    symbol=f"SYMBOL{i}",
                 )
                 await event_bus.publish(event)
 

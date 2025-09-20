@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BacktestMetrics:
     """Container for backtest performance metrics."""
+
     total_return: float
     sharpe_ratio: float
     sortino_ratio: float
@@ -27,9 +28,7 @@ class BacktestMetrics:
 
 
 def calculate_returns(
-    prices: np.ndarray,
-    positions: np.ndarray,
-    fees: float = 0.001
+    prices: np.ndarray, positions: np.ndarray, fees: float = 0.001
 ) -> np.ndarray:
     """
     Computes vectorized returns including fees using numpy broadcasting.
@@ -62,10 +61,7 @@ def calculate_returns(
     return returns
 
 
-def calculate_sharpe_ratio(
-    returns: np.ndarray,
-    periods_per_year: int = 252
-) -> float:
+def calculate_sharpe_ratio(returns: np.ndarray, periods_per_year: int = 252) -> float:
     """
     Computes annualized Sharpe ratio using vectorized stddev.
     Handles edge cases like zero variance or single return.
@@ -90,9 +86,7 @@ def calculate_sharpe_ratio(
     return float(sharpe)
 
 
-def calculate_max_drawdown(
-    equity_curve: np.ndarray
-) -> Tuple[float, int, int]:
+def calculate_max_drawdown(equity_curve: np.ndarray) -> Tuple[float, int, int]:
     """
     Finds maximum drawdown using vectorized cummax operation.
     Returns drawdown percentage and peak/trough indices.
@@ -116,7 +110,7 @@ def calculate_max_drawdown(
         return 0.0, 0, 0
 
     # Find the peak before the trough
-    peak_idx = int(np.argmax(equity_curve[:max_dd_idx + 1]))
+    peak_idx = int(np.argmax(equity_curve[: max_dd_idx + 1]))
 
     return max_dd, peak_idx, max_dd_idx
 
@@ -124,7 +118,7 @@ def calculate_max_drawdown(
 def apply_signal_vectorized(
     signals: np.ndarray,
     prices: np.ndarray,
-    position_sizer: Callable[[np.ndarray, np.ndarray], np.ndarray]
+    position_sizer: Callable[[np.ndarray, np.ndarray], np.ndarray],
 ) -> np.ndarray:
     """
     Applies trading signals to generate position array.
@@ -141,8 +135,7 @@ def apply_signal_vectorized(
 
 
 def calculate_metrics_vectorized(
-    returns: np.ndarray,
-    equity: np.ndarray
+    returns: np.ndarray, equity: np.ndarray
 ) -> BacktestMetrics:
     """
     Computes all backtest metrics in single vectorized pass.
@@ -161,7 +154,7 @@ def calculate_metrics_vectorized(
             avg_win=0.0,
             avg_loss=0.0,
             profit_factor=0.0,
-            calmar_ratio=0.0
+            calmar_ratio=0.0,
         )
 
     # Total return
@@ -217,5 +210,5 @@ def calculate_metrics_vectorized(
         avg_win=float(avg_win),
         avg_loss=float(avg_loss),
         profit_factor=float(profit_factor),
-        calmar_ratio=float(calmar_ratio)
+        calmar_ratio=float(calmar_ratio),
     )

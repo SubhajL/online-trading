@@ -10,12 +10,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
 
+from app.engine.models import PositionSide
+
 logger = logging.getLogger(__name__)
-
-
-class PositionSide(Enum):
-    LONG = "LONG"
-    SHORT = "SHORT"
 
 
 class CloseReason(Enum):
@@ -68,8 +65,7 @@ class CloseSignal:
 
 
 def update_position(
-    fill: OrderFill,
-    existing_position: Optional[Position] = None
+    fill: OrderFill, existing_position: Optional[Position] = None
 ) -> Position:
     """
     Updates position state from order fills.
@@ -84,7 +80,7 @@ def update_position(
             entry_price=fill.price,
             realized_pnl=-fill.commission,  # Start with negative commission
             total_commission=fill.commission,
-            open_time=fill.timestamp
+            open_time=fill.timestamp,
         )
 
     # Update existing position
@@ -95,20 +91,24 @@ def update_position(
 
     if is_same_side:
         # Adding to position - update average entry price
-        total_value = (position.quantity * position.entry_price) + (fill.quantity * fill.price)
+        total_value = (position.quantity * position.entry_price) + (
+            fill.quantity * fill.price
+        )
         new_quantity = position.quantity + fill.quantity
 
         new_position = Position(
             symbol=position.symbol,
             side=position.side,
             quantity=new_quantity,
-            entry_price=total_value / new_quantity if new_quantity > 0 else Decimal("0"),
+            entry_price=(
+                total_value / new_quantity if new_quantity > 0 else Decimal("0")
+            ),
             realized_pnl=position.realized_pnl - fill.commission,
             total_commission=position.total_commission + fill.commission,
             open_time=position.open_time,
             stop_loss=position.stop_loss,
             take_profit=position.take_profit,
-            max_hold_time=position.max_hold_time
+            max_hold_time=position.max_hold_time,
         )
 
     else:
@@ -139,16 +139,13 @@ def update_position(
             take_profit=position.take_profit,
             max_hold_time=position.max_hold_time,
             is_closed=(new_quantity == 0),
-            close_time=fill.timestamp if new_quantity == 0 else None
+            close_time=fill.timestamp if new_quantity == 0 else None,
         )
 
     return new_position
 
 
-def calculate_unrealized_pnl(
-    position: Position,
-    current_price: Decimal
-) -> Decimal:
+def calculate_unrealized_pnl(position: Position, current_price: Decimal) -> Decimal:
     """
     Calculates unrealized PnL considering position side, entry price,
     and current market price with proper decimal precision.
@@ -166,10 +163,7 @@ def calculate_unrealized_pnl(
     return unrealized
 
 
-def should_close_position(
-    position: Position,
-    market_data: MarketData
-) -> CloseSignal:
+def should_close_position(position: Position, market_data: MarketData) -> CloseSignal:
     """
     Determines if position should be closed based on stop loss,
     take profit, or time-based exit rules.
@@ -188,7 +182,7 @@ def should_close_position(
                 return CloseSignal(
                     should_close=True,
                     reason=CloseReason.STOP_LOSS,
-                    close_price=current_price
+                    close_price=current_price,
                 )
         else:
             # Short position: close if price rises above stop loss
@@ -196,7 +190,7 @@ def should_close_position(
                 return CloseSignal(
                     should_close=True,
                     reason=CloseReason.STOP_LOSS,
-                    close_price=current_price
+                    close_price=current_price,
                 )
 
     # Check take profit
@@ -207,7 +201,7 @@ def should_close_position(
                 return CloseSignal(
                     should_close=True,
                     reason=CloseReason.TAKE_PROFIT,
-                    close_price=current_price
+                    close_price=current_price,
                 )
         else:
             # Short position: close if price drops below take profit
@@ -215,7 +209,7 @@ def should_close_position(
                 return CloseSignal(
                     should_close=True,
                     reason=CloseReason.TAKE_PROFIT,
-                    close_price=current_price
+                    close_price=current_price,
                 )
 
     # Check time stop
@@ -225,7 +219,7 @@ def should_close_position(
             return CloseSignal(
                 should_close=True,
                 reason=CloseReason.TIME_STOP,
-                close_price=current_price
+                close_price=current_price,
             )
 
     # No close conditions met

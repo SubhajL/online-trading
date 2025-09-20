@@ -20,11 +20,11 @@ import (
 
 // Client represents a REST client for Binance API
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	signer     *auth.Signer
+	baseURL     string
+	httpClient  *http.Client
+	signer      *auth.Signer
 	rateLimiter *RateLimiter
-	maxRetries int
+	maxRetries  int
 }
 
 // Option configures the client
@@ -201,6 +201,12 @@ func (c *Client) PlaceOrder(ctx context.Context, req *OrderRequest) (*OrderRespo
 	if req.Type == "LIMIT" && req.Price.IsZero() {
 		return nil, fmt.Errorf("price is required for LIMIT orders")
 	}
+	if strings.Contains(req.Type, "STOP") && req.StopPrice.IsZero() {
+		return nil, fmt.Errorf("stopPrice is required for STOP orders")
+	}
+	if (req.Type == "STOP_LOSS_LIMIT" || req.Type == "TAKE_PROFIT_LIMIT") && req.Price.IsZero() {
+		return nil, fmt.Errorf("price is required for %s orders", req.Type)
+	}
 
 	// Build parameters
 	params := url.Values{}
@@ -211,6 +217,9 @@ func (c *Client) PlaceOrder(ctx context.Context, req *OrderRequest) (*OrderRespo
 
 	if !req.Price.IsZero() {
 		params.Set("price", req.Price.String())
+	}
+	if !req.StopPrice.IsZero() {
+		params.Set("stopPrice", req.StopPrice.String())
 	}
 	if req.TimeInForce != "" {
 		params.Set("timeInForce", req.TimeInForce)
@@ -259,6 +268,24 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 	return nil
 }
 
+// GetTicker24hr retrieves 24 hour ticker statistics for a symbol
+func (c *Client) GetTicker24hr(ctx context.Context, symbol string) (*Ticker24hr, error) {
+	params := url.Values{}
+	params.Set("symbol", symbol)
+
+	body, err := c.doRequest(ctx, "GET", "/api/v3/ticker/24hr", params, false)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetTicker24hr")
+	}
+
+	var ticker Ticker24hr
+	if err := json.Unmarshal(body, &ticker); err != nil {
+		return nil, ErrorWithContext(err, "GetTicker24hr")
+	}
+
+	return &ticker, nil
+}
+
 // GetOpenOrders lists all open orders for a symbol
 func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]Order, error) {
 	if c.signer == nil {
@@ -282,6 +309,107 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]Order, err
 	}
 
 	return orders, nil
+}
+
+// PlaceFuturesOrder places a futures order
+func (c *Client) PlaceFuturesOrder(ctx context.Context, req *FuturesOrderRequest) (*FuturesOrderResponse, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for PlaceFuturesOrder")
+	}
+
+	// Validate required fields
+	if req.Symbol == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+	if req.Side == "" {
+		return nil, fmt.Errorf("side is required")
+	}
+	if req.Type == "" {
+		return nil, fmt.Errorf("type is required")
+	}
+	if req.Quantity.IsZero() && !req.ClosePosition {
+		return nil, fmt.Errorf("quantity is required")
+	}
+	if req.Type == "LIMIT" && req.Price.IsZero() {
+		return nil, fmt.Errorf("price is required for LIMIT orders")
+	}
+	if strings.Contains(req.Type, "STOP") && req.StopPrice.IsZero() {
+		return nil, fmt.Errorf("stopPrice is required for STOP orders")
+	}
+
+	// Build parameters
+	params := url.Values{}
+	params.Set("symbol", req.Symbol)
+	params.Set("side", req.Side)
+	params.Set("type", req.Type)
+
+	if !req.Quantity.IsZero() {
+		params.Set("quantity", req.Quantity.String())
+	}
+	if !req.Price.IsZero() {
+		params.Set("price", req.Price.String())
+	}
+	if !req.StopPrice.IsZero() {
+		params.Set("stopPrice", req.StopPrice.String())
+	}
+	if req.TimeInForce != "" {
+		params.Set("timeInForce", req.TimeInForce)
+	}
+	if req.ReduceOnly {
+		params.Set("reduceOnly", "true")
+	}
+	if req.ClosePosition {
+		params.Set("closePosition", "true")
+	}
+	if !req.ActivationPrice.IsZero() {
+		params.Set("activationPrice", req.ActivationPrice.String())
+	}
+	if !req.CallbackRate.IsZero() {
+		params.Set("callbackRate", req.CallbackRate.String())
+	}
+	if req.WorkingType != "" {
+		params.Set("workingType", req.WorkingType)
+	}
+	if req.PriceProtect {
+		params.Set("priceProtect", "true")
+	}
+	if req.NewClientOrderID != "" {
+		params.Set("newClientOrderId", req.NewClientOrderID)
+	}
+	if req.RecvWindow > 0 {
+		params.Set("recvWindow", strconv.FormatInt(req.RecvWindow, 10))
+	}
+
+	body, err := c.doRequest(ctx, "POST", "/fapi/v1/order", params, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "PlaceFuturesOrder")
+	}
+
+	var orderResp FuturesOrderResponse
+	if err := json.Unmarshal(body, &orderResp); err != nil {
+		return nil, ErrorWithContext(err, "PlaceFuturesOrder")
+	}
+
+	return &orderResp, nil
+}
+
+// GetFuturesAccount gets futures account information
+func (c *Client) GetFuturesAccount(ctx context.Context) (*FuturesAccountResponse, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for GetFuturesAccount")
+	}
+
+	body, err := c.doRequest(ctx, "GET", "/fapi/v2/account", nil, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesAccount")
+	}
+
+	var account FuturesAccountResponse
+	if err := json.Unmarshal(body, &account); err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesAccount")
+	}
+
+	return &account, nil
 }
 
 // doRequest handles request execution with retries and rate limiting
@@ -312,15 +440,10 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 			params = c.signer.SignedRequest(params)
 		}
 
-		// For GET requests, add params to URL; for others, use as body
-		if method == "GET" || method == "DELETE" {
-			requestURL = c.baseURL + path
-			if len(params) > 0 {
-				requestURL += "?" + params.Encode()
-			}
-		} else {
-			requestURL = c.baseURL + path
-			body = strings.NewReader(params.Encode())
+		// Binance API expects all parameters in query string, even for POST
+		requestURL = c.baseURL + path
+		if len(params) > 0 {
+			requestURL += "?" + params.Encode()
 		}
 
 		// Create request
@@ -332,9 +455,6 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 		// Set headers
 		if c.signer != nil {
 			req.Header.Set("X-MBX-APIKEY", c.signer.APIKey())
-		}
-		if method == "POST" || method == "PUT" || method == "DELETE" {
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		}
 
 		// Execute request

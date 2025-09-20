@@ -1,5 +1,5 @@
 import type { Order, Position, OrderId, Symbol, Venue, OrderSide, OrderType } from '@/types'
-import { ApiClient } from './api.client'
+import type { ApiClient } from './api.client'
 
 export type PlaceOrderRequest = {
   symbol: Symbol
@@ -49,7 +49,7 @@ export class TradingService {
     return this.apiClient.get<Position[]>('/trading/positions')
   }
 
-  async cancelOrder(orderId: OrderId, request: CancelOrderRequest): Promise<any> {
+  async cancelOrder(orderId: OrderId, request: CancelOrderRequest): Promise<void> {
     return this.apiClient.delete(`/trading/orders/${orderId}`, {
       body: request,
     })

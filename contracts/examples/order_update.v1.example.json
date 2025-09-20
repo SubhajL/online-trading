@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "venue": "binance",
+  "symbol": "BTCUSDT",
+  "order_id": "123456789",
+  "client_order_id": "cli-btc-1h-001-entry",
+  "decision_id": "dec-btc-1h-001",
+  "update_time": "2024-01-15T11:00:15.000Z",
+  "status": "filled",
+  "side": "buy",
+  "order_type": "limit",
+  "price": "45200.0",
+  "stop_price": null,
+  "quantity": "0.1",
+  "filled_quantity": "0.1",
+  "average_fill_price": "45200.0",
+  "commission": 9e-05,
+  "commission_asset": "BNB",
+  "error_message": null,
+  "is_reduce_only": false
+}

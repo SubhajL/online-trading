@@ -486,6 +486,20 @@ restore: ## Restore database from backup
 	@./scripts/restore.sh
 
 # ==================================================================================
+# Database Migrations
+# ==================================================================================
+
+.PHONY: migrate
+migrate: ## Run database migrations
+	@echo "$(BLUE)🗄️  Running database migrations...$(RESET)"
+	@docker-compose exec -T postgres bash -c '\
+		for migration in /docker-entrypoint-initdb.d/../../../db/migrations/*.sql; do \
+			echo "Applying migration: $$(basename $$migration)"; \
+			psql -U $$POSTGRES_USER -d $$POSTGRES_DB -f $$migration; \
+		done'
+	@echo "$(GREEN)✅ Migrations completed$(RESET)"
+
+# ==================================================================================
 # Special targets
 # ==================================================================================
 
@@ -498,6 +512,16 @@ check-tools: ## Check if required tools are installed
 	@command -v docker >/dev/null 2>&1 || { echo "$(RED)❌ Docker is required$(RESET)"; exit 1; }
 	@command -v docker-compose >/dev/null 2>&1 || { echo "$(RED)❌ Docker Compose is required$(RESET)"; exit 1; }
 	@echo "$(GREEN)✅ All required tools are installed$(RESET)"
+
+# ==================================================================================
+# Contract Generation
+# ==================================================================================
+
+.PHONY: contracts
+contracts: ## Generate typed models from JSONSchema contracts
+	@echo "$(BLUE)📝 Generating contract models from JSONSchema...$(RESET)"
+	@python3 scripts/codegen_contracts.py
+	@echo "$(GREEN)✅ Contract generation complete$(RESET)"
 
 # Prevent make from interpreting file names as targets
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | awk -F':' '{print $$1}')

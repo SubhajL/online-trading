@@ -47,6 +47,7 @@ class SystemClock(Clock):
 @dataclass
 class ScheduledCallback:
     """A callback scheduled to run at a specific time."""
+
     when: datetime
     callback: Callable[[], None]
 

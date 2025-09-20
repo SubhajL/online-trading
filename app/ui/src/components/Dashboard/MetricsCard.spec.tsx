@@ -11,13 +11,7 @@ describe('MetricsCard', () => {
   })
 
   it('displays positive change with green color', () => {
-    render(
-      <MetricsCard
-        title="Daily P&L"
-        value="$500.00"
-        change="+5.25%"
-      />
-    )
+    render(<MetricsCard title="Daily P&L" value="$500.00" change="+5.25%" />)
 
     const changeElement = screen.getByText('+5.25%')
     expect(changeElement).toBeInTheDocument()
@@ -25,13 +19,7 @@ describe('MetricsCard', () => {
   })
 
   it('displays negative change with red color', () => {
-    render(
-      <MetricsCard
-        title="Daily P&L"
-        value="-$200.00"
-        change="-2.50%"
-      />
-    )
+    render(<MetricsCard title="Daily P&L" value="-$200.00" change="-2.50%" />)
 
     const changeElement = screen.getByText('-2.50%')
     expect(changeElement).toBeInTheDocument()
@@ -39,13 +27,7 @@ describe('MetricsCard', () => {
   })
 
   it('displays neutral change', () => {
-    render(
-      <MetricsCard
-        title="Volume"
-        value="1,000"
-        change="0.00%"
-      />
-    )
+    render(<MetricsCard title="Volume" value="1,000" change="0.00%" />)
 
     const changeElement = screen.getByText('0.00%')
     expect(changeElement).toBeInTheDocument()
@@ -61,114 +43,60 @@ describe('MetricsCard', () => {
   })
 
   it('applies custom className', () => {
-    render(
-      <MetricsCard
-        title="Test"
-        value="100"
-        className="custom-metrics"
-      />
-    )
+    render(<MetricsCard title="Test" value="100" className="custom-metrics" />)
 
     const card = screen.getByTestId('metrics-card')
     expect(card).toHaveClass('metrics-card', 'custom-metrics')
   })
 
   it('renders subtitle when provided', () => {
-    render(
-      <MetricsCard
-        title="Account Balance"
-        value="$10,000"
-        subtitle="USDT"
-      />
-    )
+    render(<MetricsCard title="Account Balance" value="$10,000" subtitle="USDT" />)
 
     expect(screen.getByText('USDT')).toBeInTheDocument()
     expect(screen.getByText('USDT')).toHaveClass('metrics-subtitle')
   })
 
   it('displays loading state', () => {
-    render(
-      <MetricsCard
-        title="Loading Metric"
-        value=""
-        loading
-      />
-    )
+    render(<MetricsCard title="Loading Metric" value="" loading />)
 
     expect(screen.getByTestId('metrics-loading')).toBeInTheDocument()
     expect(screen.queryByText('Loading Metric')).toBeInTheDocument()
   })
 
   it('displays error state', () => {
-    render(
-      <MetricsCard
-        title="Error Metric"
-        value=""
-        error="Failed to load data"
-      />
-    )
+    render(<MetricsCard title="Error Metric" value="" error="Failed to load data" />)
 
     expect(screen.getByText('Failed to load data')).toBeInTheDocument()
     expect(screen.getByTestId('metrics-error')).toBeInTheDocument()
   })
 
   it('renders with icon', () => {
-    render(
-      <MetricsCard
-        title="Profit"
-        value="$1,000"
-        icon="📈"
-      />
-    )
+    render(<MetricsCard title="Profit" value="$1,000" icon="📈" />)
 
     expect(screen.getByText('📈')).toBeInTheDocument()
     expect(screen.getByText('📈')).toHaveClass('metrics-icon')
   })
 
   it('handles numeric value formatting', () => {
-    render(
-      <MetricsCard
-        title="Win Rate"
-        value={65.5}
-        format="percentage"
-      />
-    )
+    render(<MetricsCard title="Win Rate" value={65.5} format="percentage" />)
 
     expect(screen.getByText('65.50%')).toBeInTheDocument()
   })
 
   it('handles currency formatting', () => {
-    render(
-      <MetricsCard
-        title="Balance"
-        value={1234.567}
-        format="currency"
-      />
-    )
+    render(<MetricsCard title="Balance" value={1234.567} format="currency" />)
 
     expect(screen.getByText('$1,234.57')).toBeInTheDocument()
   })
 
   it('handles number formatting', () => {
-    render(
-      <MetricsCard
-        title="Trades"
-        value={1234567}
-        format="number"
-      />
-    )
+    render(<MetricsCard title="Trades" value={1234567} format="number" />)
 
     expect(screen.getByText('1,234,567')).toBeInTheDocument()
   })
 
   it('displays trend indicator', () => {
-    render(
-      <MetricsCard
-        title="Volume"
-        value="100"
-        trend="up"
-      />
-    )
+    render(<MetricsCard title="Volume" value="100" trend="up" />)
 
     const trendElement = screen.getByTestId('trend-indicator')
     expect(trendElement).toBeInTheDocument()
@@ -185,7 +113,7 @@ describe('MetricsCard', () => {
         icon="💰"
         format="currency"
         trend="up"
-      />
+      />,
     )
 
     expect(screen.getByText('Total Profit')).toBeInTheDocument()

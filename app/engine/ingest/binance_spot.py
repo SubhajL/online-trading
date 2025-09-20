@@ -15,7 +15,7 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 import aiohttp
 
-from ..types import Candle, kline_to_candle, rest_kline_to_candle, TimeFrame
+from ..models import Candle, kline_to_candle, rest_kline_to_candle, TimeFrame
 from ..adapters.db import TimescaleDBAdapter
 from ..bus import EventBus, publish_event
 

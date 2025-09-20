@@ -14,7 +14,7 @@ from app.engine.core.observability import (
     ObservabilityManager,
     EventBusHealthCheck,
     init_observability,
-    get_observability
+    get_observability,
 )
 
 
@@ -24,7 +24,7 @@ class TestHealthCheck:
             name="test_check",
             status=HealthStatus.HEALTHY,
             message="All good",
-            details={"key": "value"}
+            details={"key": "value"},
         )
 
         assert check.name == "test_check"
@@ -38,26 +38,16 @@ class TestHealthReport:
     def test_health_report_creation(self):
         checks = [
             HealthCheck("check1", HealthStatus.HEALTHY),
-            HealthCheck("check2", HealthStatus.DEGRADED)
+            HealthCheck("check2", HealthStatus.DEGRADED),
         ]
 
-        report = HealthReport(
-            status=HealthStatus.DEGRADED,
-            checks=checks
-        )
+        report = HealthReport(status=HealthStatus.DEGRADED, checks=checks)
 
         assert report.status == HealthStatus.DEGRADED
         assert len(report.checks) == 2
 
     def test_health_report_to_dict(self):
-        checks = [
-            HealthCheck(
-                "check1",
-                HealthStatus.HEALTHY,
-                "OK",
-                {"metric": 100}
-            )
-        ]
+        checks = [HealthCheck("check1", HealthStatus.HEALTHY, "OK", {"metric": 100})]
 
         report = HealthReport(HealthStatus.HEALTHY, checks)
         report_dict = report.to_dict()
@@ -71,9 +61,7 @@ class TestHealthReport:
 class TestObservabilityManager:
     def test_initialization_with_metrics_and_tracing(self):
         manager = ObservabilityManager(
-            service_name="test-service",
-            enable_metrics=True,
-            enable_tracing=True
+            service_name="test-service", enable_metrics=True, enable_tracing=True
         )
 
         assert manager.service_name == "test-service"
@@ -86,19 +74,13 @@ class TestObservabilityManager:
         assert hasattr(manager, "request_errors")
 
     def test_initialization_without_metrics(self):
-        manager = ObservabilityManager(
-            enable_metrics=False,
-            enable_tracing=True
-        )
+        manager = ObservabilityManager(enable_metrics=False, enable_tracing=True)
 
         assert manager.metrics is None
         assert manager.tracer is not None
 
     def test_initialization_without_tracing(self):
-        manager = ObservabilityManager(
-            enable_metrics=True,
-            enable_tracing=False
-        )
+        manager = ObservabilityManager(enable_metrics=True, enable_tracing=False)
 
         assert manager.metrics is not None
         assert manager.tracer is None
@@ -118,12 +100,10 @@ class TestObservabilityManager:
 
         # Register checks
         manager.register_health_check(
-            "check1",
-            lambda: HealthCheck("check1", HealthStatus.HEALTHY)
+            "check1", lambda: HealthCheck("check1", HealthStatus.HEALTHY)
         )
         manager.register_health_check(
-            "check2",
-            lambda: HealthCheck("check2", HealthStatus.DEGRADED)
+            "check2", lambda: HealthCheck("check2", HealthStatus.DEGRADED)
         )
 
         report = manager.get_health_report()
@@ -141,8 +121,7 @@ class TestObservabilityManager:
         report = manager.get_health_report()
 
         failing_check_result = next(
-            (c for c in report.checks if c.name == "failing"),
-            None
+            (c for c in report.checks if c.name == "failing"), None
         )
 
         assert failing_check_result is not None
@@ -151,14 +130,10 @@ class TestObservabilityManager:
 
     @pytest.mark.asyncio
     async def test_trace_operation_with_metrics(self):
-        manager = ObservabilityManager(
-            enable_metrics=True,
-            enable_tracing=True
-        )
+        manager = ObservabilityManager(enable_metrics=True, enable_tracing=True)
 
         async with manager.trace_operation(
-            "test_op",
-            attributes={"key": "value"}
+            "test_op", attributes={"key": "value"}
         ) as span:
             await asyncio.sleep(0.01)
 
@@ -187,10 +162,7 @@ class TestObservabilityManager:
 
     @pytest.mark.asyncio
     async def test_trace_operation_without_tracing(self):
-        manager = ObservabilityManager(
-            enable_metrics=True,
-            enable_tracing=False
-        )
+        manager = ObservabilityManager(enable_metrics=True, enable_tracing=False)
 
         async with manager.trace_operation("test_op") as span:
             assert span is None
@@ -203,10 +175,7 @@ class TestObservabilityManager:
     def test_update_queue_metrics(self):
         manager = ObservabilityManager()
 
-        manager.update_queue_metrics(
-            queue_size=100,
-            processing_lag=0.5
-        )
+        manager.update_queue_metrics(queue_size=100, processing_lag=0.5)
 
         if manager.metrics:
             metrics = manager.metrics.registry.collect_all()
@@ -219,10 +188,7 @@ class TestObservabilityManager:
 
         # Create a span context
         with manager.tracer.start_as_current_span("test") as span:
-            manager.record_event(
-                "test_event",
-                {"detail": "value"}
-            )
+            manager.record_event("test_event", {"detail": "value"})
 
             assert len(span.events) == 1
             assert span.events[0].name == "test_event"
@@ -243,24 +209,30 @@ class TestObservabilityManager:
         manager = ObservabilityManager()
 
         # Add some operations to history
-        manager._operation_history.append({
-            "operation": "op1",
-            "duration": 0.1,
-            "timestamp": time.time(),
-            "success": True
-        })
-        manager._operation_history.append({
-            "operation": "op2",
-            "duration": 0.2,
-            "timestamp": time.time(),
-            "success": False
-        })
+        manager._operation_history.append(
+            {
+                "operation": "op1",
+                "duration": 0.1,
+                "timestamp": time.time(),
+                "success": True,
+            }
+        )
+        manager._operation_history.append(
+            {
+                "operation": "op2",
+                "duration": 0.2,
+                "timestamp": time.time(),
+                "success": False,
+            }
+        )
 
         stats = manager.get_operation_statistics()
 
         assert stats["total_operations"] == 2
         assert stats["success_rate"] == 0.5
-        assert abs(stats["average_duration"] - 0.15) < 0.0001  # Use approximate comparison
+        assert (
+            abs(stats["average_duration"] - 0.15) < 0.0001
+        )  # Use approximate comparison
         assert "p50_duration" in stats
         assert "p95_duration" in stats
 
@@ -311,9 +283,7 @@ class TestObservabilityManager:
 
     def test_shutdown(self):
         manager = ObservabilityManager(
-            enable_metrics=True,
-            enable_tracing=True,
-            enable_console_export=True
+            enable_metrics=True, enable_tracing=True, enable_console_export=True
         )
 
         manager.start_health_checks()
@@ -326,10 +296,9 @@ class TestEventBusHealthCheck:
     @pytest.mark.asyncio
     async def test_check_queue_health_healthy(self):
         mock_event_bus = AsyncMock()
-        mock_event_bus.get_metrics = AsyncMock(return_value={
-            "queue_size": 100,
-            "max_queue_size": 10000
-        })
+        mock_event_bus.get_metrics = AsyncMock(
+            return_value={"queue_size": 100, "max_queue_size": 10000}
+        )
 
         checker = EventBusHealthCheck(mock_event_bus)
         check = await checker.check_queue_health()
@@ -340,10 +309,9 @@ class TestEventBusHealthCheck:
     @pytest.mark.asyncio
     async def test_check_queue_health_degraded(self):
         mock_event_bus = AsyncMock()
-        mock_event_bus.get_metrics = AsyncMock(return_value={
-            "queue_size": 7500,
-            "max_queue_size": 10000
-        })
+        mock_event_bus.get_metrics = AsyncMock(
+            return_value={"queue_size": 7500, "max_queue_size": 10000}
+        )
 
         checker = EventBusHealthCheck(mock_event_bus)
         check = await checker.check_queue_health()
@@ -354,10 +322,9 @@ class TestEventBusHealthCheck:
     @pytest.mark.asyncio
     async def test_check_queue_health_unhealthy(self):
         mock_event_bus = AsyncMock()
-        mock_event_bus.get_metrics = AsyncMock(return_value={
-            "queue_size": 9500,
-            "max_queue_size": 10000
-        })
+        mock_event_bus.get_metrics = AsyncMock(
+            return_value={"queue_size": 9500, "max_queue_size": 10000}
+        )
 
         checker = EventBusHealthCheck(mock_event_bus)
         check = await checker.check_queue_health()
@@ -368,10 +335,9 @@ class TestEventBusHealthCheck:
     @pytest.mark.asyncio
     async def test_check_processing_health_healthy(self):
         mock_event_bus = AsyncMock()
-        mock_event_bus.get_metrics = AsyncMock(return_value={
-            "error_rate": 0.01,
-            "is_running": True
-        })
+        mock_event_bus.get_metrics = AsyncMock(
+            return_value={"error_rate": 0.01, "is_running": True}
+        )
 
         checker = EventBusHealthCheck(mock_event_bus)
         check = await checker.check_processing_health()
@@ -381,10 +347,9 @@ class TestEventBusHealthCheck:
     @pytest.mark.asyncio
     async def test_check_processing_health_not_running(self):
         mock_event_bus = AsyncMock()
-        mock_event_bus.get_metrics = AsyncMock(return_value={
-            "error_rate": 0.0,
-            "is_running": False
-        })
+        mock_event_bus.get_metrics = AsyncMock(
+            return_value={"error_rate": 0.0, "is_running": False}
+        )
 
         checker = EventBusHealthCheck(mock_event_bus)
         check = await checker.check_processing_health()
@@ -395,10 +360,9 @@ class TestEventBusHealthCheck:
     @pytest.mark.asyncio
     async def test_check_processing_health_high_errors(self):
         mock_event_bus = AsyncMock()
-        mock_event_bus.get_metrics = AsyncMock(return_value={
-            "error_rate": 0.6,
-            "is_running": True
-        })
+        mock_event_bus.get_metrics = AsyncMock(
+            return_value={"error_rate": 0.6, "is_running": True}
+        )
 
         checker = EventBusHealthCheck(mock_event_bus)
         check = await checker.check_processing_health()
@@ -410,9 +374,7 @@ class TestEventBusHealthCheck:
 class TestGlobalObservability:
     def test_init_observability(self):
         manager = init_observability(
-            service_name="test-global",
-            enable_metrics=True,
-            enable_tracing=True
+            service_name="test-global", enable_metrics=True, enable_tracing=True
         )
 
         assert manager is not None
@@ -422,6 +384,7 @@ class TestGlobalObservability:
     def test_get_observability_none(self):
         # Reset global
         import app.engine.core.observability
+
         app.engine.core.observability._observability_manager = None
 
         assert get_observability() is None

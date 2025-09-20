@@ -115,7 +115,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       setError,
       clearError,
       reset,
-    ]
+    ],
   )
 
   const value = useMemo<TradingContextValue>(
@@ -123,7 +123,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       state,
       actions,
     }),
-    [state, actions]
+    [state, actions],
   )
 
   return <TradingContext.Provider value={value}>{children}</TradingContext.Provider>

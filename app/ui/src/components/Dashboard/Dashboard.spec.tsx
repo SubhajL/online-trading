@@ -5,39 +5,33 @@ import type { Position, Order, Balance } from '@/types'
 
 // Mock child components
 vi.mock('../trading/OrderForm', () => ({
-  OrderForm: ({ onSubmit }: any) => (
-    <div data-testid="order-form">Order Form Mock</div>
-  ),
+  OrderForm: () => <div data-testid="order-form">Order Form Mock</div>,
 }))
 
 vi.mock('../trading/PositionsList', () => ({
-  PositionsList: ({ positions }: any) => (
+  PositionsList: ({ positions }: { positions: Position[] }) => (
     <div data-testid="positions-list">Positions: {positions.length}</div>
   ),
 }))
 
 vi.mock('../trading/OrderHistory', () => ({
-  OrderHistory: ({ orders }: any) => (
+  OrderHistory: ({ orders }: { orders: Order[] }) => (
     <div data-testid="order-history">Orders: {orders.length}</div>
   ),
 }))
 
 vi.mock('../trading/AccountBalance', () => ({
-  AccountBalance: ({ balances }: any) => (
+  AccountBalance: ({ balances }: { balances: Balance[] }) => (
     <div data-testid="account-balance">Balances: {balances.length}</div>
   ),
 }))
 
 vi.mock('../charts/CandlestickChart', () => ({
-  CandlestickChart: () => (
-    <div data-testid="candlestick-chart">Candlestick Chart Mock</div>
-  ),
+  CandlestickChart: () => <div data-testid="candlestick-chart">Candlestick Chart Mock</div>,
 }))
 
 vi.mock('../charts/VolumeChart', () => ({
-  VolumeChart: () => (
-    <div data-testid="volume-chart">Volume Chart Mock</div>
-  ),
+  VolumeChart: () => <div data-testid="volume-chart">Volume Chart Mock</div>,
 }))
 
 describe('Dashboard', () => {
@@ -87,7 +81,7 @@ describe('Dashboard', () => {
         orders={mockOrders}
         balances={mockBalances}
         onSubmitOrder={onSubmitOrder}
-      />
+      />,
     )
 
     expect(screen.getByTestId('dashboard')).toBeInTheDocument()
@@ -106,7 +100,7 @@ describe('Dashboard', () => {
         orders={mockOrders}
         balances={mockBalances}
         onSubmitOrder={onSubmitOrder}
-      />
+      />,
     )
 
     // Check for key metrics
@@ -138,7 +132,7 @@ describe('Dashboard', () => {
         orders={[]}
         balances={mockBalances}
         onSubmitOrder={onSubmitOrder}
-      />
+      />,
     )
 
     // Total P&L should be 300 (appears in multiple places)
@@ -176,13 +170,7 @@ describe('Dashboard', () => {
       },
     ]
 
-    render(
-      <Dashboard
-        positions={mockPositions}
-        orders={todayOrders}
-        balances={mockBalances}
-      />
-    )
+    render(<Dashboard positions={mockPositions} orders={todayOrders} balances={mockBalances} />)
 
     // Position P&L: 200, Trade P&L: (41000-40000)*0.1 = 100, Total: 300
     expect(screen.getByTestId('daily-pnl-value')).toHaveTextContent('$300.00')
@@ -195,13 +183,7 @@ describe('Dashboard', () => {
       { ...mockPositions[0]!, symbol: 'BNBUSDT' as any },
     ]
 
-    render(
-      <Dashboard
-        positions={positions}
-        orders={[]}
-        balances={mockBalances}
-      />
-    )
+    render(<Dashboard positions={positions} orders={[]} balances={mockBalances} />)
 
     expect(screen.getByTestId('positions-count')).toHaveTextContent('3')
   })
@@ -215,12 +197,7 @@ describe('Dashboard', () => {
 
     const onSubmitOrder = vi.fn()
     render(
-      <Dashboard
-        positions={[]}
-        orders={[]}
-        balances={balances}
-        onSubmitOrder={onSubmitOrder}
-      />
+      <Dashboard positions={[]} orders={[]} balances={balances} onSubmitOrder={onSubmitOrder} />,
     )
 
     // Total: 5500 + 3200 + 4200 = 12900
@@ -230,13 +207,7 @@ describe('Dashboard', () => {
   it('shows loading state', () => {
     const onSubmitOrder = vi.fn()
     render(
-      <Dashboard
-        positions={[]}
-        orders={[]}
-        balances={[]}
-        loading
-        onSubmitOrder={onSubmitOrder}
-      />
+      <Dashboard positions={[]} orders={[]} balances={[]} loading onSubmitOrder={onSubmitOrder} />,
     )
 
     // There are 6 metrics cards showing loading state
@@ -244,14 +215,7 @@ describe('Dashboard', () => {
   })
 
   it('shows error state', () => {
-    render(
-      <Dashboard
-        positions={[]}
-        orders={[]}
-        balances={[]}
-        error="Failed to load data"
-      />
-    )
+    render(<Dashboard positions={[]} orders={[]} balances={[]} error="Failed to load data" />)
 
     expect(screen.getByText('Failed to load data')).toBeInTheDocument()
   })
@@ -264,7 +228,7 @@ describe('Dashboard', () => {
         orders={mockOrders}
         balances={mockBalances}
         onSubmitOrder={onSubmitOrder}
-      />
+      />,
     )
 
     // Order form should be present
@@ -272,14 +236,7 @@ describe('Dashboard', () => {
   })
 
   it('applies custom className', () => {
-    render(
-      <Dashboard
-        positions={[]}
-        orders={[]}
-        balances={[]}
-        className="custom-dashboard"
-      />
-    )
+    render(<Dashboard positions={[]} orders={[]} balances={[]} className="custom-dashboard" />)
 
     const dashboard = screen.getByTestId('dashboard')
     expect(dashboard).toHaveClass('dashboard', 'custom-dashboard')
@@ -292,13 +249,7 @@ describe('Dashboard', () => {
       { ...mockOrders[0]!, orderId: 'ORD003' as any, status: 'CANCELED' as any },
     ]
 
-    render(
-      <Dashboard
-        positions={[]}
-        orders={orders}
-        balances={mockBalances}
-      />
-    )
+    render(<Dashboard positions={[]} orders={orders} balances={mockBalances} />)
 
     // Win rate: 2 filled / 3 total = 66.67%
     expect(screen.getByText('Win Rate')).toBeInTheDocument()
@@ -306,19 +257,15 @@ describe('Dashboard', () => {
   })
 
   it('displays today trades count', () => {
-    const todayOrders = Array(5).fill(null).map((_, i) => ({
-      ...mockOrders[0]!,
-      orderId: `ORD${i}` as any,
-      createdAt: new Date().toISOString(),
-    }))
+    const todayOrders = Array(5)
+      .fill(null)
+      .map((_, i) => ({
+        ...mockOrders[0]!,
+        orderId: `ORD${i}` as any,
+        createdAt: new Date().toISOString(),
+      }))
 
-    render(
-      <Dashboard
-        positions={[]}
-        orders={todayOrders}
-        balances={mockBalances}
-      />
-    )
+    render(<Dashboard positions={[]} orders={todayOrders} balances={mockBalances} />)
 
     expect(screen.getByText("Today's Trades")).toBeInTheDocument()
     expect(screen.getByTestId('trades-count')).toHaveTextContent('5')
@@ -335,7 +282,7 @@ describe('Dashboard', () => {
         autoTradingEnabled={true}
         onSubmitOrder={onSubmitOrder}
         onToggleAutoTrading={onToggleAutoTrading}
-      />
+      />,
     )
 
     expect(screen.getByText('Auto Trading')).toBeInTheDocument()

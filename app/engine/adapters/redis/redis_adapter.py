@@ -45,7 +45,7 @@ class RedisAdapter:
         socket_timeout: int = 5,
         socket_connect_timeout: int = 5,
         retry_on_timeout: bool = True,
-        decode_responses: bool = False
+        decode_responses: bool = False,
     ):
         self.host = host
         self.port = port
@@ -71,7 +71,7 @@ class RedisAdapter:
             "session": "session:",
             "cache": "cache:",
             "health": "health:",
-            "metrics": "metrics:"
+            "metrics": "metrics:",
         }
 
         logger.info(f"RedisAdapter configured for {host}:{port}/{database}")
@@ -90,7 +90,7 @@ class RedisAdapter:
                 "socket_timeout": self.socket_timeout,
                 "socket_connect_timeout": self.socket_connect_timeout,
                 "retry_on_timeout": self.retry_on_timeout,
-                "decode_responses": self.decode_responses
+                "decode_responses": self.decode_responses,
             }
 
             if self.password:
@@ -98,7 +98,11 @@ class RedisAdapter:
 
             self._redis = aioredis.from_url(
                 f"redis://{self.host}:{self.port}/{self.database}",
-                **{k: v for k, v in connection_params.items() if k not in ["host", "port", "db"]}
+                **{
+                    k: v
+                    for k, v in connection_params.items()
+                    if k not in ["host", "port", "db"]
+                },
             )
 
             # Test connection
@@ -131,6 +135,7 @@ class RedisAdapter:
 
     def _serialize_value(self, value: Any) -> str:
         """Serialize value to JSON string with Decimal support"""
+
         def decimal_encoder(obj):
             if isinstance(obj, Decimal):
                 return str(obj)
@@ -138,7 +143,7 @@ class RedisAdapter:
                 return obj.isoformat()
             raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-        return json.dumps(value, default=decimal_encoder, separators=(',', ':'))
+        return json.dumps(value, default=decimal_encoder, separators=(",", ":"))
 
     def _deserialize_value(self, value: str) -> Any:
         """Deserialize JSON string to Python object"""
@@ -156,11 +161,7 @@ class RedisAdapter:
     # ============================================================================
 
     async def set(
-        self,
-        key: str,
-        value: Any,
-        expire: Optional[int] = None,
-        prefix: str = "cache"
+        self, key: str, value: Any, expire: Optional[int] = None, prefix: str = "cache"
     ) -> bool:
         """Set a key-value pair with optional expiration"""
         self._ensure_connected()
@@ -191,7 +192,9 @@ class RedisAdapter:
             if value is None:
                 return None
 
-            return self._deserialize_value(value.decode() if isinstance(value, bytes) else value)
+            return self._deserialize_value(
+                value.decode() if isinstance(value, bytes) else value
+            )
 
         except Exception as e:
             logger.error(f"Error getting key {key}: {e}")
@@ -241,11 +244,7 @@ class RedisAdapter:
     # ============================================================================
 
     async def hset(
-        self,
-        hash_key: str,
-        field: str,
-        value: Any,
-        prefix: str = "cache"
+        self, hash_key: str, field: str, value: Any, prefix: str = "cache"
     ) -> bool:
         """Set field in hash"""
         self._ensure_connected()
@@ -261,10 +260,7 @@ class RedisAdapter:
             return False
 
     async def hget(
-        self,
-        hash_key: str,
-        field: str,
-        prefix: str = "cache"
+        self, hash_key: str, field: str, prefix: str = "cache"
     ) -> Optional[Any]:
         """Get field from hash"""
         self._ensure_connected()
@@ -276,7 +272,9 @@ class RedisAdapter:
             if value is None:
                 return None
 
-            return self._deserialize_value(value.decode() if isinstance(value, bytes) else value)
+            return self._deserialize_value(
+                value.decode() if isinstance(value, bytes) else value
+            )
 
         except Exception as e:
             logger.error(f"Error getting hash field {hash_key}:{field}: {e}")
@@ -362,18 +360,16 @@ class RedisAdapter:
             if value is None:
                 return None
 
-            return self._deserialize_value(value.decode() if isinstance(value, bytes) else value)
+            return self._deserialize_value(
+                value.decode() if isinstance(value, bytes) else value
+            )
 
         except Exception as e:
             logger.error(f"Error popping from list {list_key}: {e}")
             return None
 
     async def lrange(
-        self,
-        list_key: str,
-        start: int = 0,
-        end: int = -1,
-        prefix: str = "cache"
+        self, list_key: str, start: int = 0, end: int = -1, prefix: str = "cache"
     ) -> List[Any]:
         """Get range of values from list"""
         self._ensure_connected()
@@ -393,7 +389,9 @@ class RedisAdapter:
             logger.error(f"Error getting list range {list_key}: {e}")
             return []
 
-    async def ltrim(self, list_key: str, start: int, end: int, prefix: str = "cache") -> bool:
+    async def ltrim(
+        self, list_key: str, start: int, end: int, prefix: str = "cache"
+    ) -> bool:
         """Trim list to specified range"""
         self._ensure_connected()
 
@@ -410,11 +408,7 @@ class RedisAdapter:
     # Trading Data Specific Operations
     # ============================================================================
 
-    async def cache_candle(
-        self,
-        candle: Candle,
-        expire_seconds: int = 3600
-    ) -> bool:
+    async def cache_candle(self, candle: Candle, expire_seconds: int = 3600) -> bool:
         """Cache a candle with expiration"""
         key = f"{candle.symbol}:{candle.timeframe.value}:{int(candle.open_time.timestamp())}"
         candle_data = {
@@ -430,16 +424,13 @@ class RedisAdapter:
             "quote_volume": candle.quote_volume,
             "trades": candle.trades,
             "taker_buy_base_volume": candle.taker_buy_base_volume,
-            "taker_buy_quote_volume": candle.taker_buy_quote_volume
+            "taker_buy_quote_volume": candle.taker_buy_quote_volume,
         }
 
         return await self.set(key, candle_data, expire=expire_seconds, prefix="candle")
 
     async def get_cached_candle(
-        self,
-        symbol: str,
-        timeframe: TimeFrame,
-        timestamp: datetime
+        self, symbol: str, timeframe: TimeFrame, timestamp: datetime
     ) -> Optional[Candle]:
         """Get cached candle"""
         key = f"{symbol}:{timeframe.value}:{int(timestamp.timestamp())}"
@@ -462,7 +453,7 @@ class RedisAdapter:
                 quote_volume=Decimal(str(data["quote_volume"])),
                 trades=data["trades"],
                 taker_buy_base_volume=Decimal(str(data["taker_buy_base_volume"])),
-                taker_buy_quote_volume=Decimal(str(data["taker_buy_quote_volume"]))
+                taker_buy_quote_volume=Decimal(str(data["taker_buy_quote_volume"])),
             )
 
         except Exception as e:
@@ -470,9 +461,7 @@ class RedisAdapter:
             return None
 
     async def cache_latest_indicators(
-        self,
-        indicators: TechnicalIndicators,
-        expire_seconds: int = 300
+        self, indicators: TechnicalIndicators, expire_seconds: int = 300
     ) -> bool:
         """Cache latest technical indicators"""
         key = f"{indicators.symbol}:{indicators.timeframe.value}:latest"
@@ -493,15 +482,15 @@ class RedisAdapter:
             "bb_middle": indicators.bb_middle,
             "bb_lower": indicators.bb_lower,
             "bb_width": indicators.bb_width,
-            "bb_percent": indicators.bb_percent
+            "bb_percent": indicators.bb_percent,
         }
 
-        return await self.set(key, indicators_data, expire=expire_seconds, prefix="indicator")
+        return await self.set(
+            key, indicators_data, expire=expire_seconds, prefix="indicator"
+        )
 
     async def get_latest_indicators(
-        self,
-        symbol: str,
-        timeframe: TimeFrame
+        self, symbol: str, timeframe: TimeFrame
     ) -> Optional[TechnicalIndicators]:
         """Get latest cached technical indicators"""
         key = f"{symbol}:{timeframe.value}:latest"
@@ -520,15 +509,27 @@ class RedisAdapter:
                 ema_50=Decimal(str(data["ema_50"])) if data["ema_50"] else None,
                 ema_200=Decimal(str(data["ema_200"])) if data["ema_200"] else None,
                 rsi_14=Decimal(str(data["rsi_14"])) if data["rsi_14"] else None,
-                macd_line=Decimal(str(data["macd_line"])) if data["macd_line"] else None,
-                macd_signal=Decimal(str(data["macd_signal"])) if data["macd_signal"] else None,
-                macd_histogram=Decimal(str(data["macd_histogram"])) if data["macd_histogram"] else None,
+                macd_line=(
+                    Decimal(str(data["macd_line"])) if data["macd_line"] else None
+                ),
+                macd_signal=(
+                    Decimal(str(data["macd_signal"])) if data["macd_signal"] else None
+                ),
+                macd_histogram=(
+                    Decimal(str(data["macd_histogram"]))
+                    if data["macd_histogram"]
+                    else None
+                ),
                 atr_14=Decimal(str(data["atr_14"])) if data["atr_14"] else None,
                 bb_upper=Decimal(str(data["bb_upper"])) if data["bb_upper"] else None,
-                bb_middle=Decimal(str(data["bb_middle"])) if data["bb_middle"] else None,
+                bb_middle=(
+                    Decimal(str(data["bb_middle"])) if data["bb_middle"] else None
+                ),
                 bb_lower=Decimal(str(data["bb_lower"])) if data["bb_lower"] else None,
                 bb_width=Decimal(str(data["bb_width"])) if data["bb_width"] else None,
-                bb_percent=Decimal(str(data["bb_percent"])) if data["bb_percent"] else None
+                bb_percent=(
+                    Decimal(str(data["bb_percent"])) if data["bb_percent"] else None
+                ),
             )
 
         except Exception as e:
@@ -601,7 +602,9 @@ class RedisAdapter:
             logger.error(f"Error getting multiple keys: {e}")
             return [None] * len(keys)
 
-    async def mset(self, key_value_pairs: Dict[str, Any], prefix: str = "cache") -> bool:
+    async def mset(
+        self, key_value_pairs: Dict[str, Any], prefix: str = "cache"
+    ) -> bool:
         """Set multiple key-value pairs"""
         self._ensure_connected()
 
@@ -644,7 +647,7 @@ class RedisAdapter:
                 "connected_clients": info.get("connected_clients", 0),
                 "total_commands_processed": info.get("total_commands_processed", 0),
                 "uptime_seconds": info.get("uptime_in_seconds", 0),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
@@ -652,7 +655,7 @@ class RedisAdapter:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
     async def get_key_count(self, pattern: str = "*") -> int:

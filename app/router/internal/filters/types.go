@@ -43,9 +43,9 @@ type LotSizeFilter struct {
 
 // MinNotionalFilter validates minimum notional value
 type MinNotionalFilter struct {
-	MinNotional  decimal.Decimal `json:"minNotional"`
-	ApplyToMarket bool           `json:"applyToMarket"`
-	AvgPriceMins  int            `json:"avgPriceMins"`
+	MinNotional   decimal.Decimal `json:"minNotional"`
+	ApplyToMarket bool            `json:"applyToMarket"`
+	AvgPriceMins  int             `json:"avgPriceMins"`
 }
 
 // MarketLotSizeFilter for market orders

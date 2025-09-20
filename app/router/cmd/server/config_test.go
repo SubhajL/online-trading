@@ -51,8 +51,8 @@ func TestLoadConfig(t *testing.T) {
 		config, err := LoadConfig()
 		require.NoError(t, err)
 
-		assert.Equal(t, 8080, config.Port) // Default port
-		assert.Equal(t, 100, config.RateLimit) // Default rate limit
+		assert.Equal(t, 8080, config.Port)       // Default port
+		assert.Equal(t, 100, config.RateLimit)   // Default rate limit
 		assert.Equal(t, "info", config.LogLevel) // Default log level
 		assert.Equal(t, 30*time.Second, config.ReadTimeout)
 		assert.Equal(t, 30*time.Second, config.WriteTimeout)
@@ -145,6 +145,7 @@ func TestValidateConfig(t *testing.T) {
 			Port:      8080,
 			APIKey:    "test-key",
 			RateLimit: 100,
+			LogLevel:  "info",
 		}
 
 		err := ValidateConfig(config)

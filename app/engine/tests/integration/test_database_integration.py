@@ -21,7 +21,7 @@ from app.engine.core.database import (
     ConnectionError,
     TransactionError,
     OptimisticLockError,
-    PoolExhaustionError
+    PoolExhaustionError,
 )
 
 
@@ -29,17 +29,15 @@ def get_test_db_config() -> DatabaseConfig:
     """Get database config for testing."""
     return DatabaseConfig(
         postgres_url=os.getenv(
-            "TEST_POSTGRES_URL",
-            "postgresql://test:test@localhost:5432/test_db"
+            "TEST_POSTGRES_URL", "postgresql://test:test@localhost:5432/test_db"
         ),
         redis_url=os.getenv(
-            "TEST_REDIS_URL",
-            "redis://localhost:6379/15"  # Use DB 15 for tests
+            "TEST_REDIS_URL", "redis://localhost:6379/15"  # Use DB 15 for tests
         ),
         pool_size=2,  # Small pool for testing
         max_overflow=2,
         pool_timeout=5,
-        retry_attempts=2
+        retry_attempts=2,
     )
 
 
@@ -73,7 +71,8 @@ async def setup_test_table(test_pool):
     async with test_pool.get_postgres_connection() as conn:
         # Drop and recreate test table
         await conn.execute("DROP TABLE IF EXISTS test_table")
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TABLE test_table (
                 id SERIAL PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -81,7 +80,8 @@ async def setup_test_table(test_pool):
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW()
             )
-        """)
+        """
+        )
     yield
     # Cleanup
     async with test_pool.get_postgres_connection() as conn:
@@ -154,14 +154,12 @@ class TestTransactionContextIntegration:
         async with test_pool.get_postgres_connection() as conn:
             async with TransactionContext(conn) as tx:
                 await tx.execute(
-                    "INSERT INTO test_table (value) VALUES ($1)",
-                    "test_value"
+                    "INSERT INTO test_table (value) VALUES ($1)", "test_value"
                 )
 
             # Verify data was committed
             count = await conn.fetchval(
-                "SELECT COUNT(*) FROM test_table WHERE value = $1",
-                "test_value"
+                "SELECT COUNT(*) FROM test_table WHERE value = $1", "test_value"
             )
             assert count == 1
 
@@ -171,31 +169,25 @@ class TestTransactionContextIntegration:
         """Test transaction rollback on exception."""
         async with test_pool.get_postgres_connection() as conn:
             # Insert initial row
-            await conn.execute(
-                "INSERT INTO test_table (value) VALUES ($1)",
-                "initial"
-            )
+            await conn.execute("INSERT INTO test_table (value) VALUES ($1)", "initial")
 
             # Transaction that will fail
             with pytest.raises(ValueError):
                 async with TransactionContext(conn) as tx:
                     await tx.execute(
-                        "INSERT INTO test_table (value) VALUES ($1)",
-                        "should_rollback"
+                        "INSERT INTO test_table (value) VALUES ($1)", "should_rollback"
                     )
                     raise ValueError("Intentional error")
 
             # Verify rollback occurred
             count = await conn.fetchval(
-                "SELECT COUNT(*) FROM test_table WHERE value = $1",
-                "should_rollback"
+                "SELECT COUNT(*) FROM test_table WHERE value = $1", "should_rollback"
             )
             assert count == 0
 
             # Initial row should still exist
             count = await conn.fetchval(
-                "SELECT COUNT(*) FROM test_table WHERE value = $1",
-                "initial"
+                "SELECT COUNT(*) FROM test_table WHERE value = $1", "initial"
             )
             assert count == 1
 
@@ -203,27 +195,26 @@ class TestTransactionContextIntegration:
     @pytest.mark.integration
     async def test_transaction_isolation(self, test_pool, setup_test_table):
         """Test transactions are properly isolated."""
-        async with test_pool.get_postgres_connection() as conn1, \
-                   test_pool.get_postgres_connection() as conn2:
+        async with (
+            test_pool.get_postgres_connection() as conn1,
+            test_pool.get_postgres_connection() as conn2,
+        ):
 
             # Start transaction in conn1
             async with TransactionContext(conn1) as tx1:
                 await tx1.execute(
-                    "INSERT INTO test_table (value) VALUES ($1)",
-                    "tx1_value"
+                    "INSERT INTO test_table (value) VALUES ($1)", "tx1_value"
                 )
 
                 # conn2 should not see uncommitted data
                 count = await conn2.fetchval(
-                    "SELECT COUNT(*) FROM test_table WHERE value = $1",
-                    "tx1_value"
+                    "SELECT COUNT(*) FROM test_table WHERE value = $1", "tx1_value"
                 )
                 assert count == 0
 
             # After commit, conn2 should see the data
             count = await conn2.fetchval(
-                "SELECT COUNT(*) FROM test_table WHERE value = $1",
-                "tx1_value"
+                "SELECT COUNT(*) FROM test_table WHERE value = $1", "tx1_value"
             )
             assert count == 1
 
@@ -240,8 +231,7 @@ class TestOptimisticLockingIntegration:
         async with test_pool.get_postgres_connection() as conn:
             # Insert test row
             row_id = await conn.fetchval(
-                "INSERT INTO test_table (value) VALUES ($1) RETURNING id",
-                "original"
+                "INSERT INTO test_table (value) VALUES ($1) RETURNING id", "original"
             )
 
             # Update with version check
@@ -252,15 +242,16 @@ class TestOptimisticLockingIntegration:
                 SET value = $1, version = version + 1
                 WHERE id = $2 AND version = $3
                 """,
-                "updated", row_id, 1
+                "updated",
+                row_id,
+                1,
             )
 
             assert success is True
 
             # Verify update
             row = await conn.fetchrow(
-                "SELECT value, version FROM test_table WHERE id = $1",
-                row_id
+                "SELECT value, version FROM test_table WHERE id = $1", row_id
             )
             assert row["value"] == "updated"
             assert row["version"] == 2
@@ -274,14 +265,12 @@ class TestOptimisticLockingIntegration:
         async with test_pool.get_postgres_connection() as conn:
             # Insert test row
             row_id = await conn.fetchval(
-                "INSERT INTO test_table (value) VALUES ($1) RETURNING id",
-                "original"
+                "INSERT INTO test_table (value) VALUES ($1) RETURNING id", "original"
             )
 
             # Simulate concurrent update (increment version)
             await conn.execute(
-                "UPDATE test_table SET version = 2 WHERE id = $1",
-                row_id
+                "UPDATE test_table SET version = 2 WHERE id = $1", row_id
             )
 
             # Try to update with old version - should fail
@@ -293,7 +282,9 @@ class TestOptimisticLockingIntegration:
                     SET value = $1, version = version + 1
                     WHERE id = $2 AND version = $3
                     """,
-                    "should_fail", row_id, 1  # Old version
+                    "should_fail",
+                    row_id,
+                    1,  # Old version
                 )
 
 
@@ -309,7 +300,7 @@ class TestDatabaseManagerIntegration:
             postgres_url="postgresql://invalid:invalid@localhost:5432/nonexistent",
             redis_url="redis://localhost:6379/15",
             retry_attempts=1,  # Only one retry to speed up test
-            retry_delay=0.01
+            retry_delay=0.01,
         )
 
         manager = DatabaseManager(config)
@@ -323,14 +314,10 @@ class TestDatabaseManagerIntegration:
     async def test_manager_transaction_helper(self, test_db_manager, setup_test_table):
         """Test manager's transaction helper method."""
         async with test_db_manager.transaction() as tx:
-            await tx.execute(
-                "INSERT INTO test_table (value) VALUES ($1)",
-                "tx_test"
-            )
+            await tx.execute("INSERT INTO test_table (value) VALUES ($1)", "tx_test")
 
             rows = await tx.fetch(
-                "SELECT * FROM test_table WHERE value = $1",
-                "tx_test"
+                "SELECT * FROM test_table WHERE value = $1", "tx_test"
             )
             assert len(rows) == 1
             assert rows[0]["value"] == "tx_test"
@@ -371,10 +358,7 @@ class TestConcurrencyIntegration:
 
         async def insert_value(value: str):
             async with test_db_manager.transaction() as tx:
-                await tx.execute(
-                    "INSERT INTO test_table (value) VALUES ($1)",
-                    value
-                )
+                await tx.execute("INSERT INTO test_table (value) VALUES ($1)", value)
                 # Small delay to increase chance of overlap
                 await asyncio.sleep(0.01)
                 return value

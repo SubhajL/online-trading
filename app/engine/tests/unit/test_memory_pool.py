@@ -20,7 +20,7 @@ from app.engine.core.memory_pool import (
     PooledArray,
     PoolStats,
     PoolExhaustedError,
-    ArrayCorruptedError
+    ArrayCorruptedError,
 )
 
 
@@ -152,7 +152,7 @@ class TestPoolStats:
         arr3 = acquire(pool)
 
         stats = get_pool_stats(pool)
-        assert stats.hit_rate == 2/3  # 2 hits, 1 miss
+        assert stats.hit_rate == 2 / 3  # 2 hits, 1 miss
         assert stats.allocations == 1
 
     def test_pool_stats_memory_usage(self):

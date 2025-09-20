@@ -26,13 +26,18 @@ from .smc.smc_service import SMCService
 from .decision.decision_engine import DecisionEngine
 from .decision.risk_manager import RiskManager
 from .adapters import TimescaleDBAdapter, RedisAdapter, RouterHTTPClient
-from .types import RiskParameters, BinanceConfig, DatabaseConfig, RedisConfig, EngineConfig
+from .models import (
+    RiskParameters,
+    BinanceConfig,
+    DatabaseConfig,
+    RedisConfig,
+    EngineConfig,
+)
 
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -97,7 +102,7 @@ app = FastAPI(
     title="Trading Engine",
     description="Comprehensive trading platform engine with real-time data processing",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -122,19 +127,19 @@ def load_configuration() -> EngineConfig:
             port=int(os.getenv("DB_PORT", "5432")),
             database=os.getenv("DB_NAME", "trading_engine"),
             username=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "password")
+            password=os.getenv("DB_PASSWORD", "password"),
         )
 
         redis_config = RedisConfig(
             host=os.getenv("REDIS_HOST", "localhost"),
             port=int(os.getenv("REDIS_PORT", "6379")),
-            password=os.getenv("REDIS_PASSWORD")
+            password=os.getenv("REDIS_PASSWORD"),
         )
 
         binance_config = BinanceConfig(
             api_key=os.getenv("BINANCE_API_KEY", ""),
             api_secret=os.getenv("BINANCE_API_SECRET", ""),
-            testnet=os.getenv("BINANCE_TESTNET", "true").lower() == "true"
+            testnet=os.getenv("BINANCE_TESTNET", "true").lower() == "true",
         )
 
         risk_parameters = RiskParameters(
@@ -142,7 +147,7 @@ def load_configuration() -> EngineConfig:
             max_daily_loss=float(os.getenv("MAX_DAILY_LOSS", "0.05")),
             max_drawdown=float(os.getenv("MAX_DRAWDOWN", "0.15")),
             risk_per_trade=float(os.getenv("RISK_PER_TRADE", "0.02")),
-            max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "5"))
+            max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "5")),
         )
 
         config = EngineConfig(
@@ -151,7 +156,7 @@ def load_configuration() -> EngineConfig:
             database=database_config,
             redis=redis_config,
             binance=binance_config,
-            risk_parameters=risk_parameters
+            risk_parameters=risk_parameters,
         )
 
         logger.info(f"Configuration loaded for environment: {config.environment}")
@@ -168,7 +173,7 @@ async def initialize_services(config: EngineConfig):
         # Initialize event bus
         event_bus = EventBus(max_queue_size=10000)
         set_event_bus(event_bus)
-        services['event_bus'] = event_bus
+        services["event_bus"] = event_bus
 
         # Initialize database adapter
         db_adapter = TimescaleDBAdapter(
@@ -176,62 +181,62 @@ async def initialize_services(config: EngineConfig):
             port=config.database.port,
             database=config.database.database,
             username=config.database.username,
-            password=config.database.password
+            password=config.database.password,
         )
         await db_adapter.initialize()
-        services['database'] = db_adapter
+        services["database"] = db_adapter
 
         # Initialize Redis adapter
         redis_adapter = RedisAdapter(
             host=config.redis.host,
             port=config.redis.port,
-            password=config.redis.password
+            password=config.redis.password,
         )
         await redis_adapter.initialize()
-        services['redis'] = redis_adapter
+        services["redis"] = redis_adapter
 
         # Initialize router client
         router_client = RouterHTTPClient(
             base_url=os.getenv("ROUTER_URL", "http://localhost:8001"),
-            api_key=os.getenv("ROUTER_API_KEY")
+            api_key=os.getenv("ROUTER_API_KEY"),
         )
         await router_client.initialize()
-        services['router'] = router_client
+        services["router"] = router_client
 
         # Initialize risk manager
         risk_manager = RiskManager(config.risk_parameters)
-        services['risk_manager'] = risk_manager
+        services["risk_manager"] = risk_manager
 
         # Initialize ingest service
         symbols = os.getenv("TRADING_SYMBOLS", "BTCUSDT,ETHUSDT").split(",")
-        from .types import TimeFrame
+        from .models import TimeFrame
+
         timeframes = [TimeFrame.M5, TimeFrame.M15, TimeFrame.H1, TimeFrame.H4]
 
         ingest_service = IngestService(
             binance_config={
-                'api_key': config.binance.api_key,
-                'api_secret': config.binance.api_secret,
-                'testnet': config.binance.testnet
+                "api_key": config.binance.api_key,
+                "api_secret": config.binance.api_secret,
+                "testnet": config.binance.testnet,
             },
             symbols=symbols,
-            timeframes=timeframes
+            timeframes=timeframes,
         )
-        services['ingest'] = ingest_service
+        services["ingest"] = ingest_service
 
         # Initialize feature service
         feature_service = FeatureService()
-        services['features'] = feature_service
+        services["features"] = feature_service
 
         # Initialize SMC service
         smc_service = SMCService()
-        services['smc'] = smc_service
+        services["smc"] = smc_service
 
         # Initialize decision engine
         decision_engine = DecisionEngine(
-            risk_manager=risk_manager,
-            router_client=router_client
+            risk_manager=risk_manager, router_client=router_client
         )
-        services['decision'] = decision_engine
+        services["decision"] = decision_engine
 
         logger.info("All services initialized successfully")
 
@@ -244,11 +249,11 @@ async def start_services():
     """Start all services"""
     try:
         # Start services in dependency order
-        await services['event_bus'].start()
-        await services['ingest'].start()
-        await services['features'].start()
-        await services['smc'].start()
-        await services['decision'].start()
+        await services["event_bus"].start()
+        await services["ingest"].start()
+        await services["features"].start()
+        await services["smc"].start()
+        await services["decision"].start()
 
         logger.info("All services started successfully")
 
@@ -261,7 +266,7 @@ async def shutdown_services():
     """Shutdown all services"""
     try:
         # Stop services in reverse order
-        for service_name in ['decision', 'smc', 'features', 'ingest', 'event_bus']:
+        for service_name in ["decision", "smc", "features", "ingest", "event_bus"]:
             if service_name in services:
                 try:
                     await services[service_name].stop()
@@ -270,7 +275,7 @@ async def shutdown_services():
                     logger.error(f"Error stopping {service_name}: {e}")
 
         # Close adapters
-        for adapter_name in ['router', 'redis', 'database']:
+        for adapter_name in ["router", "redis", "database"]:
             if adapter_name in services:
                 try:
                     await services[adapter_name].close()
@@ -293,13 +298,13 @@ async def health_check():
         # Check each service
         for service_name, service in services.items():
             try:
-                if hasattr(service, 'health_check'):
+                if hasattr(service, "health_check"):
                     health = await service.health_check()
                     service_health[service_name] = health
 
                     # Determine if service is unhealthy
                     if isinstance(health, dict):
-                        if health.get('status') in ['unhealthy', 'error', 'stopped']:
+                        if health.get("status") in ["unhealthy", "error", "stopped"]:
                             overall_status = "degraded"
                     elif not health:
                         overall_status = "degraded"
@@ -316,7 +321,7 @@ async def health_check():
             status=overall_status,
             timestamp=datetime.utcnow().isoformat(),
             services=service_health,
-            uptime_seconds=uptime
+            uptime_seconds=uptime,
         )
 
     except Exception as e:
@@ -339,9 +344,9 @@ async def get_metrics():
         # Collect metrics from each service
         for service_name, service in services.items():
             try:
-                if hasattr(service, 'get_metrics'):
+                if hasattr(service, "get_metrics"):
                     service_metrics = await service.get_metrics()
-                elif hasattr(service, 'health_check'):
+                elif hasattr(service, "health_check"):
                     service_metrics = await service.health_check()
                 else:
                     service_metrics = {"status": "no_metrics"}
@@ -353,27 +358,33 @@ async def get_metrics():
 
         return MetricsResponse(
             timestamp=datetime.utcnow().isoformat(),
-            event_bus=metrics.get('event_bus', {}),
-            ingest=metrics.get('ingest', {}),
-            features=metrics.get('features', {}),
-            smc=metrics.get('smc', {}),
-            decision=metrics.get('decision', {}),
-            database=metrics.get('database', {}),
-            redis=metrics.get('redis', {})
+            event_bus=metrics.get("event_bus", {}),
+            ingest=metrics.get("ingest", {}),
+            features=metrics.get("features", {}),
+            smc=metrics.get("smc", {}),
+            decision=metrics.get("decision", {}),
+            database=metrics.get("database", {}),
+            redis=metrics.get("redis", {}),
         )
 
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
-        raise HTTPException(status_code=500, detail=f"Metrics collection failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Metrics collection failed: {str(e)}"
+        )
 
 
 # Service Control Endpoints
 @app.post("/control/service")
-async def control_service(request: ServiceControlRequest, background_tasks: BackgroundTasks):
+async def control_service(
+    request: ServiceControlRequest, background_tasks: BackgroundTasks
+):
     """Control individual services"""
     try:
         if request.service and request.service not in services:
-            raise HTTPException(status_code=404, detail=f"Service {request.service} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Service {request.service} not found"
+            )
 
         if request.action == "restart":
             if request.service:
@@ -384,30 +395,38 @@ async def control_service(request: ServiceControlRequest, background_tasks: Back
                 # Restart all services
                 background_tasks.add_task(restart_all_services)
 
-            return {"message": f"Restart initiated for {request.service or 'all services'}"}
+            return {
+                "message": f"Restart initiated for {request.service or 'all services'}"
+            }
 
         elif request.action == "stop":
             if request.service:
                 service = services[request.service]
-                if hasattr(service, 'stop'):
+                if hasattr(service, "stop"):
                     await service.stop()
             else:
                 await shutdown_services()
 
-            return {"message": f"Stop completed for {request.service or 'all services'}"}
+            return {
+                "message": f"Stop completed for {request.service or 'all services'}"
+            }
 
         elif request.action == "start":
             if request.service:
                 service = services[request.service]
-                if hasattr(service, 'start'):
+                if hasattr(service, "start"):
                     await service.start()
             else:
                 await start_services()
 
-            return {"message": f"Start completed for {request.service or 'all services'}"}
+            return {
+                "message": f"Start completed for {request.service or 'all services'}"
+            }
 
         else:
-            raise HTTPException(status_code=400, detail=f"Unknown action: {request.action}")
+            raise HTTPException(
+                status_code=400, detail=f"Unknown action: {request.action}"
+            )
 
     except Exception as e:
         logger.error(f"Error controlling service: {e}")
@@ -418,9 +437,9 @@ async def restart_service(service_name: str, service):
     """Restart a specific service"""
     try:
         logger.info(f"Restarting service: {service_name}")
-        if hasattr(service, 'stop'):
+        if hasattr(service, "stop"):
             await service.stop()
-        if hasattr(service, 'start'):
+        if hasattr(service, "start"):
             await service.start()
         logger.info(f"Successfully restarted: {service_name}")
     except Exception as e:
@@ -447,7 +466,7 @@ async def get_status():
 
         for service_name, service in services.items():
             try:
-                if hasattr(service, 'get_status'):
+                if hasattr(service, "get_status"):
                     service_status = await service.get_status()
                 else:
                     service_status = {"available": True}
@@ -460,7 +479,7 @@ async def get_status():
         return {
             "timestamp": datetime.utcnow().isoformat(),
             "uptime_seconds": (datetime.utcnow() - startup_time).total_seconds(),
-            "services": status
+            "services": status,
         }
 
     except Exception as e:
@@ -477,7 +496,7 @@ async def get_info():
         "environment": os.getenv("ENVIRONMENT", "development"),
         "startup_time": startup_time.isoformat(),
         "uptime_seconds": (datetime.utcnow() - startup_time).total_seconds(),
-        "services": list(services.keys())
+        "services": list(services.keys()),
     }
 
 
@@ -491,8 +510,8 @@ async def global_exception_handler(request, exc):
         content={
             "error": "Internal server error",
             "message": str(exc),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+            "timestamp": datetime.utcnow().isoformat(),
+        },
     )
 
 
@@ -515,5 +534,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.getenv("PORT", "8000")),
         log_level=os.getenv("LOG_LEVEL", "info").lower(),
-        reload=os.getenv("ENVIRONMENT", "development") == "development"
+        reload=os.getenv("ENVIRONMENT", "development") == "development",
     )

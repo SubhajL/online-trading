@@ -233,4 +233,3 @@ func (m *MetricsCollectorImpl) Collect() (string, error) {
 func (m *MetricsCollectorImpl) GetCollector() *metrics.Collector {
 	return m.collector
 }
-

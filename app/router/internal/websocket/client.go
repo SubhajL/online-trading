@@ -67,9 +67,9 @@ func WithReconnectIntervalClient(interval time.Duration) ClientOption {
 
 // UserDataHandler handles user data stream events
 type UserDataHandler struct {
-	OnAccountUpdate      func(*AccountUpdateEvent) error
-	OnOrderUpdate        func(*OrderUpdateEvent) error
-	OnListenKeyExpired   func() error
+	OnAccountUpdate    func(*AccountUpdateEvent) error
+	OnOrderUpdate      func(*OrderUpdateEvent) error
+	OnListenKeyExpired func() error
 }
 
 // HandleAccountUpdate implements UserStreamHandler

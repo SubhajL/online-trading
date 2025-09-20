@@ -14,7 +14,7 @@ import (
 
 // MockCollector implements MetricsCollectorInterface for testing
 type MockCollector struct {
-	HTTPRequests map[string]int
+	HTTPRequests  map[string]int
 	HTTPDurations map[string][]float64
 }
 

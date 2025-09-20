@@ -28,7 +28,7 @@ from app.engine.core.error_handling import (
     error_manager,
     handle_error,
     create_error_context,
-    error_boundary
+    error_boundary,
 )
 
 
@@ -56,7 +56,7 @@ class TestErrorContext:
             metadata={"key": "value"},
             correlation_id="test-correlation",
             retry_count=2,
-            max_retries=5
+            max_retries=5,
         )
 
         assert context.category == ErrorCategory.SUBSCRIPTION
@@ -96,6 +96,7 @@ class TestEventBusErrors:
 
     def test_processing_error_sets_category_and_event_id(self):
         from uuid import uuid4
+
         event_id = uuid4()
 
         error = ProcessingError("Process error", event_id=event_id)
@@ -170,9 +171,9 @@ class TestLoggingErrorHandler:
 
         # Check that cause information is logged
         call_args = mock_logger.warning.call_args
-        log_data = call_args[1]['extra']
-        assert 'cause' in log_data
-        assert log_data['cause'] == str(cause)
+        log_data = call_args[1]["extra"]
+        assert "cause" in log_data
+        assert log_data["cause"] == str(cause)
 
     @pytest.mark.asyncio
     async def test_logging_handler_handles_logging_failure(self):
@@ -418,7 +419,7 @@ class TestConvenienceFunctions:
             severity=ErrorSeverity.HIGH,
             component="test_component",
             operation="test_operation",
-            key="value"
+            key="value",
         )
 
         assert context.category == ErrorCategory.SUBSCRIPTION
@@ -431,7 +432,7 @@ class TestConvenienceFunctions:
 class TestErrorBoundary:
     @pytest.mark.asyncio
     async def test_error_boundary_async_context_manager(self):
-        with patch('app.engine.core.error_handling.handle_error') as mock_handle:
+        with patch("app.engine.core.error_handling.handle_error") as mock_handle:
             mock_handle.return_value = True
 
             with pytest.raises(ValueError):
@@ -442,7 +443,7 @@ class TestErrorBoundary:
 
     @pytest.mark.asyncio
     async def test_error_boundary_async_decorator(self):
-        with patch('app.engine.core.error_handling.handle_error') as mock_handle:
+        with patch("app.engine.core.error_handling.handle_error") as mock_handle:
             mock_handle.return_value = True
 
             @error_boundary("test_component", "test_operation")
@@ -456,7 +457,7 @@ class TestErrorBoundary:
 
     @pytest.mark.asyncio
     async def test_error_boundary_suppresses_exception_when_reraise_false(self):
-        with patch('app.engine.core.error_handling.handle_error') as mock_handle:
+        with patch("app.engine.core.error_handling.handle_error") as mock_handle:
             mock_handle.return_value = True
 
             async with error_boundary("test_component", reraise=False):
@@ -466,7 +467,7 @@ class TestErrorBoundary:
             mock_handle.assert_called_once()
 
     def test_error_boundary_sync_context_manager(self):
-        with patch('app.engine.core.error_handling.logger') as mock_logger:
+        with patch("app.engine.core.error_handling.logger") as mock_logger:
             with pytest.raises(ValueError):
                 with error_boundary("test_component", "test_operation"):
                     raise ValueError("Test error")
@@ -475,7 +476,8 @@ class TestErrorBoundary:
             mock_logger.error.assert_called()
 
     def test_error_boundary_sync_decorator(self):
-        with patch('app.engine.core.error_handling.logger') as mock_logger:
+        with patch("app.engine.core.error_handling.logger") as mock_logger:
+
             @error_boundary("test_component", "test_operation")
             def failing_function():
                 raise ValueError("Test error")

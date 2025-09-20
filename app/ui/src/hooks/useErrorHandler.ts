@@ -14,12 +14,12 @@ type UseErrorHandlerReturn = {
   isError: boolean
   showError: (error: unknown) => void
   clearError: () => void
-  handleError: <T extends (...args: any[]) => any>(
+  handleError: <T extends (...args: unknown[]) => unknown>(
     fn: T,
   ) => (
     ...args: Parameters<T>
   ) => ReturnType<T> extends Promise<infer U> ? Promise<U> : ReturnType<T>
-  retry: () => Promise<any>
+  retry: () => Promise<unknown>
 }
 
 export function useErrorHandler(options: UseErrorHandlerOptions = {}): UseErrorHandlerReturn {
@@ -27,7 +27,7 @@ export function useErrorHandler(options: UseErrorHandlerOptions = {}): UseErrorH
 
   const [error, setError] = useState<unknown>(null)
   const timeoutRef = useRef<NodeJS.Timeout>()
-  const lastFunctionRef = useRef<{ fn: any; args: any[] }>()
+  const lastFunctionRef = useRef<{ fn: (...args: unknown[]) => unknown; args: unknown[] }>()
 
   const isError = error !== null
 
@@ -68,7 +68,7 @@ export function useErrorHandler(options: UseErrorHandlerOptions = {}): UseErrorH
   }, [])
 
   const handleError = useCallback(
-    <T extends (...args: any[]) => any>(fn: T) => {
+    <T extends (...args: unknown[]) => unknown>(fn: T) => {
       return ((...args: Parameters<T>) => {
         // Store the function and args for retry
         lastFunctionRef.current = { fn, args }
@@ -77,8 +77,8 @@ export function useErrorHandler(options: UseErrorHandlerOptions = {}): UseErrorH
           const result = fn(...args)
 
           // Handle async functions
-          if (result && typeof result.then === 'function') {
-            return result.catch((err: unknown) => {
+          if (result && typeof (result as Promise<unknown>).then === 'function') {
+            return (result as Promise<unknown>).catch((err: unknown) => {
               showError(err)
               throw err
             }) as ReturnType<T> extends Promise<infer U> ? Promise<U> : ReturnType<T>

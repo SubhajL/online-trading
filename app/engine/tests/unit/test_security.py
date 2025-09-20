@@ -23,7 +23,7 @@ from app.engine.core.security import (
     SecurityGuard,
     validate_environment,
     get_secure_config,
-    get_secret
+    get_secret,
 )
 
 
@@ -31,15 +31,15 @@ class TestValidationRule:
     def test_validation_rule_creation(self):
         rule = ValidationRule(
             name="TEST_VAR",
-            pattern=r'^\d+$',
+            pattern=r"^\d+$",
             min_length=5,
             max_length=10,
             required=True,
-            sensitive=True
+            sensitive=True,
         )
 
         assert rule.name == "TEST_VAR"
-        assert rule.pattern == r'^\d+$'
+        assert rule.pattern == r"^\d+$"
         assert rule.min_length == 5
         assert rule.max_length == 10
         assert rule.required is True
@@ -65,10 +65,7 @@ class TestEnvironmentValidator:
 
     def test_validate_pattern_matching(self):
         validator = EnvironmentValidator()
-        rule = ValidationRule(
-            name="PORT_VAR",
-            pattern=r'^\d{4}$'
-        )
+        rule = ValidationRule(name="PORT_VAR", pattern=r"^\d{4}$")
         validator.add_rule(rule)
 
         # Valid port
@@ -82,11 +79,7 @@ class TestEnvironmentValidator:
 
     def test_validate_length_constraints(self):
         validator = EnvironmentValidator()
-        rule = ValidationRule(
-            name="PASSWORD",
-            min_length=8,
-            max_length=20
-        )
+        rule = ValidationRule(name="PASSWORD", min_length=8, max_length=20)
         validator.add_rule(rule)
 
         # Too short
@@ -106,8 +99,7 @@ class TestEnvironmentValidator:
     def test_validate_allowed_values(self):
         validator = EnvironmentValidator()
         rule = ValidationRule(
-            name="LOG_LEVEL",
-            allowed_values=["DEBUG", "INFO", "ERROR"]
+            name="LOG_LEVEL", allowed_values=["DEBUG", "INFO", "ERROR"]
         )
         validator.add_rule(rule)
 
@@ -132,7 +124,7 @@ class TestEnvironmentValidator:
         rule = ValidationRule(
             name="EVEN_NUMBER",
             custom_validator=is_even,
-            error_message="Value must be an even number"
+            error_message="Value must be an even number",
         )
         validator.add_rule(rule)
 
@@ -273,9 +265,7 @@ class TestSecureConfig:
 
     def test_validation_error_in_production(self):
         config = SecureConfig(SecurityLevel.PRODUCTION)
-        config.validator.add_rule(
-            ValidationRule(name="INVALID_VAR", pattern=r'^\d+$')
-        )
+        config.validator.add_rule(ValidationRule(name="INVALID_VAR", pattern=r"^\d+$"))
 
         with patch.dict(os.environ, {"INVALID_VAR": "not_a_number"}):
             with pytest.raises(ValidationError):
@@ -283,9 +273,7 @@ class TestSecureConfig:
 
     def test_validation_warning_in_development(self):
         config = SecureConfig(SecurityLevel.DEVELOPMENT)
-        config.validator.add_rule(
-            ValidationRule(name="INVALID_VAR", pattern=r'^\d+$')
-        )
+        config.validator.add_rule(ValidationRule(name="INVALID_VAR", pattern=r"^\d+$"))
 
         with patch.dict(os.environ, {"INVALID_VAR": "not_a_number"}):
             # Should not raise, just warn
@@ -299,7 +287,7 @@ class TestSecureConfig:
         data = {
             "API_KEY": "secret123456",
             "NORMAL_KEY": "normal_value",
-            "PASSWORD": "pass123"  # Auto-detected as sensitive
+            "PASSWORD": "pass123",  # Auto-detected as sensitive
         }
 
         masked = config.mask_sensitive_values(data)
@@ -312,10 +300,9 @@ class TestSecureConfig:
         config = SecureConfig()
         config._sensitive_keys.add("SECRET")
 
-        with patch.dict(os.environ, {
-            "SECRET": "secret_value",
-            "PUBLIC": "public_value"
-        }):
+        with patch.dict(
+            os.environ, {"SECRET": "secret_value", "PUBLIC": "public_value"}
+        ):
             config.get("SECRET", sensitive=True)
             config.get("PUBLIC")
 
@@ -354,10 +341,9 @@ class TestSecurityGuard:
         config = SecureConfig(SecurityLevel.PRODUCTION)
         guard = SecurityGuard(config)
 
-        with patch.dict(os.environ, {
-            "ENFORCE_HTTPS": "false",
-            "TLS_MIN_VERSION": "1.0"
-        }):
+        with patch.dict(
+            os.environ, {"ENFORCE_HTTPS": "false", "TLS_MIN_VERSION": "1.0"}
+        ):
             result = guard.check_secure_communication()
             assert result is False
             assert len(guard.violations) >= 2
@@ -393,7 +379,7 @@ class TestSecurityGuard:
 
 class TestConvenienceFunctions:
     def test_validate_environment_function(self):
-        with patch('app.engine.core.security.secure_config') as mock_config:
+        with patch("app.engine.core.security.secure_config") as mock_config:
             mock_audit = SecurityAudit()
             mock_config.audit.return_value = mock_audit
 
@@ -402,7 +388,7 @@ class TestConvenienceFunctions:
             mock_config.audit.assert_called_once()
 
     def test_get_secure_config_function(self):
-        with patch('app.engine.core.security.secure_config') as mock_config:
+        with patch("app.engine.core.security.secure_config") as mock_config:
             mock_config.get.return_value = "test_value"
 
             value = get_secure_config("TEST_KEY", default="default")
@@ -410,7 +396,7 @@ class TestConvenienceFunctions:
             mock_config.get.assert_called_once_with("TEST_KEY", "default")
 
     def test_get_secret_function(self):
-        with patch('app.engine.core.security.secure_config') as mock_config:
+        with patch("app.engine.core.security.secure_config") as mock_config:
             mock_config.get_secret.return_value = "secret_value"
 
             value = get_secret("SECRET_KEY")

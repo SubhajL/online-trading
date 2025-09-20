@@ -3,7 +3,7 @@ import { REQUEST_TIMEOUT } from '@/config/constants'
 export type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   headers?: Record<string, string>
-  body?: any
+  body?: unknown
   params?: Record<string, string | number | boolean>
   timeout?: number
   retries?: number
@@ -29,7 +29,7 @@ export class ApiClient {
     }
   }
 
-  async request<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  async request<T = unknown>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const {
       method = 'GET',
       headers = {},
@@ -87,30 +87,33 @@ export class ApiClient {
     }
   }
 
-  async get<T = any>(
+  async get<T = unknown>(
     endpoint: string,
     options?: Omit<RequestOptions, 'method' | 'body'>,
   ): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'GET' })
   }
 
-  async post<T = any>(
+  async post<T = unknown>(
     endpoint: string,
-    body?: any,
+    body?: unknown,
     options?: Omit<RequestOptions, 'method' | 'body'>,
   ): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'POST', body })
   }
 
-  async put<T = any>(
+  async put<T = unknown>(
     endpoint: string,
-    body?: any,
+    body?: unknown,
     options?: Omit<RequestOptions, 'method' | 'body'>,
   ): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'PUT', body })
   }
 
-  async delete<T = any>(endpoint: string, options?: Omit<RequestOptions, 'method'>): Promise<T> {
+  async delete<T = unknown>(
+    endpoint: string,
+    options?: Omit<RequestOptions, 'method'>,
+  ): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' })
   }
 }

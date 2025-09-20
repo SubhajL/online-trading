@@ -257,7 +257,7 @@ func TestErrorWithContext(t *testing.T) {
 func TestHTTPStatusErrors(t *testing.T) {
 	t.Run("creates appropriate error for status codes", func(t *testing.T) {
 		testCases := []struct {
-			status   int
+			status    int
 			retryable bool
 		}{
 			{200, false}, // Success shouldn't create error
@@ -298,4 +298,3 @@ func (e *errorReader) Read(p []byte) (n int, err error) {
 func (e *errorReader) Close() error {
 	return nil
 }
-

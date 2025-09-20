@@ -11,18 +11,18 @@ import (
 
 // Connection represents a WebSocket connection with reconnection capabilities
 type Connection struct {
-	url                string
-	state              ConnectionState
-	stateMu            sync.RWMutex
+	url     string
+	state   ConnectionState
+	stateMu sync.RWMutex
 
 	// Connection options
-	pingInterval        time.Duration
-	pongTimeout         time.Duration
-	writeTimeout        time.Duration
-	readTimeout         time.Duration
-	autoReconnect       bool
+	pingInterval         time.Duration
+	pongTimeout          time.Duration
+	writeTimeout         time.Duration
+	readTimeout          time.Duration
+	autoReconnect        bool
 	maxReconnectAttempts int
-	reconnectInterval   time.Duration
+	reconnectInterval    time.Duration
 
 	// Pong tracking
 	lastPongTime time.Time
@@ -38,8 +38,10 @@ type Connection struct {
 	handlerMu      sync.RWMutex
 
 	// Control channels
-	closeChan   chan struct{}
-	doneChan    chan struct{}
+	closeChan chan struct{}
+	doneChan  chan struct{}
+	doneOnce  sync.Once
+	doneMutex sync.Mutex // Protects doneChan recreation
 
 	// Reconnection state
 	reconnectAttempts int
@@ -103,16 +105,16 @@ func WithReconnectInterval(interval time.Duration) ConnectionOption {
 func NewConnection(url string, opts ...ConnectionOption) *Connection {
 	conn := &Connection{
 		url:                  url,
-		state:               StateDisconnected,
-		pingInterval:        30 * time.Second,
-		pongTimeout:         60 * time.Second,
-		writeTimeout:        10 * time.Second,
-		readTimeout:         60 * time.Second,
-		autoReconnect:       false,
+		state:                StateDisconnected,
+		pingInterval:         30 * time.Second,
+		pongTimeout:          60 * time.Second,
+		writeTimeout:         10 * time.Second,
+		readTimeout:          60 * time.Second,
+		autoReconnect:        false,
 		maxReconnectAttempts: 5,
-		reconnectInterval:   5 * time.Second,
-		closeChan:           make(chan struct{}),
-		doneChan:            make(chan struct{}),
+		reconnectInterval:    5 * time.Second,
+		closeChan:            make(chan struct{}),
+		doneChan:             make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -168,6 +170,24 @@ func (c *Connection) Connect(ctx context.Context) error {
 	}
 
 	c.setState(StateConnecting)
+
+	// Reset channels for reconnection
+	select {
+	case <-c.closeChan:
+		c.closeChan = make(chan struct{})
+	default:
+	}
+
+	// Handle doneChan without resetting sync.Once
+	c.doneMutex.Lock()
+	select {
+	case <-c.doneChan:
+		// Create new done channel and reset once for next use
+		c.doneChan = make(chan struct{})
+		c.doneOnce = sync.Once{}
+	default:
+	}
+	c.doneMutex.Unlock()
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
@@ -234,20 +254,18 @@ func (c *Connection) Send(ctx context.Context, data []byte) error {
 	}
 	conn.SetWriteDeadline(deadline)
 
-	// Write message with timeout handling
-	done := make(chan error, 1)
-	go func() {
-		done <- conn.WriteMessage(websocket.TextMessage, data)
-	}()
-
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(c.writeTimeout):
-		return fmt.Errorf("write timeout after %v", c.writeTimeout)
+	// Write message - SetWriteDeadline will handle timeout
+	err := conn.WriteMessage(websocket.TextMessage, data)
+	if err != nil {
+		// Check if context was cancelled
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			return err
+		}
 	}
+	return nil
 }
 
 // Close closes the WebSocket connection
@@ -317,12 +335,16 @@ func (c *Connection) SetMessageHandler(handler func([]byte)) {
 // startPingLoop sends periodic ping frames
 func (c *Connection) startPingLoop() {
 	defer func() {
-		select {
-		case <-c.doneChan:
-			// Already closed
-		default:
-			close(c.doneChan)
-		}
+		c.doneMutex.Lock()
+		defer c.doneMutex.Unlock()
+		c.doneOnce.Do(func() {
+			select {
+			case <-c.doneChan:
+				// Already closed
+			default:
+				close(c.doneChan)
+			}
+		})
 	}()
 
 	ticker := time.NewTicker(c.pingInterval)
@@ -381,12 +403,16 @@ func (c *Connection) startPingLoop() {
 // startReadLoop reads messages from WebSocket
 func (c *Connection) startReadLoop() {
 	defer func() {
-		select {
-		case <-c.doneChan:
-			// Already closed
-		default:
-			close(c.doneChan)
-		}
+		c.doneMutex.Lock()
+		defer c.doneMutex.Unlock()
+		c.doneOnce.Do(func() {
+			select {
+			case <-c.doneChan:
+				// Already closed
+			default:
+				close(c.doneChan)
+			}
+		})
 	}()
 
 	for {
@@ -457,11 +483,18 @@ func (c *Connection) attemptReconnection() {
 		c.reconnectMu.Unlock()
 	}()
 
-	for c.reconnectAttempts < c.maxReconnectAttempts {
+	for {
+		c.reconnectMu.Lock()
+		if c.reconnectAttempts >= c.maxReconnectAttempts {
+			c.reconnectMu.Unlock()
+			break
+		}
 		c.reconnectAttempts++
+		attempts := c.reconnectAttempts
+		c.reconnectMu.Unlock()
 
 		// Calculate backoff delay
-		backoffDelay := c.reconnectInterval * time.Duration(1<<uint(c.reconnectAttempts-1))
+		backoffDelay := c.reconnectInterval * time.Duration(1<<uint(attempts-1))
 		maxDelay := 30 * time.Second
 		if backoffDelay > maxDelay {
 			backoffDelay = maxDelay

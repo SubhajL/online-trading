@@ -6,6 +6,4 @@ Analyzes market conditions including trending/ranging regimes and volatility lev
 
 from .regime_analyzer import RegimeVolatilityAnalyzer
 
-__all__ = [
-    "RegimeVolatilityAnalyzer"
-]
+__all__ = ["RegimeVolatilityAnalyzer"]

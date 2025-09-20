@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "venue": "binance",
+  "symbol": "BTCUSDT",
+  "event_id": "news-fomc-2024-01-15",
+  "event_name": "FOMC Meeting Minutes",
+  "impact": "high",
+  "window_start": "2024-01-15T18:00:00.000Z",
+  "window_end": "2024-01-15T20:00:00.000Z",
+  "is_active": false
+}

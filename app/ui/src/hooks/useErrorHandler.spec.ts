@@ -73,7 +73,7 @@ describe('useErrorHandler', () => {
     await act(async () => {
       try {
         await result.current.handleError(asyncFunction)()
-      } catch (e) {
+      } catch {
         // Expected to throw
       }
     })
@@ -151,7 +151,7 @@ describe('useErrorHandler', () => {
     await act(async () => {
       try {
         await result.current.handleError(flakeyFunction)()
-      } catch (e) {
+      } catch {
         // Expected to throw
       }
     })
@@ -236,7 +236,7 @@ describe('useErrorHandler', () => {
     act(() => {
       try {
         result.current.handleError(syncFunction)()
-      } catch (e) {
+      } catch {
         // Expected to throw
       }
     })

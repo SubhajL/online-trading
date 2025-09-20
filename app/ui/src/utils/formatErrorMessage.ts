@@ -62,7 +62,9 @@ export function formatErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
     // Handle axios-like errors
     if ('response' in error) {
-      const response = error.response as any
+      const response = error.response as {
+        data?: { message?: string; error?: string; details?: string }
+      }
       if (response?.data?.message) {
         return response.data.message
       }

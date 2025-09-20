@@ -15,7 +15,7 @@ from app.engine.backtest.vector_engine import (
     calculate_max_drawdown,
     apply_signal_vectorized,
     calculate_metrics_vectorized,
-    BacktestMetrics
+    BacktestMetrics,
 )
 
 

@@ -2,16 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
-import { RouterClientService } from '../../src/router-client/router-client.service';
-import { TradingService } from '../../src/trading/trading.service';
-import { EngineClientService } from '../../src/engine-client/engine-client.service';
 
 // No mocks - using real services
 
 describe('Trading REST API Integration', () => {
   let app: INestApplication;
-  let routerClient: RouterClientService;
-  let tradingService: TradingService;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -21,9 +16,6 @@ describe('Trading REST API Integration', () => {
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
-
-    routerClient = moduleFixture.get<RouterClientService>(RouterClientService);
-    tradingService = moduleFixture.get<TradingService>(TradingService);
   });
 
   afterEach(async () => {
@@ -137,9 +129,7 @@ describe('Trading REST API Integration', () => {
 
       expect(response.body).toMatchObject({
         statusCode: 400,
-        message: expect.arrayContaining([
-          expect.stringContaining('venue'),
-        ]),
+        message: expect.arrayContaining([expect.stringContaining('venue')]),
         error: 'Bad Request',
       });
     });
@@ -182,9 +172,7 @@ describe('Trading REST API Integration', () => {
 
   describe('GET /api/trading/positions', () => {
     it('should return current positions', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/api/trading/positions')
-        .expect(200);
+      const response = await request(app.getHttpServer()).get('/api/trading/positions').expect(200);
 
       expect(response.body).toBeInstanceOf(Array);
     });
@@ -192,9 +180,7 @@ describe('Trading REST API Integration', () => {
 
   describe('GET /api/trading/orders', () => {
     it('should return active orders', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/api/trading/orders')
-        .expect(200);
+      const response = await request(app.getHttpServer()).get('/api/trading/orders').expect(200);
 
       expect(response.body).toBeInstanceOf(Array);
     });
@@ -239,9 +225,7 @@ describe('Trading REST API Integration', () => {
 
   describe('Health checks', () => {
     it('should return healthy status when all services are up', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/api/health')
-        .expect(200);
+      const response = await request(app.getHttpServer()).get('/api/health').expect(200);
 
       expect(response.body).toHaveProperty('status');
     });
@@ -250,7 +234,6 @@ describe('Trading REST API Integration', () => {
       // This test will fail if engine is actually up
       // For real integration testing, we'd need to stop the engine service
       // or test in an environment where it's not running
-
       // Skip this test for now as it requires manual service manipulation
     });
   });

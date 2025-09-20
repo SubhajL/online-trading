@@ -7,11 +7,7 @@ type HeaderProps = {
   className?: string
 }
 
-export function Header({
-  userName,
-  onLogout,
-  className = '',
-}: HeaderProps) {
+export function Header({ userName, onLogout, className = '' }: HeaderProps) {
   return (
     <header className={`header ${className}`}>
       <div className="header-container">
@@ -37,15 +33,9 @@ export function Header({
         </div>
 
         <div className="header-right">
-          {userName && (
-            <span className="user-name">Welcome, {userName}</span>
-          )}
+          {userName && <span className="user-name">Welcome, {userName}</span>}
           {onLogout && (
-            <button
-              onClick={onLogout}
-              className="logout-button"
-              type="button"
-            >
+            <button onClick={onLogout} className="logout-button" type="button">
               Logout
             </button>
           )}

@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "venue": "binance",
+  "symbol": "BTCUSDT",
+  "timeframe": "4h",
+  "event_time": "2024-01-15T08:00:00.000Z",
+  "event_type": "bos",
+  "direction": "bullish",
+  "price_level": "45300.0",
+  "previous_pivot_price": "44800.0",
+  "previous_pivot_time": "2024-01-14T20:00:00.000Z",
+  "broken_pivot_price": "45000.0",
+  "broken_pivot_time": "2024-01-14T12:00:00.000Z"
+}

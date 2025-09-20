@@ -72,7 +72,7 @@ SYMBOL_FILTERS = {
         "qty_step": Decimal("0.00001"),
         "min_notional": Decimal("5"),
         "price_precision": 2,
-        "qty_precision": 5
+        "qty_precision": 5,
     }
 }
 
@@ -111,7 +111,9 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
             if "." in price_str:
                 decimals = len(price_str.split(".")[1])
                 if decimals > price_precision:
-                    errors.append(f"Price precision {decimals} exceeds maximum {price_precision}")
+                    errors.append(
+                        f"Price precision {decimals} exceeds maximum {price_precision}"
+                    )
 
             # Check notional value
             notional = order.quantity * order.price
@@ -153,7 +155,9 @@ def calculate_position_size(signal: TradingSignal, account: AccountInfo) -> Deci
     else:
         # Scale: at 0.5 conf -> 0.66x, at 0.8 conf -> 1.0x
         # Formula: 0.66 + (conf - 0.5) * 1.133
-        confidence_multiplier = Decimal("0.66") + ((signal.confidence - Decimal("0.5")) * Decimal("1.133"))
+        confidence_multiplier = Decimal("0.66") + (
+            (signal.confidence - Decimal("0.5")) * Decimal("1.133")
+        )
         confidence_multiplier = min(confidence_multiplier, Decimal("1.0"))
         sized_position = base_size * confidence_multiplier
 
@@ -177,11 +181,13 @@ def calculate_position_size(signal: TradingSignal, account: AccountInfo) -> Deci
 
 class NetworkError(Exception):
     """Transient network error."""
+
     pass
 
 
 class OrderError(Exception):
     """Permanent order error."""
+
     pass
 
 
@@ -211,13 +217,12 @@ async def _execute_order(order: OrderRequest) -> OrderResponse:
         order_id=f"ORDER_{order.symbol}_{order.side.value}",
         status="FILLED",
         filled_quantity=order.quantity,
-        average_price=order.price or Decimal("50000")
+        average_price=order.price or Decimal("50000"),
     )
 
 
 async def create_order_with_retry(
-    order: OrderRequest,
-    max_retries: int = 3
+    order: OrderRequest, max_retries: int = 3
 ) -> OrderResponse:
     """
     Creates order with exponential backoff retry logic.
@@ -239,8 +244,10 @@ async def create_order_with_retry(
             last_error = e
             if attempt < max_retries - 1:
                 # Exponential backoff
-                wait_time = 0.1 * (2 ** attempt)
-                logger.warning(f"Order attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s")
+                wait_time = 0.1 * (2**attempt)
+                logger.warning(
+                    f"Order attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s"
+                )
                 await asyncio.sleep(wait_time)
             else:
                 logger.error(f"Order failed after {max_retries} attempts: {e}")

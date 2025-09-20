@@ -13,6 +13,7 @@ from app.engine.core.clock import Clock, SystemClock
 
 class CircuitBreakerState(Enum):
     """Circuit breaker states."""
+
     CLOSED = "CLOSED"
     OPEN = "OPEN"
     HALF_OPEN = "HALF_OPEN"
@@ -21,6 +22,7 @@ class CircuitBreakerState(Enum):
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker."""
+
     failure_threshold: int = 5
     success_threshold: int = 2
     timeout_seconds: float = 60
@@ -30,6 +32,7 @@ class CircuitBreakerConfig:
 @dataclass
 class CircuitBreakerStats:
     """Statistics for circuit breaker."""
+
     state: CircuitBreakerState
     failure_count: int
     success_count: int
@@ -49,7 +52,7 @@ class CircuitBreaker:
     def __init__(
         self,
         config: Optional[CircuitBreakerConfig] = None,
-        clock: Optional[Clock] = None
+        clock: Optional[Clock] = None,
     ):
         """Initialize with optional config and clock."""
         self._config = config or CircuitBreakerConfig()
@@ -145,7 +148,7 @@ class CircuitBreaker:
                 consecutive_failures=self._consecutive_failures,
                 consecutive_successes=self._consecutive_successes,
                 last_failure_time=self._last_failure_time,
-                last_success_time=self._last_success_time
+                last_success_time=self._last_success_time,
             )
 
     async def reset(self) -> None:
@@ -169,7 +172,9 @@ class CircuitBreaker:
         """
         if self._state == CircuitBreakerState.OPEN:
             if self._last_state_change_time:
-                elapsed = (self._clock.now() - self._last_state_change_time).total_seconds()
+                elapsed = (
+                    self._clock.now() - self._last_state_change_time
+                ).total_seconds()
                 if elapsed >= self._config.timeout_seconds:
                     self._transition_to_half_open()
 

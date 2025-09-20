@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS trades (
     quantity NUMERIC NOT NULL,
     quote_quantity NUMERIC NOT NULL,
     is_buyer_maker BOOLEAN NOT NULL,
-    UNIQUE (venue, symbol, trade_id)
+    UNIQUE (venue, symbol, trade_id, time)
 );
 
 -- Order updates table for tracking order state changes

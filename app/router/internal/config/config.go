@@ -30,18 +30,33 @@ type ServerConfig struct {
 
 // BinanceConfig holds Binance API configuration
 type BinanceConfig struct {
-	APIKey          string        `json:"api_key"`
-	SecretKey       string        `json:"secret_key"`
-	BaseURL         string        `json:"base_url"`
-	WSBaseURL       string        `json:"ws_base_url"`
-	FuturesBaseURL  string        `json:"futures_base_url"`
-	FuturesWSURL    string        `json:"futures_ws_url"`
-	Testnet         bool          `json:"testnet"`
-	Timeout         time.Duration `json:"timeout"`
-	MaxRetries      int           `json:"max_retries"`
-	RetryDelay      time.Duration `json:"retry_delay"`
-	RateLimitDelay  time.Duration `json:"rate_limit_delay"`
-	RecvWindow      int64         `json:"recv_window"`
+	// Trading mode configuration
+	TradingMode string `json:"trading_mode"`
+
+	// Spot API credentials
+	SpotAPIKey    string `json:"spot_api_key"`
+	SpotSecretKey string `json:"spot_secret_key"`
+
+	// Futures API credentials
+	FuturesAPIKey    string `json:"futures_api_key"`
+	FuturesSecretKey string `json:"futures_secret_key"`
+
+	// Legacy fields for backward compatibility
+	APIKey         string        `json:"api_key"`
+	SecretKey      string        `json:"secret_key"`
+	BaseURL        string        `json:"base_url"`
+	WSBaseURL      string        `json:"ws_base_url"`
+	FuturesBaseURL string        `json:"futures_base_url"`
+	FuturesWSURL   string        `json:"futures_ws_url"`
+	Testnet        bool          `json:"testnet"`
+	Timeout        time.Duration `json:"timeout"`
+	MaxRetries     int           `json:"max_retries"`
+	RetryDelay     time.Duration `json:"retry_delay"`
+	RateLimitDelay time.Duration `json:"rate_limit_delay"`
+	RecvWindow     int64         `json:"recv_window"`
+
+	// Exchange info cache
+	ExchangeInfoCacheTTL time.Duration `json:"exchange_info_cache_ttl"`
 }
 
 // RedisConfig holds Redis configuration
@@ -63,19 +78,19 @@ type MetricsConfig struct {
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
 	Level      string `json:"level"`
-	Format     string `json:"format"` // json or text
-	Output     string `json:"output"` // stdout, stderr, or file path
-	MaxSize    int    `json:"max_size"`    // MB
+	Format     string `json:"format"`   // json or text
+	Output     string `json:"output"`   // stdout, stderr, or file path
+	MaxSize    int    `json:"max_size"` // MB
 	MaxBackups int    `json:"max_backups"`
 	MaxAge     int    `json:"max_age"` // days
 }
 
 // SecurityConfig holds security configuration
 type SecurityConfig struct {
-	APIKeyHeader     string        `json:"api_key_header"`
-	RequiredAPIKey   string        `json:"required_api_key"`
-	MaxRequestSize   int64         `json:"max_request_size"`
-	RateLimit       int           `json:"rate_limit"`        // requests per minute
+	APIKeyHeader    string        `json:"api_key_header"`
+	RequiredAPIKey  string        `json:"required_api_key"`
+	MaxRequestSize  int64         `json:"max_request_size"`
+	RateLimit       int           `json:"rate_limit"` // requests per minute
 	RateLimitWindow time.Duration `json:"rate_limit_window"`
 	AllowedOrigins  []string      `json:"allowed_origins"`
 }
@@ -84,26 +99,41 @@ type SecurityConfig struct {
 func Load() (*Config, error) {
 	config := &Config{
 		Server: ServerConfig{
-			Port:            getEnvAsInt("SERVER_PORT", 8080),
-			Host:            getEnv("SERVER_HOST", "0.0.0.0"),
+			Port:            getEnvAsInt("PORT", getEnvAsInt("SERVER_PORT", 8080)),
+			Host:            getEnv("HOST", getEnv("SERVER_HOST", "0.0.0.0")),
 			ReadTimeout:     getEnvAsDuration("SERVER_READ_TIMEOUT", "30s"),
 			WriteTimeout:    getEnvAsDuration("SERVER_WRITE_TIMEOUT", "30s"),
 			IdleTimeout:     getEnvAsDuration("SERVER_IDLE_TIMEOUT", "60s"),
 			ShutdownTimeout: getEnvAsDuration("SERVER_SHUTDOWN_TIMEOUT", "10s"),
 		},
 		Binance: BinanceConfig{
-			APIKey:          getEnv("BINANCE_API_KEY", ""),
-			SecretKey:       getEnv("BINANCE_SECRET_KEY", ""),
-			BaseURL:         getEnv("BINANCE_BASE_URL", "https://api.binance.com"),
-			WSBaseURL:       getEnv("BINANCE_WS_BASE_URL", "wss://stream.binance.com:9443"),
-			FuturesBaseURL:  getEnv("BINANCE_FUTURES_BASE_URL", "https://fapi.binance.com"),
-			FuturesWSURL:    getEnv("BINANCE_FUTURES_WS_URL", "wss://fstream.binance.com"),
-			Testnet:         getEnvAsBool("BINANCE_TESTNET", false),
-			Timeout:         getEnvAsDuration("BINANCE_TIMEOUT", "30s"),
-			MaxRetries:      getEnvAsInt("BINANCE_MAX_RETRIES", 3),
-			RetryDelay:      getEnvAsDuration("BINANCE_RETRY_DELAY", "1s"),
-			RateLimitDelay:  getEnvAsDuration("BINANCE_RATE_LIMIT_DELAY", "100ms"),
-			RecvWindow:      getEnvAsInt64("BINANCE_RECV_WINDOW", 5000),
+			// Trading mode
+			TradingMode: getEnv("TRADING_MODE", ""),
+
+			// Spot API credentials (fallback to legacy keys)
+			SpotAPIKey:    getEnv("BINANCE_SPOT_API_KEY", getEnv("BINANCE_API_KEY", "")),
+			SpotSecretKey: getEnv("BINANCE_SPOT_SECRET_KEY", getEnv("BINANCE_SECRET_KEY", "")),
+
+			// Futures API credentials
+			FuturesAPIKey:    getEnv("BINANCE_FUTURES_API_KEY", ""),
+			FuturesSecretKey: getEnv("BINANCE_FUTURES_SECRET_KEY", ""),
+
+			// Legacy fields
+			APIKey:         getEnv("BINANCE_API_KEY", ""),
+			SecretKey:      getEnv("BINANCE_SECRET_KEY", ""),
+			BaseURL:        getEnv("BINANCE_SPOT_BASE_URL", getEnv("BINANCE_BASE_URL", "https://api.binance.com")),
+			WSBaseURL:      getEnv("BINANCE_WS_BASE_URL", "wss://stream.binance.com:9443"),
+			FuturesBaseURL: getEnv("BINANCE_FUTURES_BASE_URL", "https://fapi.binance.com"),
+			FuturesWSURL:   getEnv("BINANCE_FUTURES_WS_URL", "wss://fstream.binance.com"),
+			Testnet:        getEnvAsBool("USE_TESTNET", getEnvAsBool("BINANCE_TESTNET", false)),
+			Timeout:        getEnvAsDuration("BINANCE_TIMEOUT", "30s"),
+			MaxRetries:     getEnvAsInt("BINANCE_MAX_RETRIES", 3),
+			RetryDelay:     getEnvAsDuration("BINANCE_RETRY_DELAY", "1s"),
+			RateLimitDelay: getEnvAsDuration("BINANCE_RATE_LIMIT_DELAY", "100ms"),
+			RecvWindow:     getEnvAsInt64("BINANCE_RECV_WINDOW", 5000),
+
+			// Cache settings
+			ExchangeInfoCacheTTL: getEnvAsDuration("EXCHANGE_INFO_CACHE_TTL", "5m"),
 		},
 		Redis: RedisConfig{
 			Host:     getEnv("REDIS_HOST", "localhost"),
@@ -126,9 +156,9 @@ func Load() (*Config, error) {
 			MaxAge:     getEnvAsInt("LOG_MAX_AGE", 30),
 		},
 		Security: SecurityConfig{
-			APIKeyHeader:     getEnv("SECURITY_API_KEY_HEADER", "X-API-Key"),
-			RequiredAPIKey:   getEnv("SECURITY_REQUIRED_API_KEY", ""),
-			MaxRequestSize:   getEnvAsInt64("SECURITY_MAX_REQUEST_SIZE", 1048576), // 1MB
+			APIKeyHeader:    getEnv("SECURITY_API_KEY_HEADER", "X-API-Key"),
+			RequiredAPIKey:  getEnv("SECURITY_REQUIRED_API_KEY", ""),
+			MaxRequestSize:  getEnvAsInt64("SECURITY_MAX_REQUEST_SIZE", 1048576), // 1MB
 			RateLimit:       getEnvAsInt("SECURITY_RATE_LIMIT", 1000),
 			RateLimitWindow: getEnvAsDuration("SECURITY_RATE_LIMIT_WINDOW", "1m"),
 			AllowedOrigins:  getEnvAsSlice("SECURITY_ALLOWED_ORIGINS", []string{"*"}),
@@ -145,12 +175,26 @@ func Load() (*Config, error) {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	if c.Binance.APIKey == "" {
-		return fmt.Errorf("BINANCE_API_KEY is required")
+	// Check Spot API credentials if spot trading is enabled
+	if c.Binance.IsSpotEnabled() {
+		if c.Binance.SpotAPIKey == "" {
+			return fmt.Errorf("BINANCE_SPOT_API_KEY is required for spot trading")
+		}
+		if c.Binance.SpotSecretKey == "" {
+			return fmt.Errorf("BINANCE_SPOT_SECRET_KEY is required for spot trading")
+		}
 	}
-	if c.Binance.SecretKey == "" {
-		return fmt.Errorf("BINANCE_SECRET_KEY is required")
+
+	// Check Futures API credentials if futures trading is enabled
+	if c.Binance.IsFuturesEnabled() {
+		if c.Binance.FuturesAPIKey == "" {
+			return fmt.Errorf("BINANCE_FUTURES_API_KEY is required for futures trading")
+		}
+		if c.Binance.FuturesSecretKey == "" {
+			return fmt.Errorf("BINANCE_FUTURES_SECRET_KEY is required for futures trading")
+		}
 	}
+
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d", c.Server.Port)
 	}
@@ -158,6 +202,24 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid redis port: %d", c.Redis.Port)
 	}
 	return nil
+}
+
+// IsSpotEnabled returns true if spot trading is enabled
+func (bc *BinanceConfig) IsSpotEnabled() bool {
+	// Default to enabled if mode is empty (backward compatibility)
+	if bc.TradingMode == "" {
+		return true
+	}
+	return strings.Contains(bc.TradingMode, "spot")
+}
+
+// IsFuturesEnabled returns true if futures trading is enabled
+func (bc *BinanceConfig) IsFuturesEnabled() bool {
+	// Default to enabled if mode is empty (backward compatibility)
+	if bc.TradingMode == "" {
+		return true
+	}
+	return strings.Contains(bc.TradingMode, "futures")
 }
 
 // GetBinanceTestnetURLs returns testnet URLs if testnet is enabled

@@ -135,3 +135,6 @@ func ErrorWithContext(err error, operation string) error {
 
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+// APIError is an alias for BinanceError for backwards compatibility
+type APIError = BinanceError

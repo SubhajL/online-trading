@@ -2,7 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OrderForm } from './OrderForm'
-import type { OrderFormValues } from './OrderForm'
 
 describe('OrderForm', () => {
   const mockOnSubmit = vi.fn()

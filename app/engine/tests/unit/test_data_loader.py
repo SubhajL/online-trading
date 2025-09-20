@@ -18,7 +18,7 @@ from app.engine.backtest.data_loader import (
     cache_features,
     load_cached_features,
     precompute_features_parallel,
-    ChunkConfig
+    ChunkConfig,
 )
 
 
@@ -87,7 +87,7 @@ class TestLoadCandlesChunked:
         chunks = list(load_candles_chunked("BTCUSDT", start, end, chunk_days=1))
 
         if chunks and not chunks[0].empty:
-            expected_columns = ['open', 'high', 'low', 'close', 'volume']
+            expected_columns = ["open", "high", "low", "close", "volume"]
             for col in expected_columns:
                 assert col in chunks[0].columns
 
@@ -98,11 +98,13 @@ class TestCacheFeatures:
     def test_cache_features_store_retrieve(self):
         """Round-trip caching works correctly."""
         # Create test DataFrame
-        df = pd.DataFrame({
-            'ema': np.random.randn(100),
-            'rsi': np.random.randn(100),
-            'volume': np.random.randn(100)
-        })
+        df = pd.DataFrame(
+            {
+                "ema": np.random.randn(100),
+                "rsi": np.random.randn(100),
+                "volume": np.random.randn(100),
+            }
+        )
 
         # Try to cache features
         cache_features(df, "test_key_store", ttl_hours=1)
@@ -117,13 +119,14 @@ class TestCacheFeatures:
 
     def test_cache_features_ttl_expiration(self):
         """Cache expires after TTL."""
-        df = pd.DataFrame({'value': [1, 2, 3]})
+        df = pd.DataFrame({"value": [1, 2, 3]})
 
         # Cache with 1 second TTL
-        cache_features(df, "expire_key", ttl_hours=1/3600)  # 1 second
+        cache_features(df, "expire_key", ttl_hours=1 / 3600)  # 1 second
 
         # Sleep briefly
         import time
+
         time.sleep(1.5)
 
         # Should be expired
@@ -133,8 +136,8 @@ class TestCacheFeatures:
 
     def test_cache_features_versioning(self):
         """Invalidates on schema change."""
-        df1 = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-        df2 = pd.DataFrame({'col1': [1, 2], 'col3': [5, 6]})  # Different columns
+        df1 = pd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
+        df2 = pd.DataFrame({"col1": [1, 2], "col3": [5, 6]})  # Different columns
 
         # Cache first version
         cache_features(df1, "version_key", ttl_hours=1)
@@ -155,7 +158,7 @@ class TestCacheFeatures:
     def test_load_cached_features_found(self):
         """Retrieves cached features if valid."""
         # Create test data
-        df = pd.DataFrame({'value': [1, 2, 3]})
+        df = pd.DataFrame({"value": [1, 2, 3]})
 
         # Store it
         cache_features(df, "test_key_found", ttl_hours=1)
@@ -181,7 +184,7 @@ class TestPrecomputeFeaturesParallel:
         symbols = ["BTCUSDT", "ETHUSDT"]
 
         def simple_feature(df):
-            df['sma'] = df['close'].rolling(20).mean()
+            df["sma"] = df["close"].rolling(20).mean()
             return df
 
         results = precompute_features_parallel(symbols, [simple_feature])
@@ -197,12 +200,14 @@ class TestPrecomputeFeaturesParallel:
         def slow_feature(df):
             # Simulate computation
             import time
+
             time.sleep(0.01)
-            df['feature'] = df['close'] * 2
+            df["feature"] = df["close"] * 2
             return df
 
         # Time parallel execution
         import time
+
         start = time.time()
         results = precompute_features_parallel(symbols, [slow_feature])
         parallel_time = time.time() - start
@@ -216,9 +221,9 @@ class TestPrecomputeFeaturesParallel:
         symbols = ["GOOD1", "BAD", "GOOD2"]
 
         def failing_feature(df):
-            if 'BAD' in str(df.index.name):
+            if "BAD" in str(df.index.name):
                 raise ValueError("Simulated failure")
-            df['feature'] = 1
+            df["feature"] = 1
             return df
 
         results = precompute_features_parallel(symbols, [failing_feature])

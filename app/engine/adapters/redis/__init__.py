@@ -6,6 +6,4 @@ Provides Redis adapters for caching, session management, and real-time data stor
 
 from .redis_adapter import RedisAdapter
 
-__all__ = [
-    "RedisAdapter"
-]
+__all__ = ["RedisAdapter"]

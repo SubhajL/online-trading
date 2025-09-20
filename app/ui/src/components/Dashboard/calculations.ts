@@ -23,7 +23,7 @@ export function calculateDailyPnL(positions: Position[], trades: Order[]): numbe
   })
 
   // Group trades by symbol and venue to match buys with sells
-  const tradeGroups: Record<string, { buys: Order[], sells: Order[] }> = {}
+  const tradeGroups: Record<string, { buys: Order[]; sells: Order[] }> = {}
 
   todayTrades.forEach(trade => {
     const key = `${trade.symbol}-${trade.venue}`
@@ -43,11 +43,11 @@ export function calculateDailyPnL(positions: Position[], trades: Order[]): numbe
 
   Object.values(tradeGroups).forEach(group => {
     // Sort buys by time (FIFO)
-    const buys = [...group.buys].sort((a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    const buys = [...group.buys].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     )
-    const sells = [...group.sells].sort((a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    const sells = [...group.sells].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     )
 
     let buyIndex = 0

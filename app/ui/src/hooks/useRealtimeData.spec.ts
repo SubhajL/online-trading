@@ -136,14 +136,11 @@ describe('useRealtimeData', () => {
   })
 
   it('handles subscription changes', async () => {
-    const { rerender } = renderHook(
-      ({ subscriptions }) => useRealtimeData(subscriptions),
-      {
-        initialProps: {
-          subscriptions: [{ channel: 'ticker', symbol: 'BTCUSDT' }],
-        },
-      }
-    )
+    const { rerender } = renderHook(({ subscriptions }) => useRealtimeData(subscriptions), {
+      initialProps: {
+        subscriptions: [{ channel: 'ticker', symbol: 'BTCUSDT' }],
+      },
+    })
 
     await waitFor(() => {
       expect(mockWebSocketService.subscribe).toHaveBeenCalledWith('ticker', {

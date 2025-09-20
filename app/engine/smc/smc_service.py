@@ -13,8 +13,16 @@ from typing import Dict, List, Optional
 from .pivot_detector import PivotDetector
 from .zone_identifier import ZoneIdentifier
 from ..types import (
-    BaseEvent, Candle, CandleUpdateEvent, SMCSignal, SMCSignalEvent,
-    TimeFrame, OrderSide, SupplyDemandZone, ZoneType, PivotPoint
+    BaseEvent,
+    Candle,
+    CandleUpdateEvent,
+    SMCSignal,
+    SMCSignalEvent,
+    TimeFrame,
+    OrderSide,
+    SupplyDemandZone,
+    ZoneType,
+    PivotPoint,
 )
 from ..bus import get_event_bus
 
@@ -36,7 +44,7 @@ class SMCService:
         self,
         pivot_config: Dict = None,
         zone_config: Dict = None,
-        signal_config: Dict = None
+        signal_config: Dict = None,
     ):
         """
         Initialize SMC service
@@ -51,20 +59,20 @@ class SMCService:
             "left_bars": 5,
             "right_bars": 5,
             "min_strength": 3,
-            "max_strength": 10
+            "max_strength": 10,
         }
 
         zone_config = zone_config or {
             "min_zone_strength": 3,
             "max_zones_per_type": 10,
             "zone_invalidation_touches": 3,
-            "order_block_min_body_ratio": 0.6
+            "order_block_min_body_ratio": 0.6,
         }
 
         signal_config = signal_config or {
             "min_signal_confidence": 0.6,
             "max_signals_per_symbol": 5,
-            "signal_timeout_hours": 24
+            "signal_timeout_hours": 24,
         }
 
         # Initialize components
@@ -107,7 +115,7 @@ class SMCService:
             subscriber_id="smc_service",
             handler=self._handle_candle_update,
             event_types=[BaseEvent.EventType.CANDLE_UPDATE],
-            priority=4  # Lower priority than features, higher than decisions
+            priority=4,  # Lower priority than features, higher than decisions
         )
 
         logger.info("SMCService started and subscribed to candle updates")
@@ -146,10 +154,14 @@ class SMCService:
             new_pivots = self.pivot_detector.add_candle(candle)
             if new_pivots:
                 self._pivots_detected += len(new_pivots)
-                logger.debug(f"Detected {len(new_pivots)} new pivots for {symbol} {timeframe.value}")
+                logger.debug(
+                    f"Detected {len(new_pivots)} new pivots for {symbol} {timeframe.value}"
+                )
 
             # Update zone tests with current price
-            self.zone_identifier.update_zone_tests(candle.close_price, symbol, timeframe)
+            self.zone_identifier.update_zone_tests(
+                candle.close_price, symbol, timeframe
+            )
 
             # Identify new zones if we have recent pivots
             recent_pivots = self.pivot_detector.get_recent_pivots(20)
@@ -160,15 +172,23 @@ class SMCService:
                 )
 
                 # Identify order blocks
-                new_ob_zones = self.zone_identifier.identify_order_blocks(recent_candles[-10:])
+                new_ob_zones = self.zone_identifier.identify_order_blocks(
+                    recent_candles[-10:]
+                )
 
                 # Identify fair value gaps
-                new_fvg_zones = self.zone_identifier.identify_fair_value_gaps(recent_candles[-10:])
+                new_fvg_zones = self.zone_identifier.identify_fair_value_gaps(
+                    recent_candles[-10:]
+                )
 
-                total_new_zones = len(new_sd_zones) + len(new_ob_zones) + len(new_fvg_zones)
+                total_new_zones = (
+                    len(new_sd_zones) + len(new_ob_zones) + len(new_fvg_zones)
+                )
                 if total_new_zones > 0:
                     self._zones_identified += total_new_zones
-                    logger.debug(f"Identified {total_new_zones} new zones for {symbol} {timeframe.value}")
+                    logger.debug(
+                        f"Identified {total_new_zones} new zones for {symbol} {timeframe.value}"
+                    )
 
             # Generate signals based on current price action and zones
             await self._generate_signals(symbol, timeframe, candle, recent_candles)
@@ -197,7 +217,9 @@ class SMCService:
         if len(candles) > self._max_candle_history:
             candles.pop(0)
 
-    def _get_recent_candles(self, symbol: str, timeframe: TimeFrame, count: int) -> List[Candle]:
+    def _get_recent_candles(
+        self, symbol: str, timeframe: TimeFrame, count: int
+    ) -> List[Candle]:
         """Get recent candles for a symbol and timeframe"""
         if symbol not in self._candle_history:
             return []
@@ -213,17 +235,22 @@ class SMCService:
         symbol: str,
         timeframe: TimeFrame,
         current_candle: Candle,
-        recent_candles: List[Candle]
+        recent_candles: List[Candle],
     ):
         """Generate SMC signals based on current market conditions"""
         try:
             # Get nearby zones
             nearby_zones = self.zone_identifier.get_zones_near_price(
-                symbol, timeframe, current_candle.close_price, distance_pct=0.005  # 0.5%
+                symbol,
+                timeframe,
+                current_candle.close_price,
+                distance_pct=0.005,  # 0.5%
             )
 
             for zone in nearby_zones:
-                signal = await self._analyze_zone_for_signal(zone, current_candle, recent_candles)
+                signal = await self._analyze_zone_for_signal(
+                    zone, current_candle, recent_candles
+                )
                 if signal:
                     await self._publish_signal(signal)
 
@@ -248,7 +275,7 @@ class SMCService:
         self,
         zone: SupplyDemandZone,
         current_candle: Candle,
-        recent_candles: List[Candle]
+        recent_candles: List[Candle],
     ) -> Optional[SMCSignal]:
         """Analyze a zone for potential trading signals"""
         try:
@@ -277,7 +304,9 @@ class SMCService:
                 return None
 
             # Calculate confidence based on zone strength and market conditions
-            confidence = self._calculate_zone_signal_confidence(zone, current_candle, recent_candles)
+            confidence = self._calculate_zone_signal_confidence(
+                zone, current_candle, recent_candles
+            )
 
             if confidence < self.min_signal_confidence:
                 return None
@@ -294,7 +323,7 @@ class SMCService:
                 take_profit=take_profit,
                 confidence=confidence,
                 zone=zone,
-                reasoning=f"{signal_type} at {zone.zone_type.value} zone with strength {zone.strength}"
+                reasoning=f"{signal_type} at {zone.zone_type.value} zone with strength {zone.strength}",
             )
 
             return signal
@@ -308,7 +337,7 @@ class SMCService:
         symbol: str,
         timeframe: TimeFrame,
         current_candle: Candle,
-        recent_candles: List[Candle]
+        recent_candles: List[Candle],
     ) -> Optional[SMCSignal]:
         """Check for order block entry opportunities"""
         try:
@@ -324,7 +353,9 @@ class SMCService:
                 if zone.bottom_price <= current_candle.low_price <= zone.top_price:
                     # Bullish order block - look for bounce
                     if zone.zone_type == ZoneType.ORDER_BLOCK_BULLISH:
-                        if current_candle.close_price > current_candle.open_price:  # Bullish reaction
+                        if (
+                            current_candle.close_price > current_candle.open_price
+                        ):  # Bullish reaction
                             confidence = 0.75  # High confidence for order block
 
                             signal = SMCSignal(
@@ -338,14 +369,16 @@ class SMCService:
                                 take_profit=current_candle.close_price * 1.015,
                                 confidence=confidence,
                                 zone=zone,
-                                reasoning="Bullish reaction at bullish order block"
+                                reasoning="Bullish reaction at bullish order block",
                             )
 
                             return signal
 
                     # Bearish order block - look for rejection
                     elif zone.zone_type == ZoneType.ORDER_BLOCK_BEARISH:
-                        if current_candle.close_price < current_candle.open_price:  # Bearish reaction
+                        if (
+                            current_candle.close_price < current_candle.open_price
+                        ):  # Bearish reaction
                             confidence = 0.75  # High confidence for order block
 
                             signal = SMCSignal(
@@ -359,7 +392,7 @@ class SMCService:
                                 take_profit=current_candle.close_price * 0.985,
                                 confidence=confidence,
                                 zone=zone,
-                                reasoning="Bearish reaction at bearish order block"
+                                reasoning="Bearish reaction at bearish order block",
                             )
 
                             return signal
@@ -374,7 +407,7 @@ class SMCService:
         symbol: str,
         timeframe: TimeFrame,
         current_candle: Candle,
-        recent_candles: List[Candle]
+        recent_candles: List[Candle],
     ) -> Optional[SMCSignal]:
         """Check for fair value gap entry opportunities"""
         try:
@@ -402,7 +435,7 @@ class SMCService:
                             take_profit=current_candle.close_price * 1.01,
                             confidence=0.65,
                             zone=zone,
-                            reasoning="FVG fill with bullish bias"
+                            reasoning="FVG fill with bullish bias",
                         )
 
                         return signal
@@ -420,7 +453,7 @@ class SMCService:
                             take_profit=current_candle.close_price * 0.99,
                             confidence=0.65,
                             zone=zone,
-                            reasoning="FVG fill with bearish bias"
+                            reasoning="FVG fill with bearish bias",
                         )
 
                         return signal
@@ -434,7 +467,7 @@ class SMCService:
         self,
         zone: SupplyDemandZone,
         current_candle: Candle,
-        recent_candles: List[Candle]
+        recent_candles: List[Candle],
     ) -> float:
         """Calculate confidence for a zone-based signal"""
         try:
@@ -451,12 +484,16 @@ class SMCService:
             # Volume factor
             if len(recent_candles) >= 5:
                 avg_volume = sum(c.volume for c in recent_candles[-5:]) / 5
-                volume_ratio = float(current_candle.volume / avg_volume) if avg_volume > 0 else 1
+                volume_ratio = (
+                    float(current_candle.volume / avg_volume) if avg_volume > 0 else 1
+                )
                 volume_factor = min(volume_ratio * 0.1, 0.15)
                 confidence += volume_factor
 
             # Zone age factor (newer zones might be more relevant)
-            age_hours = (current_candle.close_time - zone.created_at).total_seconds() / 3600
+            age_hours = (
+                current_candle.close_time - zone.created_at
+            ).total_seconds() / 3600
             age_factor = max(0, 0.1 - (age_hours * 0.001))
             confidence += age_factor
 
@@ -470,7 +507,9 @@ class SMCService:
         """Publish an SMC signal event"""
         try:
             # Check if we already have too many signals for this symbol
-            symbol_signals = [s for s in self._active_signals if s.symbol == signal.symbol]
+            symbol_signals = [
+                s for s in self._active_signals if s.symbol == signal.symbol
+            ]
             if len(symbol_signals) >= self.max_signals_per_symbol:
                 return
 
@@ -482,7 +521,7 @@ class SMCService:
                 timestamp=datetime.utcnow(),
                 symbol=signal.symbol,
                 timeframe=signal.timeframe,
-                signal=signal
+                signal=signal,
             )
 
             await self._event_bus.publish(event, priority=6)
@@ -501,7 +540,8 @@ class SMCService:
         try:
             cutoff_time = datetime.utcnow() - timedelta(hours=self.signal_timeout_hours)
             self._active_signals = [
-                signal for signal in self._active_signals
+                signal
+                for signal in self._active_signals
                 if signal.timestamp > cutoff_time
             ]
 
@@ -509,9 +549,7 @@ class SMCService:
             logger.error(f"Error cleaning up old signals: {e}")
 
     def get_active_signals(
-        self,
-        symbol: Optional[str] = None,
-        timeframe: Optional[TimeFrame] = None
+        self, symbol: Optional[str] = None, timeframe: Optional[TimeFrame] = None
     ) -> List[SMCSignal]:
         """Get active SMC signals"""
         signals = self._active_signals
@@ -525,10 +563,7 @@ class SMCService:
         return signals
 
     def get_zones(
-        self,
-        symbol: str,
-        timeframe: TimeFrame,
-        zone_type: Optional[ZoneType] = None
+        self, symbol: str, timeframe: TimeFrame, zone_type: Optional[ZoneType] = None
     ) -> List[SupplyDemandZone]:
         """Get zones for a symbol and timeframe"""
         return self.zone_identifier.get_active_zones(symbol, timeframe, zone_type)
@@ -551,5 +586,5 @@ class SMCService:
             "active_signals": len(self._active_signals),
             "pivot_statistics": pivot_stats,
             "zone_statistics": zone_stats,
-            "tracked_symbols": len(self._candle_history)
+            "tracked_symbols": len(self._candle_history),
         }

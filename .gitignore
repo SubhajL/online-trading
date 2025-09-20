@@ -312,6 +312,9 @@ go.work
 # Built Visual Studio Code Extensions
 *.vsix
 
+# VS Code workspace files
+*.code-workspace
+
 # JetBrains IDEs (IntelliJ, PyCharm, WebStorm, etc.)
 .idea/
 *.iws
@@ -495,3 +498,6 @@ credentials.json
 # Backup files
 *.backup
 *.bak
+
+# VS Code workspace files
+*.code-workspace

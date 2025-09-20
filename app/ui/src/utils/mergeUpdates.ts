@@ -2,7 +2,7 @@ import type { Order, OrderId } from '@/types'
 
 export function mergeOrderUpdate(
   orders: Order[],
-  update: Partial<Order> & { orderId: OrderId }
+  update: Partial<Order> & { orderId: OrderId },
 ): Order[] {
   const orderIndex = orders.findIndex(order => order.orderId === update.orderId)
 

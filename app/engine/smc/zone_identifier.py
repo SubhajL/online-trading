@@ -12,9 +12,7 @@ from typing import List, Optional, Dict
 from uuid import uuid4
 
 from .pivot_detector import PivotDetector
-from ..types import (
-    Candle, PivotPoint, SupplyDemandZone, ZoneType, TimeFrame
-)
+from ..types import Candle, PivotPoint, SupplyDemandZone, ZoneType, TimeFrame
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +32,7 @@ class ZoneIdentifier:
         min_zone_strength: int = 3,
         max_zones_per_type: int = 10,
         zone_invalidation_touches: int = 3,
-        order_block_min_body_ratio: float = 0.6
+        order_block_min_body_ratio: float = 0.6,
     ):
         """
         Initialize zone identifier
@@ -56,7 +54,7 @@ class ZoneIdentifier:
             ZoneType.DEMAND: [],
             ZoneType.ORDER_BLOCK_BULLISH: [],
             ZoneType.ORDER_BLOCK_BEARISH: [],
-            ZoneType.FAIR_VALUE_GAP: []
+            ZoneType.FAIR_VALUE_GAP: [],
         }
 
         # Historical zones (for analysis)
@@ -65,9 +63,7 @@ class ZoneIdentifier:
         logger.info(f"ZoneIdentifier initialized with min_strength={min_zone_strength}")
 
     def identify_supply_demand_zones(
-        self,
-        pivots: List[PivotPoint],
-        recent_candles: List[Candle]
+        self, pivots: List[PivotPoint], recent_candles: List[Candle]
     ) -> List[SupplyDemandZone]:
         """
         Identify supply and demand zones based on pivot points
@@ -129,13 +125,17 @@ class ZoneIdentifier:
                 next_candle = candles[i + 1]
 
                 # Check for bullish order block
-                bullish_ob = self._identify_bullish_order_block(prev_candle, current, next_candle)
+                bullish_ob = self._identify_bullish_order_block(
+                    prev_candle, current, next_candle
+                )
                 if bullish_ob:
                     new_zones.append(bullish_ob)
                     self._add_zone(bullish_ob)
 
                 # Check for bearish order block
-                bearish_ob = self._identify_bearish_order_block(prev_candle, current, next_candle)
+                bearish_ob = self._identify_bearish_order_block(
+                    prev_candle, current, next_candle
+                )
                 if bearish_ob:
                     new_zones.append(bearish_ob)
                     self._add_zone(bearish_ob)
@@ -167,9 +167,10 @@ class ZoneIdentifier:
                 next_candle = candles[i + 1]
 
                 # Check for bullish FVG (gap up)
-                if (prev_candle.high_price < next_candle.low_price and
-                    current.close_price > current.open_price):  # Current candle is bullish
-
+                if (
+                    prev_candle.high_price < next_candle.low_price
+                    and current.close_price > current.open_price
+                ):  # Current candle is bullish
                     fvg = SupplyDemandZone(
                         symbol=current.symbol,
                         timeframe=current.timeframe,
@@ -177,8 +178,10 @@ class ZoneIdentifier:
                         top_price=next_candle.low_price,
                         bottom_price=prev_candle.high_price,
                         created_at=current.open_time,
-                        strength=self._calculate_fvg_strength(prev_candle, current, next_candle),
-                        volume_profile=current.volume
+                        strength=self._calculate_fvg_strength(
+                            prev_candle, current, next_candle
+                        ),
+                        volume_profile=current.volume,
                     )
 
                     if not self._zone_exists(fvg):
@@ -186,9 +189,10 @@ class ZoneIdentifier:
                         self._add_zone(fvg)
 
                 # Check for bearish FVG (gap down)
-                elif (prev_candle.low_price > next_candle.high_price and
-                      current.close_price < current.open_price):  # Current candle is bearish
-
+                elif (
+                    prev_candle.low_price > next_candle.high_price
+                    and current.close_price < current.open_price
+                ):  # Current candle is bearish
                     fvg = SupplyDemandZone(
                         symbol=current.symbol,
                         timeframe=current.timeframe,
@@ -196,8 +200,10 @@ class ZoneIdentifier:
                         top_price=prev_candle.low_price,
                         bottom_price=next_candle.high_price,
                         created_at=current.open_time,
-                        strength=self._calculate_fvg_strength(prev_candle, current, next_candle),
-                        volume_profile=current.volume
+                        strength=self._calculate_fvg_strength(
+                            prev_candle, current, next_candle
+                        ),
+                        volume_profile=current.volume,
                     )
 
                     if not self._zone_exists(fvg):
@@ -210,17 +216,17 @@ class ZoneIdentifier:
         return new_zones
 
     def _create_supply_zone(
-        self,
-        pivot: PivotPoint,
-        recent_candles: List[Candle]
+        self, pivot: PivotPoint, recent_candles: List[Candle]
     ) -> Optional[SupplyDemandZone]:
         """Create a supply zone from a swing high pivot"""
         try:
             # Find the candle that created this high
             pivot_candle = None
             for candle in recent_candles:
-                if (candle.open_time <= pivot.timestamp and
-                    abs(candle.high_price - pivot.price) / pivot.price < 0.001):
+                if (
+                    candle.open_time <= pivot.timestamp
+                    and abs(candle.high_price - pivot.price) / pivot.price < 0.001
+                ):
                     pivot_candle = candle
                     break
 
@@ -245,7 +251,7 @@ class ZoneIdentifier:
                 bottom_price=zone_bottom,
                 created_at=pivot.timestamp,
                 strength=pivot.strength,
-                volume_profile=volume_profile
+                volume_profile=volume_profile,
             )
 
         except Exception as e:
@@ -253,17 +259,17 @@ class ZoneIdentifier:
             return None
 
     def _create_demand_zone(
-        self,
-        pivot: PivotPoint,
-        recent_candles: List[Candle]
+        self, pivot: PivotPoint, recent_candles: List[Candle]
     ) -> Optional[SupplyDemandZone]:
         """Create a demand zone from a swing low pivot"""
         try:
             # Find the candle that created this low
             pivot_candle = None
             for candle in recent_candles:
-                if (candle.open_time <= pivot.timestamp and
-                    abs(candle.low_price - pivot.price) / pivot.price < 0.001):
+                if (
+                    candle.open_time <= pivot.timestamp
+                    and abs(candle.low_price - pivot.price) / pivot.price < 0.001
+                ):
                     pivot_candle = candle
                     break
 
@@ -288,7 +294,7 @@ class ZoneIdentifier:
                 bottom_price=zone_bottom,
                 created_at=pivot.timestamp,
                 strength=pivot.strength,
-                volume_profile=volume_profile
+                volume_profile=volume_profile,
             )
 
         except Exception as e:
@@ -296,10 +302,7 @@ class ZoneIdentifier:
             return None
 
     def _identify_bullish_order_block(
-        self,
-        prev_candle: Candle,
-        current: Candle,
-        next_candle: Candle
+        self, prev_candle: Candle, current: Candle, next_candle: Candle
     ) -> Optional[SupplyDemandZone]:
         """Identify bullish order block pattern"""
         try:
@@ -312,11 +315,13 @@ class ZoneIdentifier:
                 prev_candle.high_price - prev_candle.low_price
             )
 
-            if (prev_candle.close_price < prev_candle.open_price and  # Bearish
-                prev_body_ratio >= self.order_block_min_body_ratio and  # Significant body
-                current.close_price > prev_candle.high_price and  # Break structure
-                next_candle.close_price > current.close_price):  # Confirmation
-
+            if (
+                prev_candle.close_price < prev_candle.open_price  # Bearish
+                and prev_body_ratio
+                >= self.order_block_min_body_ratio  # Significant body
+                and current.close_price > prev_candle.high_price  # Break structure
+                and next_candle.close_price > current.close_price
+            ):  # Confirmation
                 # Order block zone is the body of the bearish candle
                 zone_top = prev_candle.open_price
                 zone_bottom = prev_candle.close_price
@@ -329,7 +334,7 @@ class ZoneIdentifier:
                     bottom_price=zone_bottom,
                     created_at=current.open_time,
                     strength=5,  # Default strength for order blocks
-                    volume_profile=current.volume
+                    volume_profile=current.volume,
                 )
 
         except Exception as e:
@@ -338,10 +343,7 @@ class ZoneIdentifier:
         return None
 
     def _identify_bearish_order_block(
-        self,
-        prev_candle: Candle,
-        current: Candle,
-        next_candle: Candle
+        self, prev_candle: Candle, current: Candle, next_candle: Candle
     ) -> Optional[SupplyDemandZone]:
         """Identify bearish order block pattern"""
         try:
@@ -354,11 +356,13 @@ class ZoneIdentifier:
                 prev_candle.high_price - prev_candle.low_price
             )
 
-            if (prev_candle.close_price > prev_candle.open_price and  # Bullish
-                prev_body_ratio >= self.order_block_min_body_ratio and  # Significant body
-                current.close_price < prev_candle.low_price and  # Break structure
-                next_candle.close_price < current.close_price):  # Confirmation
-
+            if (
+                prev_candle.close_price > prev_candle.open_price  # Bullish
+                and prev_body_ratio
+                >= self.order_block_min_body_ratio  # Significant body
+                and current.close_price < prev_candle.low_price  # Break structure
+                and next_candle.close_price < current.close_price
+            ):  # Confirmation
                 # Order block zone is the body of the bullish candle
                 zone_top = prev_candle.close_price
                 zone_bottom = prev_candle.open_price
@@ -371,7 +375,7 @@ class ZoneIdentifier:
                     bottom_price=zone_bottom,
                     created_at=current.open_time,
                     strength=5,  # Default strength for order blocks
-                    volume_profile=current.volume
+                    volume_profile=current.volume,
                 )
 
         except Exception as e:
@@ -380,16 +384,19 @@ class ZoneIdentifier:
         return None
 
     def _calculate_fvg_strength(
-        self,
-        prev_candle: Candle,
-        current: Candle,
-        next_candle: Candle
+        self, prev_candle: Candle, current: Candle, next_candle: Candle
     ) -> int:
         """Calculate strength of a Fair Value Gap"""
         try:
             # Base strength on gap size and volume
-            gap_size = abs(prev_candle.high_price - next_candle.low_price) if prev_candle.high_price < next_candle.low_price else abs(prev_candle.low_price - next_candle.high_price)
-            avg_price = (prev_candle.close_price + current.close_price + next_candle.close_price) / 3
+            gap_size = (
+                abs(prev_candle.high_price - next_candle.low_price)
+                if prev_candle.high_price < next_candle.low_price
+                else abs(prev_candle.low_price - next_candle.high_price)
+            )
+            avg_price = (
+                prev_candle.close_price + current.close_price + next_candle.close_price
+            ) / 3
             gap_percentage = gap_size / avg_price
 
             # Volume strength
@@ -409,39 +416,43 @@ class ZoneIdentifier:
         zone_time: datetime,
         candles: List[Candle],
         bottom_price: Decimal,
-        top_price: Decimal
+        top_price: Decimal,
     ) -> Decimal:
         """Calculate volume profile for a zone"""
         try:
             # Find candles within the zone time range
             zone_candles = [
-                c for c in candles
-                if abs((c.open_time - zone_time).total_seconds()) < 3600  # Within 1 hour
+                c
+                for c in candles
+                if abs((c.open_time - zone_time).total_seconds())
+                < 3600  # Within 1 hour
             ]
 
             if not zone_candles:
-                return Decimal('0')
+                return Decimal("0")
 
             # Calculate average volume for candles that interacted with the zone
             interacting_volumes = []
             for candle in zone_candles:
-                if (candle.low_price <= top_price and candle.high_price >= bottom_price):
+                if candle.low_price <= top_price and candle.high_price >= bottom_price:
                     interacting_volumes.append(candle.volume)
 
-            return sum(interacting_volumes) / len(interacting_volumes) if interacting_volumes else Decimal('0')
+            return (
+                sum(interacting_volumes) / len(interacting_volumes)
+                if interacting_volumes
+                else Decimal("0")
+            )
 
         except Exception as e:
             logger.error(f"Error calculating zone volume profile: {e}")
-            return Decimal('0')
+            return Decimal("0")
 
     def _zone_exists(self, new_zone: SupplyDemandZone) -> bool:
         """Check if a similar zone already exists"""
         existing_zones = self._zones[new_zone.zone_type]
 
         for zone in existing_zones:
-            if (zone.symbol == new_zone.symbol and
-                zone.timeframe == new_zone.timeframe):
-
+            if zone.symbol == new_zone.symbol and zone.timeframe == new_zone.timeframe:
                 # Check for price overlap
                 overlap_top = min(zone.top_price, new_zone.top_price)
                 overlap_bottom = max(zone.bottom_price, new_zone.bottom_price)
@@ -449,7 +460,7 @@ class ZoneIdentifier:
                 if overlap_top > overlap_bottom:  # There is overlap
                     overlap_ratio = (overlap_top - overlap_bottom) / min(
                         zone.top_price - zone.bottom_price,
-                        new_zone.top_price - new_zone.bottom_price
+                        new_zone.top_price - new_zone.bottom_price,
                     )
 
                     if overlap_ratio > 0.5:  # 50% overlap threshold
@@ -469,7 +480,9 @@ class ZoneIdentifier:
             zones.remove(oldest)
             self._historical_zones.append(oldest)
 
-    def update_zone_tests(self, current_price: Decimal, symbol: str, timeframe: TimeFrame):
+    def update_zone_tests(
+        self, current_price: Decimal, symbol: str, timeframe: TimeFrame
+    ):
         """Update zone touch counts and invalidate if necessary"""
         try:
             for zone_type, zones in self._zones.items():
@@ -498,10 +511,7 @@ class ZoneIdentifier:
             logger.error(f"Error updating zone tests: {e}")
 
     def get_active_zones(
-        self,
-        symbol: str,
-        timeframe: TimeFrame,
-        zone_type: Optional[ZoneType] = None
+        self, symbol: str, timeframe: TimeFrame, zone_type: Optional[ZoneType] = None
     ) -> List[SupplyDemandZone]:
         """Get active zones for a symbol and timeframe"""
         result = []
@@ -511,10 +521,13 @@ class ZoneIdentifier:
         for zt in zone_types:
             zones = self._zones.get(zt, [])
             filtered_zones = [
-                zone for zone in zones
-                if (zone.symbol == symbol and
-                    zone.timeframe == timeframe and
-                    zone.is_active)
+                zone
+                for zone in zones
+                if (
+                    zone.symbol == symbol
+                    and zone.timeframe == timeframe
+                    and zone.is_active
+                )
             ]
             result.extend(filtered_zones)
 
@@ -525,7 +538,7 @@ class ZoneIdentifier:
         symbol: str,
         timeframe: TimeFrame,
         price: Decimal,
-        distance_pct: float = 0.02
+        distance_pct: float = 0.02,
     ) -> List[SupplyDemandZone]:
         """Get zones within a percentage distance of current price"""
         active_zones = self.get_active_zones(symbol, timeframe)
@@ -540,7 +553,9 @@ class ZoneIdentifier:
 
         return nearby_zones
 
-    def clear_zones(self, symbol: Optional[str] = None, timeframe: Optional[TimeFrame] = None):
+    def clear_zones(
+        self, symbol: Optional[str] = None, timeframe: Optional[TimeFrame] = None
+    ):
         """Clear zones for specific symbol/timeframe or all zones"""
         if symbol is None and timeframe is None:
             # Clear all zones
@@ -552,8 +567,9 @@ class ZoneIdentifier:
             for zone_type in self._zones:
                 zones_to_remove = []
                 for zone in self._zones[zone_type]:
-                    if ((symbol is None or zone.symbol == symbol) and
-                        (timeframe is None or zone.timeframe == timeframe)):
+                    if (symbol is None or zone.symbol == symbol) and (
+                        timeframe is None or zone.timeframe == timeframe
+                    ):
                         zones_to_remove.append(zone)
 
                 for zone in zones_to_remove:
@@ -567,8 +583,7 @@ class ZoneIdentifier:
 
         return {
             "active_zones": {
-                zone_type.value: len(zones)
-                for zone_type, zones in self._zones.items()
+                zone_type.value: len(zones) for zone_type, zones in self._zones.items()
             },
             "total_active": total_active,
             "historical_zones": len(self._historical_zones),
@@ -576,6 +591,6 @@ class ZoneIdentifier:
                 "min_zone_strength": self.min_zone_strength,
                 "max_zones_per_type": self.max_zones_per_type,
                 "zone_invalidation_touches": self.zone_invalidation_touches,
-                "order_block_min_body_ratio": self.order_block_min_body_ratio
-            }
+                "order_block_min_body_ratio": self.order_block_min_body_ratio,
+            },
         }

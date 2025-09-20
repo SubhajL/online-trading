@@ -9,7 +9,11 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 
-from app.engine.core.event_bus_factory import EventBusFactory, EventBusConfig, InvalidConfigurationError
+from app.engine.core.event_bus_factory import (
+    EventBusFactory,
+    EventBusConfig,
+    InvalidConfigurationError,
+)
 from app.engine.core.security import (
     SecurityLevel,
     SecureConfig,
@@ -17,7 +21,7 @@ from app.engine.core.security import (
     EnvironmentValidator,
     ValidationRule,
     SecretManager,
-    validate_environment
+    validate_environment,
 )
 
 
@@ -28,11 +32,14 @@ class TestSecurityIntegration:
         factory = EventBusFactory()
 
         # Set up test environment
-        with patch.dict(os.environ, {
-            "ENVIRONMENT": "development",
-            "EVENT_BUS_MAX_QUEUE_SIZE": "5000",
-            "EVENT_BUS_NUM_WORKERS": "2"
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENVIRONMENT": "development",
+                "EVENT_BUS_MAX_QUEUE_SIZE": "5000",
+                "EVENT_BUS_NUM_WORKERS": "2",
+            },
+        ):
             event_bus = factory.create_secure_event_bus(SecurityLevel.DEVELOPMENT)
 
             assert event_bus is not None
@@ -47,9 +54,7 @@ class TestSecurityIntegration:
         factory = EventBusFactory()
 
         # In production without required variables, should get low security score
-        with patch.dict(os.environ, {
-            "ENVIRONMENT": "production"
-        }):
+        with patch.dict(os.environ, {"ENVIRONMENT": "production"}):
             # Create secure config and check validation
             secure_config = SecureConfig(SecurityLevel.PRODUCTION)
             audit = secure_config.audit()
@@ -58,7 +63,10 @@ class TestSecurityIntegration:
             assert len(audit.missing_required) > 0
 
             # The specific missing variables should be critical ones
-            assert "DATABASE_PASSWORD" in audit.missing_required or "JWT_SECRET" in audit.missing_required
+            assert (
+                "DATABASE_PASSWORD" in audit.missing_required
+                or "JWT_SECRET" in audit.missing_required
+            )
 
     @pytest.mark.asyncio
     async def test_secure_config_with_encrypted_secrets(self):
@@ -81,47 +89,68 @@ class TestSecurityIntegration:
         validator = EnvironmentValidator(SecurityLevel.PRODUCTION)
 
         # Add custom trading-specific rules
-        validator.add_rule(ValidationRule(
-            name="BINANCE_API_KEY",
-            pattern=r'^[A-Za-z0-9]{64}$',
-            required=True,
-            sensitive=True
-        ))
+        validator.add_rule(
+            ValidationRule(
+                name="BINANCE_API_KEY",
+                pattern=r"^[A-Za-z0-9]{64}$",
+                required=True,
+                sensitive=True,
+            )
+        )
 
-        validator.add_rule(ValidationRule(
-            name="MAX_POSITION_SIZE",
-            pattern=r'^\d+(\.\d+)?$',
-            required=True
-        ))
+        validator.add_rule(
+            ValidationRule(
+                name="MAX_POSITION_SIZE", pattern=r"^\d+(\.\d+)?$", required=True
+            )
+        )
 
-        validator.add_rule(ValidationRule(
-            name="RISK_PERCENTAGE",
-            pattern=r'^[0-9]{1,2}(\.[0-9]+)?$',
-            required=True,
-            custom_validator=lambda v: 0 < float(v) <= 10,
-            error_message="Risk percentage must be between 0 and 10"
-        ))
+        validator.add_rule(
+            ValidationRule(
+                name="RISK_PERCENTAGE",
+                pattern=r"^[0-9]{1,2}(\.[0-9]+)?$",
+                required=True,
+                custom_validator=lambda v: 0 < float(v) <= 10,
+                error_message="Risk percentage must be between 0 and 10",
+            )
+        )
 
         # Test with valid values
-        with patch.dict(os.environ, {
-            "BINANCE_API_KEY": "a" * 64,
-            "MAX_POSITION_SIZE": "1000.50",
-            "RISK_PERCENTAGE": "2.5"
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "BINANCE_API_KEY": "a" * 64,
+                "MAX_POSITION_SIZE": "1000.50",
+                "RISK_PERCENTAGE": "2.5",
+            },
+        ):
             audit = validator.validate_all()
-            assert len([v for v in audit.failed_validations if v.variable_name in [
-                "BINANCE_API_KEY", "MAX_POSITION_SIZE", "RISK_PERCENTAGE"
-            ]]) == 0
+            assert (
+                len(
+                    [
+                        v
+                        for v in audit.failed_validations
+                        if v.variable_name
+                        in ["BINANCE_API_KEY", "MAX_POSITION_SIZE", "RISK_PERCENTAGE"]
+                    ]
+                )
+                == 0
+            )
 
         # Test with invalid risk percentage
-        with patch.dict(os.environ, {
-            "BINANCE_API_KEY": "a" * 64,
-            "MAX_POSITION_SIZE": "1000",
-            "RISK_PERCENTAGE": "15"  # Too high
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "BINANCE_API_KEY": "a" * 64,
+                "MAX_POSITION_SIZE": "1000",
+                "RISK_PERCENTAGE": "15",  # Too high
+            },
+        ):
             audit = validator.validate_all()
-            risk_failures = [v for v in audit.failed_validations
-                            if v.variable_name == "RISK_PERCENTAGE"]
+            risk_failures = [
+                v
+                for v in audit.failed_validations
+                if v.variable_name == "RISK_PERCENTAGE"
+            ]
             assert len(risk_failures) > 0
 
     def test_security_guard_monitors_configuration(self):
@@ -130,17 +159,18 @@ class TestSecurityIntegration:
         guard = SecurityGuard(secure_config)
 
         # Add custom validation rules
-        secure_config.validator.add_rule(ValidationRule(
-            name="DATABASE_URL",
-            required=True,
-            sensitive=True
-        ))
+        secure_config.validator.add_rule(
+            ValidationRule(name="DATABASE_URL", required=True, sensitive=True)
+        )
 
-        with patch.dict(os.environ, {
-            "ENVIRONMENT": "production",
-            "ENFORCE_HTTPS": "true",
-            "TLS_MIN_VERSION": "1.2"
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENVIRONMENT": "production",
+                "ENFORCE_HTTPS": "true",
+                "TLS_MIN_VERSION": "1.2",
+            },
+        ):
             # Check secure communication
             result = guard.check_secure_communication()
             assert result is True
@@ -155,15 +185,18 @@ class TestSecurityIntegration:
     @pytest.mark.asyncio
     async def test_eventbus_config_from_secure_config(self):
         """Test EventBusConfig loading from SecureConfig."""
-        with patch.dict(os.environ, {
-            "ENVIRONMENT": "development",
-            "EVENT_BUS_MAX_QUEUE_SIZE": "8000",
-            "EVENT_BUS_NUM_WORKERS": "6",
-            "EVENT_BUS_ENABLE_PERSISTENCE": "true",
-            "SUBSCRIPTION_MAX_COUNT": "500",
-            "PROCESSING_MAX_TIME": "45.5",
-            "CIRCUIT_BREAKER_ENABLED": "false"
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENVIRONMENT": "development",
+                "EVENT_BUS_MAX_QUEUE_SIZE": "8000",
+                "EVENT_BUS_NUM_WORKERS": "6",
+                "EVENT_BUS_ENABLE_PERSISTENCE": "true",
+                "SUBSCRIPTION_MAX_COUNT": "500",
+                "PROCESSING_MAX_TIME": "45.5",
+                "CIRCUIT_BREAKER_ENABLED": "false",
+            },
+        ):
             secure_config = SecureConfig(SecurityLevel.DEVELOPMENT)
             config = EventBusConfig.from_secure_config(secure_config)
 
@@ -178,12 +211,15 @@ class TestSecurityIntegration:
         """Test that sensitive configuration is masked for export."""
         secure_config = SecureConfig()
 
-        with patch.dict(os.environ, {
-            "DATABASE_PASSWORD": "super_secret_123",
-            "API_KEY": "abcdef123456",
-            "PUBLIC_ENDPOINT": "https://api.example.com",
-            "LOG_LEVEL": "INFO"
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_PASSWORD": "super_secret_123",
+                "API_KEY": "abcdef123456",
+                "PUBLIC_ENDPOINT": "https://api.example.com",
+                "LOG_LEVEL": "INFO",
+            },
+        ):
             # Mark some as sensitive
             secure_config.get("DATABASE_PASSWORD", sensitive=True)
             secure_config.get("API_KEY", sensitive=True)
@@ -232,7 +268,7 @@ class TestSecurityIntegration:
         secure_config = SecureConfig()
         guard = SecurityGuard(secure_config)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.key') as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".key") as tmp:
             tmp_path = Path(tmp.name)
 
             try:
@@ -259,17 +295,20 @@ class TestSecurityIntegration:
     @pytest.mark.asyncio
     async def test_comprehensive_security_audit(self):
         """Test comprehensive security audit of EventBus configuration."""
-        with patch.dict(os.environ, {
-            "ENVIRONMENT": "staging",
-            # Valid configuration
-            "EVENT_BUS_MAX_QUEUE_SIZE": "10000",
-            "EVENT_BUS_NUM_WORKERS": "4",
-            # Weak secrets (for testing)
-            "DATABASE_PASSWORD": "password123",  # Weak
-            "JWT_SECRET": "a" * 32,  # Meets length but low entropy
-            # Missing required (will depend on rules)
-            # "VAULT_TOKEN": missing
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENVIRONMENT": "staging",
+                # Valid configuration
+                "EVENT_BUS_MAX_QUEUE_SIZE": "10000",
+                "EVENT_BUS_NUM_WORKERS": "4",
+                # Weak secrets (for testing)
+                "DATABASE_PASSWORD": "password123",  # Weak
+                "JWT_SECRET": "a" * 32,  # Meets length but low entropy
+                # Missing required (will depend on rules)
+                # "VAULT_TOKEN": missing
+            },
+        ):
             secure_config = SecureConfig(SecurityLevel.STAGING)
 
             # Perform audit
@@ -285,19 +324,24 @@ class TestSecurityIntegration:
             report = guard.get_security_report()
 
             assert "recommendations" in report
-            assert len(report["recommendations"]) > 0  # Should have some recommendations
+            assert (
+                len(report["recommendations"]) > 0
+            )  # Should have some recommendations
 
     @pytest.mark.asyncio
     async def test_eventbus_lifecycle_with_security(self):
         """Test complete EventBus lifecycle with security features."""
         factory = EventBusFactory()
 
-        with patch.dict(os.environ, {
-            "ENVIRONMENT": "development",
-            "EVENT_BUS_MAX_QUEUE_SIZE": "1000",
-            "EVENT_BUS_NUM_WORKERS": "2",
-            "LOG_LEVEL": "INFO"
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ENVIRONMENT": "development",
+                "EVENT_BUS_MAX_QUEUE_SIZE": "1000",
+                "EVENT_BUS_NUM_WORKERS": "2",
+                "LOG_LEVEL": "INFO",
+            },
+        ):
             # Create secure EventBus
             event_bus = factory.create_secure_event_bus()
 

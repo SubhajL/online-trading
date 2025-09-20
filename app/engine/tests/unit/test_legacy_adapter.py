@@ -14,18 +14,15 @@ from app.engine.adapters.legacy_adapter import (
     adapt_legacy_order_format,
     adapt_legacy_position_format,
     adapt_position_to_legacy_format,
-    adapt_order_to_legacy_format
+    adapt_order_to_legacy_format,
 )
 from app.engine.services.order_service import (
     OrderRequest,
     OrderSide,
     OrderType,
-    OrderResponse
+    OrderResponse,
 )
-from app.engine.services.position_tracker import (
-    Position,
-    PositionSide
-)
+from app.engine.services.position_tracker import Position, PositionSide
 
 
 class TestAdaptLegacyOrderFormat:
@@ -39,7 +36,7 @@ class TestAdaptLegacyOrderFormat:
             "quantity": "0.001",
             "type": "MARKET",
             "price": None,
-            "stopPrice": None
+            "stopPrice": None,
         }
 
         order = adapt_legacy_order_format(legacy_order)
@@ -59,7 +56,7 @@ class TestAdaptLegacyOrderFormat:
             "quantity": "0.5",
             "type": "LIMIT",
             "price": "3500.50",
-            "stopPrice": None
+            "stopPrice": None,
         }
 
         order = adapt_legacy_order_format(legacy_order)
@@ -79,7 +76,7 @@ class TestAdaptLegacyOrderFormat:
             "quantity": "0.1",
             "type": "STOP_MARKET",
             "price": None,
-            "stopPrice": "49000"
+            "stopPrice": "49000",
         }
 
         order = adapt_legacy_order_format(legacy_order)
@@ -95,7 +92,7 @@ class TestAdaptLegacyOrderFormat:
         """Raises error for missing required fields."""
         legacy_order = {
             "symbol": "BTCUSDT",
-            "side": "BUY"
+            "side": "BUY",
             # Missing quantity and type
         }
 
@@ -110,7 +107,7 @@ class TestAdaptLegacyOrderFormat:
             "symbol": "BTCUSDT",
             "side": "INVALID",
             "quantity": "0.1",
-            "type": "MARKET"
+            "type": "MARKET",
         }
 
         with pytest.raises(ValueError) as exc_info:
@@ -131,7 +128,7 @@ class TestAdaptLegacyPositionFormat:
             "entryPrice": "50000",
             "realizedPnl": "-10.5",
             "commission": "10.5",
-            "openTime": "2024-01-15T10:30:00Z"
+            "openTime": "2024-01-15T10:30:00Z",
         }
 
         position = adapt_legacy_position_format(legacy_pos)
@@ -157,7 +154,7 @@ class TestAdaptLegacyPositionFormat:
             "commission": "3.5",
             "openTime": "2024-01-15T10:30:00Z",
             "stopLoss": "3600",
-            "takeProfit": "3300"
+            "takeProfit": "3300",
         }
 
         position = adapt_legacy_position_format(legacy_pos)
@@ -180,7 +177,7 @@ class TestAdaptLegacyPositionFormat:
             "commission": "20",
             "openTime": "2024-01-15T10:30:00Z",
             "isClosed": True,
-            "closeTime": "2024-01-15T11:30:00Z"
+            "closeTime": "2024-01-15T11:30:00Z",
         }
 
         position = adapt_legacy_position_format(legacy_pos)
@@ -197,7 +194,7 @@ class TestAdaptLegacyPositionFormat:
             "side": "LONG",
             "quantity": "0.1",
             "entryPrice": "50000",
-            "openTime": "2024-01-15T10:30:00Z"
+            "openTime": "2024-01-15T10:30:00Z",
         }
 
         position = adapt_legacy_position_format(legacy_pos)
@@ -219,7 +216,7 @@ class TestAdaptToLegacyFormat:
             side=OrderSide.BUY,
             quantity=Decimal("0.001"),
             order_type=OrderType.LIMIT,
-            price=Decimal("50000.50")
+            price=Decimal("50000.50"),
         )
 
         legacy = adapt_order_to_legacy_format(order)
@@ -242,7 +239,7 @@ class TestAdaptToLegacyFormat:
             total_commission=Decimal("10.50"),
             open_time=datetime(2024, 1, 15, 10, 30, tzinfo=timezone.utc),
             stop_loss=Decimal("51000"),
-            take_profit=Decimal("48000")
+            take_profit=Decimal("48000"),
         )
 
         legacy = adapt_position_to_legacy_format(position)

@@ -8,11 +8,7 @@ type SidebarProps = {
   className?: string
 }
 
-export function Sidebar({
-  isOpen = true,
-  onToggle,
-  className = '',
-}: SidebarProps) {
+export function Sidebar({ isOpen = true, onToggle, className = '' }: SidebarProps) {
   const pathname = usePathname()
 
   const menuItems = [
@@ -38,7 +34,7 @@ export function Sidebar({
       )}
 
       <nav className="sidebar-nav">
-        {menuItems.map((item) => (
+        {menuItems.map(item => (
           <Link
             key={item.path}
             href={item.path}

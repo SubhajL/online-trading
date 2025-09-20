@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
-import type { Position, Order, Balance, OrderFormValues } from '@/types'
+import type { Position, Order, Balance, OrderFormValues, Symbol, OrderId } from '@/types'
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -27,7 +27,7 @@ export default function Home() {
         // Mock data
         setPositions([
           {
-            symbol: 'BTCUSDT' as any,
+            symbol: 'BTCUSDT' as Symbol,
             side: 'BUY',
             quantity: 0.1,
             entryPrice: 40000,
@@ -40,8 +40,8 @@ export default function Home() {
 
         setOrders([
           {
-            orderId: 'ORD001' as any,
-            symbol: 'BTCUSDT' as any,
+            orderId: 'ORD001' as OrderId,
+            symbol: 'BTCUSDT' as Symbol,
             side: 'BUY',
             type: 'MARKET',
             quantity: 0.1,
@@ -71,7 +71,7 @@ export default function Home() {
         ])
 
         setLoading(false)
-      } catch (err) {
+      } catch {
         setError('Failed to load data')
         setLoading(false)
       }
@@ -81,32 +81,26 @@ export default function Home() {
   }, [])
 
   const handleSubmitOrder = (order: OrderFormValues) => {
-    console.log('Submitting order:', order)
+    console.warn('TODO: Implement order submission:', order)
     // TODO: Implement order submission
   }
 
   const handleToggleAutoTrading = (enabled: boolean) => {
     setAutoTradingEnabled(enabled)
-    console.log('Auto trading:', enabled ? 'enabled' : 'disabled')
+    console.warn('Auto trading:', enabled ? 'enabled' : 'disabled')
   }
 
   const handleLogout = () => {
-    console.log('Logging out...')
+    console.warn('TODO: Implement logout')
     // TODO: Implement logout
   }
 
   return (
     <div className="app-layout">
-      <Header
-        userName="Trader"
-        onLogout={handleLogout}
-      />
+      <Header userName="Trader" onLogout={handleLogout} />
 
       <div className="app-body">
-        <Sidebar
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-        />
+        <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
         <main className="app-main">
           <Dashboard
