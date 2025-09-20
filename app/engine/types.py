@@ -564,6 +564,73 @@ class EngineConfig(BaseModel):
 
 
 # ============================================================================
+# Transform Utilities
+# ============================================================================
+
+def kline_to_candle(data: Dict[str, Any], venue: str) -> Candle:
+    """
+    Convert Binance WebSocket kline data to Candle model.
+
+    Args:
+        data: Kline data from WebSocket message['k']
+        venue: Trading venue ('spot' or 'usdm')
+
+    Returns:
+        Candle instance
+    """
+    return Candle(
+        symbol=data["s"],
+        timeframe=TimeFrame(data["i"]),
+        open_time=datetime.fromtimestamp(data["t"] / 1000),
+        close_time=datetime.fromtimestamp(data["T"] / 1000),
+        open_price=Decimal(data["o"]),
+        high_price=Decimal(data["h"]),
+        low_price=Decimal(data["l"]),
+        close_price=Decimal(data["c"]),
+        volume=Decimal(data["v"]),
+        quote_volume=Decimal(data["q"]),
+        trades=data["n"],
+        taker_buy_base_volume=Decimal(data["V"]),
+        taker_buy_quote_volume=Decimal(data["Q"])
+    )
+
+
+def rest_kline_to_candle(data: List, symbol: str, timeframe: str, venue: str) -> Candle:
+    """
+    Convert Binance REST API kline array to Candle model.
+
+    REST API returns array: [
+        open_time, open, high, low, close, volume, close_time,
+        quote_volume, trades, taker_buy_base, taker_buy_quote, ignore
+    ]
+
+    Args:
+        data: Kline array from REST API
+        symbol: Trading pair symbol
+        timeframe: Candle timeframe
+        venue: Trading venue ('spot' or 'usdm')
+
+    Returns:
+        Candle instance
+    """
+    return Candle(
+        symbol=symbol,
+        timeframe=TimeFrame(timeframe),
+        open_time=datetime.fromtimestamp(data[0] / 1000),
+        close_time=datetime.fromtimestamp(data[6] / 1000),
+        open_price=Decimal(data[1]),
+        high_price=Decimal(data[2]),
+        low_price=Decimal(data[3]),
+        close_price=Decimal(data[4]),
+        volume=Decimal(data[5]),
+        quote_volume=Decimal(data[7]),
+        trades=int(data[8]),
+        taker_buy_base_volume=Decimal(data[9]),
+        taker_buy_quote_volume=Decimal(data[10])
+    )
+
+
+# ============================================================================
 # Export all types
 # ============================================================================
 
@@ -602,5 +669,8 @@ __all__ = [
     "HealthStatus", "SystemMetrics", "TradingMetrics",
 
     # Configuration
-    "DatabaseConfig", "RedisConfig", "BinanceConfig", "EngineConfig"
+    "DatabaseConfig", "RedisConfig", "BinanceConfig", "EngineConfig",
+
+    # Transform utilities
+    "kline_to_candle", "rest_kline_to_candle"
 ]

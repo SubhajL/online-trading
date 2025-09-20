@@ -41,27 +41,68 @@ binance:
   reconnect_delay_ms: 5000
   backfill_on_reconnect: true
 
-# Trading Configuration
-trading:
-  # Symbols to trade
+# Ingestion Configuration
+ingestion:
+  # Symbols to ingest
   symbols:
     - BTCUSDT
     - ETHUSDT
-    - BNBUSDT
+    - SOLUSDT
+    - PAXGUSDT
 
-  # Timeframes to analyze
+  # Timeframes to ingest
   timeframes:
-    - 1m
     - 5m
     - 15m
     - 1h
+    - 4h
+
+  # Spot ingestion settings
+  spot:
+    enabled: true
+    ws_base_url: ${BINANCE_SPOT_WS_URL:-wss://stream.binance.com:9443}
+    rest_base_url: ${BINANCE_SPOT_REST_URL:-https://api.binance.com}
+    max_reconnect_attempts: 5
+    reconnect_delay_ms: 5000
+
+  # USD-M Futures ingestion settings
+  usdm:
+    enabled: true
+    ws_base_url: ${BINANCE_FUTURES_WS_URL:-wss://fstream.binance.com}
+    rest_base_url: ${BINANCE_FUTURES_REST_URL:-https://fapi.binance.com}
+    max_reconnect_attempts: 5
+    reconnect_delay_ms: 5000
+    recv_window: 5000 # Time sync tolerance
+
+  # REST API settings
+  rest:
+    rate_limit_per_minute: 1200
+    backfill_batch_size: 1000 # Spot
+    backfill_batch_size_futures: 1500 # Futures allows larger batches
+    backfill_delay_ms: 100 # Delay between batches
+    max_retry_attempts: 3
+    exponential_backoff_base: 2
+
+# Trading Configuration
+trading:
+  # Symbols to trade (subset of ingested symbols)
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+
+  # Timeframes to analyze
+  timeframes:
+    - 5m
+    - 15m
+    - 1h
+    - 4h
 
   # Risk Management
   risk_parameters:
     max_position_size: 10000.0
     max_daily_loss: 500.0
     max_drawdown: 1000.0
-    risk_per_trade: 0.01  # 1% per trade
+    risk_per_trade: 0.01 # 1% per trade
     max_correlation: 0.7
     max_open_positions: 3
     allowed_symbols:
@@ -74,7 +115,7 @@ trading:
     atr_multiplier: 1.5
 
     # Stop loss settings
-    default_stop_loss_pct: 0.02  # 2%
+    default_stop_loss_pct: 0.02 # 2%
     trailing_stop_enabled: false
     trailing_stop_pct: 0.01
 
@@ -122,7 +163,7 @@ smc:
   min_pivot_strength: 3
 
   # Structure break detection
-  structure_break_threshold: 0.001  # 0.1%
+  structure_break_threshold: 0.001 # 0.1%
 
   # Zone identification
   zone_atr_multiplier: 0.5
@@ -170,11 +211,11 @@ guards:
 
   # Funding rates (for futures)
   funding_check_enabled: true
-  max_funding_rate: 0.001  # 0.1%
+  max_funding_rate: 0.001 # 0.1%
   funding_block_minutes_before: 10
 
   # Volatility guards
-  volatility_spike_threshold: 3.0  # 3x average
+  volatility_spike_threshold: 3.0 # 3x average
   volatility_block_duration_minutes: 15
 
 # Decision Engine Configuration
@@ -190,7 +231,7 @@ decision:
 
   # Order execution
   use_limit_orders: true
-  limit_order_offset_pct: 0.0005  # 0.05%
+  limit_order_offset_pct: 0.0005 # 0.05%
 
   # Futures specific
   futures_enabled: false
@@ -204,12 +245,12 @@ paper_trading:
   initial_balance: 10000.0
 
   # Slippage simulation
-  market_order_slippage_pct: 0.001  # 0.1%
+  market_order_slippage_pct: 0.001 # 0.1%
   limit_order_fill_probability: 0.95
 
   # Fee simulation
-  maker_fee_pct: 0.001  # 0.1%
-  taker_fee_pct: 0.001  # 0.1%
+  maker_fee_pct: 0.001 # 0.1%
+  taker_fee_pct: 0.001 # 0.1%
 
 # Backtesting Configuration
 backtesting:
@@ -227,7 +268,7 @@ backtesting:
   out_sample_periods: 20
 
   # Monte Carlo simulation
-  monte_carlo_runs: 0  # 0 to disable
+  monte_carlo_runs: 0 # 0 to disable
   monte_carlo_confidence: 0.95
 
 # Monitoring Configuration
