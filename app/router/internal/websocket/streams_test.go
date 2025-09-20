@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -352,11 +353,11 @@ func TestStreamManager_MessageHandling(t *testing.T) {
 		})
 		defer server.Close()
 
-		receivedCount := 0
+		var receivedCount atomic.Int32
 		sm := NewStreamManager(getWebSocketURL(server.URL))
 		sm.SetDepthHandler(&mockStreamDepthHandler{
 			onDepthUpdate: func(event *DepthUpdateEvent) error {
-				receivedCount++
+				receivedCount.Add(1)
 				return nil
 			},
 		})
@@ -370,7 +371,7 @@ func TestStreamManager_MessageHandling(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		// Should still receive the valid message despite malformed one
-		assert.Equal(t, 1, receivedCount)
+		assert.Equal(t, int32(1), receivedCount.Load())
 	})
 }
 

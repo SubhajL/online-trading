@@ -31,15 +31,28 @@ func main() {
 	// Apply testnet URLs if enabled
 	cfg.GetBinanceTestnetURLs()
 
-	// Create Binance clients
-	spotClient, err := binance.NewTestnetSpotClient(&cfg.Binance, logger.With().Str("client", "spot").Logger())
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to create spot client")
+	// Create Binance clients based on enabled trading modes
+	var spotClient *binance.Client
+	var futuresClient *binance.Client
+
+	if cfg.Binance.IsSpotEnabled() {
+		spotClient, err = binance.NewTestnetSpotClient(&cfg.Binance, logger.With().Str("client", "spot").Logger())
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Failed to create spot client")
+		}
+		logger.Info().Msg("Spot trading enabled")
+	} else {
+		logger.Info().Msg("Spot trading disabled")
 	}
 
-	futuresClient, err := binance.NewTestnetFuturesClient(&cfg.Binance, logger.With().Str("client", "futures").Logger())
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to create futures client")
+	if cfg.Binance.IsFuturesEnabled() {
+		futuresClient, err = binance.NewTestnetFuturesClient(&cfg.Binance, logger.With().Str("client", "futures").Logger())
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Failed to create futures client")
+		}
+		logger.Info().Msg("Futures trading enabled")
+	} else {
+		logger.Info().Msg("Futures trading disabled")
 	}
 
 	// Create event emitter
