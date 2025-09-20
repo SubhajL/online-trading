@@ -30,6 +30,9 @@ type ServerConfig struct {
 
 // BinanceConfig holds Binance API configuration
 type BinanceConfig struct {
+	// Trading mode configuration
+	TradingMode string `json:"trading_mode"`
+
 	// Spot API credentials
 	SpotAPIKey    string `json:"spot_api_key"`
 	SpotSecretKey string `json:"spot_secret_key"`
@@ -104,6 +107,9 @@ func Load() (*Config, error) {
 			ShutdownTimeout: getEnvAsDuration("SERVER_SHUTDOWN_TIMEOUT", "10s"),
 		},
 		Binance: BinanceConfig{
+			// Trading mode
+			TradingMode: getEnv("TRADING_MODE", ""),
+
 			// Spot API credentials (fallback to legacy keys)
 			SpotAPIKey:    getEnv("BINANCE_SPOT_API_KEY", getEnv("BINANCE_API_KEY", "")),
 			SpotSecretKey: getEnv("BINANCE_SPOT_SECRET_KEY", getEnv("BINANCE_SECRET_KEY", "")),
@@ -169,20 +175,24 @@ func Load() (*Config, error) {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	// Check Spot API credentials
-	if c.Binance.SpotAPIKey == "" {
-		return fmt.Errorf("BINANCE_SPOT_API_KEY is required")
-	}
-	if c.Binance.SpotSecretKey == "" {
-		return fmt.Errorf("BINANCE_SPOT_SECRET_KEY is required")
+	// Check Spot API credentials if spot trading is enabled
+	if c.Binance.IsSpotEnabled() {
+		if c.Binance.SpotAPIKey == "" {
+			return fmt.Errorf("BINANCE_SPOT_API_KEY is required for spot trading")
+		}
+		if c.Binance.SpotSecretKey == "" {
+			return fmt.Errorf("BINANCE_SPOT_SECRET_KEY is required for spot trading")
+		}
 	}
 
-	// Check Futures API credentials
-	if c.Binance.FuturesAPIKey == "" {
-		return fmt.Errorf("BINANCE_FUTURES_API_KEY is required")
-	}
-	if c.Binance.FuturesSecretKey == "" {
-		return fmt.Errorf("BINANCE_FUTURES_SECRET_KEY is required")
+	// Check Futures API credentials if futures trading is enabled
+	if c.Binance.IsFuturesEnabled() {
+		if c.Binance.FuturesAPIKey == "" {
+			return fmt.Errorf("BINANCE_FUTURES_API_KEY is required for futures trading")
+		}
+		if c.Binance.FuturesSecretKey == "" {
+			return fmt.Errorf("BINANCE_FUTURES_SECRET_KEY is required for futures trading")
+		}
 	}
 
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
@@ -192,6 +202,24 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid redis port: %d", c.Redis.Port)
 	}
 	return nil
+}
+
+// IsSpotEnabled returns true if spot trading is enabled
+func (bc *BinanceConfig) IsSpotEnabled() bool {
+	// Default to enabled if mode is empty (backward compatibility)
+	if bc.TradingMode == "" {
+		return true
+	}
+	return strings.Contains(bc.TradingMode, "spot")
+}
+
+// IsFuturesEnabled returns true if futures trading is enabled
+func (bc *BinanceConfig) IsFuturesEnabled() bool {
+	// Default to enabled if mode is empty (backward compatibility)
+	if bc.TradingMode == "" {
+		return true
+	}
+	return strings.Contains(bc.TradingMode, "futures")
 }
 
 // GetBinanceTestnetURLs returns testnet URLs if testnet is enabled
