@@ -4,15 +4,13 @@ Metrics collection framework for EventBus observability.
 Provides thread-safe metrics collection with Prometheus export support.
 """
 
-import asyncio
-import time
 from collections import defaultdict
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
-import threading
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from enum import Enum
+import threading
+import time
+from typing import Any
 
 
 class MetricType(Enum):
@@ -31,10 +29,10 @@ class Metric:
     name: str
     type: MetricType
     description: str
-    labels: Dict[str, str] = field(default_factory=dict)
+    labels: dict[str, str] = field(default_factory=dict)
     value: float = 0.0
     timestamp: float = field(default_factory=time.time)
-    unit: Optional[str] = None
+    unit: str | None = None
 
     def __hash__(self):
         """Make metric hashable based on name and labels."""
@@ -44,14 +42,14 @@ class Metric:
 class Counter:
     """A counter metric that can only increase."""
 
-    def __init__(self, name: str, description: str, unit: Optional[str] = None):
+    def __init__(self, name: str, description: str, unit: str | None = None):
         self.name = name
         self.description = description
         self.unit = unit
-        self._values: Dict[Tuple[Tuple[str, str], ...], float] = defaultdict(float)
+        self._values: dict[tuple[tuple[str, str], ...], float] = defaultdict(float)
         self._lock = threading.Lock()
 
-    def inc(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         """Increment the counter."""
         if amount < 0:
             raise ValueError("Counter can only increase")
@@ -60,13 +58,13 @@ class Counter:
         with self._lock:
             self._values[label_key] += amount
 
-    def get(self, labels: Optional[Dict[str, str]] = None) -> float:
+    def get(self, labels: dict[str, str] | None = None) -> float:
         """Get current value for given labels."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
             return self._values[label_key]
 
-    def collect(self) -> List[Metric]:
+    def collect(self) -> list[Metric]:
         """Collect all metrics for export."""
         metrics = []
         with self._lock:
@@ -80,7 +78,7 @@ class Counter:
                         labels=labels,
                         value=value,
                         unit=self.unit,
-                    )
+                    ),
                 )
         return metrics
 
@@ -88,38 +86,38 @@ class Counter:
 class Gauge:
     """A gauge metric that can go up or down."""
 
-    def __init__(self, name: str, description: str, unit: Optional[str] = None):
+    def __init__(self, name: str, description: str, unit: str | None = None):
         self.name = name
         self.description = description
         self.unit = unit
-        self._values: Dict[Tuple[Tuple[str, str], ...], float] = defaultdict(float)
+        self._values: dict[tuple[tuple[str, str], ...], float] = defaultdict(float)
         self._lock = threading.Lock()
 
-    def set(self, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def set(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Set the gauge value."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
             self._values[label_key] = value
 
-    def inc(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         """Increment the gauge."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
             self._values[label_key] += amount
 
-    def dec(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def dec(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         """Decrement the gauge."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
             self._values[label_key] -= amount
 
-    def get(self, labels: Optional[Dict[str, str]] = None) -> float:
+    def get(self, labels: dict[str, str] | None = None) -> float:
         """Get current value for given labels."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
             return self._values[label_key]
 
-    def collect(self) -> List[Metric]:
+    def collect(self) -> list[Metric]:
         """Collect all metrics for export."""
         metrics = []
         with self._lock:
@@ -133,7 +131,7 @@ class Gauge:
                         labels=labels,
                         value=value,
                         unit=self.unit,
-                    )
+                    ),
                 )
         return metrics
 
@@ -145,8 +143,8 @@ class Histogram:
         self,
         name: str,
         description: str,
-        buckets: Optional[List[float]] = None,
-        unit: Optional[str] = None,
+        buckets: list[float] | None = None,
+        unit: str | None = None,
     ):
         self.name = name
         self.description = description
@@ -164,14 +162,14 @@ class Histogram:
             5,
             10,
         ]
-        self._buckets: Dict[Tuple[Tuple[str, str], ...], Dict[float, int]] = (
-            defaultdict(lambda: {b: 0 for b in self.buckets + [float("inf")]})
+        self._buckets: dict[tuple[tuple[str, str], ...], dict[float, int]] = (
+            defaultdict(lambda: dict.fromkeys(self.buckets + [float("inf")], 0))
         )
-        self._sums: Dict[Tuple[Tuple[str, str], ...], float] = defaultdict(float)
-        self._counts: Dict[Tuple[Tuple[str, str], ...], int] = defaultdict(int)
+        self._sums: dict[tuple[tuple[str, str], ...], float] = defaultdict(float)
+        self._counts: dict[tuple[tuple[str, str], ...], int] = defaultdict(int)
         self._lock = threading.Lock()
 
-    def observe(self, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def observe(self, value: float, labels: dict[str, str] | None = None) -> None:
         """Record an observation."""
         label_key = tuple(sorted((labels or {}).items()))
         with self._lock:
@@ -184,7 +182,9 @@ class Histogram:
                     self._buckets[label_key][bucket] += 1
 
     def get_percentile(
-        self, percentile: float, labels: Optional[Dict[str, str]] = None
+        self,
+        percentile: float,
+        labels: dict[str, str] | None = None,
     ) -> float:
         """Get percentile value."""
         if not 0 <= percentile <= 100:
@@ -205,7 +205,7 @@ class Histogram:
 
             return float("inf")
 
-    def collect(self) -> List[Metric]:
+    def collect(self) -> list[Metric]:
         """Collect all metrics for export."""
         metrics = []
         with self._lock:
@@ -226,7 +226,7 @@ class Histogram:
                             labels=bucket_labels,
                             value=float(self._buckets[label_tuple][bucket]),
                             unit=self.unit,
-                        )
+                        ),
                     )
 
                 # Add sum and count
@@ -238,7 +238,7 @@ class Histogram:
                         labels=labels,
                         value=self._sums[label_tuple],
                         unit=self.unit,
-                    )
+                    ),
                 )
 
                 metrics.append(
@@ -249,7 +249,7 @@ class Histogram:
                         labels=labels,
                         value=float(self._counts[label_tuple]),
                         unit=self.unit,
-                    )
+                    ),
                 )
 
         return metrics
@@ -259,7 +259,7 @@ class MetricsRegistry:
     """Global registry for all metrics."""
 
     def __init__(self):
-        self._metrics: Dict[str, Any] = {}
+        self._metrics: dict[str, Any] = {}
         self._lock = threading.Lock()
 
     def register(self, metric: Any) -> None:
@@ -274,12 +274,12 @@ class MetricsRegistry:
         with self._lock:
             self._metrics.pop(name, None)
 
-    def get(self, name: str) -> Optional[Any]:
+    def get(self, name: str) -> Any | None:
         """Get a registered metric."""
         with self._lock:
             return self._metrics.get(name)
 
-    def collect_all(self) -> List[Metric]:
+    def collect_all(self) -> list[Metric]:
         """Collect all registered metrics."""
         all_metrics = []
         with self._lock:
@@ -333,7 +333,7 @@ class PrometheusExporter:
 
         return "\n".join(lines) + "\n"
 
-    def _format_labels(self, labels: Dict[str, str]) -> str:
+    def _format_labels(self, labels: dict[str, str]) -> str:
         """Format labels for Prometheus."""
         if not labels:
             return ""
@@ -358,14 +358,17 @@ class MetricsCollector:
         self._start_time = time.time()
 
     def counter(
-        self, name: str, description: str, unit: Optional[str] = None
+        self,
+        name: str,
+        description: str,
+        unit: str | None = None,
     ) -> Counter:
         """Create and register a counter."""
         counter = Counter(name, description, unit)
         self.registry.register(counter)
         return counter
 
-    def gauge(self, name: str, description: str, unit: Optional[str] = None) -> Gauge:
+    def gauge(self, name: str, description: str, unit: str | None = None) -> Gauge:
         """Create and register a gauge."""
         gauge = Gauge(name, description, unit)
         self.registry.register(gauge)
@@ -375,8 +378,8 @@ class MetricsCollector:
         self,
         name: str,
         description: str,
-        buckets: Optional[List[float]] = None,
-        unit: Optional[str] = None,
+        buckets: list[float] | None = None,
+        unit: str | None = None,
     ) -> Histogram:
         """Create and register a histogram."""
         histogram = Histogram(name, description, buckets, unit)
@@ -385,7 +388,9 @@ class MetricsCollector:
 
     @contextmanager
     def record_duration(
-        self, histogram: Histogram, labels: Optional[Dict[str, str]] = None
+        self,
+        histogram: Histogram,
+        labels: dict[str, str] | None = None,
     ):
         """Context manager to record operation duration."""
         start = time.time()
@@ -409,12 +414,12 @@ metrics_collector = MetricsCollector()
 
 
 # Convenience functions
-def create_counter(name: str, description: str, unit: Optional[str] = None) -> Counter:
+def create_counter(name: str, description: str, unit: str | None = None) -> Counter:
     """Create a counter metric."""
     return metrics_collector.counter(name, description, unit)
 
 
-def create_gauge(name: str, description: str, unit: Optional[str] = None) -> Gauge:
+def create_gauge(name: str, description: str, unit: str | None = None) -> Gauge:
     """Create a gauge metric."""
     return metrics_collector.gauge(name, description, unit)
 
@@ -422,15 +427,15 @@ def create_gauge(name: str, description: str, unit: Optional[str] = None) -> Gau
 def create_histogram(
     name: str,
     description: str,
-    buckets: Optional[List[float]] = None,
-    unit: Optional[str] = None,
+    buckets: list[float] | None = None,
+    unit: str | None = None,
 ) -> Histogram:
     """Create a histogram metric."""
     return metrics_collector.histogram(name, description, buckets, unit)
 
 
 @contextmanager
-def record_duration(histogram: Histogram, labels: Optional[Dict[str, str]] = None):
+def record_duration(histogram: Histogram, labels: dict[str, str] | None = None):
     """Record operation duration."""
     with metrics_collector.record_duration(histogram, labels):
         yield

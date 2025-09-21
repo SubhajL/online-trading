@@ -1,12 +1,11 @@
 from fastapi import APIRouter, Response, status
-from typing import Optional
 
 from app.engine.monitoring.health import HealthChecker, ReadinessChecker
 
 
 def create_health_endpoints(
-    health_checker: Optional[HealthChecker] = None,
-    readiness_checker: Optional[ReadinessChecker] = None,
+    health_checker: HealthChecker | None = None,
+    readiness_checker: ReadinessChecker | None = None,
 ) -> APIRouter:
     """Create health check API endpoints"""
     router = APIRouter(prefix="/health", tags=["health"])
@@ -82,13 +81,14 @@ def create_metrics_endpoints() -> APIRouter:
         metrics.append('python_info{implementation="CPython",version="3.9"} 1')
 
         metrics.append(
-            "# HELP process_virtual_memory_bytes Virtual memory size in bytes"
+            "# HELP process_virtual_memory_bytes Virtual memory size in bytes",
         )
         metrics.append("# TYPE process_virtual_memory_bytes gauge")
 
         # Add actual process metrics
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         memory_info = process.memory_info()
@@ -99,15 +99,16 @@ def create_metrics_endpoints() -> APIRouter:
         # CPU usage
         cpu_percent = process.cpu_percent(interval=0.1)
         metrics.append(
-            "# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds"
+            "# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds",
         )
         metrics.append("# TYPE process_cpu_seconds_total counter")
         metrics.append(
-            f"process_cpu_seconds_total {process.cpu_times().user + process.cpu_times().system}"
+            f"process_cpu_seconds_total {process.cpu_times().user + process.cpu_times().system}",
         )
 
         return Response(
-            content="\n".join(metrics) + "\n", media_type="text/plain; version=0.0.4"
+            content="\n".join(metrics) + "\n",
+            media_type="text/plain; version=0.0.4",
         )
 
     return router
@@ -116,8 +117,8 @@ def create_metrics_endpoints() -> APIRouter:
 def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus):
     """Setup health monitoring for the application"""
     from app.engine.monitoring.health import (
-        HealthConfig,
         HealthChecker,
+        HealthConfig,
         ReadinessChecker,
     )
 

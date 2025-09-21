@@ -79,7 +79,12 @@ def test_calculate_vwap_daily_reset():
     timestamps = np.array([0, 3600, 86400, 90000])  # Second day starts at 86400
 
     vwap = calculate_vwap(
-        high, low, close, volume, reset_daily=True, timestamps=timestamps
+        high,
+        low,
+        close,
+        volume,
+        reset_daily=True,
+        timestamps=timestamps,
     )
 
     # Day 1 calculations
@@ -107,7 +112,8 @@ def test_calculate_vwma_mismatched_lengths():
     volume = np.array([100.0, 200.0])  # Different length
 
     with pytest.raises(
-        ValueError, match="Price and volume arrays must have the same length"
+        ValueError,
+        match="Price and volume arrays must have the same length",
     ):
         calculate_vwma(prices, volume)
 

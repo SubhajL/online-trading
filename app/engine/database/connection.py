@@ -1,11 +1,11 @@
 import os
-import asyncio
-from typing import Dict, Any, Optional
+from typing import Any
+
 import asyncpg
 from asyncpg import Pool
 
 
-def get_pool_config() -> Dict[str, Any]:
+def get_pool_config() -> dict[str, Any]:
     """Get database pool configuration from environment variables"""
     return {
         "max_size": int(os.getenv("POSTGRES_MAX_CONNECTIONS", "20")),
@@ -37,7 +37,7 @@ class ConnectionManager:
 
     def __init__(self, database_url: str):
         self.database_url = database_url
-        self.pool: Optional[Pool] = None
+        self.pool: Pool | None = None
 
     async def initialize(self) -> None:
         """Initialize the connection pool"""
@@ -68,7 +68,7 @@ class ConnectionManager:
             rows = await conn.fetch(query, *args)
             return rows
 
-    async def fetchrow(self, query: str, *args) -> Optional[asyncpg.Record]:
+    async def fetchrow(self, query: str, *args) -> asyncpg.Record | None:
         """Fetch a single row from a query"""
         if not self.pool:
             await self.initialize()

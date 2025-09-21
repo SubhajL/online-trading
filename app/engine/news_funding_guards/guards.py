@@ -5,10 +5,9 @@ Risk guards that monitor news events and funding rates to prevent
 trading during high-risk periods.
 """
 
-import logging
-from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, Any
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class NewsGuard:
     """Guards against trading during major news events"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.high_impact_events = []
         self.guard_window_minutes = 30
 
@@ -25,7 +24,7 @@ class NewsGuard:
         # Simplified implementation
         return True
 
-    def add_news_event(self, event: Dict):
+    def add_news_event(self, event: Dict[str, Any]) -> None:
         """Add a news event to monitor"""
         pass
 
@@ -33,7 +32,7 @@ class NewsGuard:
 class FundingRateGuard:
     """Guards against trading during extreme funding rates"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.funding_threshold = Decimal("0.01")  # 1%
 
     def is_funding_safe(self, symbol: str) -> bool:
@@ -41,7 +40,7 @@ class FundingRateGuard:
         # Simplified implementation
         return True
 
-    def get_current_funding_rate(self, symbol: str) -> Optional[Decimal]:
+    def get_current_funding_rate(self, symbol: str) -> Decimal | None:
         """Get current funding rate for symbol"""
         return None
 
@@ -49,7 +48,7 @@ class FundingRateGuard:
 class RiskGuards:
     """Combined risk guards"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.news_guard = NewsGuard()
         self.funding_guard = FundingRateGuard()
 
@@ -61,5 +60,5 @@ class RiskGuards:
             "overall_safe": True,  # Simplified
         }
 
-    async def health_check(self) -> Dict:
+    async def health_check(self) -> Dict[str, Any]:
         return {"status": "healthy", "guards_active": True}

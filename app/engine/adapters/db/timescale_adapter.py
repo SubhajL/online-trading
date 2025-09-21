@@ -5,30 +5,20 @@ Database adapter for TimescaleDB that handles time-series data storage and retri
 for trading data including candles, indicators, signals, and trading events.
 """
 
-import asyncio
-import logging
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Dict, List, Optional, Any, Tuple
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+import logging
+from typing import Any
 
 import asyncpg
-from asyncpg import Connection, Pool
+from asyncpg import Pool
 
 from ...models import (
     Candle,
     TechnicalIndicators,
-    SMCSignal,
-    TradingDecision,
-    Order,
-    Position,
     TimeFrame,
-    OrderSide,
-    OrderType,
-    OrderStatus,
-    ZoneType,
+    TradingDecision,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +55,7 @@ class TimescaleDBAdapter:
         self.max_overflow = max_overflow
         self.pool_timeout = pool_timeout
 
-        self._pool: Optional[Pool] = None
+        self._pool: Pool | None = None
         self._initialized = False
 
         logger.info(f"TimescaleDBAdapter configured for {host}:{port}/{database}")
@@ -142,7 +132,7 @@ class TimescaleDBAdapter:
                     taker_buy_quote_volume DECIMAL(20,8) NOT NULL,
                     UNIQUE(timestamp, symbol, timeframe)
                 );
-            """
+            """,
             )
 
             # Technical indicators table
@@ -168,7 +158,7 @@ class TimescaleDBAdapter:
                     bb_percent DECIMAL(10,6),
                     UNIQUE(timestamp, symbol, timeframe)
                 );
-            """
+            """,
             )
 
             # SMC signals table
@@ -193,7 +183,7 @@ class TimescaleDBAdapter:
                     is_active BOOLEAN DEFAULT TRUE,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );
-            """
+            """,
             )
 
             # Trading decisions table
@@ -219,7 +209,7 @@ class TimescaleDBAdapter:
                     is_executed BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );
-            """
+            """,
             )
 
             # Orders table
@@ -242,7 +232,7 @@ class TimescaleDBAdapter:
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 );
-            """
+            """,
             )
 
             # Positions table
@@ -267,7 +257,7 @@ class TimescaleDBAdapter:
                     closed_at TIMESTAMPTZ,
                     is_active BOOLEAN DEFAULT TRUE
                 );
-            """
+            """,
             )
 
             # Events table for audit trail
@@ -283,7 +273,7 @@ class TimescaleDBAdapter:
                     metadata JSONB,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );
-            """
+            """,
             )
 
     async def _create_hypertables(self):
@@ -303,13 +293,13 @@ class TimescaleDBAdapter:
                             f"""
                             SELECT create_hypertable('{table_name}', '{time_column}',
                                                     if_not_exists => TRUE);
-                        """
+                        """,
                         )
                         logger.info(f"Created hypertable for {table_name}")
                     except Exception as e:
                         if "already a hypertable" not in str(e):
                             logger.warning(
-                                f"Error creating hypertable for {table_name}: {e}"
+                                f"Error creating hypertable for {table_name}: {e}",
                             )
 
             except Exception as e:
@@ -392,7 +382,7 @@ class TimescaleDBAdapter:
             logger.error(f"Error inserting candle: {e}")
             return False
 
-    async def insert_candles_batch(self, candles: List[Candle]) -> int:
+    async def insert_candles_batch(self, candles: list[Candle]) -> int:
         """Insert multiple candles in a batch"""
         if not candles:
             return 0
@@ -436,8 +426,10 @@ class TimescaleDBAdapter:
             return 0
 
     async def get_latest_candle(
-        self, symbol: str, timeframe: TimeFrame
-    ) -> Optional[Candle]:
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> Candle | None:
         """
         Get the latest candle for a symbol and timeframe.
 
@@ -455,10 +447,10 @@ class TimescaleDBAdapter:
         self,
         symbol: str,
         timeframe: TimeFrame,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         limit: int = 1000,
-    ) -> List[Candle]:
+    ) -> list[Candle]:
         """Retrieve candles for a symbol and timeframe"""
         try:
             async with self.get_connection() as conn:
@@ -514,7 +506,8 @@ class TimescaleDBAdapter:
     # ============================================================================
 
     async def insert_technical_indicators(
-        self, indicators: TechnicalIndicators
+        self,
+        indicators: TechnicalIndicators,
     ) -> bool:
         """Insert technical indicators"""
         try:
@@ -606,8 +599,10 @@ class TimescaleDBAdapter:
             return False
 
     async def get_recent_decisions(
-        self, symbol: Optional[str] = None, limit: int = 100
-    ) -> List[Dict]:
+        self,
+        symbol: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
         """Get recent trading decisions"""
         try:
             async with self.get_connection() as conn:
@@ -634,7 +629,7 @@ class TimescaleDBAdapter:
     # Health and Maintenance
     # ============================================================================
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Perform a health check on the database"""
         try:
             async with self.get_connection() as conn:
@@ -645,7 +640,7 @@ class TimescaleDBAdapter:
                 size_result = await conn.fetchrow(
                     """
                     SELECT pg_size_pretty(pg_database_size(current_database())) as size
-                """
+                """,
                 )
 
                 # Get table stats
@@ -654,7 +649,7 @@ class TimescaleDBAdapter:
                     SELECT schemaname, tablename, n_tup_ins as inserts, n_tup_upd as updates
                     FROM pg_stat_user_tables
                     WHERE tablename IN ('candles', 'technical_indicators', 'trading_decisions', 'orders', 'positions')
-                """
+                """,
                 )
 
                 table_stats = {
@@ -681,7 +676,7 @@ class TimescaleDBAdapter:
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
-    async def get_database_stats(self) -> Dict[str, Any]:
+    async def get_database_stats(self) -> dict[str, Any]:
         """Get detailed database statistics"""
         try:
             async with self.get_connection() as conn:
@@ -694,7 +689,7 @@ class TimescaleDBAdapter:
                     FROM candles
                     GROUP BY symbol, timeframe
                     ORDER BY symbol, timeframe
-                """
+                """,
                 )
 
                 # Get recent activity
@@ -704,7 +699,7 @@ class TimescaleDBAdapter:
                         (SELECT COUNT(*) FROM candles WHERE timestamp > NOW() - INTERVAL '1 hour') as candles_last_hour,
                         (SELECT COUNT(*) FROM technical_indicators WHERE timestamp > NOW() - INTERVAL '1 hour') as indicators_last_hour,
                         (SELECT COUNT(*) FROM trading_decisions WHERE created_at > NOW() - INTERVAL '1 hour') as decisions_last_hour
-                """
+                """,
                 )
 
                 return {
@@ -717,7 +712,7 @@ class TimescaleDBAdapter:
             logger.error(f"Error getting database stats: {e}")
             return {}
 
-    async def cleanup_old_data(self, days_to_keep: int = 90) -> Dict[str, int]:
+    async def cleanup_old_data(self, days_to_keep: int = 90) -> dict[str, int]:
         """Clean up old data beyond retention period"""
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)

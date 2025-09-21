@@ -5,27 +5,24 @@ Main service that orchestrates pivot detection, zone identification, and signal 
 for Smart Money Concepts analysis. Integrates with the event bus for real-time processing.
 """
 
-import asyncio
-import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+import logging
 
-from .pivot_detector import PivotDetector
-from .zone_identifier import ZoneIdentifier
+from ..bus import get_event_bus
 from ..models import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,
+    OrderSide,
+    PivotPoint,
     SMCSignal,
     SMCSignalEvent,
-    TimeFrame,
-    OrderSide,
     SupplyDemandZone,
+    TimeFrame,
     ZoneType,
-    PivotPoint,
 )
-from ..bus import get_event_bus
-
+from .pivot_detector import PivotDetector
+from .zone_identifier import ZoneIdentifier
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +39,9 @@ class SMCService:
 
     def __init__(
         self,
-        pivot_config: Dict = None,
-        zone_config: Dict = None,
-        signal_config: Dict = None,
+        pivot_config: dict = None,
+        zone_config: dict = None,
+        signal_config: dict = None,
     ):
         """
         Initialize SMC service
@@ -85,15 +82,15 @@ class SMCService:
         self.signal_timeout_hours = signal_config["signal_timeout_hours"]
 
         # Candle storage for analysis (symbol -> timeframe -> candles)
-        self._candle_history: Dict[str, Dict[TimeFrame, List[Candle]]] = {}
+        self._candle_history: dict[str, dict[TimeFrame, list[Candle]]] = {}
         self._max_candle_history = 200
 
         # Active signals
-        self._active_signals: List[SMCSignal] = []
+        self._active_signals: list[SMCSignal] = []
 
         self._event_bus = get_event_bus()
         self._running = False
-        self._subscription_id: Optional[str] = None
+        self._subscription_id: str | None = None
 
         # Statistics
         self._signals_generated = 0
@@ -155,12 +152,14 @@ class SMCService:
             if new_pivots:
                 self._pivots_detected += len(new_pivots)
                 logger.debug(
-                    f"Detected {len(new_pivots)} new pivots for {symbol} {timeframe.value}"
+                    f"Detected {len(new_pivots)} new pivots for {symbol} {timeframe.value}",
                 )
 
             # Update zone tests with current price
             self.zone_identifier.update_zone_tests(
-                candle.close_price, symbol, timeframe
+                candle.close_price,
+                symbol,
+                timeframe,
             )
 
             # Identify new zones if we have recent pivots
@@ -168,17 +167,18 @@ class SMCService:
             if recent_pivots:
                 # Identify supply/demand zones
                 new_sd_zones = self.zone_identifier.identify_supply_demand_zones(
-                    recent_pivots, recent_candles
+                    recent_pivots,
+                    recent_candles,
                 )
 
                 # Identify order blocks
                 new_ob_zones = self.zone_identifier.identify_order_blocks(
-                    recent_candles[-10:]
+                    recent_candles[-10:],
                 )
 
                 # Identify fair value gaps
                 new_fvg_zones = self.zone_identifier.identify_fair_value_gaps(
-                    recent_candles[-10:]
+                    recent_candles[-10:],
                 )
 
                 total_new_zones = (
@@ -187,7 +187,7 @@ class SMCService:
                 if total_new_zones > 0:
                     self._zones_identified += total_new_zones
                     logger.debug(
-                        f"Identified {total_new_zones} new zones for {symbol} {timeframe.value}"
+                        f"Identified {total_new_zones} new zones for {symbol} {timeframe.value}",
                     )
 
             # Generate signals based on current price action and zones
@@ -218,8 +218,11 @@ class SMCService:
             candles.pop(0)
 
     def _get_recent_candles(
-        self, symbol: str, timeframe: TimeFrame, count: int
-    ) -> List[Candle]:
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        count: int,
+    ) -> list[Candle]:
         """Get recent candles for a symbol and timeframe"""
         if symbol not in self._candle_history:
             return []
@@ -235,7 +238,7 @@ class SMCService:
         symbol: str,
         timeframe: TimeFrame,
         current_candle: Candle,
-        recent_candles: List[Candle],
+        recent_candles: list[Candle],
     ):
         """Generate SMC signals based on current market conditions"""
         try:
@@ -249,21 +252,29 @@ class SMCService:
 
             for zone in nearby_zones:
                 signal = await self._analyze_zone_for_signal(
-                    zone, current_candle, recent_candles
+                    zone,
+                    current_candle,
+                    recent_candles,
                 )
                 if signal:
                     await self._publish_signal(signal)
 
             # Check for order block entries
             order_block_signal = await self._check_order_block_entry(
-                symbol, timeframe, current_candle, recent_candles
+                symbol,
+                timeframe,
+                current_candle,
+                recent_candles,
             )
             if order_block_signal:
                 await self._publish_signal(order_block_signal)
 
             # Check for fair value gap entries
             fvg_signal = await self._check_fvg_entry(
-                symbol, timeframe, current_candle, recent_candles
+                symbol,
+                timeframe,
+                current_candle,
+                recent_candles,
             )
             if fvg_signal:
                 await self._publish_signal(fvg_signal)
@@ -275,8 +286,8 @@ class SMCService:
         self,
         zone: SupplyDemandZone,
         current_candle: Candle,
-        recent_candles: List[Candle],
-    ) -> Optional[SMCSignal]:
+        recent_candles: list[Candle],
+    ) -> SMCSignal | None:
         """Analyze a zone for potential trading signals"""
         try:
             # Check if price is entering the zone
@@ -305,7 +316,9 @@ class SMCService:
 
             # Calculate confidence based on zone strength and market conditions
             confidence = self._calculate_zone_signal_confidence(
-                zone, current_candle, recent_candles
+                zone,
+                current_candle,
+                recent_candles,
             )
 
             if confidence < self.min_signal_confidence:
@@ -337,15 +350,19 @@ class SMCService:
         symbol: str,
         timeframe: TimeFrame,
         current_candle: Candle,
-        recent_candles: List[Candle],
-    ) -> Optional[SMCSignal]:
+        recent_candles: list[Candle],
+    ) -> SMCSignal | None:
         """Check for order block entry opportunities"""
         try:
             # Get order block zones
             ob_zones = self.zone_identifier.get_active_zones(
-                symbol, timeframe, ZoneType.ORDER_BLOCK_BULLISH
+                symbol,
+                timeframe,
+                ZoneType.ORDER_BLOCK_BULLISH,
             ) + self.zone_identifier.get_active_zones(
-                symbol, timeframe, ZoneType.ORDER_BLOCK_BEARISH
+                symbol,
+                timeframe,
+                ZoneType.ORDER_BLOCK_BEARISH,
             )
 
             for zone in ob_zones:
@@ -407,13 +424,15 @@ class SMCService:
         symbol: str,
         timeframe: TimeFrame,
         current_candle: Candle,
-        recent_candles: List[Candle],
-    ) -> Optional[SMCSignal]:
+        recent_candles: list[Candle],
+    ) -> SMCSignal | None:
         """Check for fair value gap entry opportunities"""
         try:
             # Get FVG zones
             fvg_zones = self.zone_identifier.get_active_zones(
-                symbol, timeframe, ZoneType.FAIR_VALUE_GAP
+                symbol,
+                timeframe,
+                ZoneType.FAIR_VALUE_GAP,
             )
 
             for zone in fvg_zones:
@@ -440,23 +459,22 @@ class SMCService:
 
                         return signal
 
-                    else:
-                        # Lower half of gap - potential continuation down
-                        signal = SMCSignal(
-                            symbol=symbol,
-                            timeframe=timeframe,
-                            timestamp=current_candle.close_time,
-                            signal_type="fair_value_gap",
-                            direction=OrderSide.SELL,
-                            entry_price=current_candle.close_price,
-                            stop_loss=zone.top_price,
-                            take_profit=current_candle.close_price * 0.99,
-                            confidence=0.65,
-                            zone=zone,
-                            reasoning="FVG fill with bearish bias",
-                        )
+                    # Lower half of gap - potential continuation down
+                    signal = SMCSignal(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        timestamp=current_candle.close_time,
+                        signal_type="fair_value_gap",
+                        direction=OrderSide.SELL,
+                        entry_price=current_candle.close_price,
+                        stop_loss=zone.top_price,
+                        take_profit=current_candle.close_price * 0.99,
+                        confidence=0.65,
+                        zone=zone,
+                        reasoning="FVG fill with bearish bias",
+                    )
 
-                        return signal
+                    return signal
 
         except Exception as e:
             logger.error(f"Error checking FVG entry: {e}")
@@ -467,7 +485,7 @@ class SMCService:
         self,
         zone: SupplyDemandZone,
         current_candle: Candle,
-        recent_candles: List[Candle],
+        recent_candles: list[Candle],
     ) -> float:
         """Calculate confidence for a zone-based signal"""
         try:
@@ -529,7 +547,7 @@ class SMCService:
             self._signals_generated += 1
             logger.info(
                 f"Published SMC signal: {signal.signal_type} {signal.direction.value} "
-                f"for {signal.symbol} at {signal.entry_price}"
+                f"for {signal.symbol} at {signal.entry_price}",
             )
 
         except Exception as e:
@@ -549,8 +567,10 @@ class SMCService:
             logger.error(f"Error cleaning up old signals: {e}")
 
     def get_active_signals(
-        self, symbol: Optional[str] = None, timeframe: Optional[TimeFrame] = None
-    ) -> List[SMCSignal]:
+        self,
+        symbol: str | None = None,
+        timeframe: TimeFrame | None = None,
+    ) -> list[SMCSignal]:
         """Get active SMC signals"""
         signals = self._active_signals
 
@@ -563,16 +583,19 @@ class SMCService:
         return signals
 
     def get_zones(
-        self, symbol: str, timeframe: TimeFrame, zone_type: Optional[ZoneType] = None
-    ) -> List[SupplyDemandZone]:
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        zone_type: ZoneType | None = None,
+    ) -> list[SupplyDemandZone]:
         """Get zones for a symbol and timeframe"""
         return self.zone_identifier.get_active_zones(symbol, timeframe, zone_type)
 
-    def get_pivots(self, count: int = 20) -> List[PivotPoint]:
+    def get_pivots(self, count: int = 20) -> list[PivotPoint]:
         """Get recent pivot points"""
         return self.pivot_detector.get_recent_pivots(count)
 
-    async def health_check(self) -> Dict:
+    async def health_check(self) -> dict:
         """Get health status of the SMC service"""
         pivot_stats = self.pivot_detector.get_statistics()
         zone_stats = self.zone_identifier.get_statistics()

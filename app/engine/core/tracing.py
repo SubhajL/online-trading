@@ -5,16 +5,14 @@ Provides request tracing, span management, and context propagation.
 """
 
 import asyncio
-import json
-import time
-import uuid
-from contextlib import contextmanager, asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+import json
 import threading
-from collections import defaultdict
+import time
+from typing import Any, Optional
+import uuid
 
 
 class SpanKind(Enum):
@@ -40,7 +38,7 @@ class SpanStatus:
     """Status of a span."""
 
     code: StatusCode
-    message: Optional[str] = None
+    message: str | None = None
 
 
 @dataclass
@@ -50,7 +48,7 @@ class SpanContext:
     trace_id: str
     span_id: str
     trace_flags: int = 0
-    trace_state: Optional[str] = None
+    trace_state: str | None = None
     is_remote: bool = False
 
     def is_valid(self) -> bool:
@@ -63,7 +61,7 @@ class Link:
     """Link to another span."""
 
     context: SpanContext
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -72,7 +70,7 @@ class Event:
 
     name: str
     timestamp: float = field(default_factory=time.time)
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 class Span:
@@ -84,9 +82,9 @@ class Span:
         context: SpanContext,
         kind: SpanKind = SpanKind.INTERNAL,
         parent: Optional["Span"] = None,
-        attributes: Optional[Dict[str, Any]] = None,
-        links: Optional[List[Link]] = None,
-        start_time: Optional[float] = None,
+        attributes: dict[str, Any] | None = None,
+        links: list[Link] | None = None,
+        start_time: float | None = None,
     ):
         self.name = name
         self.context = context
@@ -94,10 +92,10 @@ class Span:
         self.parent = parent
         self.attributes = attributes or {}
         self.links = links or []
-        self.events: List[Event] = []
+        self.events: list[Event] = []
         self.status = SpanStatus(StatusCode.UNSET)
         self.start_time = start_time or time.time()
-        self.end_time: Optional[float] = None
+        self.end_time: float | None = None
         self._lock = threading.RLock()  # Use RLock for reentrant locking
 
     def set_attribute(self, key: str, value: Any) -> None:
@@ -105,24 +103,26 @@ class Span:
         with self._lock:
             self.attributes[key] = value
 
-    def set_attributes(self, attributes: Dict[str, Any]) -> None:
+    def set_attributes(self, attributes: dict[str, Any]) -> None:
         """Set multiple attributes."""
         with self._lock:
             self.attributes.update(attributes)
 
-    def add_event(self, name: str, attributes: Optional[Dict[str, Any]] = None) -> None:
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """Add an event to the span."""
         with self._lock:
             event = Event(name, attributes=attributes or {})
             self.events.append(event)
 
-    def set_status(self, code: StatusCode, message: Optional[str] = None) -> None:
+    def set_status(self, code: StatusCode, message: str | None = None) -> None:
         """Set the span status."""
         with self._lock:
             self.status = SpanStatus(code, message)
 
     def record_exception(
-        self, exception: Exception, attributes: Optional[Dict[str, Any]] = None
+        self,
+        exception: Exception,
+        attributes: dict[str, Any] | None = None,
     ) -> None:
         """Record an exception in the span."""
         with self._lock:
@@ -134,7 +134,7 @@ class Span:
             self.add_event("exception", exc_attributes)
             self.set_status(StatusCode.ERROR, str(exception))
 
-    def end(self, end_time: Optional[float] = None) -> None:
+    def end(self, end_time: float | None = None) -> None:
         """End the span."""
         with self._lock:
             if self.end_time is None:
@@ -150,7 +150,7 @@ class Span:
             return self.end_time - self.start_time
         return time.time() - self.start_time
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert span to dictionary."""
         return {
             "name": self.name,
@@ -181,20 +181,20 @@ class Span:
 class Tracer:
     """Creates and manages spans."""
 
-    def __init__(self, name: str, resource: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, resource: dict[str, Any] | None = None):
         self.name = name
         self.resource = resource or {}
         self._current_span: threading.local = threading.local()
-        self._spans: List[Span] = []
+        self._spans: list[Span] = []
         self._lock = threading.RLock()
 
     def start_span(
         self,
         name: str,
         kind: SpanKind = SpanKind.INTERNAL,
-        parent: Optional[Union[Span, SpanContext]] = None,
-        attributes: Optional[Dict[str, Any]] = None,
-        links: Optional[List[Link]] = None,
+        parent: Span | SpanContext | None = None,
+        attributes: dict[str, Any] | None = None,
+        links: list[Link] | None = None,
     ) -> Span:
         """Start a new span."""
         # Generate IDs
@@ -233,8 +233,8 @@ class Tracer:
         self,
         name: str,
         kind: SpanKind = SpanKind.INTERNAL,
-        attributes: Optional[Dict[str, Any]] = None,
-        links: Optional[List[Link]] = None,
+        attributes: dict[str, Any] | None = None,
+        links: list[Link] | None = None,
     ):
         """Start a span and set it as current."""
         parent = self.get_current_span()
@@ -254,8 +254,8 @@ class Tracer:
         self,
         name: str,
         kind: SpanKind = SpanKind.INTERNAL,
-        attributes: Optional[Dict[str, Any]] = None,
-        links: Optional[List[Link]] = None,
+        attributes: dict[str, Any] | None = None,
+        links: list[Link] | None = None,
     ):
         """Async version of start_as_current_span."""
         parent = self.get_current_span()
@@ -270,7 +270,7 @@ class Tracer:
             span.end()
             self._reset_current_span(token)
 
-    def get_current_span(self) -> Optional[Span]:
+    def get_current_span(self) -> Span | None:
         """Get the current active span."""
         return getattr(self._current_span, "span", None)
 
@@ -284,16 +284,15 @@ class Tracer:
         """Reset current span to previous value."""
         self._current_span.span = token
 
-    def _get_trace_id(self, parent: Optional[Union[Span, SpanContext]]) -> str:
+    def _get_trace_id(self, parent: Span | SpanContext | None) -> str:
         """Get or generate trace ID."""
         if isinstance(parent, Span):
             return parent.context.trace_id
-        elif isinstance(parent, SpanContext):
+        if isinstance(parent, SpanContext):
             return parent.trace_id
-        elif self.get_current_span():
+        if self.get_current_span():
             return self.get_current_span().context.trace_id
-        else:
-            return self._generate_trace_id()
+        return self._generate_trace_id()
 
     def _generate_trace_id(self) -> str:
         """Generate a new trace ID."""
@@ -303,7 +302,7 @@ class Tracer:
         """Generate a new span ID."""
         return uuid.uuid4().hex[:16]
 
-    def get_finished_spans(self) -> List[Span]:
+    def get_finished_spans(self) -> list[Span]:
         """Get all finished spans."""
         with self._lock:
             return [s for s in self._spans if s.end_time is not None]
@@ -317,13 +316,13 @@ class Tracer:
 class TracerProvider:
     """Manages tracers and span processors."""
 
-    def __init__(self, resource: Optional[Dict[str, Any]] = None):
+    def __init__(self, resource: dict[str, Any] | None = None):
         self.resource = resource or self._default_resource()
-        self._tracers: Dict[str, Tracer] = {}
-        self._processors: List["SpanProcessor"] = []
+        self._tracers: dict[str, Tracer] = {}
+        self._processors: list[SpanProcessor] = []
         self._lock = threading.RLock()
 
-    def get_tracer(self, name: str, version: Optional[str] = None) -> Tracer:
+    def get_tracer(self, name: str, version: str | None = None) -> Tracer:
         """Get or create a tracer."""
         key = f"{name}:{version or ''}"
         with self._lock:
@@ -336,7 +335,7 @@ class TracerProvider:
         with self._lock:
             self._processors.append(processor)
 
-    def _default_resource(self) -> Dict[str, Any]:
+    def _default_resource(self) -> dict[str, Any]:
         """Get default resource attributes."""
         return {
             "service.name": "event-bus",
@@ -351,15 +350,12 @@ class SpanProcessor:
 
     def on_start(self, span: Span) -> None:
         """Called when a span starts."""
-        pass
 
     def on_end(self, span: Span) -> None:
         """Called when a span ends."""
-        pass
 
     def shutdown(self) -> None:
         """Shutdown the processor."""
-        pass
 
 
 class ConsoleSpanExporter(SpanProcessor):
@@ -389,7 +385,7 @@ class BatchSpanProcessor(SpanProcessor):
         self.exporter = exporter
         self.max_batch_size = max_batch_size
         self.schedule_delay_millis = schedule_delay_millis
-        self._spans: List[Span] = []
+        self._spans: list[Span] = []
         self._lock = threading.RLock()
         self._shutdown = False
         self._worker_thread = threading.Thread(target=self._worker, daemon=True)
@@ -438,7 +434,7 @@ class W3CTraceContextPropagator:
     TRACEPARENT_HEADER = "traceparent"
     TRACESTATE_HEADER = "tracestate"
 
-    def inject(self, span: Span, carrier: Dict[str, str]) -> None:
+    def inject(self, span: Span, carrier: dict[str, str]) -> None:
         """Inject span context into carrier."""
         if not span or not span.context.is_valid():
             return
@@ -450,7 +446,7 @@ class W3CTraceContextPropagator:
         if span.context.trace_state:
             carrier[self.TRACESTATE_HEADER] = span.context.trace_state
 
-    def extract(self, carrier: Dict[str, str]) -> Optional[SpanContext]:
+    def extract(self, carrier: dict[str, str]) -> SpanContext | None:
         """Extract span context from carrier."""
         traceparent = carrier.get(self.TRACEPARENT_HEADER)
         if not traceparent:
@@ -489,13 +485,13 @@ def set_tracer_provider(provider: TracerProvider) -> None:
     _tracer_provider = provider
 
 
-def get_tracer(name: str, version: Optional[str] = None) -> Tracer:
+def get_tracer(name: str, version: str | None = None) -> Tracer:
     """Get a tracer from global provider."""
     return _tracer_provider.get_tracer(name, version)
 
 
 # Convenience decorators
-def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL):
+def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL):
     """Decorator to trace a function."""
 
     def decorator(func):
@@ -506,7 +502,8 @@ def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL):
             async def wrapper(*args, **kwargs):
                 tracer = get_tracer(func.__module__)
                 async with tracer.start_as_current_span_async(
-                    span_name, kind=kind
+                    span_name,
+                    kind=kind,
                 ) as span:
                     span.set_attribute("function", func.__name__)
                     return await func(*args, **kwargs)

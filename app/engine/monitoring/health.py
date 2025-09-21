@@ -1,10 +1,12 @@
+import asyncio
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
 import os
 import time
-import asyncio
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Callable
-from dataclasses import dataclass, field
-from enum import Enum
+from typing import Any
+
 import asyncpg
 import redis.asyncio as redis
 
@@ -20,8 +22,8 @@ class ComponentHealth:
     name: str
     status: HealthStatus
     message: str = ""
-    latency_ms: Optional[float] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    latency_ms: float | None = None
+    details: dict[str, Any] = field(default_factory=dict)
     last_check: datetime = field(default_factory=datetime.now)
 
 
@@ -50,18 +52,22 @@ class HealthChecker:
 
     def __init__(self, config: HealthConfig):
         self.config = config
-        self.components: Dict[str, ComponentHealth] = {}
-        self.failure_counts: Dict[str, int] = {}
-        self.recovery_counts: Dict[str, int] = {}
-        self._check_tasks: Dict[str, asyncio.Task] = {}
-        self._custom_checks: Dict[str, Callable] = {}
+        self.components: dict[str, ComponentHealth] = {}
+        self.failure_counts: dict[str, int] = {}
+        self.recovery_counts: dict[str, int] = {}
+        self._check_tasks: dict[str, asyncio.Task] = {}
+        self._custom_checks: dict[str, Callable] = {}
 
     def register_component(
-        self, name: str, check_func: Optional[Callable] = None
+        self,
+        name: str,
+        check_func: Callable | None = None,
     ) -> None:
         """Register a component for health monitoring"""
         self.components[name] = ComponentHealth(
-            name=name, status=HealthStatus.HEALTHY, message="Not yet checked"
+            name=name,
+            status=HealthStatus.HEALTHY,
+            message="Not yet checked",
         )
         self.failure_counts[name] = 0
         self.recovery_counts[name] = 0
@@ -85,13 +91,13 @@ class HealthChecker:
                 details = {}
                 if self.config.include_details:
                     db_size = await conn.fetchval(
-                        "SELECT pg_database_size(current_database())"
+                        "SELECT pg_database_size(current_database())",
                     )
                     details["database_size_mb"] = db_size / (1024 * 1024)
 
                     # Check active connections
                     active_conns = await conn.fetchval(
-                        "SELECT count(*) FROM pg_stat_activity WHERE state = 'active'"
+                        "SELECT count(*) FROM pg_stat_activity WHERE state = 'active'",
                     )
                     details["active_connections"] = active_conns
 
@@ -107,7 +113,7 @@ class HealthChecker:
             finally:
                 await conn.close()
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ComponentHealth(
                 name="database",
                 status=HealthStatus.UNHEALTHY,
@@ -118,7 +124,7 @@ class HealthChecker:
             return ComponentHealth(
                 name="database",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Database error: {str(e)}",
+                message=f"Database error: {e!s}",
                 latency_ms=(time.time() - start_time) * 1000,
             )
 
@@ -156,7 +162,7 @@ class HealthChecker:
             finally:
                 await client.aclose()
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ComponentHealth(
                 name="redis",
                 status=HealthStatus.UNHEALTHY,
@@ -167,7 +173,7 @@ class HealthChecker:
             return ComponentHealth(
                 name="redis",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Redis error: {str(e)}",
+                message=f"Redis error: {e!s}",
                 latency_ms=(time.time() - start_time) * 1000,
             )
 
@@ -208,7 +214,7 @@ class HealthChecker:
             return ComponentHealth(
                 name="event_bus",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Event bus error: {str(e)}",
+                message=f"Event bus error: {e!s}",
                 latency_ms=(time.time() - start_time) * 1000,
             )
 
@@ -255,7 +261,7 @@ class HealthChecker:
             self.components[name] = ComponentHealth(
                 name=name,
                 status=HealthStatus.UNHEALTHY,
-                message=f"Check failed: {str(e)}",
+                message=f"Check failed: {e!s}",
             )
 
     async def start_monitoring(self) -> None:
@@ -263,7 +269,7 @@ class HealthChecker:
         for name in self.components:
             if name not in self._check_tasks or self._check_tasks[name].done():
                 self._check_tasks[name] = asyncio.create_task(
-                    self._monitor_component(name)
+                    self._monitor_component(name),
                 )
 
     async def stop_monitoring(self) -> None:
@@ -280,9 +286,10 @@ class HealthChecker:
         while True:
             try:
                 await asyncio.wait_for(
-                    self._run_check(name), timeout=self.config.timeout
+                    self._run_check(name),
+                    timeout=self.config.timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self.components[name] = ComponentHealth(
                     name=name,
                     status=HealthStatus.UNHEALTHY,
@@ -294,12 +301,12 @@ class HealthChecker:
                 self.components[name] = ComponentHealth(
                     name=name,
                     status=HealthStatus.UNHEALTHY,
-                    message=f"Monitoring error: {str(e)}",
+                    message=f"Monitoring error: {e!s}",
                 )
 
             await asyncio.sleep(self.config.check_interval)
 
-    def get_overall_health(self) -> Dict[str, Any]:
+    def get_overall_health(self) -> dict[str, Any]:
         """Get overall system health status"""
         statuses = [comp.status for comp in self.components.values()]
 
@@ -325,7 +332,7 @@ class HealthChecker:
             },
         }
 
-    async def run_all_checks(self) -> Dict[str, Any]:
+    async def run_all_checks(self) -> dict[str, Any]:
         """Run all health checks immediately"""
         tasks = [self._run_check(name) for name in self.components]
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -336,18 +343,21 @@ class ReadinessChecker:
     """Checks if the application is ready to serve requests"""
 
     def __init__(self):
-        self.checks: Dict[str, Callable] = {}
-        self.required_components: List[str] = []
+        self.checks: dict[str, Callable] = {}
+        self.required_components: list[str] = []
 
     def register_check(
-        self, name: str, check_func: Callable, required: bool = True
+        self,
+        name: str,
+        check_func: Callable,
+        required: bool = True,
     ) -> None:
         """Register a readiness check"""
         self.checks[name] = check_func
         if required:
             self.required_components.append(name)
 
-    async def is_ready(self) -> Dict[str, Any]:
+    async def is_ready(self) -> dict[str, Any]:
         """Check if the application is ready"""
         results = {}
 

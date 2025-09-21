@@ -1,14 +1,14 @@
-import os
-import pytest
 import asyncio
+import os
 from unittest import mock
-from datetime import datetime, timedelta
+
+import pytest
 
 from app.engine.monitoring.health import (
-    HealthStatus,
     ComponentHealth,
-    HealthConfig,
     HealthChecker,
+    HealthConfig,
+    HealthStatus,
     ReadinessChecker,
 )
 
@@ -101,7 +101,9 @@ class TestHealthChecker:
             nonlocal fail_count
             fail_count += 1
             return ComponentHealth(
-                name="failing", status=HealthStatus.UNHEALTHY, message="Service down"
+                name="failing",
+                status=HealthStatus.UNHEALTHY,
+                message="Service down",
             )
 
         checker.register_component("failing", failing_check)
@@ -165,13 +167,19 @@ class TestHealthChecker:
 
         # Add components with different statuses
         checker.components["healthy"] = ComponentHealth(
-            name="healthy", status=HealthStatus.HEALTHY, message="OK"
+            name="healthy",
+            status=HealthStatus.HEALTHY,
+            message="OK",
         )
         checker.components["degraded"] = ComponentHealth(
-            name="degraded", status=HealthStatus.DEGRADED, message="Slow"
+            name="degraded",
+            status=HealthStatus.DEGRADED,
+            message="Slow",
         )
         checker.components["unhealthy"] = ComponentHealth(
-            name="unhealthy", status=HealthStatus.UNHEALTHY, message="Down"
+            name="unhealthy",
+            status=HealthStatus.UNHEALTHY,
+            message="Down",
         )
 
         overall = checker.get_overall_health()

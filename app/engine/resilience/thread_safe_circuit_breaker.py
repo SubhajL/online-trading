@@ -3,10 +3,9 @@ Thread-safe circuit breaker implementation with dependency injection.
 """
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 from app.engine.core.clock import Clock, SystemClock
 
@@ -38,8 +37,8 @@ class CircuitBreakerStats:
     success_count: int
     consecutive_failures: int
     consecutive_successes: int
-    last_failure_time: Optional[datetime] = None
-    last_success_time: Optional[datetime] = None
+    last_failure_time: datetime | None = None
+    last_success_time: datetime | None = None
 
 
 class CircuitBreaker:
@@ -51,8 +50,8 @@ class CircuitBreaker:
 
     def __init__(
         self,
-        config: Optional[CircuitBreakerConfig] = None,
-        clock: Optional[Clock] = None,
+        config: CircuitBreakerConfig | None = None,
+        clock: Clock | None = None,
     ):
         """Initialize with optional config and clock."""
         self._config = config or CircuitBreakerConfig()
@@ -69,9 +68,9 @@ class CircuitBreaker:
         self._consecutive_successes = 0
 
         # Timing
-        self._last_failure_time: Optional[datetime] = None
-        self._last_success_time: Optional[datetime] = None
-        self._last_state_change_time: Optional[datetime] = None
+        self._last_failure_time: datetime | None = None
+        self._last_success_time: datetime | None = None
+        self._last_state_change_time: datetime | None = None
 
         # Half-open state tracking
         self._half_open_requests = 0

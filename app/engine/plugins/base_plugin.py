@@ -3,10 +3,10 @@ Base plugin interface for extending the trading engine.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Set
 from datetime import datetime
+from typing import Any
 
-from ..models import Candle, TechnicalIndicators, BaseEvent
+from ..models import BaseEvent, Candle, TechnicalIndicators
 
 
 class BasePlugin(ABC):
@@ -14,46 +14,41 @@ class BasePlugin(ABC):
     Abstract base class for trading engine plugins.
     """
 
-    def __init__(self, name: str, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, config: dict[str, Any] | None = None):
         self.name = name
         self.config = config or {}
         self.enabled = True
 
     @property
     @abstractmethod
-    def inputs(self) -> Set[str]:
+    def inputs(self) -> set[str]:
         """
         Define required input event types.
         Example: {"candles.15m", "indicators.macd", "smc.zones"}
         """
-        pass
 
     @property
     @abstractmethod
-    def outputs(self) -> Set[str]:
+    def outputs(self) -> set[str]:
         """
         Define output event types this plugin produces.
         """
-        pass
 
     @abstractmethod
-    async def on_event(self, event: BaseEvent) -> Optional[List[BaseEvent]]:
+    async def on_event(self, event: BaseEvent) -> list[BaseEvent] | None:
         """
         Process an event and optionally return new events.
         """
-        pass
 
     async def initialize(self):
         """
         Initialize the plugin (optional override).
         """
-        pass
 
     async def cleanup(self):
         """
         Cleanup resources (optional override).
         """
-        pass
 
     def validate_config(self) -> bool:
         """
@@ -68,21 +63,20 @@ class IndicatorPlugin(BasePlugin):
     """
 
     @property
-    def inputs(self) -> Set[str]:
+    def inputs(self) -> set[str]:
         return {"candles"}
 
     @property
-    def outputs(self) -> Set[str]:
+    def outputs(self) -> set[str]:
         return {"custom_indicators"}
 
     @abstractmethod
-    async def calculate(self, candle: Candle) -> Dict[str, Any]:
+    async def calculate(self, candle: Candle) -> dict[str, Any]:
         """
         Calculate custom indicators from candle data.
         """
-        pass
 
-    async def on_event(self, event: BaseEvent) -> Optional[List[BaseEvent]]:
+    async def on_event(self, event: BaseEvent) -> list[BaseEvent] | None:
         """
         Process candle events and calculate indicators.
         """
@@ -97,7 +91,7 @@ class IndicatorPlugin(BasePlugin):
                         symbol=event.symbol,
                         timeframe=event.timeframe,
                         metadata={"custom_indicators": indicators},
-                    )
+                    ),
                 ]
         return None
 
@@ -108,23 +102,24 @@ class SignalPlugin(BasePlugin):
     """
 
     @property
-    def inputs(self) -> Set[str]:
+    def inputs(self) -> set[str]:
         return {"candles", "indicators"}
 
     @property
-    def outputs(self) -> Set[str]:
+    def outputs(self) -> set[str]:
         return {"signals"}
 
     @abstractmethod
     async def generate_signal(
-        self, candle: Candle, indicators: TechnicalIndicators
-    ) -> Optional[Dict[str, Any]]:
+        self,
+        candle: Candle,
+        indicators: TechnicalIndicators,
+    ) -> dict[str, Any] | None:
         """
         Generate trading signal from candle and indicators.
         """
-        pass
 
-    async def on_event(self, event: BaseEvent) -> Optional[List[BaseEvent]]:
+    async def on_event(self, event: BaseEvent) -> list[BaseEvent] | None:
         """
         Process events and generate signals.
         """

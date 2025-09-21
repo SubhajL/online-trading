@@ -23,7 +23,8 @@ def test_calculate_bollinger_bands_negative_period():
 def test_calculate_bollinger_bands_negative_std_dev():
     prices = np.array([100.0] * 25)
     with pytest.raises(
-        ValueError, match="Standard deviation multiplier must be non-negative"
+        ValueError,
+        match="Standard deviation multiplier must be non-negative",
     ):
         calculate_bollinger_bands(prices, period=20, std_dev=-2.0)
 
@@ -112,7 +113,7 @@ def test_calculate_bollinger_bands_squeeze():
         [
             np.random.randn(25) * 2,  # High volatility
             np.random.randn(25) * 0.5,  # Low volatility
-        ]
+        ],
     )
     prices = trend + noise
 
@@ -120,8 +121,8 @@ def test_calculate_bollinger_bands_squeeze():
 
     # Band width should decrease in second half
     valid_start = 10
-    first_half_width = np.mean((upper[valid_start:25] - lower[valid_start:25]))
-    second_half_width = np.mean((upper[35:] - lower[35:]))
+    first_half_width = np.mean(upper[valid_start:25] - lower[valid_start:25])
+    second_half_width = np.mean(upper[35:] - lower[35:])
 
     assert second_half_width < first_half_width
 
@@ -134,7 +135,7 @@ def test_calculate_bollinger_bands_expansion():
         [
             np.random.randn(25) * 0.5,  # Low volatility
             np.random.randn(25) * 2,  # High volatility
-        ]
+        ],
     )
     prices = trend + noise
 
@@ -142,8 +143,8 @@ def test_calculate_bollinger_bands_expansion():
 
     # Band width should increase in second half
     valid_start = 10
-    first_half_width = np.mean((upper[valid_start:25] - lower[valid_start:25]))
-    second_half_width = np.mean((upper[35:] - lower[35:]))
+    first_half_width = np.mean(upper[valid_start:25] - lower[valid_start:25])
+    second_half_width = np.mean(upper[35:] - lower[35:])
 
     assert second_half_width > first_half_width
 
@@ -155,7 +156,7 @@ def test_calculate_bollinger_bands_deterministic():
     result1 = calculate_bollinger_bands(prices, period=5, std_dev=2.0)
     result2 = calculate_bollinger_bands(prices, period=5, std_dev=2.0)
 
-    for arr1, arr2 in zip(result1, result2):
+    for arr1, arr2 in zip(result1, result2, strict=False):
         np.testing.assert_array_equal(arr1, arr2)
 
 

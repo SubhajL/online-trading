@@ -5,36 +5,30 @@ This engine listens to candle events, calculates technical indicators using
 the shared math library, writes to the database, and publishes feature events.
 """
 
-import asyncio
-import logging
 from collections import defaultdict, deque
 from datetime import datetime
 from decimal import Decimal
-from typing import Deque, Dict, List, Optional
+import logging
 
 import numpy as np
 
-from ..shared.technical import (
-    calculate_ema,
-    calculate_rsi,
-    calculate_macd,
-    calculate_atr,
-    calculate_bollinger_bands,
-    calculate_vwap,
-    calculate_vwma,
-)
-
+from ..adapters.db.timescale_adapter import TimescaleDBAdapter
+from ..bus import get_event_bus
 from ..models import (
     BaseEvent,
-    EventType,
-    TimeFrame,
     Candle,
-    TechnicalIndicators,
+    EventType,
     FeaturesCalculatedEvent,
+    TechnicalIndicators,
+    TimeFrame,
 )
-
-from ..bus import get_event_bus
-from ..adapters.db.timescale_adapter import TimescaleDBAdapter
+from ..shared.technical import (
+    calculate_atr,
+    calculate_bollinger_bands,
+    calculate_ema,
+    calculate_macd,
+    calculate_rsi,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +49,7 @@ class FeatureEngine:
         self,
         db_adapter: TimescaleDBAdapter,
         buffer_size: int = 500,
-        ema_periods: List[int] = [20, 50, 200],
+        ema_periods: list[int] = [20, 50, 200],
         rsi_period: int = 14,
         macd_params: tuple = (12, 26, 9),
         atr_period: int = 14,
@@ -74,18 +68,18 @@ class FeatureEngine:
         self.vwma_period = vwma_period
 
         # Candle buffers: symbol -> timeframe -> deque of candles
-        self._candle_buffers: Dict[str, Dict[TimeFrame, Deque[Candle]]] = defaultdict(
-            lambda: defaultdict(lambda: deque(maxlen=buffer_size))
+        self._candle_buffers: dict[str, dict[TimeFrame, deque[Candle]]] = defaultdict(
+            lambda: defaultdict(lambda: deque(maxlen=buffer_size)),
         )
 
         # Track processed timestamps to ensure idempotency
-        self._processed: Dict[str, Dict[TimeFrame, set]] = defaultdict(
-            lambda: defaultdict(set)
+        self._processed: dict[str, dict[TimeFrame, set]] = defaultdict(
+            lambda: defaultdict(set),
         )
 
         self._event_bus = get_event_bus()
         self._running = False
-        self._subscription_id: Optional[str] = None
+        self._subscription_id: str | None = None
 
         # Statistics
         self._calculations_performed = 0
@@ -93,7 +87,7 @@ class FeatureEngine:
 
         logger.info(
             f"FeatureEngine initialized with buffer_size={buffer_size}, "
-            f"EMA periods={ema_periods}"
+            f"EMA periods={ema_periods}",
         )
 
     async def start(self):
@@ -167,7 +161,7 @@ class FeatureEngine:
         if len(self._candle_buffers[symbol][timeframe]) < min_required:
             logger.debug(
                 f"Insufficient data for {symbol} {timeframe}: "
-                f"{len(self._candle_buffers[symbol][timeframe])} < {min_required}"
+                f"{len(self._candle_buffers[symbol][timeframe])} < {min_required}",
             )
             return
 
@@ -185,8 +179,10 @@ class FeatureEngine:
             self._processed[symbol][timeframe].add(timestamp)
 
     async def _calculate_indicators(
-        self, symbol: str, timeframe: TimeFrame
-    ) -> Optional[TechnicalIndicators]:
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> TechnicalIndicators | None:
         """Calculate all technical indicators for the latest candle"""
         try:
             candles = list(self._candle_buffers[symbol][timeframe])
@@ -217,13 +213,7 @@ class FeatureEngine:
                         if not np.isnan(ema_values[-1])
                         else None
                     )
-                elif period == 20:
-                    indicators.ema_21 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
-                    )
-                elif period == 21:
+                elif period == 20 or period == 21:
                     indicators.ema_21 = (
                         Decimal(str(ema_values[-1]))
                         if not np.isnan(ema_values[-1])
@@ -267,7 +257,10 @@ class FeatureEngine:
 
             # Calculate ATR
             atr_values = calculate_atr(
-                high_prices, low_prices, close_prices, self.atr_period
+                high_prices,
+                low_prices,
+                close_prices,
+                self.atr_period,
             )
             indicators.atr_14 = (
                 Decimal(str(atr_values[-1])) if not np.isnan(atr_values[-1]) else None
@@ -275,7 +268,9 @@ class FeatureEngine:
 
             # Calculate Bollinger Bands
             upper_band, middle_band, lower_band = calculate_bollinger_bands(
-                close_prices, self.bb_period, self.bb_std_dev
+                close_prices,
+                self.bb_period,
+                self.bb_std_dev,
             )
             indicators.bb_upper = (
                 Decimal(str(upper_band[-1])) if not np.isnan(upper_band[-1]) else None
@@ -364,7 +359,7 @@ class FeatureEngine:
 
                 self._db_writes += 1
                 logger.debug(
-                    f"Wrote indicators for {indicators.symbol} {indicators.timeframe} at {indicators.timestamp}"
+                    f"Wrote indicators for {indicators.symbol} {indicators.timeframe} at {indicators.timestamp}",
                 )
 
         except Exception as e:
@@ -382,14 +377,17 @@ class FeatureEngine:
 
             await self._event_bus.publish(event, priority=5)
             logger.debug(
-                f"Published features event for {indicators.symbol} {indicators.timeframe}"
+                f"Published features event for {indicators.symbol} {indicators.timeframe}",
             )
 
         except Exception as e:
             logger.error(f"Error publishing features event: {e}", exc_info=True)
 
     async def process_historical_candles(
-        self, symbol: str, timeframe: TimeFrame, candles: List[Candle]
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        candles: list[Candle],
     ):
         """
         Process a batch of historical candles (e.g., from DB tail).
@@ -404,7 +402,7 @@ class FeatureEngine:
             sorted_candles = sorted(candles, key=lambda c: c.open_time)
 
             logger.info(
-                f"Processing {len(sorted_candles)} historical candles for {symbol} {timeframe}"
+                f"Processing {len(sorted_candles)} historical candles for {symbol} {timeframe}",
             )
 
             for candle in sorted_candles:
@@ -413,7 +411,7 @@ class FeatureEngine:
         except Exception as e:
             logger.error(f"Error processing historical candles: {e}", exc_info=True)
 
-    def get_buffer_stats(self) -> Dict:
+    def get_buffer_stats(self) -> dict:
         """Get statistics about the feature engine"""
         stats = {
             "buffer_stats": {},

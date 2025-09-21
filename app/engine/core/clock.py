@@ -2,11 +2,11 @@
 Clock abstraction for testable time-dependent code.
 """
 
-import asyncio
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+import asyncio
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Awaitable, Callable, List, Optional, Tuple
 
 
 class Clock(ABC):
@@ -15,17 +15,14 @@ class Clock(ABC):
     @abstractmethod
     def now(self) -> datetime:
         """Get current datetime."""
-        pass
 
     @abstractmethod
     async def sleep(self, seconds: float) -> None:
         """Async sleep for specified seconds."""
-        pass
 
     @abstractmethod
     def monotonic(self) -> float:
         """Get monotonic time for duration measurements."""
-        pass
 
 
 class SystemClock(Clock):
@@ -55,13 +52,13 @@ class ScheduledCallback:
 class FakeClock(Clock):
     """Fake clock for testing with controllable time."""
 
-    def __init__(self, initial_time: Optional[datetime] = None):
+    def __init__(self, initial_time: datetime | None = None):
         """Initialize with optional starting time."""
         self._current_time = initial_time or datetime.utcnow()
         self._monotonic_start = 0.0
         self._monotonic_current = 0.0
-        self._scheduled: List[ScheduledCallback] = []
-        self._sleepers: List[Tuple[datetime, asyncio.Future]] = []
+        self._scheduled: list[ScheduledCallback] = []
+        self._sleepers: list[tuple[datetime, asyncio.Future]] = []
 
     def now(self) -> datetime:
         """Get current fake time."""

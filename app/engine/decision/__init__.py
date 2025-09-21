@@ -5,7 +5,7 @@ Provides the main trading decision engine with risk management,
 signal processing, and order execution coordination.
 """
 
-from .risk_manager import RiskManager, RiskLevel, RiskCheckResult
 from .decision_engine import DecisionEngine
+from .risk_manager import RiskCheckResult, RiskLevel, RiskManager
 
-__all__ = ["RiskManager", "RiskLevel", "RiskCheckResult", "DecisionEngine"]
+__all__ = ["DecisionEngine", "RiskCheckResult", "RiskLevel", "RiskManager"]

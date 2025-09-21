@@ -6,15 +6,15 @@ Separates event processing logic from subscription management.
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from app.engine.core.subscription_manager import EventSubscription
+from app.engine.models import BaseEvent
 from app.engine.resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
 )
-from app.engine.models import BaseEvent
 
 
 @dataclass
@@ -45,7 +45,7 @@ class EventProcessingResult:
     event_id: UUID
     successful_handlers: int
     failed_handlers: int
-    errors: List[EventProcessingError]
+    errors: list[EventProcessingError]
     processing_time: float
 
 
@@ -71,8 +71,6 @@ class EventProcessingStats:
 class EventProcessingException(Exception):
     """Exception raised during event processing."""
 
-    pass
-
 
 class EventProcessor:
     """
@@ -82,7 +80,7 @@ class EventProcessor:
     with proper metrics tracking and circuit breaker protection.
     """
 
-    def __init__(self, config: Optional[EventProcessingConfig] = None):
+    def __init__(self, config: EventProcessingConfig | None = None):
         """Initialize event processor with optional config."""
         self._config = config or EventProcessingConfig()
 
@@ -91,15 +89,17 @@ class EventProcessor:
         self._lock = asyncio.Lock()
 
         # Circuit breakers per subscriber
-        self._circuit_breakers: Dict[str, CircuitBreaker] = {}
+        self._circuit_breakers: dict[str, CircuitBreaker] = {}
 
         # Semaphore for concurrency control
         self._concurrency_semaphore = asyncio.Semaphore(
-            self._config.max_concurrent_handlers
+            self._config.max_concurrent_handlers,
         )
 
     async def process_event(
-        self, event: BaseEvent, subscriptions: List[EventSubscription]
+        self,
+        event: BaseEvent,
+        subscriptions: list[EventSubscription],
     ) -> EventProcessingResult:
         """
         Process an event by dispatching to all relevant subscriptions.
@@ -118,7 +118,9 @@ class EventProcessor:
 
         # Sort subscriptions by priority (highest first)
         sorted_subscriptions = sorted(
-            subscriptions, key=lambda s: s.priority, reverse=True
+            subscriptions,
+            key=lambda s: s.priority,
+            reverse=True,
         )
 
         # Process each subscription
@@ -130,7 +132,7 @@ class EventProcessor:
                 # Check circuit breaker if enabled
                 if self._config.circuit_breaker_enabled:
                     circuit_breaker = await self._get_circuit_breaker(
-                        subscription.subscriber_id
+                        subscription.subscriber_id,
                     )
                     if not await circuit_breaker.should_allow_request():
                         failed_handlers += 1
@@ -140,7 +142,7 @@ class EventProcessor:
                                 subscriber_id=subscription.subscriber_id,
                                 error_type="CircuitBreakerOpen",
                                 error_message="Circuit breaker is open",
-                            )
+                            ),
                         )
                         continue
 
@@ -151,7 +153,7 @@ class EventProcessor:
                 # Record circuit breaker success
                 if self._config.circuit_breaker_enabled:
                     circuit_breaker = await self._get_circuit_breaker(
-                        subscription.subscriber_id
+                        subscription.subscriber_id,
                     )
                     await circuit_breaker.record_success()
 
@@ -168,7 +170,7 @@ class EventProcessor:
                 # Record circuit breaker failure
                 if self._config.circuit_breaker_enabled:
                     circuit_breaker = await self._get_circuit_breaker(
-                        subscription.subscriber_id
+                        subscription.subscriber_id,
                     )
                     await circuit_breaker.record_failure()
 
@@ -178,7 +180,10 @@ class EventProcessor:
         # Update statistics if enabled
         if self._config.enable_metrics:
             await self._update_stats(
-                processing_time, successful_handlers, failed_handlers, len(errors) > 0
+                processing_time,
+                successful_handlers,
+                failed_handlers,
+                len(errors) > 0,
             )
 
         return EventProcessingResult(
@@ -190,7 +195,9 @@ class EventProcessor:
         )
 
     async def _process_subscription(
-        self, event: BaseEvent, subscription: EventSubscription
+        self,
+        event: BaseEvent,
+        subscription: EventSubscription,
     ) -> None:
         """
         Process a single subscription with concurrency and timeout control.
@@ -210,13 +217,15 @@ class EventProcessor:
                     self._call_handler(event, subscription),
                     timeout=self._config.max_processing_time_seconds,
                 )
-            except asyncio.TimeoutError:
-                raise asyncio.TimeoutError(
-                    f"Handler timeout after {self._config.max_processing_time_seconds}s"
+            except TimeoutError:
+                raise TimeoutError(
+                    f"Handler timeout after {self._config.max_processing_time_seconds}s",
                 )
 
     async def _call_handler(
-        self, event: BaseEvent, subscription: EventSubscription
+        self,
+        event: BaseEvent,
+        subscription: EventSubscription,
     ) -> Any:
         """
         Call the subscription handler (async or sync).
@@ -230,8 +239,7 @@ class EventProcessor:
         """
         if asyncio.iscoroutinefunction(subscription.handler):
             return await subscription.handler(event)
-        else:
-            return subscription.handler(event)
+        return subscription.handler(event)
 
     async def _get_circuit_breaker(self, subscriber_id: str) -> CircuitBreaker:
         """
@@ -245,7 +253,9 @@ class EventProcessor:
         """
         if subscriber_id not in self._circuit_breakers:
             config = CircuitBreakerConfig(
-                failure_threshold=5, success_threshold=2, timeout_seconds=60
+                failure_threshold=5,
+                success_threshold=2,
+                timeout_seconds=60,
             )
             self._circuit_breakers[subscriber_id] = CircuitBreaker(config)
 

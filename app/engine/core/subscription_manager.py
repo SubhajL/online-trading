@@ -5,17 +5,18 @@ Handles subscription lifecycle and filtering.
 
 import asyncio
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any
 from uuid import uuid4
 
 from app.engine.models import BaseEvent, EventType
+
 from .error_handling import (
-    SubscriptionError,
     ErrorCategory,
     ErrorSeverity,
-    error_boundary,
+    SubscriptionError,
     create_error_context,
     handle_error,
 )
@@ -37,11 +38,11 @@ class EventSubscription:
     subscription_id: str
     subscriber_id: str
     handler: Callable[[BaseEvent], Any]
-    event_types: Optional[Set[EventType]]
+    event_types: set[EventType] | None
     priority: int
     max_retries: int
     retry_count: int = 0
-    last_error: Optional[str] = None
+    last_error: str | None = None
     is_active: bool = True
     created_at: datetime = field(default_factory=datetime.utcnow)
 
@@ -63,20 +64,20 @@ class SubscriptionManager:
     with proper priority ordering and retry tracking.
     """
 
-    def __init__(self, config: Optional[SubscriptionConfig] = None):
+    def __init__(self, config: SubscriptionConfig | None = None):
         """Initialize subscription manager with optional config."""
         self._config = config or SubscriptionConfig()
 
         # Subscriptions by event type
-        self._specific_subscriptions: Dict[EventType, List[EventSubscription]] = (
+        self._specific_subscriptions: dict[EventType, list[EventSubscription]] = (
             defaultdict(list)
         )
 
         # Subscriptions for all events
-        self._all_event_subscriptions: List[EventSubscription] = []
+        self._all_event_subscriptions: list[EventSubscription] = []
 
         # All subscriptions by ID for fast lookup
-        self._subscriptions_by_id: Dict[str, EventSubscription] = {}
+        self._subscriptions_by_id: dict[str, EventSubscription] = {}
 
         # Thread safety
         self._lock = asyncio.Lock()
@@ -85,9 +86,9 @@ class SubscriptionManager:
         self,
         subscriber_id: str,
         handler: Callable[[BaseEvent], Any],
-        event_types: Optional[List[EventType]] = None,
-        priority: Optional[int] = None,
-        max_retries: Optional[int] = None,
+        event_types: list[EventType] | None = None,
+        priority: int | None = None,
+        max_retries: int | None = None,
     ) -> str:
         """
         Add a new subscription.
@@ -198,8 +199,9 @@ class SubscriptionManager:
             return True
 
     async def get_subscriptions_for_event(
-        self, event_type: EventType
-    ) -> List[EventSubscription]:
+        self,
+        event_type: EventType,
+    ) -> list[EventSubscription]:
         """
         Get all active subscriptions for an event type.
 
@@ -219,18 +221,20 @@ class SubscriptionManager:
                         sub
                         for sub in self._specific_subscriptions[event_type]
                         if sub.is_active
-                    ]
+                    ],
                 )
 
             # Add all-events subscriptions
             subscriptions.extend(
-                [sub for sub in self._all_event_subscriptions if sub.is_active]
+                [sub for sub in self._all_event_subscriptions if sub.is_active],
             )
 
             # Remove duplicates and sort by priority
             unique_subscriptions = {sub.subscription_id: sub for sub in subscriptions}
             sorted_subscriptions = sorted(
-                unique_subscriptions.values(), key=lambda s: s.priority, reverse=True
+                unique_subscriptions.values(),
+                key=lambda s: s.priority,
+                reverse=True,
             )
 
             return sorted_subscriptions
@@ -246,7 +250,9 @@ class SubscriptionManager:
             return sum(1 for sub in self._subscriptions_by_id.values() if sub.is_active)
 
     async def record_subscription_failure(
-        self, subscription_id: str, error_message: str
+        self,
+        subscription_id: str,
+        error_message: str,
     ) -> None:
         """
         Record a subscription failure and update retry tracking.

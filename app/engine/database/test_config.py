@@ -1,6 +1,7 @@
 import os
-import pytest
 from unittest import mock
+
+import pytest
 
 
 class TestDatabaseConfig:
@@ -96,8 +97,8 @@ class TestDatabaseConfig:
     async def test_migration_metrics_exported(self):
         """Test that migration metrics are properly exported"""
         from app.engine.database.migrations import (
-            setup_migration_metrics,
             record_migration_metric,
+            setup_migration_metrics,
         )
 
         metrics = setup_migration_metrics()

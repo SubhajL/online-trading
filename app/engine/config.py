@@ -3,9 +3,8 @@ Centralized configuration management with Pydantic validation.
 """
 
 import os
-from typing import Optional, Dict, Any
-from decimal import Decimal
-from pydantic import BaseModel, Field, validator, SecretStr
+
+from pydantic import BaseModel, Field, SecretStr, validator
 from pydantic_settings import BaseSettings
 
 
@@ -36,7 +35,8 @@ class EventBusConfig(BaseModel):
             max_queue_size=int(os.getenv("EVENT_BUS_MAX_QUEUE_SIZE", "10000")),
             num_workers=int(os.getenv("EVENT_BUS_NUM_WORKERS", "4")),
             enable_persistence=os.getenv(
-                "EVENT_BUS_ENABLE_PERSISTENCE", "false"
+                "EVENT_BUS_ENABLE_PERSISTENCE",
+                "false",
             ).lower()
             == "true",
             dead_letter_queue_size=int(os.getenv("EVENT_BUS_DEAD_LETTER_SIZE", "1000")),
@@ -67,7 +67,7 @@ class RedisConfig(BaseModel):
 
     host: str = Field(default="localhost")
     port: int = Field(default=6379, ge=1, le=65535)
-    password: Optional[SecretStr] = None
+    password: SecretStr | None = None
     database: int = Field(default=0, ge=0, le=15)
     max_connections: int = Field(default=10, ge=1)
 
@@ -84,8 +84,8 @@ class VaultConfig(BaseModel):
     """HashiCorp Vault configuration."""
 
     url: str = Field(default="http://localhost:8200")
-    token: Optional[SecretStr] = None
-    namespace: Optional[str] = None
+    token: SecretStr | None = None
+    namespace: str | None = None
     mount_point: str = Field(default="secret")
     transit_mount: str = Field(default="transit")
     key_name: str = Field(default="trading-platform")
@@ -111,7 +111,7 @@ class SecurityConfig(BaseModel):
     enable_encryption: bool = Field(default=True)
     api_key_rotation_days: int = Field(default=30, ge=1)
     max_failed_auth_attempts: int = Field(default=5, ge=1)
-    jwt_secret: Optional[SecretStr] = None
+    jwt_secret: SecretStr | None = None
     jwt_algorithm: str = Field(default="HS256")
     jwt_expiry_seconds: int = Field(default=3600, ge=60)
 
@@ -129,12 +129,12 @@ class ObservabilityConfig(BaseModel):
     structured_logging: bool = Field(default=True)
 
     health_check_interval: int = Field(default=30, ge=1)
-    slo_targets: Dict[str, float] = Field(
+    slo_targets: dict[str, float] = Field(
         default_factory=lambda: {
             "availability": 0.999,
             "latency_p99": 1.0,
             "error_rate": 0.001,
-        }
+        },
     )
 
 

@@ -12,13 +12,13 @@ A comprehensive trading platform engine with:
 __version__ = "1.0.0"
 __author__ = "Trading Platform Team"
 
-from .bus import EventBus, get_event_bus, set_event_bus, publish_event
+from .bus import EventBus, get_event_bus, publish_event, set_event_bus
 from .models import *
 
 __all__ = [
     "EventBus",
     "get_event_bus",
-    "set_event_bus",
     "publish_event",
+    "set_event_bus",
     # Types will be imported from types module
 ]

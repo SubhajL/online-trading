@@ -5,13 +5,11 @@ Manages the calculation and distribution of technical analysis features.
 Listens for candle updates and calculates indicators in real-time.
 """
 
-import asyncio
-import logging
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Deque
+from datetime import datetime
+import logging
 
-from .indicators import TechnicalIndicatorsCalculator
+from ..bus import get_event_bus
 from ..models import (
     BaseEvent,
     Candle,
@@ -20,8 +18,7 @@ from ..models import (
     TechnicalIndicators,
     TimeFrame,
 )
-from ..bus import get_event_bus
-
+from .indicators import TechnicalIndicatorsCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +38,7 @@ class FeatureService:
     def __init__(
         self,
         buffer_size: int = 1000,
-        ema_periods: List[int] = [9, 21, 50, 200],
+        ema_periods: list[int] = [9, 21, 50, 200],
         rsi_period: int = 14,
         macd_params: tuple = (12, 26, 9),
         atr_period: int = 14,
@@ -57,26 +54,26 @@ class FeatureService:
         self.bb_std_dev = bb_std_dev
 
         # Candle buffers: symbol -> timeframe -> deque of candles
-        self._candle_buffers: Dict[str, Dict[TimeFrame, Deque[Candle]]] = defaultdict(
-            lambda: defaultdict(lambda: deque(maxlen=buffer_size))
+        self._candle_buffers: dict[str, dict[TimeFrame, deque[Candle]]] = defaultdict(
+            lambda: defaultdict(lambda: deque(maxlen=buffer_size)),
         )
 
         # Latest indicators: symbol -> timeframe -> TechnicalIndicators
-        self._latest_indicators: Dict[str, Dict[TimeFrame, TechnicalIndicators]] = (
+        self._latest_indicators: dict[str, dict[TimeFrame, TechnicalIndicators]] = (
             defaultdict(dict)
         )
 
         self._event_bus = get_event_bus()
         self._running = False
-        self._subscription_id: Optional[str] = None
+        self._subscription_id: str | None = None
 
         # Statistics
         self._calculations_performed = 0
-        self._last_calculation_time: Optional[datetime] = None
+        self._last_calculation_time: datetime | None = None
 
         logger.info(
             f"FeatureService initialized with buffer_size={buffer_size}, "
-            f"EMA periods={ema_periods}"
+            f"EMA periods={ema_periods}",
         )
 
     async def start(self):
@@ -139,7 +136,9 @@ class FeatureService:
             logger.error(f"Error handling candle update: {e}")
 
     async def _calculate_and_publish_indicators(
-        self, symbol: str, timeframe: TimeFrame
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
     ):
         """Calculate indicators and publish features calculated event"""
         try:
@@ -178,18 +177,23 @@ class FeatureService:
 
         except Exception as e:
             logger.error(
-                f"Error calculating indicators for {symbol} {timeframe.value}: {e}"
+                f"Error calculating indicators for {symbol} {timeframe.value}: {e}",
             )
 
     async def get_latest_indicators(
-        self, symbol: str, timeframe: TimeFrame
-    ) -> Optional[TechnicalIndicators]:
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> TechnicalIndicators | None:
         """Get the latest calculated indicators for a symbol and timeframe"""
         return self._latest_indicators.get(symbol, {}).get(timeframe)
 
     async def get_indicators_history(
-        self, symbol: str, timeframe: TimeFrame, limit: int = 100
-    ) -> List[TechnicalIndicators]:
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        limit: int = 100,
+    ) -> list[TechnicalIndicators]:
         """
         Get historical indicators by recalculating for each candle in buffer
 
@@ -239,7 +243,10 @@ class FeatureService:
             return []
 
     async def add_candles_bulk(
-        self, symbol: str, timeframe: TimeFrame, candles: List[Candle]
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        candles: list[Candle],
     ):
         """
         Add multiple candles to the buffer (useful for historical data)
@@ -275,7 +282,7 @@ class FeatureService:
         except Exception as e:
             logger.error(f"Error adding bulk candles: {e}")
 
-    def get_buffer_info(self, symbol: str, timeframe: TimeFrame) -> Dict:
+    def get_buffer_info(self, symbol: str, timeframe: TimeFrame) -> dict:
         """Get information about the candle buffer for a symbol and timeframe"""
         buffer = self._candle_buffers[symbol][timeframe]
         return {
@@ -285,7 +292,7 @@ class FeatureService:
             "newest_candle": buffer[-1].open_time if buffer else None,
         }
 
-    def get_all_tracked_symbols_timeframes(self) -> List[tuple]:
+    def get_all_tracked_symbols_timeframes(self) -> list[tuple]:
         """Get all symbol-timeframe combinations currently being tracked"""
         combinations = []
         for symbol in self._candle_buffers:
@@ -321,7 +328,7 @@ class FeatureService:
         self._latest_indicators.clear()
         logger.info("Cleared all buffers")
 
-    async def health_check(self) -> Dict:
+    async def health_check(self) -> dict:
         """Get health status of the feature service"""
         total_symbols = len(self._candle_buffers)
         total_timeframes = sum(

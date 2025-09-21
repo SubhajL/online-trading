@@ -124,7 +124,7 @@ def test_calculate_macd_deterministic():
     result1 = calculate_macd(prices, fast, slow, signal_period)
     result2 = calculate_macd(prices, fast, slow, signal_period)
 
-    for arr1, arr2 in zip(result1, result2):
+    for arr1, arr2 in zip(result1, result2, strict=False):
         np.testing.assert_array_equal(arr1, arr2)
 
 

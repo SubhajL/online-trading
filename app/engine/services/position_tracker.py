@@ -3,12 +3,11 @@ Position tracker for managing trading positions.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
-import logging
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from decimal import Decimal
-from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass, field
-from typing import Optional
 from enum import Enum
+import logging
 
 from app.engine.models import PositionSide
 
@@ -31,11 +30,11 @@ class Position:
     realized_pnl: Decimal
     total_commission: Decimal
     open_time: datetime
-    stop_loss: Optional[Decimal] = None
-    take_profit: Optional[Decimal] = None
-    max_hold_time: Optional[timedelta] = None
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
+    max_hold_time: timedelta | None = None
     is_closed: bool = False
-    close_time: Optional[datetime] = None
+    close_time: datetime | None = None
 
 
 @dataclass
@@ -60,12 +59,13 @@ class MarketData:
 @dataclass
 class CloseSignal:
     should_close: bool
-    reason: Optional[CloseReason] = None
-    close_price: Optional[Decimal] = None
+    reason: CloseReason | None = None
+    close_price: Decimal | None = None
 
 
 def update_position(
-    fill: OrderFill, existing_position: Optional[Position] = None
+    fill: OrderFill,
+    existing_position: Position | None = None,
 ) -> Position:
     """
     Updates position state from order fills.
@@ -101,7 +101,7 @@ def update_position(
             side=position.side,
             quantity=new_quantity,
             entry_price=(
-                total_value / new_quantity if new_quantity > 0 else Decimal("0")
+                total_value / new_quantity if new_quantity > 0 else Decimal(0)
             ),
             realized_pnl=position.realized_pnl - fill.commission,
             total_commission=position.total_commission + fill.commission,
@@ -151,7 +151,7 @@ def calculate_unrealized_pnl(position: Position, current_price: Decimal) -> Deci
     and current market price with proper decimal precision.
     """
     if position.quantity == 0:
-        return Decimal("0")
+        return Decimal(0)
 
     if position.side == PositionSide.LONG:
         # Long: profit when price goes up
@@ -184,14 +184,13 @@ def should_close_position(position: Position, market_data: MarketData) -> CloseS
                     reason=CloseReason.STOP_LOSS,
                     close_price=current_price,
                 )
-        else:
-            # Short position: close if price rises above stop loss
-            if current_price >= position.stop_loss:
-                return CloseSignal(
-                    should_close=True,
-                    reason=CloseReason.STOP_LOSS,
-                    close_price=current_price,
-                )
+        # Short position: close if price rises above stop loss
+        elif current_price >= position.stop_loss:
+            return CloseSignal(
+                should_close=True,
+                reason=CloseReason.STOP_LOSS,
+                close_price=current_price,
+            )
 
     # Check take profit
     if position.take_profit is not None:
@@ -203,14 +202,13 @@ def should_close_position(position: Position, market_data: MarketData) -> CloseS
                     reason=CloseReason.TAKE_PROFIT,
                     close_price=current_price,
                 )
-        else:
-            # Short position: close if price drops below take profit
-            if current_price <= position.take_profit:
-                return CloseSignal(
-                    should_close=True,
-                    reason=CloseReason.TAKE_PROFIT,
-                    close_price=current_price,
-                )
+        # Short position: close if price drops below take profit
+        elif current_price <= position.take_profit:
+            return CloseSignal(
+                should_close=True,
+                reason=CloseReason.TAKE_PROFIT,
+                close_price=current_price,
+            )
 
     # Check time stop
     if position.max_hold_time is not None:

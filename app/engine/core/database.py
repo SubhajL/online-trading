@@ -6,46 +6,37 @@ and comprehensive error handling for PostgreSQL and Redis.
 """
 
 import asyncio
-import asyncpg
-import redis.asyncio as redis
-import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, AsyncGenerator
-from urllib.parse import urlparse
+import logging
 import time
-from enum import Enum
+from typing import Any
+from urllib.parse import urlparse
+
+import asyncpg
+import redis.asyncio as redis
 
 
 # Custom Exceptions
 class DatabaseError(Exception):
     """Base database error."""
 
-    pass
-
 
 class ConnectionError(DatabaseError):
     """Connection-related errors."""
-
-    pass
 
 
 class TransactionError(DatabaseError):
     """Transaction-related errors."""
 
-    pass
-
 
 class OptimisticLockError(DatabaseError):
     """Optimistic locking conflicts."""
 
-    pass
-
 
 class PoolExhaustionError(ConnectionError):
     """Connection pool exhausted."""
-
-    pass
 
 
 @dataclass
@@ -96,8 +87,8 @@ class ConnectionPool:
     def __init__(self, config: DatabaseConfig):
         self.config = config
         self.logger = logging.getLogger(__name__)
-        self._postgres_pool: Optional[asyncpg.Pool] = None
-        self._redis_pool: Optional[redis.Redis] = None
+        self._postgres_pool: asyncpg.Pool | None = None
+        self._redis_pool: redis.Redis | None = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -161,7 +152,7 @@ class ConnectionPool:
         except Exception as e:
             raise ConnectionError(f"Redis connection error: {e}")
 
-    async def health_check(self) -> Dict[str, bool]:
+    async def health_check(self) -> dict[str, bool]:
         """Check health of all connection pools."""
         health = {"postgres": False, "redis": False}
 
@@ -202,7 +193,7 @@ class TransactionContext:
 
     def __init__(self, connection: asyncpg.Connection):
         self.connection = connection
-        self.transaction: Optional[asyncpg.Transaction] = None
+        self.transaction: asyncpg.Transaction | None = None
         self.logger = logging.getLogger(__name__)
 
     async def __aenter__(self) -> "TransactionContext":
@@ -256,7 +247,7 @@ class TransactionContext:
             self.logger.error(f"Query fetch failed: {e}")
             raise
 
-    async def fetchrow(self, query: str, *args) -> Optional[asyncpg.Record]:
+    async def fetchrow(self, query: str, *args) -> asyncpg.Record | None:
         """Fetch single row within transaction."""
         if not self.transaction:
             raise TransactionError("No active transaction")
@@ -272,7 +263,10 @@ class OptimisticLockMixin:
     """Mixin providing optimistic locking functionality."""
 
     async def update_with_version(
-        self, connection: asyncpg.Connection, query: str, *args
+        self,
+        connection: asyncpg.Connection,
+        query: str,
+        *args,
     ) -> bool:
         """
         Execute update with version check for optimistic locking.
@@ -299,7 +293,7 @@ class OptimisticLockMixin:
 
             if rows_affected == 0:
                 raise OptimisticLockError(
-                    "Optimistic lock conflict - row was modified by another transaction"
+                    "Optimistic lock conflict - row was modified by another transaction",
                 )
 
             return True
@@ -310,7 +304,11 @@ class OptimisticLockMixin:
             raise DatabaseError(f"Update with version check failed: {e}")
 
     async def increment_version(
-        self, connection: asyncpg.Connection, table: str, where_clause: str, *args
+        self,
+        connection: asyncpg.Connection,
+        table: str,
+        where_clause: str,
+        *args,
     ) -> int:
         """
         Increment version field and return new version.
@@ -369,7 +367,8 @@ class DatabaseManager:
 
     @asynccontextmanager
     async def get_connection(
-        self, retry: bool = True
+        self,
+        retry: bool = True,
     ) -> AsyncGenerator[asyncpg.Connection, None]:
         """
         Get database connection with retry logic.
@@ -399,11 +398,11 @@ class DatabaseManager:
                 if attempt < attempts - 1:
                     await asyncio.sleep(self.config.retry_delay * (2**attempt))
                     self.logger.warning(
-                        f"Connection attempt {attempt + 1} failed, retrying: {e}"
+                        f"Connection attempt {attempt + 1} failed, retrying: {e}",
                     )
 
         raise ConnectionError(
-            f"Failed to get connection after {attempts} attempts: {last_error}"
+            f"Failed to get connection after {attempts} attempts: {last_error}",
         )
 
     @asynccontextmanager
@@ -431,7 +430,10 @@ class DatabaseManager:
             yield redis_conn
 
     async def execute_with_retry(
-        self, query: str, *args, max_retries: int = None
+        self,
+        query: str,
+        *args,
+        max_retries: int = None,
     ) -> str:
         """
         Execute query with automatic retry on transient failures.
@@ -461,7 +463,7 @@ class DatabaseManager:
                     delay = self.config.retry_delay * (2**attempt)
                     await asyncio.sleep(delay)
                     self.logger.warning(
-                        f"Query retry {attempt + 1}/{max_retries} after {delay}s: {e}"
+                        f"Query retry {attempt + 1}/{max_retries} after {delay}s: {e}",
                     )
             except Exception as e:
                 # Don't retry on non-transient errors
@@ -469,7 +471,7 @@ class DatabaseManager:
 
         raise DatabaseError(f"Query failed after {max_retries} retries: {last_error}")
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """
         Comprehensive health check of database systems.
 
@@ -525,5 +527,5 @@ class DatabaseManager:
             # Log warning about ungraceful shutdown
             self.logger.warning(
                 "DatabaseManager deleted without explicit shutdown. "
-                "Call shutdown() before deleting."
+                "Call shutdown() before deleting.",
             )

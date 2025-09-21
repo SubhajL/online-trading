@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 
@@ -33,17 +32,17 @@ def get_test_database_url() -> str:
 class TestDatabase:
     """Context manager for test database setup and teardown"""
 
-    def __init__(self, database_url: Optional[str] = None):
+    def __init__(self, database_url: str | None = None):
         self.database_url = database_url or get_test_database_url()
         self._original_url = os.getenv("DATABASE_URL")
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "TestDatabase":
         """Set up test database environment"""
         # Override DATABASE_URL for the duration of the test
         os.environ["DATABASE_URL"] = self.database_url
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Restore original database environment"""
         if self._original_url:
             os.environ["DATABASE_URL"] = self._original_url
@@ -55,9 +54,9 @@ def ensure_test_database() -> None:
     """Ensure we're using a test database, not production"""
     database_url = os.getenv("DATABASE_URL", "")
     if "test" not in database_url.lower() and not os.getenv(
-        "ALLOW_PRODUCTION_DATABASE"
+        "ALLOW_PRODUCTION_DATABASE",
     ):
         raise RuntimeError(
             "Tests must use a test database. "
-            "Set TEST_DATABASE_URL or ensure DATABASE_URL contains 'test'."
+            "Set TEST_DATABASE_URL or ensure DATABASE_URL contains 'test'.",
         )

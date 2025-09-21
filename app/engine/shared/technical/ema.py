@@ -5,13 +5,13 @@ Implements EMA using Wilder's smoothing method for consistency
 with traditional technical analysis.
 """
 
-from typing import Optional
-
 import numpy as np
 
 
 def calculate_ema(
-    values: np.ndarray, period: int, smoothing: float = 2.0
+    values: np.ndarray,
+    period: int,
+    smoothing: float = 2.0,
 ) -> np.ndarray:
     """
     Calculate Exponential Moving Average.

@@ -4,8 +4,6 @@ Moving Average Convergence Divergence (MACD) calculation
 Implements MACD with standard parameters (12, 26, 9).
 """
 
-from typing import Tuple
-
 import numpy as np
 
 from .ema import calculate_ema
@@ -16,7 +14,7 @@ def calculate_macd(
     fast: int = 12,
     slow: int = 26,
     signal: int = 9,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate MACD indicator components.
 

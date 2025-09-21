@@ -6,12 +6,10 @@ import importlib
 import inspect
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Type
 
-from .base_plugin import BasePlugin
 from ..bus import EventBus
 from ..models import BaseEvent
-
+from .base_plugin import BasePlugin
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +21,10 @@ class PluginManager:
 
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
-        self.plugins: Dict[str, BasePlugin] = {}
-        self.event_routing: Dict[str, List[BasePlugin]] = {}
+        self.plugins: dict[str, BasePlugin] = {}
+        self.event_routing: dict[str, list[BasePlugin]] = {}
 
-    async def load_plugins(self, plugin_dir: Optional[Path] = None):
+    async def load_plugins(self, plugin_dir: Path | None = None):
         """
         Discover and load plugins from directory.
         """
@@ -58,7 +56,9 @@ class PluginManager:
                 logger.error(f"Failed to load plugin {plugin_file}: {e}")
 
     async def register_plugin(
-        self, plugin_class: Type[BasePlugin], config: Optional[Dict] = None
+        self,
+        plugin_class: type[BasePlugin],
+        config: dict | None = None,
     ):
         """
         Register a plugin instance.
@@ -87,7 +87,8 @@ class PluginManager:
             # Subscribe to events
             for event_type in plugin.inputs:
                 await self.event_bus.subscribe(
-                    event_type, lambda event: self._handle_plugin_event(plugin, event)
+                    event_type,
+                    lambda event: self._handle_plugin_event(plugin, event),
                 )
 
             logger.info(f"Registered plugin: {plugin.name}")
@@ -147,13 +148,13 @@ class PluginManager:
             # In practice, you'd store this during registration
             logger.info(f"Reloaded plugin: {plugin_name}")
 
-    def get_plugin(self, plugin_name: str) -> Optional[BasePlugin]:
+    def get_plugin(self, plugin_name: str) -> BasePlugin | None:
         """
         Get a plugin instance by name.
         """
         return self.plugins.get(plugin_name)
 
-    def list_plugins(self) -> List[str]:
+    def list_plugins(self) -> list[str]:
         """
         List all registered plugins.
         """

@@ -6,17 +6,15 @@ position management, and account operations.
 """
 
 import asyncio
-import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
+import logging
+from typing import Any
 from urllib.parse import urljoin
 
-import aiohttp
 from aiohttp import ClientSession, ClientTimeout
 
-from ...models import Order, Position, OrderSide, OrderType, TradingDecision
-
+from ...models import TradingDecision
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ class RouterHTTPClient:
     def __init__(
         self,
         base_url: str,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         timeout: int = 30,
         retry_attempts: int = 3,
         retry_delay: float = 1.0,
@@ -47,7 +45,7 @@ class RouterHTTPClient:
         self.retry_attempts = retry_attempts
         self.retry_delay = retry_delay
 
-        self._session: Optional[ClientSession] = None
+        self._session: ClientSession | None = None
         self._initialized = False
 
         logger.info(f"RouterHTTPClient configured for {base_url}")
@@ -81,7 +79,7 @@ class RouterHTTPClient:
         if not self._initialized or not self._session:
             raise RuntimeError("Router HTTP client not initialized")
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         """Get HTTP headers for requests"""
         headers = {
             "Content-Type": "application/json",
@@ -97,9 +95,9 @@ class RouterHTTPClient:
         self,
         method: str,
         endpoint: str,
-        data: Optional[Dict] = None,
-        params: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
+        data: dict | None = None,
+        params: dict | None = None,
+    ) -> dict[str, Any]:
         """Make HTTP request with retry logic"""
         self._ensure_initialized()
 
@@ -109,21 +107,25 @@ class RouterHTTPClient:
         for attempt in range(self.retry_attempts):
             try:
                 async with self._session.request(
-                    method=method, url=url, json=data, params=params, headers=headers
+                    method=method,
+                    url=url,
+                    json=data,
+                    params=params,
+                    headers=headers,
                 ) as response:
                     if response.status == 200:
                         return await response.json()
-                    elif response.status == 404:
+                    if response.status == 404:
                         logger.warning(f"Endpoint not found: {endpoint}")
                         return {"error": "endpoint_not_found", "status": 404}
-                    elif response.status >= 400:
+                    if response.status >= 400:
                         error_text = await response.text()
                         logger.error(f"HTTP {response.status} error: {error_text}")
                         return {"error": error_text, "status": response.status}
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
-                    f"Request timeout for {method} {endpoint} (attempt {attempt + 1})"
+                    f"Request timeout for {method} {endpoint} (attempt {attempt + 1})",
                 )
                 if attempt == self.retry_attempts - 1:
                     raise
@@ -136,14 +138,14 @@ class RouterHTTPClient:
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
 
         raise Exception(
-            f"Failed to complete request after {self.retry_attempts} attempts"
+            f"Failed to complete request after {self.retry_attempts} attempts",
         )
 
     # ============================================================================
     # Order Management
     # ============================================================================
 
-    async def place_order(self, decision: TradingDecision) -> Dict[str, Any]:
+    async def place_order(self, decision: TradingDecision) -> dict[str, Any]:
         """Place a trading order based on decision"""
         try:
             order_data = {
@@ -172,7 +174,7 @@ class RouterHTTPClient:
             logger.error(f"Error placing order: {e}")
             return {"error": str(e), "success": False}
 
-    async def get_order_status(self, order_id: str) -> Optional[Dict[str, Any]]:
+    async def get_order_status(self, order_id: str) -> dict[str, Any] | None:
         """Get order status by ID"""
         try:
             result = await self._make_request("GET", f"/orders/{order_id}")
@@ -193,8 +195,9 @@ class RouterHTTPClient:
             return False
 
     async def get_open_orders(
-        self, symbol: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self,
+        symbol: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Get open orders"""
         try:
             params = {}
@@ -205,18 +208,19 @@ class RouterHTTPClient:
 
             if isinstance(result, dict) and "orders" in result:
                 return result["orders"]
-            elif isinstance(result, list):
+            if isinstance(result, list):
                 return result
-            else:
-                return []
+            return []
 
         except Exception as e:
             logger.error(f"Error getting open orders: {e}")
             return []
 
     async def get_order_history(
-        self, symbol: Optional[str] = None, limit: int = 100
-    ) -> List[Dict[str, Any]]:
+        self,
+        symbol: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
         """Get order history"""
         try:
             params = {"limit": limit}
@@ -227,10 +231,9 @@ class RouterHTTPClient:
 
             if isinstance(result, dict) and "orders" in result:
                 return result["orders"]
-            elif isinstance(result, list):
+            if isinstance(result, list):
                 return result
-            else:
-                return []
+            return []
 
         except Exception as e:
             logger.error(f"Error getting order history: {e}")
@@ -240,7 +243,7 @@ class RouterHTTPClient:
     # Position Management
     # ============================================================================
 
-    async def get_positions(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_positions(self, symbol: str | None = None) -> list[dict[str, Any]]:
         """Get current positions"""
         try:
             params = {}
@@ -251,17 +254,18 @@ class RouterHTTPClient:
 
             if isinstance(result, dict) and "positions" in result:
                 return result["positions"]
-            elif isinstance(result, list):
+            if isinstance(result, list):
                 return result
-            else:
-                return []
+            return []
 
         except Exception as e:
             logger.error(f"Error getting positions: {e}")
             return []
 
     async def close_position(
-        self, symbol: str, quantity: Optional[Decimal] = None
+        self,
+        symbol: str,
+        quantity: Decimal | None = None,
     ) -> bool:
         """Close a position"""
         try:
@@ -279,8 +283,8 @@ class RouterHTTPClient:
     async def update_position_sl_tp(
         self,
         symbol: str,
-        stop_loss: Optional[Decimal] = None,
-        take_profit: Optional[Decimal] = None,
+        stop_loss: Decimal | None = None,
+        take_profit: Decimal | None = None,
     ) -> bool:
         """Update position stop loss and take profit"""
         try:
@@ -302,7 +306,7 @@ class RouterHTTPClient:
     # Account Information
     # ============================================================================
 
-    async def get_account_info(self) -> Optional[Dict[str, Any]]:
+    async def get_account_info(self) -> dict[str, Any] | None:
         """Get account information"""
         try:
             result = await self._make_request("GET", "/account")
@@ -312,7 +316,7 @@ class RouterHTTPClient:
             logger.error(f"Error getting account info: {e}")
             return None
 
-    async def get_balance(self) -> Optional[Dict[str, Any]]:
+    async def get_balance(self) -> dict[str, Any] | None:
         """Get account balance"""
         try:
             result = await self._make_request("GET", "/account/balance")
@@ -322,7 +326,7 @@ class RouterHTTPClient:
             logger.error(f"Error getting balance: {e}")
             return None
 
-    async def get_portfolio_summary(self) -> Optional[Dict[str, Any]]:
+    async def get_portfolio_summary(self) -> dict[str, Any] | None:
         """Get portfolio summary"""
         try:
             result = await self._make_request("GET", "/portfolio/summary")
@@ -336,7 +340,7 @@ class RouterHTTPClient:
     # Risk Management
     # ============================================================================
 
-    async def get_risk_metrics(self) -> Optional[Dict[str, Any]]:
+    async def get_risk_metrics(self) -> dict[str, Any] | None:
         """Get risk metrics"""
         try:
             result = await self._make_request("GET", "/risk/metrics")
@@ -346,7 +350,7 @@ class RouterHTTPClient:
             logger.error(f"Error getting risk metrics: {e}")
             return None
 
-    async def check_risk_limits(self, decision: TradingDecision) -> Dict[str, Any]:
+    async def check_risk_limits(self, decision: TradingDecision) -> dict[str, Any]:
         """Check if decision passes risk limits"""
         try:
             risk_data = {
@@ -374,7 +378,7 @@ class RouterHTTPClient:
     # Market Data
     # ============================================================================
 
-    async def get_market_prices(self, symbols: List[str]) -> Dict[str, Decimal]:
+    async def get_market_prices(self, symbols: list[str]) -> dict[str, Decimal]:
         """Get current market prices for symbols"""
         try:
             params = {"symbols": ",".join(symbols)}
@@ -390,14 +394,13 @@ class RouterHTTPClient:
                         logger.warning(f"Invalid price for {symbol}: {price_str}")
                         continue
                 return prices
-            else:
-                return {}
+            return {}
 
         except Exception as e:
             logger.error(f"Error getting market prices: {e}")
             return {}
 
-    async def get_trading_fees(self, symbol: str) -> Optional[Dict[str, Any]]:
+    async def get_trading_fees(self, symbol: str) -> dict[str, Any] | None:
         """Get trading fees for symbol"""
         try:
             result = await self._make_request("GET", f"/market/fees/{symbol}")
@@ -411,7 +414,7 @@ class RouterHTTPClient:
     # Health and Status
     # ============================================================================
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check router service health"""
         try:
             result = await self._make_request("GET", "/health")
@@ -425,7 +428,7 @@ class RouterHTTPClient:
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
-    async def get_service_status(self) -> Dict[str, Any]:
+    async def get_service_status(self) -> dict[str, Any]:
         """Get detailed service status"""
         try:
             result = await self._make_request("GET", "/status")

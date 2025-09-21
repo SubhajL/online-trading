@@ -4,14 +4,14 @@ Bollinger Bands calculation
 Implements Bollinger Bands with standard parameters (20-period SMA, 2 std dev).
 """
 
-from typing import Tuple
-
 import numpy as np
 
 
 def calculate_bollinger_bands(
-    prices: np.ndarray, period: int = 20, std_dev: float = 2.0
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    prices: np.ndarray,  # type: ignore[type-arg]
+    period: int = 20,
+    std_dev: float = 2.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:  # type: ignore[type-arg]
     """
     Calculate Bollinger Bands.
 
@@ -36,7 +36,7 @@ def calculate_bollinger_bands(
 
     if std_dev < 0:
         raise ValueError(
-            f"Standard deviation multiplier must be non-negative, got {std_dev}"
+            f"Standard deviation multiplier must be non-negative, got {std_dev}",
         )
 
     prices = np.asarray(prices, dtype=np.float64)
@@ -54,7 +54,7 @@ def calculate_bollinger_bands(
     return upper, middle, lower
 
 
-def calculate_sma(values: np.ndarray, period: int) -> np.ndarray:
+def calculate_sma(values: np.ndarray, period: int) -> np.ndarray:  # type: ignore[type-arg]
     """
     Calculate Simple Moving Average.
 
@@ -84,7 +84,7 @@ def calculate_sma(values: np.ndarray, period: int) -> np.ndarray:
     return sma
 
 
-def calculate_rolling_std(values: np.ndarray, period: int) -> np.ndarray:
+def calculate_rolling_std(values: np.ndarray, period: int) -> np.ndarray:  # type: ignore[type-arg]
     """
     Calculate rolling standard deviation.
 

@@ -3,12 +3,13 @@ Health monitoring system for production readiness.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum
 import json
 import logging
 import time
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Dict, Any, List, Optional, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class ComponentHealth:
     status: HealthStatus
     latency_ms: float
     message: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -39,11 +40,11 @@ class HealthCheck:
     status: HealthStatus
     message: str
     latency_ms: float
-    components: Dict[str, ComponentHealth] = field(default_factory=dict)
+    components: dict[str, ComponentHealth] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
 
-def check_database_health(db_stats: Dict[str, Any]) -> ComponentHealth:
+def check_database_health(db_stats: dict[str, Any]) -> ComponentHealth:
     """
     Verify database connection pool is healthy.
     Checks query latency, connection count, transaction throughput.
@@ -91,7 +92,7 @@ def check_database_health(db_stats: Dict[str, Any]) -> ComponentHealth:
     )
 
 
-def check_redis_health(redis_stats: Dict[str, Any]) -> ComponentHealth:
+def check_redis_health(redis_stats: dict[str, Any]) -> ComponentHealth:
     """
     Test Redis connectivity and performance.
     Checks memory usage, hit rate, eviction rate.
@@ -143,7 +144,7 @@ def check_redis_health(redis_stats: Dict[str, Any]) -> ComponentHealth:
     )
 
 
-def check_memory_pools_health(pool_stats: Dict[str, Any]) -> ComponentHealth:
+def check_memory_pools_health(pool_stats: dict[str, Any]) -> ComponentHealth:
     """
     Monitor memory pool utilization and detect leaks.
     Checks for long-held arrays and allocation performance.
@@ -204,7 +205,7 @@ def check_memory_pools_health(pool_stats: Dict[str, Any]) -> ComponentHealth:
     )
 
 
-def check_event_bus_health(bus_stats: Dict[str, Any]) -> ComponentHealth:
+def check_event_bus_health(bus_stats: dict[str, Any]) -> ComponentHealth:
     """
     Verify event bus queues and processing.
     Checks queue depth, circuit breakers, subscription health.
@@ -263,7 +264,7 @@ def check_event_bus_health(bus_stats: Dict[str, Any]) -> ComponentHealth:
     )
 
 
-def aggregate_health_status(components: List[ComponentHealth]) -> HealthCheck:
+def aggregate_health_status(components: list[ComponentHealth]) -> HealthCheck:
     """
     Combine all health checks into overall status.
     Worst status wins, preserves detailed breakdown.
@@ -314,7 +315,7 @@ def create_health_endpoint(health_check_fn: Callable[[], HealthCheck]) -> Callab
     Supports Kubernetes liveness/readiness probes.
     """
 
-    def endpoint(probe_type: str = "health") -> Dict[str, Any]:
+    def endpoint(probe_type: str = "health") -> dict[str, Any]:
         """Health endpoint handler."""
         try:
             health = health_check_fn()
@@ -362,9 +363,9 @@ def create_health_endpoint(health_check_fn: Callable[[], HealthCheck]) -> Callab
                 "body": json.dumps(
                     {
                         "status": "unhealthy",
-                        "message": f"Health check error: {str(e)}",
+                        "message": f"Health check error: {e!s}",
                         "timestamp": time.time(),
-                    }
+                    },
                 ),
             }
 

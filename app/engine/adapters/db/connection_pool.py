@@ -1,13 +1,12 @@
 """Connection pool management for TimescaleDB."""
 
 import asyncio
-import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Optional
+import logging
 
 import asyncpg
-from asyncpg import Connection, Pool
+from asyncpg import Pool
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class ConnectionPool:
 
     def __init__(self, config: DBConfig):
         self.config = config
-        self._pool: Optional[Pool] = None
+        self._pool: Pool | None = None
 
     @property
     def is_initialized(self) -> bool:
@@ -56,7 +55,7 @@ class ConnectionPool:
                     },
                 )
                 logger.info(
-                    f"Database pool created: {self.config.host}:{self.config.port}/{self.config.database}"
+                    f"Database pool created: {self.config.host}:{self.config.port}/{self.config.database}",
                 )
                 return
 

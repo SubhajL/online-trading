@@ -4,27 +4,23 @@ Observability manager integrating metrics, tracing, and health checks.
 Provides unified observability for the EventBus system.
 """
 
-import asyncio
-import json
-import logging
-import time
+from collections import deque
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Callable, Union
+import logging
 import threading
-from collections import deque
+import time
+from typing import Any
 
-from app.engine.core.metrics import MetricsCollector, Counter, Gauge, Histogram
+from app.engine.core.metrics import MetricsCollector
 from app.engine.core.tracing import (
-    Tracer,
-    TracerProvider,
-    SpanKind,
-    StatusCode,
-    get_tracer,
     BatchSpanProcessor,
     ConsoleSpanExporter,
+    SpanKind,
+    StatusCode,
+    TracerProvider,
 )
 
 
@@ -42,8 +38,8 @@ class HealthCheck:
 
     name: str
     status: HealthStatus
-    message: Optional[str] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    message: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
 
@@ -52,10 +48,10 @@ class HealthReport:
     """Overall health report."""
 
     status: HealthStatus
-    checks: List[HealthCheck]
+    checks: list[HealthCheck]
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "status": self.status.value,
@@ -98,22 +94,22 @@ class ObservabilityManager:
         # Initialize tracing
         if enable_tracing:
             self.tracer_provider = TracerProvider(
-                resource={"service.name": service_name}
+                resource={"service.name": service_name},
             )
             if enable_console_export:
                 self.tracer_provider.add_span_processor(
-                    BatchSpanProcessor(ConsoleSpanExporter())
+                    BatchSpanProcessor(ConsoleSpanExporter()),
                 )
             self.tracer = self.tracer_provider.get_tracer(service_name)
         else:
             self.tracer = None
 
         # Health checks
-        self._health_checks: Dict[str, Callable[[], HealthCheck]] = {}
-        self._health_check_results: Dict[str, HealthCheck] = {}
+        self._health_checks: dict[str, Callable[[], HealthCheck]] = {}
+        self._health_check_results: dict[str, HealthCheck] = {}
         self._health_check_interval = 30  # seconds
         self._health_check_lock = threading.RLock()
-        self._health_check_thread: Optional[threading.Thread] = None
+        self._health_check_thread: threading.Thread | None = None
         self._shutdown = False
 
         # Performance tracking
@@ -127,7 +123,8 @@ class ObservabilityManager:
         """Set up default metrics."""
         # Request metrics
         self.request_counter = self.metrics.counter(
-            "requests_total", "Total number of requests"
+            "requests_total",
+            "Total number of requests",
         )
         self.request_duration = self.metrics.histogram(
             "request_duration_seconds",
@@ -136,16 +133,20 @@ class ObservabilityManager:
             unit="seconds",
         )
         self.request_errors = self.metrics.counter(
-            "request_errors_total", "Total number of request errors"
+            "request_errors_total",
+            "Total number of request errors",
         )
 
         # System metrics
         self.active_operations = self.metrics.gauge(
-            "active_operations", "Number of active operations"
+            "active_operations",
+            "Number of active operations",
         )
         self.queue_size = self.metrics.gauge("queue_size", "Current queue size")
         self.processing_lag = self.metrics.gauge(
-            "processing_lag_seconds", "Processing lag in seconds", unit="seconds"
+            "processing_lag_seconds",
+            "Processing lag in seconds",
+            unit="seconds",
         )
 
     def start_health_checks(self, interval: int = 30) -> None:
@@ -153,7 +154,8 @@ class ObservabilityManager:
         self._health_check_interval = interval
         self._shutdown = False
         self._health_check_thread = threading.Thread(
-            target=self._health_check_loop, daemon=True
+            target=self._health_check_loop,
+            daemon=True,
         )
         self._health_check_thread.start()
 
@@ -180,11 +182,13 @@ class ObservabilityManager:
                     self._health_check_results[name] = HealthCheck(
                         name=name,
                         status=HealthStatus.UNHEALTHY,
-                        message=f"Health check failed: {str(e)}",
+                        message=f"Health check failed: {e!s}",
                     )
 
     def register_health_check(
-        self, name: str, check_func: Callable[[], HealthCheck]
+        self,
+        name: str,
+        check_func: Callable[[], HealthCheck],
     ) -> None:
         """Register a health check function."""
         with self._health_check_lock:
@@ -213,7 +217,7 @@ class ObservabilityManager:
     async def trace_operation(
         self,
         operation_name: str,
-        attributes: Optional[Dict[str, Any]] = None,
+        attributes: dict[str, Any] | None = None,
         record_metrics: bool = True,
     ):
         """
@@ -229,7 +233,9 @@ class ObservabilityManager:
         # Start tracing
         if self.tracer:
             async with self.tracer.start_as_current_span_async(
-                operation_name, kind=SpanKind.INTERNAL, attributes=attributes
+                operation_name,
+                kind=SpanKind.INTERNAL,
+                attributes=attributes,
             ) as span:
                 # Record metrics
                 if record_metrics and self.metrics:
@@ -253,7 +259,7 @@ class ObservabilityManager:
                             labels={
                                 "operation": operation_name,
                                 "error_type": type(e).__name__,
-                            }
+                            },
                         )
 
                     raise
@@ -264,7 +270,8 @@ class ObservabilityManager:
 
                     if record_metrics and self.metrics:
                         self.request_duration.observe(
-                            duration, labels={"operation": operation_name}
+                            duration,
+                            labels={"operation": operation_name},
                         )
                         self.active_operations.dec()
 
@@ -277,7 +284,7 @@ class ObservabilityManager:
                             "success": (
                                 span.status.code == StatusCode.OK if span else True
                             ),
-                        }
+                        },
                     )
         else:
             # No tracing, just metrics
@@ -293,7 +300,7 @@ class ObservabilityManager:
                         labels={
                             "operation": operation_name,
                             "error_type": type(e).__name__,
-                        }
+                        },
                     )
                 raise
             finally:
@@ -301,12 +308,15 @@ class ObservabilityManager:
 
                 if record_metrics and self.metrics:
                     self.request_duration.observe(
-                        duration, labels={"operation": operation_name}
+                        duration,
+                        labels={"operation": operation_name},
                     )
                     self.active_operations.dec()
 
     def record_event(
-        self, event_name: str, attributes: Optional[Dict[str, Any]] = None
+        self,
+        event_name: str,
+        attributes: dict[str, Any] | None = None,
     ) -> None:
         """Record a significant event."""
         if self.tracer:
@@ -315,7 +325,9 @@ class ObservabilityManager:
                 current_span.add_event(event_name, attributes)
 
     def update_queue_metrics(
-        self, queue_size: int, processing_lag: Optional[float] = None
+        self,
+        queue_size: int,
+        processing_lag: float | None = None,
     ) -> None:
         """Update queue-related metrics."""
         if self.metrics:
@@ -323,7 +335,7 @@ class ObservabilityManager:
             if processing_lag is not None:
                 self.processing_lag.set(processing_lag)
 
-    def get_metrics_summary(self) -> Dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of current metrics."""
         if not self.metrics:
             return {}
@@ -340,12 +352,12 @@ class ObservabilityManager:
                     "labels": metric.labels,
                     "value": metric.value,
                     "type": metric.type.value,
-                }
+                },
             )
 
         return summary
 
-    def get_operation_statistics(self) -> Dict[str, Any]:
+    def get_operation_statistics(self) -> dict[str, Any]:
         """Get statistics about recent operations."""
         if not self._operation_history:
             return {"total_operations": 0, "success_rate": 0.0, "average_duration": 0.0}
@@ -364,7 +376,7 @@ class ObservabilityManager:
             "p99_duration": self._percentile(durations, 99),
         }
 
-    def _percentile(self, values: List[float], percentile: int) -> float:
+    def _percentile(self, values: list[float], percentile: int) -> float:
         """Calculate percentile of values."""
         if not values:
             return 0.0
@@ -411,26 +423,25 @@ class EventBusHealthCheck:
                     message=f"Queue critically full: {utilization:.1%}",
                     details={"queue_size": queue_size, "max_size": max_queue_size},
                 )
-            elif utilization > 0.7:
+            if utilization > 0.7:
                 return HealthCheck(
                     name="queue_health",
                     status=HealthStatus.DEGRADED,
                     message=f"Queue filling up: {utilization:.1%}",
                     details={"queue_size": queue_size, "max_size": max_queue_size},
                 )
-            else:
-                return HealthCheck(
-                    name="queue_health",
-                    status=HealthStatus.HEALTHY,
-                    message=f"Queue healthy: {utilization:.1%}",
-                    details={"queue_size": queue_size, "max_size": max_queue_size},
-                )
+            return HealthCheck(
+                name="queue_health",
+                status=HealthStatus.HEALTHY,
+                message=f"Queue healthy: {utilization:.1%}",
+                details={"queue_size": queue_size, "max_size": max_queue_size},
+            )
 
         except Exception as e:
             return HealthCheck(
                 name="queue_health",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Failed to check queue: {str(e)}",
+                message=f"Failed to check queue: {e!s}",
             )
 
     async def check_processing_health(self) -> HealthCheck:
@@ -455,31 +466,30 @@ class EventBusHealthCheck:
                     message=f"High error rate: {error_rate:.1%}",
                     details={"error_rate": error_rate},
                 )
-            elif error_rate > 0.1:
+            if error_rate > 0.1:
                 return HealthCheck(
                     name="processing_health",
                     status=HealthStatus.DEGRADED,
                     message=f"Elevated error rate: {error_rate:.1%}",
                     details={"error_rate": error_rate},
                 )
-            else:
-                return HealthCheck(
-                    name="processing_health",
-                    status=HealthStatus.HEALTHY,
-                    message="Processing healthy",
-                    details={"error_rate": error_rate},
-                )
+            return HealthCheck(
+                name="processing_health",
+                status=HealthStatus.HEALTHY,
+                message="Processing healthy",
+                details={"error_rate": error_rate},
+            )
 
         except Exception as e:
             return HealthCheck(
                 name="processing_health",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Failed to check processing: {str(e)}",
+                message=f"Failed to check processing: {e!s}",
             )
 
 
 # Global observability instance
-_observability_manager: Optional[ObservabilityManager] = None
+_observability_manager: ObservabilityManager | None = None
 
 
 def init_observability(
@@ -499,6 +509,6 @@ def init_observability(
     return _observability_manager
 
 
-def get_observability() -> Optional[ObservabilityManager]:
+def get_observability() -> ObservabilityManager | None:
     """Get global observability manager."""
     return _observability_manager

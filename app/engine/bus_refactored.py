@@ -3,17 +3,17 @@ Refactored Event Bus with dependency injection and improved architecture.
 """
 
 import asyncio
-import logging
 from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Protocol, Set
+import logging
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 from app.engine.config import EventBusConfig
-from app.engine.models import BaseEvent, ErrorEvent, EventType
-
+from app.engine.models import BaseEvent, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class PublishResult:
 
     is_success: bool
     event_id: UUID
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -44,7 +44,7 @@ class SubscriptionStatus:
     circuit_breaker_state: CircuitBreakerState
     processed_count: int
     failed_count: int
-    last_error: Optional[str]
+    last_error: str | None
 
 
 class PersistenceBackend(Protocol):
@@ -54,7 +54,7 @@ class PersistenceBackend(Protocol):
         """Persist an event."""
         ...
 
-    async def get_events(self, limit: int) -> List[BaseEvent]:
+    async def get_events(self, limit: int) -> list[BaseEvent]:
         """Retrieve persisted events."""
         ...
 
@@ -84,7 +84,7 @@ class InMemoryPersistence:
     async def persist_event(self, event: BaseEvent) -> None:
         self._events.append(event)
 
-    async def get_events(self, limit: int) -> List[BaseEvent]:
+    async def get_events(self, limit: int) -> list[BaseEvent]:
         return list(self._events)[-limit:]
 
 
@@ -96,7 +96,7 @@ class InMemoryMetrics:
         self.events_processed = 0
         self.events_failed = 0
         self.processing_times: deque = deque(maxlen=1000)
-        self.error_counts: Dict[str, int] = defaultdict(int)
+        self.error_counts: dict[str, int] = defaultdict(int)
 
     def record_event_published(self, event_type: str) -> None:
         self.events_published += 1
@@ -117,7 +117,7 @@ class CircuitBreaker:
         self.failure_threshold = failure_threshold
         self.reset_timeout = reset_timeout
         self.failure_count = 0
-        self.last_failure_time: Optional[float] = None
+        self.last_failure_time: float | None = None
         self.state = CircuitBreakerState.CLOSED
 
     def record_success(self) -> None:
@@ -157,7 +157,7 @@ class EventSubscription:
         self,
         subscriber_id: str,
         handler: Callable[[BaseEvent], Any],
-        event_types: Optional[Set[EventType]] = None,
+        event_types: set[EventType] | None = None,
         priority: int = 0,
         max_retries: int = 3,
         retry_delay_ms: int = 100,
@@ -171,13 +171,13 @@ class EventSubscription:
         self.max_retries = max_retries
         self.retry_delay_ms = retry_delay_ms
         self.retry_count = 0
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
         self.is_active = True
         self.created_at = datetime.utcnow()
         self.processed_count = 0
         self.failed_count = 0
         self.circuit_breaker = CircuitBreaker(
-            failure_threshold=circuit_breaker_threshold
+            failure_threshold=circuit_breaker_threshold,
         )
 
 
@@ -189,8 +189,8 @@ class EventBus:
     def __init__(
         self,
         config: EventBusConfig,
-        persistence_backend: Optional[PersistenceBackend] = None,
-        metrics_backend: Optional[MetricsBackend] = None,
+        persistence_backend: PersistenceBackend | None = None,
+        metrics_backend: MetricsBackend | None = None,
     ):
         self._config = config
         self._max_queue_size = config.max_queue_size
@@ -200,21 +200,21 @@ class EventBus:
         self._persistence_backend = persistence_backend or InMemoryPersistence()
         self._metrics_backend = metrics_backend or InMemoryMetrics()
 
-        self._subscriptions: Dict[EventType, List[EventSubscription]] = defaultdict(
-            list
+        self._subscriptions: dict[EventType, list[EventSubscription]] = defaultdict(
+            list,
         )
-        self._all_subscriptions: List[EventSubscription] = []
-        self._subscription_map: Dict[str, EventSubscription] = {}
+        self._all_subscriptions: list[EventSubscription] = []
+        self._subscription_map: dict[str, EventSubscription] = {}
 
         self._event_queue: asyncio.PriorityQueue = asyncio.PriorityQueue(
-            maxsize=config.max_queue_size
+            maxsize=config.max_queue_size,
         )
         self._dead_letter_queue: asyncio.Queue = asyncio.Queue(
-            maxsize=config.dead_letter_queue_size
+            maxsize=config.dead_letter_queue_size,
         )
 
         self._running = False
-        self._worker_tasks: List[asyncio.Task] = []
+        self._worker_tasks: list[asyncio.Task] = []
         self._lock = asyncio.Lock()
 
         logger.info(f"EventBus initialized with config: {config}")
@@ -252,7 +252,7 @@ class EventBus:
         self,
         subscriber_id: str,
         handler: Callable[[BaseEvent], Any],
-        event_types: Optional[List[EventType]] = None,
+        event_types: list[EventType] | None = None,
         priority: int = 0,
         max_retries: int = 3,
         retry_delay_ms: int = 100,
@@ -275,7 +275,8 @@ class EventBus:
                 for event_type in event_types:
                     self._subscriptions[event_type].append(subscription)
                     self._subscriptions[event_type].sort(
-                        key=lambda s: s.priority, reverse=True
+                        key=lambda s: s.priority,
+                        reverse=True,
                     )
             else:
                 self._all_subscriptions.append(subscription)
@@ -284,7 +285,7 @@ class EventBus:
             self._subscription_map[subscription.subscription_id] = subscription
 
             logger.info(
-                f"Subscriber '{subscriber_id}' subscribed with ID {subscription.subscription_id}"
+                f"Subscriber '{subscriber_id}' subscribed with ID {subscription.subscription_id}",
             )
             return subscription.subscription_id
 
@@ -307,19 +308,24 @@ class EventBus:
             error_msg = f"Event queue full, dropping event {event.event_id}"
             logger.error(error_msg)
             return PublishResult(
-                is_success=False, event_id=event.event_id, error=error_msg
+                is_success=False,
+                event_id=event.event_id,
+                error=error_msg,
             )
 
         except Exception as e:
             error_msg = f"Error publishing event: {e}"
             logger.error(error_msg)
             return PublishResult(
-                is_success=False, event_id=event.event_id, error=str(e)
+                is_success=False,
+                event_id=event.event_id,
+                error=str(e),
             )
 
     async def get_subscription_status(
-        self, subscription_id: str
-    ) -> Optional[SubscriptionStatus]:
+        self,
+        subscription_id: str,
+    ) -> SubscriptionStatus | None:
         """Get status of a subscription."""
         subscription = self._subscription_map.get(subscription_id)
         if not subscription:
@@ -341,11 +347,12 @@ class EventBus:
         while self._running:
             try:
                 priority, timestamp, event = await asyncio.wait_for(
-                    self._event_queue.get(), timeout=1.0
+                    self._event_queue.get(),
+                    timeout=1.0,
                 )
                 await self._process_event(event, worker_name)
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             except Exception as e:
                 logger.error(f"Worker {worker_name} error: {e}")
@@ -364,7 +371,9 @@ class EventBus:
 
         unique_subscriptions = {sub.subscription_id: sub for sub in subscriptions}
         sorted_subscriptions = sorted(
-            unique_subscriptions.values(), key=lambda s: s.priority, reverse=True
+            unique_subscriptions.values(),
+            key=lambda s: s.priority,
+            reverse=True,
         )
 
         for subscription in sorted_subscriptions:
@@ -375,7 +384,8 @@ class EventBus:
                 await self._handle_subscription_with_retry(event, subscription)
                 processing_time = asyncio.get_event_loop().time() - start_time
                 self._metrics_backend.record_event_processed(
-                    processing_time, subscription.subscriber_id
+                    processing_time,
+                    subscription.subscriber_id,
                 )
                 subscription.processed_count += 1
                 subscription.circuit_breaker.record_success()
@@ -384,7 +394,9 @@ class EventBus:
                 await self._handle_subscription_error(event, subscription, e)
 
     async def _handle_subscription_with_retry(
-        self, event: BaseEvent, subscription: EventSubscription
+        self,
+        event: BaseEvent,
+        subscription: EventSubscription,
     ) -> None:
         """Handle subscription with retry logic."""
         attempt = 0
@@ -408,7 +420,10 @@ class EventBus:
             raise last_error
 
     async def _handle_subscription_error(
-        self, event: BaseEvent, subscription: EventSubscription, error: Exception
+        self,
+        event: BaseEvent,
+        subscription: EventSubscription,
+        error: Exception,
     ) -> None:
         """Handle subscription processing error."""
         subscription.failed_count += 1
@@ -417,14 +432,15 @@ class EventBus:
 
         error_type = type(error).__name__
         self._metrics_backend.record_event_failed(
-            error_type, subscription.subscriber_id
+            error_type,
+            subscription.subscriber_id,
         )
 
         logger.error(f"Error in subscription {subscription.subscription_id}: {error}")
 
         if subscription.circuit_breaker.is_open():
             logger.error(
-                f"Circuit breaker opened for subscription {subscription.subscription_id}"
+                f"Circuit breaker opened for subscription {subscription.subscription_id}",
             )
 
         # If we got here, it means _handle_subscription_with_retry exhausted all retries
@@ -432,7 +448,9 @@ class EventBus:
         await self._send_to_dead_letter_queue(event, str(error))
 
     async def _send_to_dead_letter_queue(
-        self, event: BaseEvent, error_msg: str
+        self,
+        event: BaseEvent,
+        error_msg: str,
     ) -> None:
         """Send event to dead letter queue."""
         try:
@@ -442,7 +460,7 @@ class EventBus:
         except asyncio.QueueFull:
             logger.error("Dead letter queue full, dropping event")
 
-    async def get_dead_letter_events(self, limit: int = 100) -> List[BaseEvent]:
+    async def get_dead_letter_events(self, limit: int = 100) -> list[BaseEvent]:
         """Get events from dead letter queue."""
         events = []
         queue_size = self._dead_letter_queue.qsize()
@@ -464,7 +482,7 @@ class EventBus:
 
         return events
 
-    async def get_metrics(self) -> Dict[str, Any]:
+    async def get_metrics(self) -> dict[str, Any]:
         """Get event bus metrics."""
         metrics = self._metrics_backend
         if isinstance(metrics, InMemoryMetrics):
@@ -480,8 +498,8 @@ class EventBus:
 
 def create_event_bus(
     config: EventBusConfig,
-    persistence_backend: Optional[PersistenceBackend] = None,
-    metrics_backend: Optional[MetricsBackend] = None,
+    persistence_backend: PersistenceBackend | None = None,
+    metrics_backend: MetricsBackend | None = None,
 ) -> EventBus:
     """Factory function to create configured EventBus instance."""
     return EventBus(
@@ -493,16 +511,16 @@ def create_event_bus(
 
 # Export all public classes and functions
 __all__ = [
+    "CircuitBreaker",
+    "CircuitBreakerState",
     "EventBus",
     "EventBusConfig",
-    "CircuitBreakerState",
+    "EventSubscription",
+    "InMemoryMetrics",
+    "InMemoryPersistence",
+    "MetricsBackend",
+    "PersistenceBackend",
     "PublishResult",
     "SubscriptionStatus",
-    "PersistenceBackend",
-    "MetricsBackend",
-    "InMemoryPersistence",
-    "InMemoryMetrics",
-    "CircuitBreaker",
-    "EventSubscription",
     "create_event_bus",
 ]

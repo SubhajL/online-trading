@@ -1,12 +1,12 @@
+from datetime import datetime
 import os
+from pathlib import Path
 import subprocess
 import time
-from datetime import datetime
-from typing import Dict, Any, Optional
-from pathlib import Path
+from typing import Any
 
 
-def get_migration_config() -> Dict[str, Any]:
+def get_migration_config() -> dict[str, Any]:
     """Get migration configuration from environment variables"""
     return {
         "timeout": float(os.getenv("MIGRATION_TIMEOUT", "120000"))
@@ -18,7 +18,7 @@ def get_migration_config() -> Dict[str, Any]:
     }
 
 
-def backup_before_migration(database_url: str) -> Optional[str]:
+def backup_before_migration(database_url: str) -> str | None:
     """Create a backup before running migrations"""
     config = get_migration_config()
 
@@ -47,7 +47,7 @@ def backup_before_migration(database_url: str) -> Optional[str]:
         return None
 
 
-def setup_migration_metrics() -> Dict[str, Any]:
+def setup_migration_metrics() -> dict[str, Any]:
     """Set up metrics for migration monitoring"""
     return {
         "migration_duration_seconds": {
@@ -69,7 +69,9 @@ def setup_migration_metrics() -> Dict[str, Any]:
 
 
 def record_migration_metric(
-    metrics: Dict[str, Any], operation: str, success: bool
+    metrics: dict[str, Any],
+    operation: str,
+    success: bool,
 ) -> None:
     """Record migration metrics (placeholder for Prometheus integration)"""
     # In a real implementation, this would update Prometheus metrics
@@ -112,7 +114,7 @@ class MigrationRunner:
             record_migration_metric(self.metrics, "run_migrations", success=True)
             return True
 
-        except Exception as e:
+        except Exception:
             # Record failure
             record_migration_metric(self.metrics, "run_migrations", success=False)
             raise
