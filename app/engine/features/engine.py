@@ -79,9 +79,7 @@ class FeatureEngine:
         )
 
         # Track processed timestamps to ensure idempotency
-        self._processed: Dict[str, Dict[TimeFrame, set]] = defaultdict(
-            lambda: defaultdict(set)
-        )
+        self._processed: Dict[str, Dict[TimeFrame, set]] = defaultdict(lambda: defaultdict(set))
 
         self._event_bus = get_event_bus()
         self._running = False
@@ -212,15 +210,35 @@ class FeatureEngine:
             for period in self.ema_periods:
                 ema_values = calculate_ema(close_prices, period)
                 if period == 9:
-                    indicators.ema_9 = Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
+                    indicators.ema_9 = (
+                        Decimal(str(ema_values[-1]))
+                        if not np.isnan(ema_values[-1])
+                        else None
+                    )
                 elif period == 20:
-                    indicators.ema_21 = Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
+                    indicators.ema_21 = (
+                        Decimal(str(ema_values[-1]))
+                        if not np.isnan(ema_values[-1])
+                        else None
+                    )
                 elif period == 21:
-                    indicators.ema_21 = Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
+                    indicators.ema_21 = (
+                        Decimal(str(ema_values[-1]))
+                        if not np.isnan(ema_values[-1])
+                        else None
+                    )
                 elif period == 50:
-                    indicators.ema_50 = Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
+                    indicators.ema_50 = (
+                        Decimal(str(ema_values[-1]))
+                        if not np.isnan(ema_values[-1])
+                        else None
+                    )
                 elif period == 200:
-                    indicators.ema_200 = Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
+                    indicators.ema_200 = (
+                        Decimal(str(ema_values[-1]))
+                        if not np.isnan(ema_values[-1])
+                        else None
+                    )
 
             # Calculate RSI
             rsi_values = calculate_rsi(close_prices, self.rsi_period)
