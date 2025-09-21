@@ -48,31 +48,19 @@ jobs:
         working-directory: ./app/engine
         run: |
           # Only check Python syntax errors, not style
-          flake8 features shared/technical --count --select=E9,F63,F7,F82 --show-source --statistics
+          python -m flake8 features shared/technical --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Run black formatting check
         working-directory: ./app/engine
         run: |
           # Check black formatting
-          black --check features shared/technical
+          python -m black --check features shared/technical
 
       - name: Run mypy type check
         working-directory: ./app/engine
         run: |
-          # Debug: Check mypy version and Python version
-          echo "Python version:"
-          python --version
-          echo "Mypy version:"
-          mypy --version || echo "mypy not found"
-          echo "Current directory:"
-          pwd
-          echo "Directory contents:"
-          ls -la
           # Run mypy ONLY on features and shared/technical modules
-          mypy features shared/technical --ignore-missing-imports --no-strict-optional || true
-          # Run again with more verbose output to see the error
-          echo "Running mypy with verbose output:"
-          mypy features shared/technical --ignore-missing-imports --no-strict-optional --show-error-codes --show-error-context
+          python -m mypy features shared/technical --ignore-missing-imports --no-strict-optional
 
       - name: Run features tests
         working-directory: ./app/engine
