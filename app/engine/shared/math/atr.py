@@ -10,10 +10,7 @@ from .ema import calculate_ema_wilder
 
 
 def calculate_atr(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    period: int = 14
+    high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14
 ) -> np.ndarray:
     """
     Calculate Average True Range (ATR).
@@ -62,9 +59,7 @@ def calculate_atr(
 
 
 def calculate_true_range(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray
+    high: np.ndarray, low: np.ndarray, close: np.ndarray
 ) -> np.ndarray:
     """
     Calculate True Range for each period.
@@ -92,12 +87,12 @@ def calculate_true_range(
 
     # Subsequent candles: max of three calculations
     for i in range(1, len(high)):
-        if np.isnan(high[i]) or np.isnan(low[i]) or np.isnan(close[i-1]):
+        if np.isnan(high[i]) or np.isnan(low[i]) or np.isnan(close[i - 1]):
             tr[i] = np.nan
         else:
             hl = high[i] - low[i]  # High - Low
-            hc = abs(high[i] - close[i-1])  # |High - Previous Close|
-            lc = abs(low[i] - close[i-1])  # |Low - Previous Close|
+            hc = abs(high[i] - close[i - 1])  # |High - Previous Close|
+            lc = abs(low[i] - close[i - 1])  # |Low - Previous Close|
             tr[i] = max(hl, hc, lc)
 
     return tr

@@ -13,4 +13,9 @@ from .indicators import TechnicalIndicators, TechnicalIndicatorsCalculator
 from .feature_service import FeatureService
 from .engine import FeatureEngine
 
-__all__ = ["TechnicalIndicators", "TechnicalIndicatorsCalculator", "FeatureService", "FeatureEngine"]
+__all__ = [
+    "TechnicalIndicators",
+    "TechnicalIndicatorsCalculator",
+    "FeatureService",
+    "FeatureEngine",
+]

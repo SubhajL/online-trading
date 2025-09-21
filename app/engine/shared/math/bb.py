@@ -10,9 +10,7 @@ import numpy as np
 
 
 def calculate_bollinger_bands(
-    prices: np.ndarray,
-    period: int = 20,
-    std_dev: float = 2.0
+    prices: np.ndarray, period: int = 20, std_dev: float = 2.0
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate Bollinger Bands.
@@ -37,7 +35,9 @@ def calculate_bollinger_bands(
         raise ValueError(f"Period must be positive, got {period}")
 
     if std_dev < 0:
-        raise ValueError(f"Standard deviation multiplier must be non-negative, got {std_dev}")
+        raise ValueError(
+            f"Standard deviation multiplier must be non-negative, got {std_dev}"
+        )
 
     prices = np.asarray(prices, dtype=np.float64)
 
@@ -73,13 +73,13 @@ def calculate_sma(values: np.ndarray, period: int) -> np.ndarray:
 
     # Use cumsum for efficient rolling mean calculation
     cumsum = np.nancumsum(values)
-    sma[period-1] = cumsum[period-1] / period
+    sma[period - 1] = cumsum[period - 1] / period
 
     for i in range(period, len(values)):
         if np.isnan(values[i]):
             sma[i] = np.nan
         else:
-            sma[i] = (cumsum[i] - cumsum[i-period]) / period
+            sma[i] = (cumsum[i] - cumsum[i - period]) / period
 
     return sma
 
@@ -101,8 +101,8 @@ def calculate_rolling_std(values: np.ndarray, period: int) -> np.ndarray:
 
     std = np.full_like(values, np.nan, dtype=np.float64)
 
-    for i in range(period-1, len(values)):
-        window = values[i-period+1:i+1]
+    for i in range(period - 1, len(values)):
+        window = values[i - period + 1 : i + 1]
         if np.any(np.isnan(window)):
             std[i] = np.nan
         else:

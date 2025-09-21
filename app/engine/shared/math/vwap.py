@@ -16,7 +16,7 @@ def calculate_vwap(
     close: np.ndarray,
     volume: np.ndarray,
     reset_daily: bool = True,
-    timestamps: Optional[np.ndarray] = None
+    timestamps: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Calculate Volume Weighted Average Price (VWAP).
@@ -62,7 +62,7 @@ def calculate_vwap(
     current_day_start = 0
 
     for i in range(len(timestamps)):
-        if i > 0 and _is_new_day(timestamps[i-1], timestamps[i]):
+        if i > 0 and _is_new_day(timestamps[i - 1], timestamps[i]):
             current_day_start = i
 
         # Calculate VWAP from start of current day
@@ -76,9 +76,7 @@ def calculate_vwap(
 
 
 def calculate_vwma(
-    prices: np.ndarray,
-    volume: np.ndarray,
-    period: int = 20
+    prices: np.ndarray, volume: np.ndarray, period: int = 20
 ) -> np.ndarray:
     """
     Calculate Volume Weighted Moving Average (VWMA).
@@ -110,8 +108,8 @@ def calculate_vwma(
     # Calculate VWMA for each window
     for i in range(period - 1, len(prices)):
         window_start = i - period + 1
-        window_prices = prices[window_start:i + 1]
-        window_volume = volume[window_start:i + 1]
+        window_prices = prices[window_start : i + 1]
+        window_volume = volume[window_start : i + 1]
 
         if np.any(np.isnan(window_prices)) or np.any(np.isnan(window_volume)):
             vwma[i] = np.nan
@@ -123,7 +121,9 @@ def calculate_vwma(
     return vwma
 
 
-def _calculate_cumulative_vwap(typical_price: np.ndarray, volume: np.ndarray) -> np.ndarray:
+def _calculate_cumulative_vwap(
+    typical_price: np.ndarray, volume: np.ndarray
+) -> np.ndarray:
     """Calculate cumulative VWAP without daily resets."""
     vwap = np.full_like(typical_price, np.nan)
 

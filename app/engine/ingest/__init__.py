@@ -16,5 +16,5 @@ __all__ = [
     "BinanceRestClient",
     "BinanceSpotIngester",
     "BinanceUSDMIngester",
-    "IngestService"
+    "IngestService",
 ]

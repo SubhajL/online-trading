@@ -61,12 +61,12 @@ def test_calculate_macd_rising_prices():
 
     # MACD should be positive (fast EMA > slow EMA for rising prices)
     first_valid = 25  # slow period - 1
-    later_macd = macd[first_valid + 5:]  # Give it time to diverge
+    later_macd = macd[first_valid + 5 :]  # Give it time to diverge
     assert np.all(later_macd > 0)
 
     # Histogram should eventually be positive (MACD accelerating)
     signal_valid_start = first_valid + 8
-    later_hist = hist[signal_valid_start + 5:]
+    later_hist = hist[signal_valid_start + 5 :]
     if len(later_hist) > 0:
         assert np.mean(later_hist) > 0
 
@@ -78,7 +78,7 @@ def test_calculate_macd_falling_prices():
 
     # MACD should be negative (fast EMA < slow EMA for falling prices)
     first_valid = 25  # slow period - 1
-    later_macd = macd[first_valid + 5:]  # Give it time to diverge
+    later_macd = macd[first_valid + 5 :]  # Give it time to diverge
     assert np.all(later_macd < 0)
 
 
@@ -113,11 +113,7 @@ def test_calculate_macd_histogram_calculation():
     valid_mask = ~np.isnan(macd) & ~np.isnan(signal)
     if np.any(valid_mask):
         expected_hist = macd[valid_mask] - signal[valid_mask]
-        np.testing.assert_allclose(
-            hist[valid_mask],
-            expected_hist,
-            rtol=1e-10
-        )
+        np.testing.assert_allclose(hist[valid_mask], expected_hist, rtol=1e-10)
 
 
 def test_calculate_macd_deterministic():
@@ -142,7 +138,4 @@ def test_calculate_macd_custom_periods():
     # Different parameters should give different results
     # Check after both have valid values
     valid_start = max(10, 26)
-    assert not np.array_equal(
-        macd1[valid_start:],
-        macd2[valid_start:]
-    )
+    assert not np.array_equal(macd1[valid_start:], macd2[valid_start:])

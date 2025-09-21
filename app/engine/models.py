@@ -638,6 +638,7 @@ class EngineConfig(BaseModel):
 # Transform Utilities
 # ============================================================================
 
+
 def kline_to_candle(data: Dict[str, Any], venue: str) -> Candle:
     """
     Convert Binance WebSocket kline data to Candle model.
@@ -662,7 +663,7 @@ def kline_to_candle(data: Dict[str, Any], venue: str) -> Candle:
         quote_volume=Decimal(data["q"]),
         trades=data["n"],
         taker_buy_base_volume=Decimal(data["V"]),
-        taker_buy_quote_volume=Decimal(data["Q"])
+        taker_buy_quote_volume=Decimal(data["Q"]),
     )
 
 
@@ -697,7 +698,7 @@ def rest_kline_to_candle(data: List, symbol: str, timeframe: str, venue: str) ->
         quote_volume=Decimal(data[7]),
         trades=int(data[8]),
         taker_buy_base_volume=Decimal(data[9]),
-        taker_buy_quote_volume=Decimal(data[10])
+        taker_buy_quote_volume=Decimal(data[10]),
     )
 
 
@@ -755,7 +756,6 @@ __all__ = [
     "RedisConfig",
     "BinanceConfig",
     "EngineConfig",
-
     # Transform utilities
     "kline_to_candle",
     "rest_kline_to_candle",

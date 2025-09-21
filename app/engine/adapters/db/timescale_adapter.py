@@ -436,9 +436,7 @@ class TimescaleDBAdapter:
             return 0
 
     async def get_latest_candle(
-        self,
-        symbol: str,
-        timeframe: TimeFrame
+        self, symbol: str, timeframe: TimeFrame
     ) -> Optional[Candle]:
         """
         Get the latest candle for a symbol and timeframe.
@@ -450,11 +448,7 @@ class TimescaleDBAdapter:
         Returns:
             Latest candle or None if no data
         """
-        candles = await self.get_candles(
-            symbol=symbol,
-            timeframe=timeframe,
-            limit=1
-        )
+        candles = await self.get_candles(symbol=symbol, timeframe=timeframe, limit=1)
         return candles[0] if candles else None
 
     async def get_candles(

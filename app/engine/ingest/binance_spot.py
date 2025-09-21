@@ -44,7 +44,7 @@ class BinanceSpotIngester:
         ws_base_url: str = "wss://stream.binance.com:9443",
         rest_base_url: str = "https://api.binance.com",
         max_reconnect_attempts: int = 5,
-        reconnect_delay_ms: int = 5000
+        reconnect_delay_ms: int = 5000,
     ):
         self.db_adapter = db_adapter
         self.event_bus = event_bus
@@ -71,7 +71,9 @@ class BinanceSpotIngester:
                 await self._connect_and_subscribe()
                 await self._message_loop()
             except ConnectionClosed:
-                logger.warning(f"WebSocket connection closed, reconnecting in {self.reconnect_delay_ms}ms...")
+                logger.warning(
+                    f"WebSocket connection closed, reconnecting in {self.reconnect_delay_ms}ms..."
+                )
                 await asyncio.sleep(self.reconnect_delay_ms / 1000)
                 self._reconnect_count += 1
                 await self._on_reconnect()
@@ -148,7 +150,9 @@ class BinanceSpotIngester:
 
         # Deduplicate - check if candle already exists
         if await self._deduplicate_candle(candle):
-            logger.debug(f"Skipping duplicate candle: {candle.symbol} {candle.timeframe.value} {candle.open_time}")
+            logger.debug(
+                f"Skipping duplicate candle: {candle.symbol} {candle.timeframe.value} {candle.open_time}"
+            )
             return
 
         # Persist to database
@@ -161,9 +165,11 @@ class BinanceSpotIngester:
         # Publish to event bus
         await self._publish_candle(candle)
 
-        logger.info(f"CLOSED candle: {candle.symbol} {candle.timeframe.value} "
-                   f"O:{candle.open_price} H:{candle.high_price} L:{candle.low_price} C:{candle.close_price} "
-                   f"V:{candle.volume}")
+        logger.info(
+            f"CLOSED candle: {candle.symbol} {candle.timeframe.value} "
+            f"O:{candle.open_price} H:{candle.high_price} L:{candle.low_price} C:{candle.close_price} "
+            f"V:{candle.volume}"
+        )
 
     async def _deduplicate_candle(self, candle: Candle) -> bool:
         """
@@ -180,28 +186,31 @@ class BinanceSpotIngester:
             timeframe=candle.timeframe,
             start_time=candle.open_time,
             end_time=candle.open_time,
-            limit=1
+            limit=1,
         )
 
         return len(existing) > 0
 
     async def _publish_candle(self, candle: Candle) -> None:
         """Publish candle to event bus."""
-        await publish_event("candles.v1", {
-            "venue": self.venue,
-            "symbol": candle.symbol,
-            "timeframe": candle.timeframe.value,
-            "timestamp": candle.close_time,
-            "open_time": candle.open_time,
-            "close_time": candle.close_time,
-            "open": str(candle.open_price),
-            "high": str(candle.high_price),
-            "low": str(candle.low_price),
-            "close": str(candle.close_price),
-            "volume": str(candle.volume),
-            "quote_volume": str(candle.quote_volume),
-            "trades": candle.trades
-        })
+        await publish_event(
+            "candles.v1",
+            {
+                "venue": self.venue,
+                "symbol": candle.symbol,
+                "timeframe": candle.timeframe.value,
+                "timestamp": candle.close_time,
+                "open_time": candle.open_time,
+                "close_time": candle.close_time,
+                "open": str(candle.open_price),
+                "high": str(candle.high_price),
+                "low": str(candle.low_price),
+                "close": str(candle.close_price),
+                "volume": str(candle.volume),
+                "quote_volume": str(candle.quote_volume),
+                "trades": candle.trades,
+            },
+        )
 
     async def _on_reconnect(self) -> None:
         """Handle reconnection - trigger REST backfill for missing data."""
@@ -217,8 +226,7 @@ class BinanceSpotIngester:
                 if not last_time:
                     # Get latest from DB if we don't have it in memory
                     latest_candle = await self.db_adapter.get_latest_candle(
-                        symbol=symbol,
-                        timeframe=TimeFrame(tf)
+                        symbol=symbol, timeframe=TimeFrame(tf)
                     )
                     if latest_candle:
                         last_time = latest_candle.close_time
@@ -237,11 +245,7 @@ class BinanceSpotIngester:
         logger.info("Backfill completed")
 
     async def _backfill_missing_candles(
-        self,
-        symbol: str,
-        timeframe: str,
-        start_time: datetime,
-        retry_count: int = 0
+        self, symbol: str, timeframe: str, start_time: datetime, retry_count: int = 0
     ) -> None:
         """
         Backfill missing candles via REST API.
@@ -254,9 +258,18 @@ class BinanceSpotIngester:
         """
         # Convert timeframe to milliseconds
         interval_map = {
-            "1m": 60000, "3m": 180000, "5m": 300000, "15m": 900000,
-            "30m": 1800000, "1h": 3600000, "2h": 7200000, "4h": 14400000,
-            "6h": 21600000, "8h": 28800000, "12h": 43200000, "1d": 86400000
+            "1m": 60000,
+            "3m": 180000,
+            "5m": 300000,
+            "15m": 900000,
+            "30m": 1800000,
+            "1h": 3600000,
+            "2h": 7200000,
+            "4h": 14400000,
+            "6h": 21600000,
+            "8h": 28800000,
+            "12h": 43200000,
+            "1d": 86400000,
         }
         interval_ms = interval_map.get(timeframe, 300000)  # Default to 5m
 
@@ -277,16 +290,20 @@ class BinanceSpotIngester:
                     break
 
                 # Build request URL
-                url = (f"{self.rest_base_url}/api/v3/klines?"
-                      f"symbol={symbol}&interval={timeframe}"
-                      f"&startTime={start_ts}&limit={limit}")
+                url = (
+                    f"{self.rest_base_url}/api/v3/klines?"
+                    f"symbol={symbol}&interval={timeframe}"
+                    f"&startTime={start_ts}&limit={limit}"
+                )
 
                 try:
                     async with session.get(url) as response:
                         if response.status == 429:
                             # Rate limited - exponential backoff
                             retry_after = int(response.headers.get("Retry-After", "60"))
-                            delay = min(retry_after * (2 ** retry_count), 300)  # Max 5 minutes
+                            delay = min(
+                                retry_after * (2**retry_count), 300
+                            )  # Max 5 minutes
                             logger.warning(f"Rate limited, retrying after {delay}s")
                             await asyncio.sleep(delay)
 
@@ -295,7 +312,9 @@ class BinanceSpotIngester:
                                     symbol, timeframe, start_time, retry_count + 1
                                 )
                             else:
-                                logger.error(f"Max retries exceeded for {symbol} {timeframe}")
+                                logger.error(
+                                    f"Max retries exceeded for {symbol} {timeframe}"
+                                )
                                 return
 
                         elif response.status == 400:
@@ -317,7 +336,9 @@ class BinanceSpotIngester:
 
                         # Process klines
                         for kline in klines:
-                            candle = rest_kline_to_candle(kline, symbol, timeframe, self.venue)
+                            candle = rest_kline_to_candle(
+                                kline, symbol, timeframe, self.venue
+                            )
 
                             # Deduplicate
                             if not await self._deduplicate_candle(candle):

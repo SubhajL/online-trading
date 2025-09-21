@@ -354,6 +354,7 @@ def create_event_bus() -> EventBus:
     factory = EventBusFactory()
     return factory.create_event_bus()
 
+
 # Global event bus instance management
 _global_event_bus: Optional[EventBus] = None
 
@@ -400,8 +401,12 @@ async def publish_event(topic: str, data: Dict[str, Any]) -> bool:
     """
     bus = get_event_bus()
     event = BaseEvent(
-        event_type=EventType.CANDLE_UPDATE if topic == "candles.v1" else EventType.CANDLE_UPDATE,
+        event_type=(
+            EventType.CANDLE_UPDATE
+            if topic == "candles.v1"
+            else EventType.CANDLE_UPDATE
+        ),
         timestamp=data.get("timestamp", datetime.utcnow()),
-        data=data
+        data=data,
     )
     return await bus.publish(event)

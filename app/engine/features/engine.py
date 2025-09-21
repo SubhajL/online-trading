@@ -79,7 +79,9 @@ class FeatureEngine:
         )
 
         # Track processed timestamps to ensure idempotency
-        self._processed: Dict[str, Dict[TimeFrame, set]] = defaultdict(lambda: defaultdict(set))
+        self._processed: Dict[str, Dict[TimeFrame, set]] = defaultdict(
+            lambda: defaultdict(set)
+        )
 
         self._event_bus = get_event_bus()
         self._running = False
@@ -242,7 +244,9 @@ class FeatureEngine:
 
             # Calculate RSI
             rsi_values = calculate_rsi(close_prices, self.rsi_period)
-            indicators.rsi_14 = Decimal(str(rsi_values[-1])) if not np.isnan(rsi_values[-1]) else None
+            indicators.rsi_14 = (
+                Decimal(str(rsi_values[-1])) if not np.isnan(rsi_values[-1]) else None
+            )
 
             # Calculate MACD
             macd_line, signal_line, histogram = calculate_macd(
@@ -251,34 +255,62 @@ class FeatureEngine:
                 self.macd_params[1],
                 self.macd_params[2],
             )
-            indicators.macd_line = Decimal(str(macd_line[-1])) if not np.isnan(macd_line[-1]) else None
-            indicators.macd_signal = Decimal(str(signal_line[-1])) if not np.isnan(signal_line[-1]) else None
-            indicators.macd_histogram = Decimal(str(histogram[-1])) if not np.isnan(histogram[-1]) else None
+            indicators.macd_line = (
+                Decimal(str(macd_line[-1])) if not np.isnan(macd_line[-1]) else None
+            )
+            indicators.macd_signal = (
+                Decimal(str(signal_line[-1])) if not np.isnan(signal_line[-1]) else None
+            )
+            indicators.macd_histogram = (
+                Decimal(str(histogram[-1])) if not np.isnan(histogram[-1]) else None
+            )
 
             # Calculate ATR
-            atr_values = calculate_atr(high_prices, low_prices, close_prices, self.atr_period)
-            indicators.atr_14 = Decimal(str(atr_values[-1])) if not np.isnan(atr_values[-1]) else None
+            atr_values = calculate_atr(
+                high_prices, low_prices, close_prices, self.atr_period
+            )
+            indicators.atr_14 = (
+                Decimal(str(atr_values[-1])) if not np.isnan(atr_values[-1]) else None
+            )
 
             # Calculate Bollinger Bands
             upper_band, middle_band, lower_band = calculate_bollinger_bands(
                 close_prices, self.bb_period, self.bb_std_dev
             )
-            indicators.bb_upper = Decimal(str(upper_band[-1])) if not np.isnan(upper_band[-1]) else None
-            indicators.bb_middle = Decimal(str(middle_band[-1])) if not np.isnan(middle_band[-1]) else None
-            indicators.bb_lower = Decimal(str(lower_band[-1])) if not np.isnan(lower_band[-1]) else None
+            indicators.bb_upper = (
+                Decimal(str(upper_band[-1])) if not np.isnan(upper_band[-1]) else None
+            )
+            indicators.bb_middle = (
+                Decimal(str(middle_band[-1])) if not np.isnan(middle_band[-1]) else None
+            )
+            indicators.bb_lower = (
+                Decimal(str(lower_band[-1])) if not np.isnan(lower_band[-1]) else None
+            )
 
             # Calculate BB width and percent
-            if all(v is not None for v in [indicators.bb_upper, indicators.bb_middle, indicators.bb_lower]):
-                indicators.bb_width = (indicators.bb_upper - indicators.bb_lower) / indicators.bb_middle
-                indicators.bb_percent = (latest_candle.close_price - indicators.bb_lower) / (
+            if all(
+                v is not None
+                for v in [
+                    indicators.bb_upper,
+                    indicators.bb_middle,
+                    indicators.bb_lower,
+                ]
+            ):
+                indicators.bb_width = (
                     indicators.bb_upper - indicators.bb_lower
-                )
+                ) / indicators.bb_middle
+                indicators.bb_percent = (
+                    latest_candle.close_price - indicators.bb_lower
+                ) / (indicators.bb_upper - indicators.bb_lower)
 
             self._calculations_performed += 1
             return indicators
 
         except Exception as e:
-            logger.error(f"Error calculating indicators for {symbol} {timeframe}: {e}", exc_info=True)
+            logger.error(
+                f"Error calculating indicators for {symbol} {timeframe}: {e}",
+                exc_info=True,
+            )
             return None
 
     async def _write_to_database(self, indicators: TechnicalIndicators):
@@ -331,7 +363,9 @@ class FeatureEngine:
                 )
 
                 self._db_writes += 1
-                logger.debug(f"Wrote indicators for {indicators.symbol} {indicators.timeframe} at {indicators.timestamp}")
+                logger.debug(
+                    f"Wrote indicators for {indicators.symbol} {indicators.timeframe} at {indicators.timestamp}"
+                )
 
         except Exception as e:
             logger.error(f"Error writing indicators to database: {e}", exc_info=True)
@@ -347,7 +381,9 @@ class FeatureEngine:
             )
 
             await self._event_bus.publish(event, priority=5)
-            logger.debug(f"Published features event for {indicators.symbol} {indicators.timeframe}")
+            logger.debug(
+                f"Published features event for {indicators.symbol} {indicators.timeframe}"
+            )
 
         except Exception as e:
             logger.error(f"Error publishing features event: {e}", exc_info=True)
@@ -394,8 +430,12 @@ class FeatureEngine:
                 stats["buffer_stats"][symbol][timeframe.value] = {
                     "buffer_size": len(buffer),
                     "processed_count": len(processed),
-                    "oldest_candle": buffer[0].open_time.isoformat() if buffer else None,
-                    "newest_candle": buffer[-1].close_time.isoformat() if buffer else None,
+                    "oldest_candle": (
+                        buffer[0].open_time.isoformat() if buffer else None
+                    ),
+                    "newest_candle": (
+                        buffer[-1].close_time.isoformat() if buffer else None
+                    ),
                 }
 
         return stats

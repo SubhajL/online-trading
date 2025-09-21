@@ -22,7 +22,9 @@ def test_calculate_bollinger_bands_negative_period():
 
 def test_calculate_bollinger_bands_negative_std_dev():
     prices = np.array([100.0] * 25)
-    with pytest.raises(ValueError, match="Standard deviation multiplier must be non-negative"):
+    with pytest.raises(
+        ValueError, match="Standard deviation multiplier must be non-negative"
+    ):
         calculate_bollinger_bands(prices, period=20, std_dev=-2.0)
 
 
@@ -79,7 +81,7 @@ def test_calculate_sma_with_nan():
 
     assert np.isnan(result[2])  # Contains NaN in window
     assert np.isnan(result[3])  # Contains NaN in window
-    assert np.isclose(result[4], 9.0/3)  # (nan+4+5)/3 with nancumsum
+    assert np.isclose(result[4], 9.0 / 3)  # (nan+4+5)/3 with nancumsum
 
 
 def test_calculate_rolling_std_basic():
@@ -106,10 +108,12 @@ def test_calculate_bollinger_bands_squeeze():
     # Create data with decreasing volatility (squeeze)
     np.random.seed(42)
     trend = np.linspace(100, 110, 50)
-    noise = np.concatenate([
-        np.random.randn(25) * 2,  # High volatility
-        np.random.randn(25) * 0.5  # Low volatility
-    ])
+    noise = np.concatenate(
+        [
+            np.random.randn(25) * 2,  # High volatility
+            np.random.randn(25) * 0.5,  # Low volatility
+        ]
+    )
     prices = trend + noise
 
     upper, middle, lower = calculate_bollinger_bands(prices, period=10, std_dev=2.0)
@@ -126,10 +130,12 @@ def test_calculate_bollinger_bands_expansion():
     # Create data with increasing volatility (expansion)
     np.random.seed(42)
     trend = np.linspace(100, 110, 50)
-    noise = np.concatenate([
-        np.random.randn(25) * 0.5,  # Low volatility
-        np.random.randn(25) * 2    # High volatility
-    ])
+    noise = np.concatenate(
+        [
+            np.random.randn(25) * 0.5,  # Low volatility
+            np.random.randn(25) * 2,  # High volatility
+        ]
+    )
     prices = trend + noise
 
     upper, middle, lower = calculate_bollinger_bands(prices, period=10, std_dev=2.0)
