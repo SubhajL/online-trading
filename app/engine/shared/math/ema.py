@@ -11,8 +11,8 @@ import numpy as np
 
 
 def calculate_ema(
-    values: np.ndarray, period: int, smoothing: float = 2.0  # type: ignore[type-arg]
-) -> np.ndarray:  # type: ignore[type-arg]
+    values: np.ndarray, period: int, smoothing: float = 2.0
+) -> np.ndarray:
     """
     Calculate Exponential Moving Average.
 
@@ -51,7 +51,7 @@ def calculate_ema(
     return ema
 
 
-def calculate_ema_wilder(values: np.ndarray, period: int) -> np.ndarray:  # type: ignore[type-arg]
+def calculate_ema_wilder(values: np.ndarray, period: int) -> np.ndarray:
     """
     Calculate EMA using Wilder's smoothing (used for RSI, ATR).
 
