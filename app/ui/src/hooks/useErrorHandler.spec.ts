@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useErrorHandler } from './useErrorHandler'
 
 // Mock console.error
@@ -248,14 +248,15 @@ describe('useErrorHandler', () => {
   it('preserves function arguments when wrapping', async () => {
     const { result } = renderHook(() => useErrorHandler())
 
-    const asyncFunction = async (a: number, b: number) => {
+    const asyncFunction = async (a: number, b: number): Promise<number> => {
       return a + b
     }
 
     let functionResult
 
     await act(async () => {
-      functionResult = await result.current.handleError(asyncFunction)(5, 3)
+      const wrappedFn = result.current.handleError(asyncFunction)
+      functionResult = await wrappedFn(5, 3)
     })
 
     expect(functionResult).toBe(8)

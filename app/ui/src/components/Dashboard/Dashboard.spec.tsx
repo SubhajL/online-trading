@@ -69,6 +69,7 @@ describe('Dashboard', () => {
       asset: 'USDT',
       free: 10000,
       locked: 500,
+      total: 10500,
       venue: 'SPOT',
     },
   ]
@@ -190,9 +191,9 @@ describe('Dashboard', () => {
 
   it('calculates total balance from all venues', () => {
     const balances: Balance[] = [
-      { asset: 'USDT', free: 5000, locked: 500, venue: 'SPOT' },
-      { asset: 'USDT', free: 3000, locked: 200, venue: 'USD_M' },
-      { asset: 'BTC', free: 0.1, locked: 0, venue: 'SPOT', usdValue: 4200 },
+      { asset: 'USDT', free: 5000, locked: 500, total: 5500, venue: 'SPOT' },
+      { asset: 'USDT', free: 3000, locked: 200, total: 3200, venue: 'USD_M' },
+      { asset: 'BTC', free: 0.1, locked: 0, total: 0.1, venue: 'SPOT', usdValue: 4200 },
     ]
 
     const onSubmitOrder = vi.fn()
