@@ -667,7 +667,9 @@ def kline_to_candle(data: dict[str, Any], venue: str) -> Candle:
     )
 
 
-def rest_kline_to_candle(data: List[Any], symbol: str, timeframe: str, venue: str) -> Candle:
+def rest_kline_to_candle(
+    data: List[Any], symbol: str, timeframe: str, venue: str
+) -> Candle:
     """
     Convert Binance REST API kline array to Candle model.
 
