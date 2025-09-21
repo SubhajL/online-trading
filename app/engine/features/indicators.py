@@ -81,7 +81,9 @@ class TechnicalIndicatorsCalculator:
         for i in range(period - 1, len(values)):
             window = values[i - period + 1 : i + 1]
             avg = sum(window) / len(window)
-            sma_values.append(Decimal(str(avg)) if isinstance(avg, (int, float)) else avg)
+            sma_values.append(
+                Decimal(str(avg)) if isinstance(avg, (int, float)) else avg
+            )
 
         return sma_values
 
