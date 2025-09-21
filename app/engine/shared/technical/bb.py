@@ -8,10 +8,10 @@ import numpy as np
 
 
 def calculate_bollinger_bands(
-    prices: np.ndarray,  # type: ignore[type-arg]
+    prices: np.ndarray,
     period: int = 20,
     std_dev: float = 2.0,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:  # type: ignore[type-arg]
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate Bollinger Bands.
 
@@ -54,7 +54,7 @@ def calculate_bollinger_bands(
     return upper, middle, lower
 
 
-def calculate_sma(values: np.ndarray, period: int) -> np.ndarray:  # type: ignore[type-arg]
+def calculate_sma(values: np.ndarray, period: int) -> np.ndarray:
     """
     Calculate Simple Moving Average.
 
@@ -84,7 +84,7 @@ def calculate_sma(values: np.ndarray, period: int) -> np.ndarray:  # type: ignor
     return sma
 
 
-def calculate_rolling_std(values: np.ndarray, period: int) -> np.ndarray:  # type: ignore[type-arg]
+def calculate_rolling_std(values: np.ndarray, period: int) -> np.ndarray:
     """
     Calculate rolling standard deviation.
 

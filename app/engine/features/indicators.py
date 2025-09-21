@@ -46,7 +46,7 @@ class TechnicalIndicatorsCalculator:
         prices = np.array([float(v) for v in values])
 
         # Calculate EMA
-        ema_values = []
+        ema_values: list[Decimal | None] = []
         multiplier = 2 / (period + 1)
 
         # Initialize with SMA for the first value
@@ -76,12 +76,12 @@ class TechnicalIndicatorsCalculator:
         if len(values) < period:
             return [None] * len(values)
 
-        sma_values = [None] * (period - 1)
+        sma_values: list[Decimal | None] = [None] * (period - 1)
 
         for i in range(period - 1, len(values)):
             window = values[i - period + 1 : i + 1]
             avg = sum(window) / len(window)
-            sma_values.append(avg)
+            sma_values.append(Decimal(str(avg)) if isinstance(avg, (int, float)) else avg)
 
         return sma_values
 
@@ -113,13 +113,13 @@ class TechnicalIndicatorsCalculator:
         avg_gain = sum(gains[:period]) / period
         avg_loss = sum(losses[:period]) / period
 
-        rsi_values = [None] * period
+        rsi_values: list[Decimal | None] = [None] * period
 
         # Calculate RSI values
         for i in range(period, len(gains)):
             # Smoothed averages (Wilder's method)
-            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+            avg_gain = (avg_gain * Decimal(period - 1) + gains[i]) / Decimal(period)
+            avg_loss = (avg_loss * Decimal(period - 1) + losses[i]) / Decimal(period)
 
             if avg_loss == 0:
                 rsi = Decimal(100)
@@ -155,7 +155,7 @@ class TechnicalIndicatorsCalculator:
             Tuple of (MACD line, Signal line, Histogram)
         """
         if len(values) < slow_period:
-            none_list = [None] * len(values)
+            none_list: list[Decimal | None] = [None] * len(values)
             return none_list, none_list, none_list
 
         # Calculate fast and slow EMAs
