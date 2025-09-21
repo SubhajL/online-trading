@@ -10,9 +10,7 @@ from typing import Optional
 
 
 def calculate_ema(
-    values: np.ndarray,
-    period: int,
-    smoothing: float = 2.0
+    values: np.ndarray, period: int, smoothing: float = 2.0
 ) -> np.ndarray:
     """
     Calculate Exponential Moving Average.
