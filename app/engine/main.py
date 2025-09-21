@@ -43,7 +43,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Global service instances
-services = {}
+services: Dict[str, Any] = {}
 
 
 # Request/Response Models
@@ -282,7 +282,9 @@ async def shutdown_services() -> None:
         for adapter_name in ["router", "redis", "database"]:
             if adapter_name in services:
                 try:
-                    await services[adapter_name].close()
+                    adapter = services[adapter_name]
+                    if hasattr(adapter, 'close'):
+                        await adapter.close()
                     logger.info(f"Closed {adapter_name}")
                 except Exception as e:
                     logger.error(f"Error closing {adapter_name}: {e}")
@@ -340,7 +342,7 @@ async def simple_health_check() -> Dict[str, Any]:
 
 
 @app.get("/metrics", response_model=MetricsResponse)
-async def get_metrics() -> None:
+async def get_metrics() -> MetricsResponse:
     """Get detailed metrics from all services"""
     try:
         metrics = {}
