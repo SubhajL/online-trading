@@ -120,8 +120,12 @@ class TechnicalIndicatorsCalculator:
         # Calculate RSI values
         for i in range(period, len(gains)):
             # Smoothed averages (Wilder's method)
-            avg_gain = (avg_gain * Decimal(str(period - 1)) + gains[i]) / Decimal(str(period))
-            avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(str(period))
+            avg_gain = (avg_gain * Decimal(str(period - 1)) + gains[i]) / Decimal(
+                str(period)
+            )
+            avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(
+                str(period)
+            )
 
             if avg_loss == 0:
                 rsi = Decimal(100)
@@ -242,7 +246,9 @@ class TechnicalIndicatorsCalculator:
         for i in range(period, len(true_ranges)):
             prev_atr = atr_values[-1]
             if prev_atr is not None:
-                atr = (prev_atr * Decimal(str(period - 1)) + true_ranges[i]) / Decimal(str(period))
+                atr = (prev_atr * Decimal(str(period - 1)) + true_ranges[i]) / Decimal(
+                    str(period)
+                )
                 atr_values.append(atr)
             else:
                 atr_values.append(None)
