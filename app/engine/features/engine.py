@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from datetime import datetime
 from decimal import Decimal
 import logging
+from typing import Any, cast
 
 import numpy as np
 
@@ -17,6 +18,7 @@ from ..bus import get_event_bus
 from ..models import (
     BaseEvent,
     Candle,
+    CandleUpdateEvent,
     EventType,
     FeaturesCalculatedEvent,
     TechnicalIndicators,
@@ -128,8 +130,9 @@ class FeatureEngine:
             if event.event_type != EventType.CANDLE_UPDATE:
                 return
 
-            candle = event.candle
-            await self.process_candle(candle)
+            # Cast to CandleUpdateEvent to access candle attribute
+            candle_event = cast(CandleUpdateEvent, event)
+            await self.process_candle(candle_event.candle)
 
         except Exception as e:
             logger.error(f"Error handling candle event: {e}", exc_info=True)
@@ -411,9 +414,9 @@ class FeatureEngine:
         except Exception as e:
             logger.error(f"Error processing historical candles: {e}", exc_info=True)
 
-    def get_buffer_stats(self) -> dict:
+    def get_buffer_stats(self) -> dict[str, Any]:
         """Get statistics about the feature engine"""
-        stats = {
+        stats: dict[str, Any] = {
             "buffer_stats": {},
             "calculations_performed": self._calculations_performed,
             "db_writes": self._db_writes,

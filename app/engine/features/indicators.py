@@ -112,16 +112,16 @@ class TechnicalIndicatorsCalculator:
         losses = [abs(min(delta, Decimal(0))) for delta in deltas]
 
         # Calculate initial averages
-        avg_gain = sum(gains[:period]) / period
-        avg_loss = sum(losses[:period]) / period
+        avg_gain = Decimal(str(sum(gains[:period]) / period))
+        avg_loss = Decimal(str(sum(losses[:period]) / period))
 
         rsi_values: list[Decimal | None] = [None] * period
 
         # Calculate RSI values
         for i in range(period, len(gains)):
             # Smoothed averages (Wilder's method)
-            avg_gain = (avg_gain * Decimal(period - 1) + gains[i]) / Decimal(period)
-            avg_loss = (avg_loss * Decimal(period - 1) + losses[i]) / Decimal(period)
+            avg_gain = (avg_gain * Decimal(str(period - 1)) + gains[i]) / Decimal(str(period))
+            avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(str(period))
 
             if avg_loss == 0:
                 rsi = Decimal(100)
@@ -158,14 +158,14 @@ class TechnicalIndicatorsCalculator:
         """
         if len(values) < slow_period:
             none_list: list[Decimal | None] = [None] * len(values)
-            return none_list, none_list, none_list
+            return none_list, none_list.copy(), none_list.copy()
 
         # Calculate fast and slow EMAs
         fast_ema = TechnicalIndicatorsCalculator.ema(values, fast_period)
         slow_ema = TechnicalIndicatorsCalculator.ema(values, slow_period)
 
         # Calculate MACD line
-        macd_line = []
+        macd_line: list[Decimal | None] = []
         for i in range(len(values)):
             if fast_ema[i] is not None and slow_ema[i] is not None:
                 macd_line.append(fast_ema[i] - slow_ema[i])
@@ -175,8 +175,8 @@ class TechnicalIndicatorsCalculator:
         # Calculate signal line (EMA of MACD line)
         macd_values_for_signal = [v for v in macd_line if v is not None]
         if len(macd_values_for_signal) < signal_period:
-            signal_line = [None] * len(values)
-            histogram = [None] * len(values)
+            signal_line: list[Decimal | None] = [None] * len(values)
+            histogram: list[Decimal | None] = [None] * len(values)
         else:
             signal_ema = TechnicalIndicatorsCalculator.ema(
                 macd_values_for_signal,
@@ -232,16 +232,20 @@ class TechnicalIndicatorsCalculator:
             true_ranges.append(tr)
 
         # Calculate ATR using smoothed moving average
-        atr_values = [None] * (period - 1)
+        atr_values: list[Decimal | None] = [None] * (period - 1)
 
         # Initial ATR is simple average of first 'period' TRs
-        initial_atr = sum(true_ranges[:period]) / period
+        initial_atr = Decimal(str(sum(true_ranges[:period]) / period))
         atr_values.append(initial_atr)
 
         # Subsequent ATRs use Wilder's smoothing method
         for i in range(period, len(true_ranges)):
-            atr = (atr_values[-1] * (period - 1) + true_ranges[i]) / period
-            atr_values.append(atr)
+            prev_atr = atr_values[-1]
+            if prev_atr is not None:
+                atr = (prev_atr * Decimal(str(period - 1)) + true_ranges[i]) / Decimal(str(period))
+                atr_values.append(atr)
+            else:
+                atr_values.append(None)
 
         return atr_values
 
@@ -267,14 +271,14 @@ class TechnicalIndicatorsCalculator:
             Tuple of (Upper band, Middle band/SMA, Lower band)
         """
         if len(values) < period:
-            none_list = [None] * len(values)
-            return none_list, none_list, none_list
+            none_list: list[Decimal | None] = [None] * len(values)
+            return none_list.copy(), none_list.copy(), none_list.copy()
 
         # Calculate middle band (SMA)
         middle_band = TechnicalIndicatorsCalculator.sma(values, period)
 
-        upper_band = []
-        lower_band = []
+        upper_band: list[Decimal | None] = []
+        lower_band: list[Decimal | None] = []
 
         for i in range(len(values)):
             if middle_band[i] is None:
@@ -293,8 +297,13 @@ class TechnicalIndicatorsCalculator:
                 )
                 std = variance**0.5
 
-                upper_band.append(middle_band[i] + Decimal(str(std_dev * std)))
-                lower_band.append(middle_band[i] - Decimal(str(std_dev * std)))
+                mb_val = middle_band[i]
+                if mb_val is not None:
+                    upper_band.append(mb_val + Decimal(str(std_dev * std)))
+                    lower_band.append(mb_val - Decimal(str(std_dev * std)))
+                else:
+                    upper_band.append(None)
+                    lower_band.append(None)
 
         return upper_band, middle_band, lower_band
 
@@ -448,6 +457,9 @@ class TechnicalIndicatorsCalculator:
                     indicators.bb_lower,
                 ]
             ):
+                assert indicators.bb_upper is not None
+                assert indicators.bb_middle is not None
+                assert indicators.bb_lower is not None
                 indicators.bb_width = cls.bb_width(
                     indicators.bb_upper,
                     indicators.bb_lower,
