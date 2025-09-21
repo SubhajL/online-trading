@@ -7,7 +7,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Any, Optional, Tuple
 
 import asyncpg
 from asyncpg import Connection
@@ -55,7 +55,7 @@ class Migration:
 class MigrationRunner:
     """Manages database migrations."""
 
-    def __init__(self, pool: ConnectionPool, migrations_dir: Path):
+    def __init__(self, pool: ConnectionPool, migrations_dir: Path) -> None:
         self.pool = pool
         self.migrations_dir = migrations_dir
 

@@ -8,7 +8,7 @@ Uses pivot points and price action analysis to detect institutional trading zone
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict
+from typing import Any, List, Optional, Dict
 from uuid import uuid4
 
 from .pivot_detector import PivotDetector
@@ -69,13 +69,13 @@ class ZoneIdentifier:
         Identify supply and demand zones based on pivot points
 
         Args:
-            pivots: List of recent pivot points
+            pivots: List[Any] of recent pivot points
             recent_candles: Recent candle data for volume analysis
 
         Returns:
-            List of newly identified zones
+            List[Any] of newly identified zones
         """
-        new_zones = []
+        new_zones: List[SupplyDemandZone] = []
 
         try:
             # Group pivots by type
@@ -108,12 +108,12 @@ class ZoneIdentifier:
         Identify order blocks from candle patterns
 
         Args:
-            candles: List of recent candles
+            candles: List[Any] of recent candles
 
         Returns:
-            List of identified order blocks
+            List[Any] of identified order blocks
         """
-        new_zones = []
+        new_zones: List[SupplyDemandZone] = []
 
         try:
             if len(candles) < 3:
@@ -150,12 +150,12 @@ class ZoneIdentifier:
         Identify Fair Value Gaps (FVG) in price action
 
         Args:
-            candles: List of recent candles
+            candles: List[Any] of recent candles
 
         Returns:
-            List of identified FVGs
+            List[Any] of identified FVGs
         """
-        new_zones = []
+        new_zones: List[SupplyDemandZone] = []
 
         try:
             if len(candles) < 3:
@@ -438,7 +438,7 @@ class ZoneIdentifier:
                     interacting_volumes.append(candle.volume)
 
             return (
-                sum(interacting_volumes) / len(interacting_volumes)
+                Decimal(sum(interacting_volumes) / len(interacting_volumes))
                 if interacting_volumes
                 else Decimal("0")
             )
@@ -468,7 +468,7 @@ class ZoneIdentifier:
 
         return False
 
-    def _add_zone(self, zone: SupplyDemandZone):
+    def _add_zone(self, zone: SupplyDemandZone) -> None:
         """Add a zone to the appropriate collection"""
         zones = self._zones[zone.zone_type]
         zones.append(zone)
@@ -482,7 +482,7 @@ class ZoneIdentifier:
 
     def update_zone_tests(
         self, current_price: Decimal, symbol: str, timeframe: TimeFrame
-    ):
+    ) -> None:
         """Update zone touch counts and invalidate if necessary"""
         try:
             for zone_type, zones in self._zones.items():
@@ -555,7 +555,7 @@ class ZoneIdentifier:
 
     def clear_zones(
         self, symbol: Optional[str] = None, timeframe: Optional[TimeFrame] = None
-    ):
+    ) -> None:
         """Clear zones for specific symbol/timeframe or all zones"""
         if symbol is None and timeframe is None:
             # Clear all zones
@@ -577,7 +577,7 @@ class ZoneIdentifier:
 
         logger.info(f"Cleared zones for {symbol or 'ALL'} {timeframe or 'ALL'}")
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> Dict[str, Any]:
         """Get zone identification statistics"""
         total_active = sum(len(zones) for zones in self._zones.values())
 

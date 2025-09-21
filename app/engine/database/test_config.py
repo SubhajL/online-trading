@@ -4,7 +4,7 @@ from unittest import mock
 
 
 class TestDatabaseConfig:
-    def test_pool_config_from_env(self):
+    def test_pool_config_from_env(self) -> None:
         """Test database pool configuration from environment variables"""
         from app.engine.database.connection import get_pool_config
 
@@ -23,7 +23,7 @@ class TestDatabaseConfig:
             assert config["command_timeout"] == 60.0  # milliseconds to seconds
             assert config["timeout"] == 30.0  # connection timeout
 
-    def test_pool_config_defaults(self):
+    def test_pool_config_defaults(self) -> None:
         """Test default pool configuration when env vars not set"""
         from app.engine.database.connection import get_pool_config
 
@@ -35,7 +35,7 @@ class TestDatabaseConfig:
             assert config["command_timeout"] == 30.0  # 30 seconds default
             assert config["timeout"] == 60.0  # 60 seconds default
 
-    def test_database_isolation(self):
+    def test_database_isolation(self) -> None:
         """Test that test database uses separate connection"""
         from app.engine.database.test_utils import get_test_database_url
 
@@ -53,7 +53,7 @@ class TestDatabaseConfig:
             assert url == "postgresql://user:pass@localhost:5432/main_db_test"
             assert url != main_url
 
-    def test_migration_timeout_handling(self):
+    def test_migration_timeout_handling(self) -> None:
         """Test migration timeout configuration"""
         from app.engine.database.migrations import get_migration_config
 
@@ -70,7 +70,7 @@ class TestDatabaseConfig:
             assert config["batch_size"] == 500
             assert config["dry_run"] is True
 
-    def test_backup_before_migration(self):
+    def test_backup_before_migration(self) -> None:
         """Test backup creation before migration"""
         from app.engine.database.migrations import backup_before_migration
 
@@ -93,7 +93,7 @@ class TestDatabaseConfig:
                 mock_run.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_migration_metrics_exported(self):
+    async def test_migration_metrics_exported(self) -> None:
         """Test that migration metrics are properly exported"""
         from app.engine.database.migrations import (
             setup_migration_metrics,

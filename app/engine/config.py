@@ -3,7 +3,7 @@ Centralized configuration management with Pydantic validation.
 """
 
 import os
-from typing import Optional, Dict, Any
+from typing import Optio, Optional, Dict, Any
 from decimal import Decimal
 from pydantic import BaseModel, Field, validator, SecretStr
 from pydantic_settings import BaseSettings
@@ -18,13 +18,13 @@ class EventBusConfig(BaseModel):
     dead_letter_queue_size: int = Field(default=1000, gt=0)
 
     @validator("max_queue_size")
-    def validate_max_queue_size(cls, v):
+    def validate_max_queue_size(cls, v) -> None:
         if v <= 0:
             raise ValueError("max_queue_size must be positive")
         return v
 
     @validator("num_workers")
-    def validate_num_workers(cls, v):
+    def validate_num_workers(cls, v) -> None:
         if v <= 0:
             raise ValueError("num_workers must be positive")
         return v

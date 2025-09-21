@@ -181,7 +181,7 @@ class Span:
 class Tracer:
     """Creates and manages spans."""
 
-    def __init__(self, name: str, resource: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, resource: Optional[Dict[str, Any]] = None) -> None:
         self.name = name
         self.resource = resource or {}
         self._current_span: threading.local = threading.local()
@@ -317,7 +317,7 @@ class Tracer:
 class TracerProvider:
     """Manages tracers and span processors."""
 
-    def __init__(self, resource: Optional[Dict[str, Any]] = None):
+    def __init__(self, resource: Optional[Dict[str, Any]] = None) -> None:
         self.resource = resource or self._default_resource()
         self._tracers: Dict[str, Tracer] = {}
         self._processors: List["SpanProcessor"] = []
@@ -365,7 +365,7 @@ class SpanProcessor:
 class ConsoleSpanExporter(SpanProcessor):
     """Exports spans to console for debugging."""
 
-    def __init__(self, pretty_print: bool = True):
+    def __init__(self, pretty_print: bool = True) -> None:
         self.pretty_print = pretty_print
 
     def on_end(self, span: Span) -> None:
@@ -495,15 +495,15 @@ def get_tracer(name: str, version: Optional[str] = None) -> Tracer:
 
 
 # Convenience decorators
-def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL):
+def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL) -> None:
     """Decorator to trace a function."""
 
-    def decorator(func):
+    def decorator(func) -> None:
         span_name = name or f"{func.__module__}.{func.__name__}"
 
         if asyncio.iscoroutinefunction(func):
 
-            async def wrapper(*args, **kwargs):
+            async def wrapper(*args, **kwargs) -> None:
                 tracer = get_tracer(func.__module__)
                 async with tracer.start_as_current_span_async(
                     span_name, kind=kind
@@ -513,7 +513,7 @@ def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL):
 
         else:
 
-            def wrapper(*args, **kwargs):
+            def wrapper(*args, **kwargs) -> None:
                 tracer = get_tracer(func.__module__)
                 with tracer.start_as_current_span(span_name, kind=kind) as span:
                     span.set_attribute("function", func.__name__)

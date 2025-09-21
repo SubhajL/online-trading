@@ -82,7 +82,7 @@ class EventProcessor:
     with proper metrics tracking and circuit breaker protection.
     """
 
-    def __init__(self, config: Optional[EventProcessingConfig] = None):
+    def __init__(self, config: Optional[EventProcessingConfig] = None) -> None:
         """Initialize event processor with optional config."""
         self._config = config or EventProcessingConfig()
 
@@ -106,7 +106,7 @@ class EventProcessor:
 
         Args:
             event: The event to process
-            subscriptions: List of subscriptions to dispatch to
+            subscriptions: List[Any] of subscriptions to dispatch to
 
         Returns:
             Processing result with success/failure counts and errors

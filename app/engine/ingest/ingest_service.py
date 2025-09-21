@@ -8,7 +8,7 @@ Manages WebSocket connections and REST API calls.
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set
 
 from .binance_ws import BinanceWebSocketClient
 from .binance_rest import BinanceRestClient
@@ -33,7 +33,7 @@ class IngestService:
 
     def __init__(
         self,
-        binance_config: Dict,
+        binance_config: Dict[str, Any],
         symbols: List[str],
         timeframes: List[TimeFrame],
         backfill_days: int = 30,
@@ -71,7 +71,7 @@ class IngestService:
             f"and {len(timeframes)} timeframes"
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the ingestion service"""
         if self._running:
             logger.warning("IngestService is already running")
@@ -99,7 +99,7 @@ class IngestService:
             await self.stop()
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the ingestion service"""
         if not self._running:
             return
@@ -122,7 +122,7 @@ class IngestService:
 
         logger.info("IngestService stopped")
 
-    async def _setup_realtime_streams(self):
+    async def _setup_realtime_streams(self) -> None:
         """Setup real-time WebSocket streams"""
         try:
             # Subscribe to kline streams for all symbols and timeframes
@@ -137,7 +137,7 @@ class IngestService:
             logger.error(f"Error setting up real-time streams: {e}")
             raise
 
-    async def _start_backfill(self):
+    async def _start_backfill(self) -> None:
         """Start historical data backfill for all symbols and timeframes"""
         try:
             for symbol in self.symbols:
@@ -153,7 +153,7 @@ class IngestService:
             logger.error(f"Error starting backfill: {e}")
             raise
 
-    async def _backfill_symbol_timeframe(self, symbol: str, timeframe: TimeFrame):
+    async def _backfill_symbol_timeframe(self, symbol: str, timeframe: TimeFrame) -> None:
         """Backfill historical data for a specific symbol and timeframe"""
         try:
             logger.info(f"Starting backfill for {symbol} {timeframe.value}")
@@ -192,7 +192,7 @@ class IngestService:
         except Exception as e:
             logger.error(f"Error backfilling {symbol} {timeframe.value}: {e}")
 
-    async def add_symbol(self, symbol: str):
+    async def add_symbol(self, symbol: str) -> None:
         """Add a new symbol to ingestion"""
         if symbol in self.symbols:
             logger.warning(f"Symbol {symbol} already being tracked")
@@ -215,7 +215,7 @@ class IngestService:
 
         logger.info(f"Added symbol {symbol} to ingestion")
 
-    async def remove_symbol(self, symbol: str):
+    async def remove_symbol(self, symbol: str) -> None:
         """Remove a symbol from ingestion"""
         if symbol not in self.symbols:
             logger.warning(f"Symbol {symbol} not being tracked")
@@ -244,7 +244,7 @@ class IngestService:
 
         logger.info(f"Removed symbol {symbol} from ingestion")
 
-    async def add_timeframe(self, timeframe: TimeFrame):
+    async def add_timeframe(self, timeframe: TimeFrame) -> None:
         """Add a new timeframe to ingestion"""
         if timeframe in self.timeframes:
             logger.warning(f"Timeframe {timeframe.value} already being tracked")
@@ -272,7 +272,7 @@ class IngestService:
         """Get the latest candle for a symbol and timeframe"""
         return self._latest_candles.get(symbol, {}).get(timeframe)
 
-    async def get_gap_detection(self, symbol: str, timeframe: TimeFrame) -> List[Dict]:
+    async def get_gap_detection(self, symbol: str, timeframe: TimeFrame) -> List[Dict[str, Any]]:
         """Detect gaps in historical data"""
         # This would implement gap detection logic
         # For now, return empty list
@@ -283,7 +283,7 @@ class IngestService:
 
         return gaps
 
-    async def fill_gaps(self, symbol: str, timeframe: TimeFrame, gaps: List[Dict]):
+    async def fill_gaps(self, symbol: str, timeframe: TimeFrame, gaps: List[Dict[str, Any]]) -> None:
         """Fill detected gaps in historical data"""
         for gap in gaps:
             try:

@@ -33,7 +33,7 @@ class TestEvent(BaseEvent):
 
 class TestObservabilityIntegration:
     @pytest.mark.asyncio
-    async def test_eventbus_with_full_observability(self):
+    async def test_eventbus_with_full_observability(self) -> None:
         """Test EventBus with complete observability setup."""
         # Initialize observability
         observability = init_observability(
@@ -119,7 +119,7 @@ class TestObservabilityIntegration:
         observability.shutdown()
 
     @pytest.mark.asyncio
-    async def test_eventbus_error_tracking(self):
+    async def test_eventbus_error_tracking(self) -> None:
         """Test error tracking in EventBus with observability."""
         observability = ObservabilityManager(
             service_name="error-test", enable_metrics=True, enable_tracing=True
@@ -172,7 +172,7 @@ class TestObservabilityIntegration:
         observability.shutdown()
 
     @pytest.mark.asyncio
-    async def test_eventbus_performance_monitoring(self):
+    async def test_eventbus_performance_monitoring(self) -> None:
         """Test performance monitoring of EventBus operations."""
         observability = ObservabilityManager(
             service_name="performance-test", enable_metrics=True, enable_tracing=True
@@ -229,7 +229,7 @@ class TestObservabilityIntegration:
         observability.shutdown()
 
     @pytest.mark.asyncio
-    async def test_eventbus_queue_health_monitoring(self):
+    async def test_eventbus_queue_health_monitoring(self) -> None:
         """Test queue health monitoring under load."""
         observability = ObservabilityManager(service_name="queue-health-test")
 
@@ -281,7 +281,7 @@ class TestObservabilityIntegration:
         observability.shutdown()
 
     @pytest.mark.asyncio
-    async def test_distributed_tracing_across_handlers(self):
+    async def test_distributed_tracing_across_handlers(self) -> None:
         """Test tracing context propagation across event handlers."""
         tracer = get_tracer("distributed-test")
 
@@ -348,7 +348,7 @@ class TestObservabilityIntegration:
         await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_observability_with_circuit_breaker(self):
+    async def test_observability_with_circuit_breaker(self) -> None:
         """Test observability with circuit breaker patterns."""
         observability = ObservabilityManager(service_name="circuit-breaker-test")
 
@@ -402,7 +402,7 @@ class TestObservabilityIntegration:
         observability.shutdown()
 
     @pytest.mark.asyncio
-    async def test_metrics_export_formats(self):
+    async def test_metrics_export_formats(self) -> None:
         """Test different metric export formats."""
         observability = ObservabilityManager(
             service_name="export-test", enable_metrics=True

@@ -76,7 +76,7 @@ class RedisAdapter:
 
         logger.info(f"RedisAdapter configured for {host}:{port}/{database}")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize Redis connection"""
         if self._initialized:
             return
@@ -115,7 +115,7 @@ class RedisAdapter:
             logger.error(f"Error initializing Redis adapter: {e}")
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Close Redis connection"""
         if self._pubsub:
             await self._pubsub.close()
@@ -128,7 +128,7 @@ class RedisAdapter:
         self._initialized = False
         logger.info("Redis adapter closed")
 
-    def _ensure_connected(self):
+    def _ensure_connected(self) -> None:
         """Ensure Redis is connected"""
         if not self._initialized or not self._redis:
             raise RuntimeError("Redis not initialized")
@@ -136,7 +136,7 @@ class RedisAdapter:
     def _serialize_value(self, value: Any) -> str:
         """Serialize value to JSON string with Decimal support"""
 
-        def decimal_encoder(obj):
+        def decimal_encoder(obj: Any) -> str:
             if isinstance(obj, Decimal):
                 return str(obj)
             elif isinstance(obj, datetime):
@@ -171,8 +171,10 @@ class RedisAdapter:
             serialized_value = self._serialize_value(value)
 
             if expire:
+                assert self._redis is not None
                 result = await self._redis.setex(redis_key, expire, serialized_value)
             else:
+                assert self._redis is not None
                 result = await self._redis.set(redis_key, serialized_value)
 
             return bool(result)
@@ -187,6 +189,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, key)
+            assert self._redis is not None
             value = await self._redis.get(redis_key)
 
             if value is None:
@@ -206,6 +209,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, key)
+            assert self._redis is not None
             result = await self._redis.delete(redis_key)
             return bool(result)
 
@@ -219,6 +223,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, key)
+            assert self._redis is not None
             result = await self._redis.exists(redis_key)
             return bool(result)
 
@@ -232,6 +237,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, key)
+            assert self._redis is not None
             result = await self._redis.expire(redis_key, seconds)
             return bool(result)
 
@@ -252,6 +258,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             serialized_value = self._serialize_value(value)
+            assert self._redis is not None
             result = await self._redis.hset(redis_key, field, serialized_value)
             return bool(result)
 
@@ -267,6 +274,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, hash_key)
+            assert self._redis is not None
             value = await self._redis.hget(redis_key, field)
 
             if value is None:
@@ -286,6 +294,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, hash_key)
+            assert self._redis is not None
             result = await self._redis.hgetall(redis_key)
 
             if not result:
@@ -310,6 +319,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, hash_key)
+            assert self._redis is not None
             result = await self._redis.hdel(redis_key, field)
             return bool(result)
 
@@ -318,7 +328,7 @@ class RedisAdapter:
             return False
 
     # ============================================================================
-    # List Operations
+    # List[Any] Operations
     # ============================================================================
 
     async def lpush(self, list_key: str, value: Any, prefix: str = "cache") -> int:
@@ -328,6 +338,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, list_key)
             serialized_value = self._serialize_value(value)
+            assert self._redis is not None
             result = await self._redis.lpush(redis_key, serialized_value)
             return int(result)
 
@@ -342,6 +353,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, list_key)
             serialized_value = self._serialize_value(value)
+            assert self._redis is not None
             result = await self._redis.rpush(redis_key, serialized_value)
             return int(result)
 
@@ -355,6 +367,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, list_key)
+            assert self._redis is not None
             value = await self._redis.lpop(redis_key)
 
             if value is None:
@@ -376,9 +389,10 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, list_key)
+            assert self._redis is not None
             values = await self._redis.lrange(redis_key, start, end)
 
-            result = []
+            result: list[Any] = []
             for value in values:
                 value_str = value.decode() if isinstance(value, bytes) else value
                 result.append(self._deserialize_value(value_str))
@@ -397,6 +411,7 @@ class RedisAdapter:
 
         try:
             redis_key = self._build_key(prefix, list_key)
+            assert self._redis is not None
             result = await self._redis.ltrim(redis_key, start, end)
             return bool(result)
 
@@ -546,6 +561,7 @@ class RedisAdapter:
 
         try:
             serialized_message = self._serialize_value(message)
+            assert self._redis is not None
             result = await self._redis.publish(channel, serialized_message)
             return int(result)
 
@@ -553,22 +569,22 @@ class RedisAdapter:
             logger.error(f"Error publishing to channel {channel}: {e}")
             return 0
 
-    async def subscribe(self, *channels: str):
+    async def subscribe(self, *channels: str) -> None:
         """Subscribe to channels"""
         self._ensure_connected()
 
         try:
             if not self._pubsub:
+                assert self._redis is not None
                 self._pubsub = self._redis.pubsub()
 
             await self._pubsub.subscribe(*channels)
-            return self._pubsub
 
         except Exception as e:
             logger.error(f"Error subscribing to channels {channels}: {e}")
             return None
 
-    async def unsubscribe(self, *channels: str):
+    async def unsubscribe(self, *channels: str) -> None:
         """Unsubscribe from channels"""
         if self._pubsub:
             try:
@@ -588,7 +604,7 @@ class RedisAdapter:
             redis_keys = [self._build_key(prefix, key) for key in keys]
             values = await self._redis.mget(*redis_keys)
 
-            result = []
+            result: list[Any] = []
             for value in values:
                 if value is None:
                     result.append(None)
@@ -637,6 +653,7 @@ class RedisAdapter:
             info = await self._redis.info()
 
             # Get database size
+            assert self._redis is not None
             dbsize = await self._redis.dbsize()
 
             return {
@@ -662,6 +679,7 @@ class RedisAdapter:
         """Get count of keys matching pattern"""
         try:
             self._ensure_connected()
+            assert self._redis is not None
             keys = await self._redis.keys(pattern)
             return len(keys)
 
@@ -676,12 +694,14 @@ class RedisAdapter:
 
             if prefix:
                 pattern = self._build_key(prefix, "*")
+                assert self._redis is not None
                 keys = await self._redis.keys(pattern)
                 if keys:
                     return await self._redis.delete(*keys)
                 return 0
             else:
                 # Clear entire database
+                assert self._redis is not None
                 result = await self._redis.flushdb()
                 return 1 if result else 0
 
@@ -693,11 +713,11 @@ class RedisAdapter:
     # Context Manager Support
     # ============================================================================
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "RedisAdapter":
         """Async context manager entry"""
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
         """Async context manager exit"""
         await self.close()

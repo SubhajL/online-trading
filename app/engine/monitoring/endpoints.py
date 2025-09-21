@@ -12,20 +12,20 @@ def create_health_endpoints(
     router = APIRouter(prefix="/health", tags=["health"])
 
     @router.get("/")
-    async def health_check():
+    async def health_check() -> None:
         """Basic health check endpoint"""
         return {"status": "healthy"}
 
     @router.get("/live")
     @router.get("/liveness")
-    async def liveness_check():
+    async def liveness_check() -> None:
         """Kubernetes liveness probe endpoint"""
         # Liveness just checks if the process is alive
         return {"status": "alive"}
 
     @router.get("/ready")
     @router.get("/readiness")
-    async def readiness_check(response: Response):
+    async def readiness_check(response: Response) -> None:
         """Kubernetes readiness probe endpoint"""
         if not readiness_checker:
             # If no readiness checker configured, assume ready
@@ -39,7 +39,7 @@ def create_health_endpoints(
         return result
 
     @router.get("/status")
-    async def detailed_health_status(response: Response):
+    async def detailed_health_status(response: Response) -> None:
         """Detailed health status of all components"""
         if not health_checker:
             return {"status": "unknown", "message": "Health checker not configured"}
@@ -55,7 +55,7 @@ def create_health_endpoints(
         return health
 
     @router.post("/check")
-    async def run_health_checks():
+    async def run_health_checks() -> None:
         """Manually trigger all health checks"""
         if not health_checker:
             return {"status": "error", "message": "Health checker not configured"}
@@ -70,7 +70,7 @@ def create_metrics_endpoints() -> APIRouter:
     router = APIRouter(prefix="/metrics", tags=["metrics"])
 
     @router.get("/")
-    async def prometheus_metrics():
+    async def prometheus_metrics() -> None:
         """Prometheus metrics endpoint"""
         # This would be implemented with actual Prometheus client
         # For now, return basic metrics format
@@ -113,7 +113,7 @@ def create_metrics_endpoints() -> APIRouter:
     return router
 
 
-def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus):
+def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus) -> None:
     """Setup health monitoring for the application"""
     from app.engine.monitoring.health import (
         HealthConfig,
@@ -126,13 +126,13 @@ def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus):
     health_checker = HealthChecker(config)
 
     # Register components with custom checks
-    async def check_db():
+    async def check_db() -> None:
         return await health_checker.check_database(database_url)
 
-    async def check_redis():
+    async def check_redis() -> None:
         return await health_checker.check_redis(redis_url)
 
-    async def check_bus():
+    async def check_bus() -> None:
         return await health_checker.check_event_bus(event_bus)
 
     health_checker.register_component("database", check_db)
@@ -142,14 +142,14 @@ def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus):
     # Create readiness checker
     readiness_checker = ReadinessChecker()
 
-    async def db_ready():
+    async def db_ready() -> None:
         try:
             result = await check_db()
             return result.status != "unhealthy"
         except:
             return False
 
-    async def redis_ready():
+    async def redis_ready() -> None:
         try:
             result = await check_redis()
             return result.status != "unhealthy"
@@ -170,11 +170,11 @@ def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus):
 
     # Start monitoring on app startup
     @app.on_event("startup")
-    async def start_health_monitoring():
+    async def start_health_monitoring() -> None:
         await health_checker.start_monitoring()
 
     @app.on_event("shutdown")
-    async def stop_health_monitoring():
+    async def stop_health_monitoring() -> None:
         await health_checker.stop_monitoring()
 
     return health_checker, readiness_checker

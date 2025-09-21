@@ -8,7 +8,7 @@ Implements position sizing, risk limits, correlation checks, and drawdown contro
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 
 from ..models import (
@@ -64,13 +64,13 @@ class RiskManager:
     - Time-based risk controls
     """
 
-    def __init__(self, risk_parameters: RiskParameters):
+    def __init__(self, risk_parameters: RiskParameters) -> None:
         self.risk_params = risk_parameters
 
         # Track positions and P&L
         self._positions: Dict[str, Position] = {}
         self._daily_pnl: Dict[str, Decimal] = {}  # date -> pnl
-        self._trade_history: List[Dict] = []
+        self._trade_history: List[Dict[str, Any]] = []
 
         # Risk metrics
         self._max_drawdown = Decimal("0")
@@ -167,7 +167,7 @@ class RiskManager:
         Args:
             decision: Trading decision to evaluate
             account_balance: Current account balance
-            current_positions: List of current positions
+            current_positions: List[Any] of current positions
 
         Returns:
             RiskCheckResult with approval status and details
@@ -303,7 +303,7 @@ class RiskManager:
                 reasons=[f"Risk check error: {str(e)}"],
             )
 
-    def update_position(self, position: Position):
+    def update_position(self, position: Position) -> None:
         """Update position tracking for risk calculations"""
         try:
             self._positions[position.symbol] = position
@@ -321,7 +321,7 @@ class RiskManager:
         except Exception as e:
             logger.error(f"Error updating position: {e}")
 
-    def add_trade_result(self, symbol: str, pnl: Decimal, trade_data: Dict):
+    def add_trade_result(self, symbol: str, pnl: Decimal, trade_data: Dict[str, Any]) -> None:
         """Add completed trade result for analysis"""
         try:
             trade_record = {
@@ -486,7 +486,7 @@ class RiskManager:
                 true_ranges.append(true_range)
 
             if true_ranges:
-                return sum(true_ranges) / len(true_ranges)
+                return Decimal(sum(true_ranges) / len(true_ranges))
             else:
                 return Decimal("0")
 
@@ -494,7 +494,7 @@ class RiskManager:
             logger.error(f"Error calculating volatility: {e}")
             return Decimal("0")
 
-    def get_risk_metrics(self) -> Dict:
+    def get_risk_metrics(self) -> Dict[str, Any]:
         """Get current risk metrics and statistics"""
         try:
             today = datetime.utcnow().date().isoformat()
@@ -530,7 +530,7 @@ class RiskManager:
             logger.error(f"Error getting risk metrics: {e}")
             return {}
 
-    def reset_daily_limits(self):
+    def reset_daily_limits(self) -> None:
         """Reset daily limits (call at start of new trading day)"""
         try:
             today = datetime.utcnow().date().isoformat()
@@ -540,7 +540,7 @@ class RiskManager:
         except Exception as e:
             logger.error(f"Error resetting daily limits: {e}")
 
-    def update_risk_parameters(self, new_params: RiskParameters):
+    def update_risk_parameters(self, new_params: RiskParameters) -> None:
         """Update risk parameters"""
         try:
             self.risk_params = new_params

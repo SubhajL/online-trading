@@ -27,7 +27,7 @@ from app.engine.core.memory_pool import (
 class TestCreatePool:
     """Tests for pool creation."""
 
-    def test_create_pool_initialization(self):
+    def test_create_pool_initialization(self) -> None:
         """Pool allocates arrays with correct shape/dtype."""
         pool = create_pool(shape=(100, 10), dtype=np.float64, capacity=5)
 
@@ -37,7 +37,7 @@ class TestCreatePool:
         assert len(pool.free) == 5
         assert len(pool.used) == 0
 
-    def test_create_pool_different_dtypes(self):
+    def test_create_pool_different_dtypes(self) -> None:
         """Pool supports different numpy dtypes."""
         int_pool = create_pool(shape=(50,), dtype=np.int32, capacity=3)
         float_pool = create_pool(shape=(50,), dtype=np.float32, capacity=3)
@@ -45,7 +45,7 @@ class TestCreatePool:
         assert int_pool.dtype == np.int32
         assert float_pool.dtype == np.float32
 
-    def test_create_pool_validation(self):
+    def test_create_pool_validation(self) -> None:
         """Pool creation validates parameters."""
         with pytest.raises(ValueError):
             create_pool(shape=(100,), dtype=np.float64, capacity=0)
@@ -57,7 +57,7 @@ class TestCreatePool:
 class TestAcquireRelease:
     """Tests for array acquisition and release."""
 
-    def test_acquire_from_pool(self):
+    def test_acquire_from_pool(self) -> None:
         """Returns array from pool when available."""
         pool = create_pool(shape=(10, 5), dtype=np.float32, capacity=3)
 
@@ -70,7 +70,7 @@ class TestAcquireRelease:
         assert len(pool.free) == 2
         assert len(pool.used) == 1
 
-    def test_acquire_pool_exhausted(self):
+    def test_acquire_pool_exhausted(self) -> None:
         """Allocates new array when pool empty."""
         pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
 
@@ -88,7 +88,7 @@ class TestAcquireRelease:
         assert len(pool.used) == 3
         assert pool.stats.allocations == 1  # One new allocation
 
-    def test_release_returns_to_pool(self):
+    def test_release_returns_to_pool(self) -> None:
         """Released arrays available for reacquisition."""
         pool = create_pool(shape=(5, 5), dtype=np.int32, capacity=2)
 
@@ -104,7 +104,7 @@ class TestAcquireRelease:
         arr2 = acquire(pool)
         assert id(arr2._array) == original_id
 
-    def test_release_validates_array_integrity(self):
+    def test_release_validates_array_integrity(self) -> None:
         """Detects corrupted arrays via checksum."""
         pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
 
@@ -114,7 +114,7 @@ class TestAcquireRelease:
         with pytest.raises(ArrayCorruptedError):
             release(array)
 
-    def test_release_zeros_array(self):
+    def test_release_zeros_array(self) -> None:
         """Released arrays are properly zeroed."""
         pool = create_pool(shape=(5,), dtype=np.float64, capacity=2)
 
@@ -131,7 +131,7 @@ class TestAcquireRelease:
 class TestPoolStats:
     """Tests for pool statistics tracking."""
 
-    def test_pool_stats_tracking(self):
+    def test_pool_stats_tracking(self) -> None:
         """Accurately tracks utilization and hit rate."""
         pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
 
@@ -155,7 +155,7 @@ class TestPoolStats:
         assert stats.hit_rate == 2 / 3  # 2 hits, 1 miss
         assert stats.allocations == 1
 
-    def test_pool_stats_memory_usage(self):
+    def test_pool_stats_memory_usage(self) -> None:
         """Tracks memory usage accurately."""
         pool = create_pool(shape=(1000, 100), dtype=np.float64, capacity=5)
 
@@ -163,7 +163,7 @@ class TestPoolStats:
         expected_memory = 1000 * 100 * 8 * 5  # shape * dtype_size * capacity
         assert stats.memory_bytes == expected_memory
 
-    def test_pool_stats_average_hold_time(self):
+    def test_pool_stats_average_hold_time(self) -> None:
         """Tracks average array hold time."""
         pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
 
@@ -179,7 +179,7 @@ class TestPoolStats:
 class TestTrimPool:
     """Tests for pool trimming."""
 
-    def test_trim_pool_lru_eviction(self):
+    def test_trim_pool_lru_eviction(self) -> None:
         """Removes least recently used arrays."""
         pool = create_pool(shape=(10,), dtype=np.float64, capacity=3)
 
@@ -196,7 +196,7 @@ class TestTrimPool:
         assert freed == 2
         assert len(pool.free) == 3
 
-    def test_trim_pool_no_trim_needed(self):
+    def test_trim_pool_no_trim_needed(self) -> None:
         """Does nothing when pool within target."""
         pool = create_pool(shape=(10,), dtype=np.float64, capacity=3)
 
@@ -205,7 +205,7 @@ class TestTrimPool:
         assert freed == 0
         assert len(pool.free) == 3
 
-    def test_trim_pool_minimum_size(self):
+    def test_trim_pool_minimum_size(self) -> None:
         """Maintains minimum pool size."""
         pool = create_pool(shape=(10,), dtype=np.float64, capacity=5)
 
@@ -218,12 +218,12 @@ class TestTrimPool:
 class TestConcurrency:
     """Tests for thread safety."""
 
-    def test_concurrent_acquire_release(self):
+    def test_concurrent_acquire_release(self) -> None:
         """Thread-safe under concurrent access."""
         pool = create_pool(shape=(100,), dtype=np.float64, capacity=10)
         errors = []
 
-        def worker():
+        def worker() -> None:
             try:
                 for _ in range(100):
                     arr = acquire(pool)
@@ -242,7 +242,7 @@ class TestConcurrency:
         assert len(errors) == 0
         assert len(pool.used) == 0  # All released
 
-    def test_memory_leak_detection(self):
+    def test_memory_leak_detection(self) -> None:
         """Identifies arrays held too long."""
         pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
         pool.max_hold_seconds = 0.1

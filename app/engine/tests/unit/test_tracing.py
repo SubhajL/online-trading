@@ -31,7 +31,7 @@ from app.engine.core.tracing import (
 
 
 class TestSpanContext:
-    def test_span_context_creation(self):
+    def test_span_context_creation(self) -> None:
         context = SpanContext(trace_id="trace123", span_id="span456", trace_flags=1)
 
         assert context.trace_id == "trace123"
@@ -39,7 +39,7 @@ class TestSpanContext:
         assert context.trace_flags == 1
         assert context.is_remote is False
 
-    def test_span_context_validity(self):
+    def test_span_context_validity(self) -> None:
         valid_context = SpanContext("trace123", "span456")
         assert valid_context.is_valid() is True
 
@@ -48,7 +48,7 @@ class TestSpanContext:
 
 
 class TestSpan:
-    def test_span_creation(self):
+    def test_span_creation(self) -> None:
         context = SpanContext("trace123", "span456")
         span = Span(name="test_span", context=context, kind=SpanKind.INTERNAL)
 
@@ -59,7 +59,7 @@ class TestSpan:
         assert span.start_time > 0
         assert span.end_time is None
 
-    def test_span_attributes(self):
+    def test_span_attributes(self) -> None:
         context = SpanContext("trace123", "span456")
         span = Span("test", context)
 
@@ -70,7 +70,7 @@ class TestSpan:
         assert span.attributes["key2"] == "value2"
         assert span.attributes["key3"] == 123
 
-    def test_span_events(self):
+    def test_span_events(self) -> None:
         context = SpanContext("trace123", "span456")
         span = Span("test", context)
 
@@ -82,7 +82,7 @@ class TestSpan:
         assert span.events[1].name == "event2"
         assert span.events[1].attributes["attr"] == "value"
 
-    def test_span_status(self):
+    def test_span_status(self) -> None:
         context = SpanContext("trace123", "span456")
         span = Span("test", context)
 
@@ -95,7 +95,7 @@ class TestSpan:
         assert span.status.code == StatusCode.ERROR
         assert span.status.message == "Error message"
 
-    def test_span_exception_recording(self):
+    def test_span_exception_recording(self) -> None:
         context = SpanContext("trace123", "span456")
         span = Span("test", context)
 
@@ -108,7 +108,7 @@ class TestSpan:
         assert span.events[0].name == "exception"
         assert span.events[0].attributes["exception.type"] == "ValueError"
 
-    def test_span_lifecycle(self):
+    def test_span_lifecycle(self) -> None:
         context = SpanContext("trace123", "span456")
         span = Span("test", context)
 
@@ -121,7 +121,7 @@ class TestSpan:
         assert span.end_time is not None
         assert span.get_duration() > 0
 
-    def test_span_to_dict(self):
+    def test_span_to_dict(self) -> None:
         context = SpanContext("trace123", "span456")
         span = Span(
             name="test",
@@ -144,14 +144,14 @@ class TestSpan:
 
 
 class TestTracer:
-    def test_tracer_creation(self):
+    def test_tracer_creation(self) -> None:
         tracer = Tracer("test_tracer")
 
         assert tracer.name == "test_tracer"
         assert tracer.resource == {}
         assert tracer.get_current_span() is None
 
-    def test_start_span(self):
+    def test_start_span(self) -> None:
         tracer = Tracer("test_tracer")
 
         span = tracer.start_span(
@@ -164,7 +164,7 @@ class TestTracer:
         assert span.context.trace_id
         assert span.context.span_id
 
-    def test_span_parent_child_relationship(self):
+    def test_span_parent_child_relationship(self) -> None:
         tracer = Tracer("test_tracer")
 
         parent = tracer.start_span("parent")
@@ -174,7 +174,7 @@ class TestTracer:
         assert child.context.trace_id == parent.context.trace_id
         assert child.context.span_id != parent.context.span_id
 
-    def test_start_as_current_span(self):
+    def test_start_as_current_span(self) -> None:
         tracer = Tracer("test_tracer")
 
         assert tracer.get_current_span() is None
@@ -186,7 +186,7 @@ class TestTracer:
         assert tracer.get_current_span() is None
         assert span.end_time is not None
 
-    def test_nested_spans(self):
+    def test_nested_spans(self) -> None:
         tracer = Tracer("test_tracer")
 
         with tracer.start_as_current_span("parent") as parent_span:
@@ -198,7 +198,7 @@ class TestTracer:
 
             assert tracer.get_current_span() == parent_span
 
-    def test_exception_in_span(self):
+    def test_exception_in_span(self) -> None:
         tracer = Tracer("test_tracer")
 
         with pytest.raises(ValueError):
@@ -209,7 +209,7 @@ class TestTracer:
         assert "ValueError" in span.events[0].attributes["exception.type"]
 
     @pytest.mark.asyncio
-    async def test_async_span_context_manager(self):
+    async def test_async_span_context_manager(self) -> None:
         tracer = Tracer("test_tracer")
 
         async with tracer.start_as_current_span_async("async_op") as span:
@@ -219,7 +219,7 @@ class TestTracer:
         assert tracer.get_current_span() is None
         assert span.end_time is not None
 
-    def test_finished_spans_tracking(self):
+    def test_finished_spans_tracking(self) -> None:
         tracer = Tracer("test_tracer")
 
         span1 = tracer.start_span("span1")
@@ -238,13 +238,13 @@ class TestTracer:
 
 
 class TestTracerProvider:
-    def test_tracer_provider_creation(self):
+    def test_tracer_provider_creation(self) -> None:
         provider = TracerProvider()
 
         assert provider.resource["service.name"] == "event-bus"
         assert len(provider._tracers) == 0
 
-    def test_get_tracer(self):
+    def test_get_tracer(self) -> None:
         provider = TracerProvider()
 
         tracer1 = provider.get_tracer("tracer1")
@@ -255,7 +255,7 @@ class TestTracerProvider:
         assert tracer2.name == "tracer2"
         assert tracer1 is tracer1_again
 
-    def test_add_span_processor(self):
+    def test_add_span_processor(self) -> None:
         provider = TracerProvider()
         processor = Mock(spec=SpanProcessor)
 
@@ -265,7 +265,7 @@ class TestTracerProvider:
 
 
 class TestSpanExporters:
-    def test_console_span_exporter(self):
+    def test_console_span_exporter(self) -> None:
         exporter = ConsoleSpanExporter(pretty_print=False)
 
         context = SpanContext("trace123", "span456")
@@ -280,7 +280,7 @@ class TestSpanExporters:
         assert "span456" in output
         assert "test" in output
 
-    def test_batch_span_processor(self):
+    def test_batch_span_processor(self) -> None:
         mock_exporter = Mock(spec=SpanProcessor)
         processor = BatchSpanProcessor(
             exporter=mock_exporter, max_batch_size=2, schedule_delay_millis=100
@@ -306,7 +306,7 @@ class TestSpanExporters:
 
 
 class TestW3CTraceContextPropagator:
-    def test_inject_trace_context(self):
+    def test_inject_trace_context(self) -> None:
         propagator = W3CTraceContextPropagator()
 
         context = SpanContext(
@@ -325,7 +325,7 @@ class TestW3CTraceContextPropagator:
             == "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"
         )
 
-    def test_extract_trace_context(self):
+    def test_extract_trace_context(self) -> None:
         propagator = W3CTraceContextPropagator()
 
         carrier = {
@@ -342,7 +342,7 @@ class TestW3CTraceContextPropagator:
         assert context.trace_state == "vendor1=value1"
         assert context.is_remote is True
 
-    def test_extract_invalid_trace_context(self):
+    def test_extract_invalid_trace_context(self) -> None:
         propagator = W3CTraceContextPropagator()
 
         # Invalid format
@@ -355,7 +355,7 @@ class TestW3CTraceContextPropagator:
 
 
 class TestGlobalTracerProvider:
-    def test_global_tracer_provider(self):
+    def test_global_tracer_provider(self) -> None:
         provider = get_tracer_provider()
         assert isinstance(provider, TracerProvider)
 
@@ -364,34 +364,34 @@ class TestGlobalTracerProvider:
 
         assert get_tracer_provider() is custom_provider
 
-    def test_get_tracer_from_global(self):
+    def test_get_tracer_from_global(self) -> None:
         tracer = get_tracer("test_component")
         assert isinstance(tracer, Tracer)
         assert tracer.name == "test_component"
 
 
 class TestTraceDecorator:
-    def test_sync_function_tracing(self):
+    def test_sync_function_tracing(self) -> None:
         @trace(name="custom_operation")
-        def test_function(x, y):
+        def test_function(x, y) -> None:
             return x + y
 
         result = test_function(1, 2)
         assert result == 3
 
     @pytest.mark.asyncio
-    async def test_async_function_tracing(self):
+    async def test_async_function_tracing(self) -> None:
         @trace(kind=SpanKind.SERVER)
-        async def async_function(x):
+        async def async_function(x) -> None:
             await asyncio.sleep(0.01)
             return x * 2
 
         result = await async_function(5)
         assert result == 10
 
-    def test_decorated_function_metadata(self):
+    def test_decorated_function_metadata(self) -> None:
         @trace()
-        def documented_function():
+        def documented_function() -> None:
             """This is a documented function."""
             pass
 
@@ -400,7 +400,7 @@ class TestTraceDecorator:
 
 
 class TestSpanWithLinks:
-    def test_span_with_links(self):
+    def test_span_with_links(self) -> None:
         tracer = Tracer("test_tracer")
 
         # Create context for linked span

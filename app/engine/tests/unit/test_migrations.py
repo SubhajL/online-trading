@@ -13,7 +13,7 @@ from app.engine.adapters.db.connection_pool import ConnectionPool
 
 
 @pytest.fixture
-def mock_connection():
+def mock_connection() -> None:
     """Mock database connection."""
     conn = AsyncMock(spec=Connection)
     conn.fetchval = AsyncMock()
@@ -22,7 +22,7 @@ def mock_connection():
 
     # Mock transaction context manager
     @asynccontextmanager
-    async def mock_transaction():
+    async def mock_transaction() -> None:
         yield
 
     conn.transaction = mock_transaction
@@ -30,12 +30,12 @@ def mock_connection():
 
 
 @pytest.fixture
-def mock_pool(mock_connection):
+def mock_pool(mock_connection) -> None:
     """Mock connection pool."""
     pool = MagicMock(spec=ConnectionPool)
 
     @asynccontextmanager
-    async def mock_acquire():
+    async def mock_acquire() -> None:
         yield mock_connection
 
     pool.acquire = mock_acquire
@@ -43,7 +43,7 @@ def mock_pool(mock_connection):
 
 
 @pytest.fixture
-def migrations_dir(tmp_path):
+def migrations_dir(tmp_path) -> None:
     """Create temporary migrations directory."""
     migrations = tmp_path / "migrations"
     migrations.mkdir()
@@ -59,7 +59,7 @@ def migrations_dir(tmp_path):
 
 
 class TestMigration:
-    def test_from_file_valid(self, migrations_dir):
+    def test_from_file_valid(self, migrations_dir) -> None:
         """Test creating migration from valid file."""
         filepath = migrations_dir / "001_initial.sql"
         migration = Migration.from_file(filepath)
@@ -72,7 +72,7 @@ class TestMigration:
             migration.checksum == hashlib.sha256(migration.content.encode()).hexdigest()
         )
 
-    def test_from_file_invalid_filename(self, migrations_dir):
+    def test_from_file_invalid_filename(self, migrations_dir) -> None:
         """Test creating migration from invalid filename."""
         invalid_file = migrations_dir / "invalid_name.sql"
         invalid_file.write_text("SELECT 1;")
@@ -80,7 +80,7 @@ class TestMigration:
         with pytest.raises(ValueError, match="Invalid migration filename"):
             Migration.from_file(invalid_file)
 
-    def test_from_file_complex_name(self, migrations_dir):
+    def test_from_file_complex_name(self, migrations_dir) -> None:
         """Test migration name parsing with underscores."""
         filepath = migrations_dir / "003_add_user_table.sql"
         filepath.write_text("CREATE TABLE users (id INT);")
@@ -93,7 +93,7 @@ class TestMigration:
 
 class TestMigrationRunner:
     @pytest.mark.asyncio
-    async def test_get_current_version_no_schema(self, mock_pool, mock_connection):
+    async def test_get_current_version_no_schema(self, mock_pool, mock_connection) -> None:
         """Test getting version when migration schema doesn't exist."""
         mock_connection.fetchval.side_effect = [False, None]  # Schema doesn't exist
 
@@ -116,7 +116,7 @@ class TestMigrationRunner:
         assert version == 5
 
     @pytest.mark.asyncio
-    async def test_get_available_migrations(self, mock_pool, migrations_dir):
+    async def test_get_available_migrations(self, mock_pool, migrations_dir) -> None:
         """Test getting available migrations from filesystem."""
         runner = MigrationRunner(mock_pool, migrations_dir)
         migrations = await runner.get_available_migrations()
@@ -127,7 +127,7 @@ class TestMigrationRunner:
         assert migrations[2].version == 2
 
     @pytest.mark.asyncio
-    async def test_validate_migration_order_valid(self, mock_pool, migrations_dir):
+    async def test_validate_migration_order_valid(self, mock_pool, migrations_dir) -> None:
         """Test validation with correct migration order."""
         runner = MigrationRunner(mock_pool, migrations_dir)
         migrations = await runner.get_available_migrations()
@@ -136,7 +136,7 @@ class TestMigrationRunner:
         await runner.validate_migration_order(migrations)
 
     @pytest.mark.asyncio
-    async def test_validate_migration_order_gap(self, mock_pool, migrations_dir):
+    async def test_validate_migration_order_gap(self, mock_pool, migrations_dir) -> None:
         """Test validation detects version gaps."""
         # Create migration with gap
         (migrations_dir / "004_gap_migration.sql").write_text("SELECT 1;")
@@ -148,7 +148,7 @@ class TestMigrationRunner:
             await runner.validate_migration_order(migrations)
 
     @pytest.mark.asyncio
-    async def test_apply_migration_success(self, mock_pool, mock_connection):
+    async def test_apply_migration_success(self, mock_pool, mock_connection) -> None:
         """Test successful migration application."""
         mock_connection.fetchval.return_value = 123  # History ID
 
@@ -170,7 +170,7 @@ class TestMigrationRunner:
         )  # SQL, version insert, history update
 
     @pytest.mark.asyncio
-    async def test_apply_migration_failure(self, mock_pool, mock_connection):
+    async def test_apply_migration_failure(self, mock_pool, mock_connection) -> None:
         """Test migration failure handling."""
         mock_connection.fetchval.return_value = 123  # History ID
         # First execute call succeeds, second one fails

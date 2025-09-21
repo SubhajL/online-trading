@@ -1,6 +1,6 @@
 import os
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 import asyncpg
 from asyncpg import Pool
 
@@ -35,7 +35,7 @@ async def create_pool(database_url: str) -> Pool:
 class ConnectionManager:
     """Manages database connections and pools"""
 
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: str) -> None:
         self.database_url = database_url
         self.pool: Optional[Pool] = None
 
@@ -50,29 +50,35 @@ class ConnectionManager:
             await self.pool.close()
             self.pool = None
 
-    async def execute(self, query: str, *args) -> str:
+    async def execute(self, query: str, *args: Any) -> str:
         """Execute a query and return the result"""
         if not self.pool:
             await self.initialize()
 
+        if self.pool is None:
+            raise RuntimeError("Database pool not initialized")
         async with self.pool.acquire() as conn:
             result = await conn.execute(query, *args)
             return result
 
-    async def fetch(self, query: str, *args) -> list:
+    async def fetch(self, query: str, *args: Any) -> List[asyncpg.Record]:
         """Fetch rows from a query"""
         if not self.pool:
             await self.initialize()
 
+        if self.pool is None:
+            raise RuntimeError("Database pool not initialized")
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *args)
             return rows
 
-    async def fetchrow(self, query: str, *args) -> Optional[asyncpg.Record]:
+    async def fetchrow(self, query: str, *args: Any) -> Optional[asyncpg.Record]:
         """Fetch a single row from a query"""
         if not self.pool:
             await self.initialize()
 
+        if self.pool is None:
+            raise RuntimeError("Database pool not initialized")
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(query, *args)
             return row

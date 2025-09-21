@@ -6,7 +6,7 @@ import importlib
 import inspect
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Type
+from typing import Dict, Any, List, Optional, Type
 
 from .base_plugin import BasePlugin
 from ..bus import EventBus
@@ -21,12 +21,12 @@ class PluginManager:
     Manages plugin lifecycle and event routing.
     """
 
-    def __init__(self, event_bus: EventBus):
+    def __init__(self, event_bus: EventBus) -> None:
         self.event_bus = event_bus
         self.plugins: Dict[str, BasePlugin] = {}
         self.event_routing: Dict[str, List[BasePlugin]] = {}
 
-    async def load_plugins(self, plugin_dir: Optional[Path] = None):
+    async def load_plugins(self, plugin_dir: Optional[Path] = None) -> None:
         """
         Discover and load plugins from directory.
         """
@@ -58,7 +58,7 @@ class PluginManager:
                 logger.error(f"Failed to load plugin {plugin_file}: {e}")
 
     async def register_plugin(
-        self, plugin_class: Type[BasePlugin], config: Optional[Dict] = None
+        self, plugin_class: Type[BasePlugin], config: Optional[Dict[str, Any]] = None
     ):
         """
         Register a plugin instance.
@@ -95,7 +95,7 @@ class PluginManager:
         except Exception as e:
             logger.error(f"Failed to register plugin {plugin_class.__name__}: {e}")
 
-    async def _handle_plugin_event(self, plugin: BasePlugin, event: BaseEvent):
+    async def _handle_plugin_event(self, plugin: BasePlugin, event: BaseEvent) -> None:
         """
         Route event to plugin and handle output.
         """
@@ -111,7 +111,7 @@ class PluginManager:
         except Exception as e:
             logger.error(f"Plugin {plugin.name} failed to process event: {e}")
 
-    async def unregister_plugin(self, plugin_name: str):
+    async def unregister_plugin(self, plugin_name: str) -> None:
         """
         Unregister and cleanup a plugin.
         """
@@ -131,7 +131,7 @@ class PluginManager:
 
             logger.info(f"Unregistered plugin: {plugin_name}")
 
-    async def reload_plugin(self, plugin_name: str):
+    async def reload_plugin(self, plugin_name: str) -> None:
         """
         Reload a plugin with updated code.
         """
@@ -155,11 +155,11 @@ class PluginManager:
 
     def list_plugins(self) -> List[str]:
         """
-        List all registered plugins.
+        List[Any] all registered plugins.
         """
         return list(self.plugins.keys())
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """
         Shutdown all plugins.
         """

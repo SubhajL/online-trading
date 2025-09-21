@@ -26,7 +26,7 @@ from app.engine.services.position_tracker import (
 class TestUpdatePosition:
     """Tests for position update logic."""
 
-    def test_update_position_new_position(self):
+    def test_update_position_new_position(self) -> None:
         """Creates new position from first fill."""
         fill = OrderFill(
             symbol="BTCUSDT",
@@ -46,7 +46,7 @@ class TestUpdatePosition:
         assert position.realized_pnl == Decimal("-10")  # Just commission
         assert position.total_commission == Decimal("10")
 
-    def test_update_position_add_to_existing(self):
+    def test_update_position_add_to_existing(self) -> None:
         """Correctly averages price on additional fills."""
         # First fill
         fill1 = OrderFill(
@@ -75,7 +75,7 @@ class TestUpdatePosition:
         assert position.entry_price == Decimal("50500")
         assert position.total_commission == Decimal("20.2")
 
-    def test_update_position_partial_close(self):
+    def test_update_position_partial_close(self) -> None:
         """Handles partial position closure correctly."""
         # Initial position
         initial = Position(
@@ -106,7 +106,7 @@ class TestUpdatePosition:
         # Plus previous -20 = 169.6
         assert position.realized_pnl == Decimal("169.6")
 
-    def test_update_position_full_close(self):
+    def test_update_position_full_close(self) -> None:
         """Handles full position closure."""
         initial = Position(
             symbol="BTCUSDT",
@@ -139,7 +139,7 @@ class TestUpdatePosition:
 class TestCalculateUnrealizedPnl:
     """Tests for unrealized PnL calculation."""
 
-    def test_calculate_unrealized_pnl_long_profit(self):
+    def test_calculate_unrealized_pnl_long_profit(self) -> None:
         """Calculates profit for long position."""
         position = Position(
             symbol="BTCUSDT",
@@ -156,7 +156,7 @@ class TestCalculateUnrealizedPnl:
         # Unrealized: 0.1 * (52000 - 50000) = 200
         assert pnl == Decimal("200")
 
-    def test_calculate_unrealized_pnl_short_loss(self):
+    def test_calculate_unrealized_pnl_short_loss(self) -> None:
         """Calculates loss for short position."""
         position = Position(
             symbol="BTCUSDT",
@@ -173,7 +173,7 @@ class TestCalculateUnrealizedPnl:
         # Unrealized for short: 0.1 * (50000 - 51000) = -100
         assert pnl == Decimal("-100")
 
-    def test_calculate_unrealized_pnl_zero_quantity(self):
+    def test_calculate_unrealized_pnl_zero_quantity(self) -> None:
         """Returns zero for closed position."""
         position = Position(
             symbol="BTCUSDT",
@@ -194,7 +194,7 @@ class TestCalculateUnrealizedPnl:
 class TestShouldClosePosition:
     """Tests for position close decision logic."""
 
-    def test_should_close_position_stop_loss_hit(self):
+    def test_should_close_position_stop_loss_hit(self) -> None:
         """Triggers close when stop loss reached."""
         position = Position(
             symbol="BTCUSDT",
@@ -221,7 +221,7 @@ class TestShouldClosePosition:
         assert signal.reason == CloseReason.STOP_LOSS
         assert signal.close_price == Decimal("48900")
 
-    def test_should_close_position_take_profit_hit(self):
+    def test_should_close_position_take_profit_hit(self) -> None:
         """Triggers close at take profit level."""
         position = Position(
             symbol="BTCUSDT",
@@ -248,7 +248,7 @@ class TestShouldClosePosition:
         assert signal.reason == CloseReason.TAKE_PROFIT
         assert signal.close_price == Decimal("47900")
 
-    def test_should_close_position_time_stop(self):
+    def test_should_close_position_time_stop(self) -> None:
         """Triggers close after max holding time."""
         from datetime import timedelta
 
@@ -279,7 +279,7 @@ class TestShouldClosePosition:
         assert signal.reason == CloseReason.TIME_STOP
         assert signal.close_price == Decimal("50100")
 
-    def test_should_close_position_no_close(self):
+    def test_should_close_position_no_close(self) -> None:
         """No close signal when conditions not met."""
         position = Position(
             symbol="BTCUSDT",

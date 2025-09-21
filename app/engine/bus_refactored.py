@@ -78,7 +78,7 @@ class MetricsBackend(Protocol):
 class InMemoryPersistence:
     """In-memory persistence implementation."""
 
-    def __init__(self, max_size: int = 10000):
+    def __init__(self, max_size: int = 10000) -> None:
         self._events = deque(maxlen=max_size)
 
     async def persist_event(self, event: BaseEvent) -> None:
@@ -91,7 +91,7 @@ class InMemoryPersistence:
 class InMemoryMetrics:
     """In-memory metrics implementation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.events_published = 0
         self.events_processed = 0
         self.events_failed = 0
@@ -113,7 +113,7 @@ class InMemoryMetrics:
 class CircuitBreaker:
     """Circuit breaker for fault tolerance."""
 
-    def __init__(self, failure_threshold: int = 5, reset_timeout: float = 60.0):
+    def __init__(self, failure_threshold: int = 5, reset_timeout: float = 60.0) -> None:
         self.failure_threshold = failure_threshold
         self.reset_timeout = reset_timeout
         self.failure_count = 0

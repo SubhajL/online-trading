@@ -8,7 +8,7 @@ trading during high-risk periods.
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 class NewsGuard:
     """Guards against trading during major news events"""
 
-    def __init__(self):
-        self.high_impact_events = []
+    def __init__(self) -> None:
+        self.high_impact_events: List[Dict[str, Any]] = []
         self.guard_window_minutes = 30
 
     def is_news_safe(self, symbol: str) -> bool:
@@ -25,7 +25,7 @@ class NewsGuard:
         # Simplified implementation
         return True
 
-    def add_news_event(self, event: Dict):
+    def add_news_event(self, event: Dict[str, Any]) -> None:
         """Add a news event to monitor"""
         pass
 
@@ -33,7 +33,7 @@ class NewsGuard:
 class FundingRateGuard:
     """Guards against trading during extreme funding rates"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.funding_threshold = Decimal("0.01")  # 1%
 
     def is_funding_safe(self, symbol: str) -> bool:
@@ -49,7 +49,7 @@ class FundingRateGuard:
 class RiskGuards:
     """Combined risk guards"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.news_guard = NewsGuard()
         self.funding_guard = FundingRateGuard()
 
@@ -61,5 +61,5 @@ class RiskGuards:
             "overall_safe": True,  # Simplified
         }
 
-    async def health_check(self) -> Dict:
+    async def health_check(self) -> Dict[str, Any]:
         return {"status": "healthy", "guards_active": True}

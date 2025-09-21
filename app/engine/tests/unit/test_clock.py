@@ -13,7 +13,7 @@ class TestSystemClock:
     """Test real system clock implementation."""
 
     @pytest.mark.asyncio
-    async def test_now_returns_current_datetime(self):
+    async def test_now_returns_current_datetime(self) -> None:
         from app.engine.core.clock import SystemClock
 
         clock = SystemClock()
@@ -25,7 +25,7 @@ class TestSystemClock:
         assert isinstance(result, datetime)
 
     @pytest.mark.asyncio
-    async def test_sleep_delays_execution(self):
+    async def test_sleep_delays_execution(self) -> None:
         from app.engine.core.clock import SystemClock
 
         clock = SystemClock()
@@ -36,7 +36,7 @@ class TestSystemClock:
         elapsed = (end - start).total_seconds()
         assert 0.04 < elapsed < 0.1  # Allow some variance
 
-    def test_monotonic_increases(self):
+    def test_monotonic_increases(self) -> None:
         from app.engine.core.clock import SystemClock
 
         clock = SystemClock()
@@ -51,7 +51,7 @@ class TestSystemClock:
 class TestFakeClock:
     """Test fake clock for controlled time in tests."""
 
-    def test_now_returns_fixed_time(self):
+    def test_now_returns_fixed_time(self) -> None:
         from app.engine.core.clock import FakeClock
 
         fixed_time = datetime(2024, 1, 1, 12, 0, 0)
@@ -60,7 +60,7 @@ class TestFakeClock:
         assert clock.now() == fixed_time
         assert clock.now() == fixed_time  # Doesn't advance automatically
 
-    def test_advance_moves_time_forward(self):
+    def test_advance_moves_time_forward(self) -> None:
         from app.engine.core.clock import FakeClock
 
         start_time = datetime(2024, 1, 1, 12, 0, 0)
@@ -72,7 +72,7 @@ class TestFakeClock:
         assert clock.now() == expected
 
     @pytest.mark.asyncio
-    async def test_sleep_advances_time_without_waiting(self):
+    async def test_sleep_advances_time_without_waiting(self) -> None:
         from app.engine.core.clock import FakeClock
 
         clock = FakeClock()
@@ -87,7 +87,7 @@ class TestFakeClock:
         assert real_elapsed < 0.1  # Should be instant
         assert fake_elapsed == 60  # Fake time advanced
 
-    def test_monotonic_advances_with_time(self):
+    def test_monotonic_advances_with_time(self) -> None:
         from app.engine.core.clock import FakeClock
 
         clock = FakeClock()
@@ -98,7 +98,7 @@ class TestFakeClock:
         assert t2 == t1 + 5
 
     @pytest.mark.asyncio
-    async def test_wait_until_advances_to_target_time(self):
+    async def test_wait_until_advances_to_target_time(self) -> None:
         from app.engine.core.clock import FakeClock
 
         clock = FakeClock()
@@ -108,7 +108,7 @@ class TestFakeClock:
 
         assert clock.now() >= target
 
-    def test_scheduled_callbacks_execute_at_right_time(self):
+    def test_scheduled_callbacks_execute_at_right_time(self) -> None:
         from app.engine.core.clock import FakeClock
 
         clock = FakeClock()
@@ -125,13 +125,13 @@ class TestFakeClock:
         callback.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_concurrent_sleeps_wake_in_order(self):
+    async def test_concurrent_sleeps_wake_in_order(self) -> None:
         from app.engine.core.clock import FakeClock
 
         clock = FakeClock()
         results = []
 
-        async def sleeper(duration, name):
+        async def sleeper(duration, name) -> None:
             await clock.sleep(duration)
             results.append(name)
 

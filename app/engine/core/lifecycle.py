@@ -81,7 +81,7 @@ class ShutdownCoordinator:
         order = []
         visited = set()
 
-        def visit(node: str):
+        def visit(node: str) -> None:
             if node in visited:
                 return
             visited.add(node)

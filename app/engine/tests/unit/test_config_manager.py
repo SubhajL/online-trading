@@ -25,7 +25,7 @@ from app.engine.core.config_manager import (
 class TestLoadConfigFromEnv:
     """Tests for environment variable parsing."""
 
-    def test_env_var_parsing_types(self):
+    def test_env_var_parsing_types(self) -> None:
         """Correctly parses int, float, bool, list."""
         # Set environment variables
         os.environ["TRADING_MAX_CONNECTIONS"] = "50"
@@ -49,7 +49,7 @@ class TestLoadConfigFromEnv:
         ]:
             os.environ.pop(key, None)
 
-    def test_env_var_defaults(self):
+    def test_env_var_defaults(self) -> None:
         """Uses defaults when env vars not set."""
         # Clear any existing env vars
         for key in list(os.environ.keys()):
@@ -63,7 +63,7 @@ class TestLoadConfigFromEnv:
         assert 0 < config.risk_limit <= 1
         assert isinstance(config.debug_mode, bool)
 
-    def test_env_var_validation(self):
+    def test_env_var_validation(self) -> None:
         """Validates env var values."""
         os.environ["TRADING_MAX_CONNECTIONS"] = "-5"  # Invalid negative
 
@@ -78,7 +78,7 @@ class TestLoadConfigFromEnv:
 class TestValidateConfigSchema:
     """Tests for config schema validation."""
 
-    def test_required_fields_validation(self):
+    def test_required_fields_validation(self) -> None:
         """Fails fast on missing critical config."""
         invalid_config = {
             "max_connections": 10
@@ -90,7 +90,7 @@ class TestValidateConfigSchema:
 
         assert "required" in str(exc.value).lower()
 
-    def test_type_validation(self):
+    def test_type_validation(self) -> None:
         """Validates field types."""
         invalid_config = {
             "max_connections": "not_a_number",  # Should be int
@@ -104,7 +104,7 @@ class TestValidateConfigSchema:
 
         assert "type" in str(exc.value).lower()
 
-    def test_range_validation(self):
+    def test_range_validation(self) -> None:
         """Validates value ranges."""
         invalid_config = {
             "max_connections": 10,
@@ -118,7 +118,7 @@ class TestValidateConfigSchema:
 
         assert "risk_limit" in str(exc.value)
 
-    def test_production_config_constraints(self):
+    def test_production_config_constraints(self) -> None:
         """Enforces stricter limits in prod."""
         prod_config = {
             "environment": "production",
@@ -138,7 +138,7 @@ class TestValidateConfigSchema:
 class TestMergeConfigSources:
     """Tests for config source merging."""
 
-    def test_config_merge_precedence(self):
+    def test_config_merge_precedence(self) -> None:
         """Env vars override files override defaults."""
         defaults = {"max_connections": 10, "risk_limit": 0.01, "debug_mode": False}
 
@@ -152,7 +152,7 @@ class TestMergeConfigSources:
         assert merged["risk_limit"] == 0.02  # From file
         assert merged["debug_mode"] is False  # From defaults
 
-    def test_nested_config_merge(self):
+    def test_nested_config_merge(self) -> None:
         """Correctly merges nested config objects."""
         defaults = {"database": {"host": "localhost", "port": 5432, "pool_size": 10}}
 
@@ -168,7 +168,7 @@ class TestMergeConfigSources:
 class TestGetConfigForEnvironment:
     """Tests for environment-specific config."""
 
-    def test_development_config(self):
+    def test_development_config(self) -> None:
         """Returns relaxed config for development."""
         config = get_config_for_environment("development")
 
@@ -176,7 +176,7 @@ class TestGetConfigForEnvironment:
         assert config.risk_limit <= 0.05  # Allow higher risk in dev
         assert config.max_connections >= 5  # Lower requirements
 
-    def test_production_config(self):
+    def test_production_config(self) -> None:
         """Returns strict config for production."""
         config = get_config_for_environment("production")
 
@@ -185,7 +185,7 @@ class TestGetConfigForEnvironment:
         assert config.max_connections >= 20  # Higher capacity
         assert config.database_url != "postgresql://localhost"  # Not local
 
-    def test_staging_config(self):
+    def test_staging_config(self) -> None:
         """Returns production-like config for staging."""
         config = get_config_for_environment("staging")
 
@@ -197,7 +197,7 @@ class TestGetConfigForEnvironment:
 class TestWatchConfigChanges:
     """Tests for config change monitoring."""
 
-    def test_config_reload_atomic(self):
+    def test_config_reload_atomic(self) -> None:
         """No partial updates during reload."""
         original_config = load_config_from_env()
 
@@ -222,7 +222,7 @@ class TestWatchConfigChanges:
         os.environ.pop("TRADING_MAX_CONNECTIONS", None)
         os.environ.pop("TRADING_RISK_LIMIT", None)
 
-    def test_config_validation_on_reload(self):
+    def test_config_validation_on_reload(self) -> None:
         """Validates config on reload."""
         original_config = load_config_from_env()
         watcher = watch_config_changes(original_config)
@@ -243,7 +243,7 @@ class TestWatchConfigChanges:
 class TestExportConfigSchema:
     """Tests for schema export."""
 
-    def test_schema_export_complete(self):
+    def test_schema_export_complete(self) -> None:
         """All config fields documented."""
         schema = export_config_schema()
 
@@ -263,7 +263,7 @@ class TestExportConfigSchema:
             assert "type" in prop_schema, f"{prop_name} missing type"
             assert "description" in prop_schema, f"{prop_name} missing description"
 
-    def test_schema_includes_constraints(self):
+    def test_schema_includes_constraints(self) -> None:
         """Schema includes validation constraints."""
         schema = export_config_schema()
 
@@ -279,7 +279,7 @@ class TestExportConfigSchema:
         assert "minimum" in connections_schema
         assert connections_schema["minimum"] > 0
 
-    def test_schema_includes_examples(self):
+    def test_schema_includes_examples(self) -> None:
         """Schema includes example values."""
         schema = export_config_schema()
 

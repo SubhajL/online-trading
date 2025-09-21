@@ -28,7 +28,7 @@ class TestEvent(BaseEvent):
 
     test_data: str
 
-    def __init__(self, test_data: str, **kwargs):
+    def __init__(self, test_data: str, **kwargs) -> None:
         super().__init__(
             event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
             timestamp=kwargs.get("timestamp", datetime.utcnow()),
@@ -44,7 +44,7 @@ class TestEvent(BaseEvent):
 
 class TestErrorHandlingIntegration:
     @pytest.mark.asyncio
-    async def test_eventbus_error_handling_components_exist(self):
+    async def test_eventbus_error_handling_components_exist(self) -> None:
         """Test that error handling components are properly integrated."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
@@ -61,7 +61,7 @@ class TestErrorHandlingIntegration:
         await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_subscription_error_handling_on_max_subscriptions(self):
+    async def test_subscription_error_handling_on_max_subscriptions(self) -> None:
         """Test subscription manager handles max subscriptions error correctly."""
         # Create EventBus with very low subscription limit
         config = EventBusConfig(subscription_config={"max_subscriptions": 2})
@@ -70,7 +70,7 @@ class TestErrorHandlingIntegration:
 
         try:
             # Add subscriptions up to limit
-            async def dummy_handler(event: BaseEvent):
+            async def dummy_handler(event: BaseEvent) -> None:
                 pass
 
             sub1 = await event_bus.subscribe("sub1", dummy_handler)
@@ -89,14 +89,14 @@ class TestErrorHandlingIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_error_boundary_integration_with_eventbus(self):
+    async def test_error_boundary_integration_with_eventbus(self) -> None:
         """Test error boundary decorator works with EventBus operations."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
 
         errors_handled = []
 
-        async def mock_handle_error(error):
+        async def mock_handle_error(error) -> None:
             errors_handled.append(error)
             return True
 
@@ -106,7 +106,7 @@ class TestErrorHandlingIntegration:
         ):
 
             @error_boundary("TestComponent", "test_operation", ErrorCategory.PROCESSING)
-            async def failing_operation():
+            async def failing_operation() -> None:
                 await event_bus.start()
                 # Simulate an operation that fails
                 raise ValueError("Simulated failure")
@@ -124,7 +124,7 @@ class TestErrorHandlingIntegration:
         await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_error_statistics_aggregation(self):
+    async def test_error_statistics_aggregation(self) -> None:
         """Test that error statistics are properly aggregated across components."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
@@ -153,7 +153,7 @@ class TestErrorHandlingIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_subscription_failure_tracking_with_error_handling(self):
+    async def test_subscription_failure_tracking_with_error_handling(self) -> None:
         """Test subscription failure tracking integrates with error handling."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
@@ -163,7 +163,7 @@ class TestErrorHandlingIntegration:
 
             failure_count = 0
 
-            async def failing_handler(event: BaseEvent):
+            async def failing_handler(event: BaseEvent) -> None:
                 nonlocal failure_count
                 failure_count += 1
                 raise ValueError(f"Handler failure {failure_count}")
@@ -195,7 +195,7 @@ class TestErrorHandlingIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_error_recovery_with_retry_handler(self):
+    async def test_error_recovery_with_retry_handler(self) -> None:
         """Test error recovery using retryable error handler."""
         from app.engine.core.error_handling import RetryableErrorHandler
 
@@ -219,7 +219,7 @@ class TestErrorHandlingIntegration:
         assert result3 is False
 
     @pytest.mark.asyncio
-    async def test_comprehensive_error_reporting_integration(self):
+    async def test_comprehensive_error_reporting_integration(self) -> None:
         """Test comprehensive error reporting across all components."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
@@ -236,7 +236,7 @@ class TestErrorHandlingIntegration:
                 )
                 limited_bus = factory.create_with_config(large_config)
 
-                async def handler(event: BaseEvent):
+                async def handler(event: BaseEvent) -> None:
                     pass
 
                 await limited_bus.subscribe("sub1", handler)
@@ -263,14 +263,14 @@ class TestErrorHandlingIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_error_context_propagation(self):
+    async def test_error_context_propagation(self) -> None:
         """Test that error context is properly propagated through the system."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
 
         captured_contexts = []
 
-        async def mock_handle_error(error):
+        async def mock_handle_error(error) -> None:
             if hasattr(error, "context"):
                 captured_contexts.append(error.context)
             return True
@@ -285,7 +285,7 @@ class TestErrorHandlingIntegration:
                 config = EventBusConfig(subscription_config={"max_subscriptions": 1})
                 limited_bus = factory.create_with_config(config)
 
-                async def handler(event: BaseEvent):
+                async def handler(event: BaseEvent) -> None:
                     pass
 
                 await limited_bus.subscribe("sub1", handler)

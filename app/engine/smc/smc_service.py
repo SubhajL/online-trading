@@ -8,7 +8,7 @@ for Smart Money Concepts analysis. Integrates with the event bus for real-time p
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, Any, List, Optional
 
 from .pivot_detector import PivotDetector
 from .zone_identifier import ZoneIdentifier
@@ -42,9 +42,9 @@ class SMCService:
 
     def __init__(
         self,
-        pivot_config: Dict = None,
-        zone_config: Dict = None,
-        signal_config: Dict = None,
+        pivot_config: Dict[str, Any] = None,
+        zone_config: Dict[str, Any] = None,
+        signal_config: Dict[str, Any] = None,
     ):
         """
         Initialize SMC service
@@ -102,7 +102,7 @@ class SMCService:
 
         logger.info("SMCService initialized")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the SMC service"""
         if self._running:
             logger.warning("SMCService is already running")
@@ -120,7 +120,7 @@ class SMCService:
 
         logger.info("SMCService started and subscribed to candle updates")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the SMC service"""
         if not self._running:
             return
@@ -134,7 +134,7 @@ class SMCService:
 
         logger.info("SMCService stopped")
 
-    async def _handle_candle_update(self, event: CandleUpdateEvent):
+    async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
         """Handle candle update events"""
         try:
             candle = event.candle
@@ -199,7 +199,7 @@ class SMCService:
         except Exception as e:
             logger.error(f"Error handling candle update in SMC service: {e}")
 
-    def _store_candle(self, candle: Candle):
+    def _store_candle(self, candle: Candle) -> None:
         """Store candle in history for analysis"""
         symbol = candle.symbol
         timeframe = candle.timeframe
@@ -503,7 +503,7 @@ class SMCService:
             logger.error(f"Error calculating zone signal confidence: {e}")
             return 0.5
 
-    async def _publish_signal(self, signal: SMCSignal):
+    async def _publish_signal(self, signal: SMCSignal) -> None:
         """Publish an SMC signal event"""
         try:
             # Check if we already have too many signals for this symbol
@@ -535,7 +535,7 @@ class SMCService:
         except Exception as e:
             logger.error(f"Error publishing SMC signal: {e}")
 
-    def _cleanup_old_signals(self):
+    def _cleanup_old_signals(self) -> None:
         """Remove old signals that have expired"""
         try:
             cutoff_time = datetime.utcnow() - timedelta(hours=self.signal_timeout_hours)
@@ -572,7 +572,7 @@ class SMCService:
         """Get recent pivot points"""
         return self.pivot_detector.get_recent_pivots(count)
 
-    async def health_check(self) -> Dict:
+    async def health_check(self) -> Dict[str, Any]:
         """Get health status of the SMC service"""
         pivot_stats = self.pivot_detector.get_statistics()
         zone_stats = self.zone_identifier.get_statistics()

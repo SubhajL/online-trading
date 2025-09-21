@@ -40,7 +40,7 @@ class EventBusConfig:
     subscription_config: Optional[Dict[str, Any]] = None
     processing_config: Optional[Dict[str, Any]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.max_queue_size <= 0:
             raise ValueError("max_queue_size must be positive")

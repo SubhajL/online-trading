@@ -1,5 +1,5 @@
 """
-Binance USD-M Futures WebSocket and REST ingester.
+Binance USD-M Future[Any]s WebSocket and REST ingester.
 
 Subscribes to futures kline streams for multiple symbols and timeframes,
 emits only closed candles, handles reconnection with backfill.
@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set
 from decimal import Decimal
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class BinanceUSDMIngester:
     """
-    Binance USD-M Futures market data ingester.
+    Binance USD-M Future[Any]s market data ingester.
 
     Features:
     - WebSocket streaming for real-time futures kline data
@@ -100,7 +100,7 @@ class BinanceUSDMIngester:
         # Combined stream URL for futures
         url = f"{self.ws_base_url}/stream?streams={'/'.join(streams)}"
 
-        logger.info(f"Connecting to Binance USD-M Futures WebSocket: {url}")
+        logger.info(f"Connecting to Binance USD-M Future[Any]s WebSocket: {url}")
         self._websocket = await websockets.connect(url)
         self._reconnect_count = 0
         logger.info(f"Connected and subscribed to {len(streams)} futures streams")
@@ -122,14 +122,14 @@ class BinanceUSDMIngester:
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
 
-    async def _process_stream_data(self, data: Dict) -> None:
+    async def _process_stream_data(self, data: Dict[str, Any]) -> None:
         """Process stream data based on event type."""
         event_type = data.get("e")
 
         if event_type == "kline":
             await self._on_kline_message(data)
 
-    async def _on_kline_message(self, data: Dict) -> None:
+    async def _on_kline_message(self, data: Dict[str, Any]) -> None:
         """
         Process kline message, emit only when k.x == true (closed).
 
@@ -237,7 +237,7 @@ class BinanceUSDMIngester:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        logger.info("Futures backfill completed")
+        logger.info("Future[Any]s backfill completed")
 
     async def _backfill_missing_candles(
         self,
@@ -247,7 +247,7 @@ class BinanceUSDMIngester:
         retry_count: int = 0
     ) -> None:
         """
-        Backfill missing candles via Futures REST API.
+        Backfill missing candles via Future[Any]s REST API.
 
         Args:
             symbol: Trading symbol

@@ -392,7 +392,7 @@ class ObservabilityManager:
 class EventBusHealthCheck:
     """Health checks specific to EventBus."""
 
-    def __init__(self, event_bus: Any):
+    def __init__(self, event_bus: Any) -> None:
         self.event_bus = event_bus
 
     async def check_queue_health(self) -> HealthCheck:

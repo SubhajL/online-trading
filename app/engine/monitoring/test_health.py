@@ -14,7 +14,7 @@ from app.engine.monitoring.health import (
 
 
 class TestHealthConfig:
-    def test_health_config_from_env(self):
+    def test_health_config_from_env(self) -> None:
         """Test health check configuration from environment variables"""
         env_vars = {
             "HEALTH_CHECK_INTERVAL": "60",
@@ -33,7 +33,7 @@ class TestHealthConfig:
             assert config.recovery_threshold == 3
             assert config.include_details is False
 
-    def test_health_config_defaults(self):
+    def test_health_config_defaults(self) -> None:
         """Test default health check configuration"""
         with mock.patch.dict(os.environ, {}, clear=True):
             config = HealthConfig.from_env()
@@ -47,7 +47,7 @@ class TestHealthConfig:
 
 class TestHealthChecker:
     @pytest.mark.asyncio
-    async def test_register_component(self):
+    async def test_register_component(self) -> None:
         """Test component registration"""
         config = HealthConfig.from_env()
         checker = HealthChecker(config)
@@ -61,13 +61,13 @@ class TestHealthChecker:
         assert checker.recovery_counts["test_service"] == 0
 
     @pytest.mark.asyncio
-    async def test_custom_check_function(self):
+    async def test_custom_check_function(self) -> None:
         """Test custom health check function"""
         config = HealthConfig.from_env()
         checker = HealthChecker(config)
 
         # Custom check that always returns healthy
-        async def custom_check():
+        async def custom_check() -> None:
             return ComponentHealth(
                 name="custom",
                 status=HealthStatus.HEALTHY,
@@ -83,7 +83,7 @@ class TestHealthChecker:
         assert checker.components["custom"].latency_ms == 10.0
 
     @pytest.mark.asyncio
-    async def test_failure_threshold(self):
+    async def test_failure_threshold(self) -> None:
         """Test that failures are tracked with threshold"""
         config = HealthConfig(
             check_interval=1,
@@ -97,7 +97,7 @@ class TestHealthChecker:
         # Check that fails
         fail_count = 0
 
-        async def failing_check():
+        async def failing_check() -> None:
             nonlocal fail_count
             fail_count += 1
             return ComponentHealth(
@@ -122,7 +122,7 @@ class TestHealthChecker:
         assert checker.failure_counts["failing"] == 3
 
     @pytest.mark.asyncio
-    async def test_recovery_threshold(self):
+    async def test_recovery_threshold(self) -> None:
         """Test that recovery is tracked with threshold"""
         config = HealthConfig(
             check_interval=1,
@@ -134,7 +134,7 @@ class TestHealthChecker:
         checker = HealthChecker(config)
 
         # Check that succeeds
-        async def recovering_check():
+        async def recovering_check() -> None:
             return ComponentHealth(
                 name="recovering",
                 status=HealthStatus.HEALTHY,
@@ -158,7 +158,7 @@ class TestHealthChecker:
         assert checker.failure_counts["recovering"] == 0
 
     @pytest.mark.asyncio
-    async def test_overall_health_status(self):
+    async def test_overall_health_status(self) -> None:
         """Test overall health status calculation"""
         config = HealthConfig.from_env()
         checker = HealthChecker(config)
@@ -195,7 +195,7 @@ class TestHealthChecker:
         assert overall["status"] == "healthy"
 
     @pytest.mark.asyncio
-    async def test_monitoring_lifecycle(self):
+    async def test_monitoring_lifecycle(self) -> None:
         """Test starting and stopping monitoring"""
         config = HealthConfig(
             check_interval=0.1,  # 100ms for faster test
@@ -208,7 +208,7 @@ class TestHealthChecker:
 
         call_count = 0
 
-        async def counting_check():
+        async def counting_check() -> None:
             nonlocal call_count
             call_count += 1
             return ComponentHealth(
@@ -239,11 +239,11 @@ class TestHealthChecker:
 
 class TestReadinessChecker:
     @pytest.mark.asyncio
-    async def test_register_check(self):
+    async def test_register_check(self) -> None:
         """Test registering readiness checks"""
         checker = ReadinessChecker()
 
-        async def db_check():
+        async def db_check() -> None:
             return True
 
         checker.register_check("database", db_check, required=True)
@@ -252,11 +252,11 @@ class TestReadinessChecker:
         assert "database" in checker.required_components
 
     @pytest.mark.asyncio
-    async def test_all_checks_pass(self):
+    async def test_all_checks_pass(self) -> None:
         """Test when all readiness checks pass"""
         checker = ReadinessChecker()
 
-        async def passing_check():
+        async def passing_check() -> None:
             return True
 
         checker.register_check("service1", passing_check, required=True)
@@ -269,14 +269,14 @@ class TestReadinessChecker:
         assert result["checks"]["service2"]["ready"] is True
 
     @pytest.mark.asyncio
-    async def test_required_check_fails(self):
+    async def test_required_check_fails(self) -> None:
         """Test when a required check fails"""
         checker = ReadinessChecker()
 
-        async def passing_check():
+        async def passing_check() -> None:
             return True
 
-        async def failing_check():
+        async def failing_check() -> None:
             return False
 
         checker.register_check("service1", failing_check, required=True)
@@ -289,14 +289,14 @@ class TestReadinessChecker:
         assert result["checks"]["service2"]["ready"] is True
 
     @pytest.mark.asyncio
-    async def test_optional_check_fails(self):
+    async def test_optional_check_fails(self) -> None:
         """Test when only optional check fails"""
         checker = ReadinessChecker()
 
-        async def passing_check():
+        async def passing_check() -> None:
             return True
 
-        async def failing_check():
+        async def failing_check() -> None:
             return False
 
         checker.register_check("service1", passing_check, required=True)
@@ -310,11 +310,11 @@ class TestReadinessChecker:
         assert result["checks"]["service2"]["ready"] is False
 
     @pytest.mark.asyncio
-    async def test_check_exception_handling(self):
+    async def test_check_exception_handling(self) -> None:
         """Test exception handling in readiness checks"""
         checker = ReadinessChecker()
 
-        async def error_check():
+        async def error_check() -> None:
             raise ValueError("Check failed")
 
         checker.register_check("error_service", error_check, required=True)

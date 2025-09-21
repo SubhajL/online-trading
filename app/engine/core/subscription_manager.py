@@ -63,7 +63,7 @@ class SubscriptionManager:
     with proper priority ordering and retry tracking.
     """
 
-    def __init__(self, config: Optional[SubscriptionConfig] = None):
+    def __init__(self, config: Optional[SubscriptionConfig] = None) -> None:
         """Initialize subscription manager with optional config."""
         self._config = config or SubscriptionConfig()
 
@@ -95,7 +95,7 @@ class SubscriptionManager:
         Args:
             subscriber_id: Unique identifier for the subscriber
             handler: Function to handle events
-            event_types: List of event types to subscribe to (None for all)
+            event_types: List[Any] of event types to subscribe to (None for all)
             priority: Priority level (higher = processed first)
             max_retries: Maximum retry attempts on failure
 
@@ -207,7 +207,7 @@ class SubscriptionManager:
             event_type: The event type to get subscriptions for
 
         Returns:
-            List of active subscriptions sorted by priority (descending)
+            List[Any] of active subscriptions sorted by priority (descending)
         """
         async with self._lock:
             subscriptions = []

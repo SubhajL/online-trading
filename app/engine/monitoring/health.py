@@ -48,7 +48,7 @@ class HealthConfig:
 class HealthChecker:
     """Manages health checks for all system components"""
 
-    def __init__(self, config: HealthConfig):
+    def __init__(self, config: HealthConfig) -> None:
         self.config = config
         self.components: Dict[str, ComponentHealth] = {}
         self.failure_counts: Dict[str, int] = {}
@@ -335,7 +335,7 @@ class HealthChecker:
 class ReadinessChecker:
     """Checks if the application is ready to serve requests"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.checks: Dict[str, Callable] = {}
         self.required_components: List[str] = []
 

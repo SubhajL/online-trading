@@ -14,7 +14,7 @@ class BasePlugin(ABC):
     Abstract base class for trading engine plugins.
     """
 
-    def __init__(self, name: str, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, name: str, config: Optional[Dict[str, Any]] = None) -> None:
         self.name = name
         self.config = config or {}
         self.enabled = True
@@ -43,13 +43,13 @@ class BasePlugin(ABC):
         """
         pass
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """
         Initialize the plugin (optional override).
         """
         pass
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """
         Cleanup resources (optional override).
         """
@@ -87,7 +87,10 @@ class IndicatorPlugin(BasePlugin):
         Process candle events and calculate indicators.
         """
         if event.event_type.value == "candle_update":
-            indicators = await self.calculate(event.metadata.get("candle"))
+            candle = event.metadata.get("candle")
+            if not isinstance(candle, Candle):
+                return None
+            indicators = await self.calculate(candle)
             if indicators:
                 # Create custom indicator event
                 return [

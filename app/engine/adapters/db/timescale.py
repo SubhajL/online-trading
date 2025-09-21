@@ -138,7 +138,7 @@ async def get_candles(
         limit: Maximum number of results
 
     Returns:
-        List of candle dictionaries with Decimal precision preserved
+        List[Any] of candle dictionaries with Decimal precision preserved
     """
     try:
         pool = get_pool()
@@ -409,7 +409,7 @@ async def get_active_positions(
         symbol: Optional symbol filter
 
     Returns:
-        List of active position dictionaries with Decimal precision preserved
+        List[Any] of active position dictionaries with Decimal precision preserved
     """
     try:
         pool = get_pool()

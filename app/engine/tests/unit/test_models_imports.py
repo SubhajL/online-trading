@@ -5,7 +5,7 @@ import sys
 from types import ModuleType
 
 
-def test_no_builtin_conflicts():
+def test_no_builtin_conflicts() -> None:
     """Ensure our module doesn't conflict with Python's built-in types module"""
     # Import Python's built-in types module
     builtin_types = importlib.import_module("types")
@@ -23,7 +23,7 @@ def test_no_builtin_conflicts():
     )
 
 
-def test_models_imports():
+def test_models_imports() -> None:
     """Verify all model classes can be imported from models module"""
     from app.engine.models import (
         TimeFrame,
@@ -73,7 +73,7 @@ def test_models_imports():
     assert candle.timeframe == TimeFrame.M1
 
 
-def test_all_imports_updated():
+def test_all_imports_updated() -> None:
     """Verify no remaining imports from old types module"""
     # After renaming, attempting to import from types should fail
     try:

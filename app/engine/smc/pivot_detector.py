@@ -8,7 +8,7 @@ Implements various pivot detection algorithms with configurable sensitivity.
 import logging
 from collections import deque
 from decimal import Decimal
-from typing import List, Optional, Dict, Tuple
+from typing import Any, List, Optional, Dict, Tuple
 from datetime import datetime
 
 from ..models import Candle, PivotPoint, TimeFrame
@@ -47,7 +47,7 @@ class PivotDetector:
         self.max_strength = max_strength
 
         # Buffer for candles needed for pivot detection
-        self._candle_buffer = deque(maxlen=left_bars + right_bars + 1)
+        self._candle_buffer: deque[Candle] = deque(maxlen=left_bars + right_bars + 1)
         self._confirmed_pivots: List[PivotPoint] = []
 
         logger.info(
@@ -63,7 +63,7 @@ class PivotDetector:
             candle: New candle to process
 
         Returns:
-            List of newly confirmed pivot points
+            List[Any] of newly confirmed pivot points
         """
         self._candle_buffer.append(candle)
         new_pivots = []
@@ -225,7 +225,7 @@ class PivotDetector:
                 self._candle_buffer
             )
             volume_ratio = (
-                float(pivot_candle.volume / volume_avg) if volume_avg > 0 else 1
+                float(pivot_candle.volume) / float(volume_avg) if volume_avg > 0 else 1
             )
             volume_strength = min(int(volume_ratio), 5)  # Scale to 0-5
 
@@ -246,7 +246,7 @@ class PivotDetector:
             count: Number of recent pivots to return
 
         Returns:
-            List of recent PivotPoint objects
+            List[Any] of recent PivotPoint objects
         """
         return self._confirmed_pivots[-count:] if self._confirmed_pivots else []
 
@@ -261,7 +261,7 @@ class PivotDetector:
             end_time: End of time range
 
         Returns:
-            List of PivotPoint objects in the time range
+            List[Any] of PivotPoint objects in the time range
         """
         return [
             pivot
@@ -277,7 +277,7 @@ class PivotDetector:
             count: Number of swing highs to return
 
         Returns:
-            List of swing high PivotPoint objects
+            List[Any] of swing high PivotPoint objects
         """
         highs = [pivot for pivot in self._confirmed_pivots if pivot.is_high]
         return highs[-count:] if highs else []
@@ -290,7 +290,7 @@ class PivotDetector:
             count: Number of swing lows to return
 
         Returns:
-            List of swing low PivotPoint objects
+            List[Any] of swing low PivotPoint objects
         """
         lows = [pivot for pivot in self._confirmed_pivots if not pivot.is_high]
         return lows[-count:] if lows else []
@@ -383,13 +383,13 @@ class PivotDetector:
 
         return None
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """Clear all stored pivot history"""
         self._confirmed_pivots.clear()
         self._candle_buffer.clear()
         logger.info("Cleared pivot detector history")
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> Dict[str, Any]:
         """Get pivot detection statistics"""
         if not self._confirmed_pivots:
             return {

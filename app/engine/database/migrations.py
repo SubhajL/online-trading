@@ -87,7 +87,7 @@ def record_migration_metric(
 class MigrationRunner:
     """Runs database migrations with proper configuration and monitoring"""
 
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: str) -> None:
         self.database_url = database_url
         self.config = get_migration_config()
         self.metrics = setup_migration_metrics()

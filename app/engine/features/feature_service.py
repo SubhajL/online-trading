@@ -9,7 +9,7 @@ import asyncio
 import logging
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Deque
+from typing import Dict, Any, List, Optional, Deque
 
 from .indicators import TechnicalIndicatorsCalculator
 from ..models import (
@@ -79,7 +79,7 @@ class FeatureService:
             f"EMA periods={ema_periods}"
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the feature service"""
         if self._running:
             logger.warning("FeatureService is already running")
@@ -97,7 +97,7 @@ class FeatureService:
 
         logger.info("FeatureService started and subscribed to candle updates")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the feature service"""
         if not self._running:
             return
@@ -111,7 +111,7 @@ class FeatureService:
 
         logger.info("FeatureService stopped")
 
-    async def _handle_candle_update(self, event: CandleUpdateEvent):
+    async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
         """Handle candle update events"""
         try:
             candle = event.candle
@@ -199,7 +199,7 @@ class FeatureService:
             limit: Maximum number of indicators to return
 
         Returns:
-            List of TechnicalIndicators in chronological order
+            List[Any] of TechnicalIndicators in chronological order
         """
         try:
             candles = list(self._candle_buffers[symbol][timeframe])
@@ -247,7 +247,7 @@ class FeatureService:
         Args:
             symbol: Trading symbol
             timeframe: Timeframe
-            candles: List of candles in chronological order
+            candles: List[Any] of candles in chronological order
         """
         try:
             # Sort candles by timestamp to ensure chronological order
@@ -275,7 +275,7 @@ class FeatureService:
         except Exception as e:
             logger.error(f"Error adding bulk candles: {e}")
 
-    def get_buffer_info(self, symbol: str, timeframe: TimeFrame) -> Dict:
+    def get_buffer_info(self, symbol: str, timeframe: TimeFrame) -> Dict[str, Any]:
         """Get information about the candle buffer for a symbol and timeframe"""
         buffer = self._candle_buffers[symbol][timeframe]
         return {
@@ -294,7 +294,7 @@ class FeatureService:
                     combinations.append((symbol, timeframe))
         return combinations
 
-    async def recalculate_indicators(self, symbol: str, timeframe: TimeFrame):
+    async def recalculate_indicators(self, symbol: str, timeframe: TimeFrame) -> None:
         """Force recalculation of indicators for a symbol and timeframe"""
         try:
             if len(self._candle_buffers[symbol][timeframe]) > 0:
@@ -305,7 +305,7 @@ class FeatureService:
         except Exception as e:
             logger.error(f"Error recalculating indicators: {e}")
 
-    def clear_buffer(self, symbol: str, timeframe: TimeFrame):
+    def clear_buffer(self, symbol: str, timeframe: TimeFrame) -> None:
         """Clear the candle buffer for a symbol and timeframe"""
         self._candle_buffers[symbol][timeframe].clear()
         if (
@@ -315,13 +315,13 @@ class FeatureService:
             del self._latest_indicators[symbol][timeframe]
         logger.info(f"Cleared buffer for {symbol} {timeframe.value}")
 
-    def clear_all_buffers(self):
+    def clear_all_buffers(self) -> None:
         """Clear all candle buffers"""
         self._candle_buffers.clear()
         self._latest_indicators.clear()
         logger.info("Cleared all buffers")
 
-    async def health_check(self) -> Dict:
+    async def health_check(self) -> Dict[str, Any]:
         """Get health status of the feature service"""
         total_symbols = len(self._candle_buffers)
         total_timeframes = sum(

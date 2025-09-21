@@ -36,7 +36,7 @@ class Metric:
     timestamp: float = field(default_factory=time.time)
     unit: Optional[str] = None
 
-    def __hash__(self):
+    def __hash__(self) -> None:
         """Make metric hashable based on name and labels."""
         return hash((self.name, tuple(sorted(self.labels.items()))))
 
@@ -44,7 +44,7 @@ class Metric:
 class Counter:
     """A counter metric that can only increase."""
 
-    def __init__(self, name: str, description: str, unit: Optional[str] = None):
+    def __init__(self, name: str, description: str, unit: Optional[str] = None) -> None:
         self.name = name
         self.description = description
         self.unit = unit
@@ -88,7 +88,7 @@ class Counter:
 class Gauge:
     """A gauge metric that can go up or down."""
 
-    def __init__(self, name: str, description: str, unit: Optional[str] = None):
+    def __init__(self, name: str, description: str, unit: Optional[str] = None) -> None:
         self.name = name
         self.description = description
         self.unit = unit
@@ -258,7 +258,7 @@ class Histogram:
 class MetricsRegistry:
     """Global registry for all metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._metrics: Dict[str, Any] = {}
         self._lock = threading.Lock()
 
@@ -292,7 +292,7 @@ class MetricsRegistry:
 class PrometheusExporter:
     """Exports metrics in Prometheus format."""
 
-    def __init__(self, registry: MetricsRegistry):
+    def __init__(self, registry: MetricsRegistry) -> None:
         self.registry = registry
 
     def export(self) -> str:
@@ -352,7 +352,7 @@ class PrometheusExporter:
 class MetricsCollector:
     """Collects and manages metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.registry = MetricsRegistry()
         self.exporter = PrometheusExporter(self.registry)
         self._start_time = time.time()
@@ -430,7 +430,7 @@ def create_histogram(
 
 
 @contextmanager
-def record_duration(histogram: Histogram, labels: Optional[Dict[str, str]] = None):
+def record_duration(histogram: Histogram, labels: Optional[Dict[str, str]] = None) -> None:
     """Record operation duration."""
     with metrics_collector.record_duration(histogram, labels):
         yield

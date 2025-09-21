@@ -15,7 +15,7 @@ from adapters.db.connection_pool import DBConfig
 from types import Candle, TimeFrame, TechnicalIndicators
 
 
-async def run_integration_example():
+async def run_integration_example() -> None:
     """Run a simple integration test example."""
     # Initialize connection pool
     config = DBConfig(

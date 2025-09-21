@@ -186,7 +186,7 @@ class Candle(BaseModel):
         "taker_buy_base_volume",
         "taker_buy_quote_volume",
     )
-    def ensure_positive(cls, v):
+    def ensure_positive(cls, v: Decimal) -> Decimal:
         if v <= 0:
             raise ValueError("Price and volume values must be positive")
         return v
@@ -666,7 +666,7 @@ def kline_to_candle(data: Dict[str, Any], venue: str) -> Candle:
     )
 
 
-def rest_kline_to_candle(data: List, symbol: str, timeframe: str, venue: str) -> Candle:
+def rest_kline_to_candle(data: List[Any], symbol: str, timeframe: str, venue: str) -> Candle:
     """
     Convert Binance REST API kline array to Candle model.
 

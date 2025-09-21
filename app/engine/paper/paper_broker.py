@@ -5,7 +5,7 @@ Paper trading broker for simulation.
 import asyncio
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, Any, List, Optional
 from uuid import uuid4
 
 from ..models import (
@@ -68,7 +68,7 @@ class PaperBroker:
 
         return order
 
-    async def _fill_market_order(self, order: Order):
+    async def _fill_market_order(self, order: Order) -> None:
         """
         Simulate market order fill with slippage.
         """
@@ -116,7 +116,7 @@ class PaperBroker:
 
         self.order_history.append(order)
 
-    async def _update_position(self, order: Order, fill_price: Decimal):
+    async def _update_position(self, order: Order, fill_price: Decimal) -> None:
         """
         Update position based on filled order.
         """
@@ -189,7 +189,7 @@ class PaperBroker:
         else:
             return qty * (position.entry_price - price)
 
-    async def update_market_prices(self, prices: Dict[str, Decimal]):
+    async def update_market_prices(self, prices: Dict[str, Decimal]) -> None:
         """
         Update market prices and calculate unrealized P&L.
         """
@@ -200,7 +200,7 @@ class PaperBroker:
                 position.unrealized_pnl = self._calculate_pnl(position, price)
                 position.updated_at = datetime.utcnow()
 
-    def get_account_summary(self) -> Dict:
+    def get_account_summary(self) -> Dict[str, Any]:
         """
         Get account summary including balance and positions.
         """
@@ -231,7 +231,7 @@ class PaperBroker:
                 return True
         return False
 
-    async def close_all_positions(self):
+    async def close_all_positions(self) -> None:
         """
         Close all open positions at market.
         """

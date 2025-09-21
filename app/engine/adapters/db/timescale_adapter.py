@@ -9,7 +9,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from contextlib import asynccontextmanager
 
 import asyncpg
@@ -70,7 +70,7 @@ class TimescaleDBAdapter:
 
         logger.info(f"TimescaleDBAdapter configured for {host}:{port}/{database}")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the database connection pool and create tables"""
         if self._initialized:
             return
@@ -100,7 +100,7 @@ class TimescaleDBAdapter:
             logger.error(f"Error initializing TimescaleDB adapter: {e}")
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the database connection pool"""
         if self._pool:
             await self._pool.close()
@@ -109,7 +109,7 @@ class TimescaleDBAdapter:
             logger.info("TimescaleDB adapter closed")
 
     @asynccontextmanager
-    async def get_connection(self):
+    async def get_connection(self) -> None:
         """Get a database connection from the pool"""
         if not self._pool:
             raise RuntimeError("Database not initialized")
@@ -121,7 +121,7 @@ class TimescaleDBAdapter:
     # Table Creation and Management
     # ============================================================================
 
-    async def _create_tables(self):
+    async def _create_tables(self) -> None:
         """Create all required tables"""
         async with self.get_connection() as conn:
             # Candles table
@@ -286,7 +286,7 @@ class TimescaleDBAdapter:
             """
             )
 
-    async def _create_hypertables(self):
+    async def _create_hypertables(self) -> None:
         """Create TimescaleDB hypertables for time-series data"""
         async with self.get_connection() as conn:
             try:
@@ -315,7 +315,7 @@ class TimescaleDBAdapter:
             except Exception as e:
                 logger.error(f"Error creating hypertables: {e}")
 
-    async def _create_indexes(self):
+    async def _create_indexes(self) -> None:
         """Create indexes for better query performance"""
         async with self.get_connection() as conn:
             indexes = [
@@ -613,7 +613,7 @@ class TimescaleDBAdapter:
 
     async def get_recent_decisions(
         self, symbol: Optional[str] = None, limit: int = 100
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """Get recent trading decisions"""
         try:
             async with self.get_connection() as conn:
@@ -760,11 +760,11 @@ class TimescaleDBAdapter:
     # Context Manager Support
     # ============================================================================
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         """Async context manager entry"""
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit"""
         await self.close()

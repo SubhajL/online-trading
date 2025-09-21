@@ -12,7 +12,7 @@ Implements various technical analysis indicators including:
 import numpy as np
 import pandas as pd
 from decimal import Decimal
-from typing import List, Optional, Tuple
+from typing import List, Any, Optional, Tuple
 import logging
 
 from ..models import Candle, TechnicalIndicators
@@ -35,11 +35,11 @@ class TechnicalIndicatorsCalculator:
         Calculate Exponential Moving Average
 
         Args:
-            values: List of price values
+            values: List[Any] of price values
             period: EMA period
 
         Returns:
-            List of EMA values (None for insufficient data points)
+            List[Any] of EMA values (None for insufficient data points)
         """
         if len(values) < period:
             return [None] * len(values)
@@ -69,11 +69,11 @@ class TechnicalIndicatorsCalculator:
         Calculate Simple Moving Average
 
         Args:
-            values: List of price values
+            values: List[Any] of price values
             period: SMA period
 
         Returns:
-            List of SMA values
+            List[Any] of SMA values
         """
         if len(values) < period:
             return [None] * len(values)
@@ -93,11 +93,11 @@ class TechnicalIndicatorsCalculator:
         Calculate Relative Strength Index
 
         Args:
-            values: List of price values (typically close prices)
+            values: List[Any] of price values (typically close prices)
             period: RSI period (default 14)
 
         Returns:
-            List of RSI values (0-100)
+            List[Any] of RSI values (0-100)
         """
         if len(values) < period + 1:
             return [None] * len(values)
@@ -146,7 +146,7 @@ class TechnicalIndicatorsCalculator:
         Calculate MACD (Moving Average Convergence Divergence)
 
         Args:
-            values: List of price values (typically close prices)
+            values: List[Any] of price values (typically close prices)
             fast_period: Fast EMA period (default 12)
             slow_period: Slow EMA period (default 26)
             signal_period: Signal line EMA period (default 9)
@@ -203,11 +203,11 @@ class TechnicalIndicatorsCalculator:
         Calculate Average True Range
 
         Args:
-            candles: List of Candle objects
+            candles: List[Any] of Candle objects
             period: ATR period (default 14)
 
         Returns:
-            List of ATR values
+            List[Any] of ATR values
         """
         if len(candles) < period:
             return [None] * len(candles)
@@ -252,7 +252,7 @@ class TechnicalIndicatorsCalculator:
         Calculate Bollinger Bands
 
         Args:
-            values: List of price values (typically close prices)
+            values: List[Any] of price values (typically close prices)
             period: Period for moving average and standard deviation (default 20)
             std_dev: Number of standard deviations (default 2.0)
 
@@ -343,8 +343,8 @@ class TechnicalIndicatorsCalculator:
         Calculate all technical indicators for the latest candle
 
         Args:
-            candles: List of Candle objects (should be in chronological order)
-            ema_periods: List of EMA periods to calculate
+            candles: List[Any] of Candle objects (should be in chronological order)
+            ema_periods: List[Any] of EMA periods to calculate
             rsi_period: RSI period
             macd_params: MACD parameters (fast, slow, signal)
             atr_period: ATR period

@@ -104,8 +104,8 @@ def load_config_from_env() -> Config:
         config.risk_limit = float(os.environ["TRADING_RISK_LIMIT"])
 
     if "TRADING_DEBUG_MODE" in os.environ:
-        value = os.environ["TRADING_DEBUG_MODE"].lower()
-        config.debug_mode = value in ("true", "1", "yes", "on")
+        value_str = os.environ["TRADING_DEBUG_MODE"].lower()
+        config.debug_mode = value_str in ("true", "1", "yes", "on")
 
     if "TRADING_SYMBOLS" in os.environ:
         symbols_str = os.environ["TRADING_SYMBOLS"]
@@ -178,7 +178,7 @@ def merge_config_sources(
     Handles nested dictionaries.
     """
 
-    def deep_merge(base: Dict, override: Dict) -> Dict:
+    def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
         """Recursively merge dictionaries."""
         result = base.copy()
 

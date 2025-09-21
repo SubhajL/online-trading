@@ -76,7 +76,7 @@ class EventBusError(Exception):
 class SubscriptionError(EventBusError):
     """Error related to subscription management."""
 
-    def __init__(self, message: str, subscription_id: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, subscription_id: Optional[str] = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.SUBSCRIPTION
         if subscription_id:
@@ -87,7 +87,7 @@ class SubscriptionError(EventBusError):
 class ProcessingError(EventBusError):
     """Error during event processing."""
 
-    def __init__(self, message: str, event_id: Optional[UUID] = None, **kwargs):
+    def __init__(self, message: str, event_id: Optional[UUID] = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.PROCESSING
         if event_id:
@@ -98,7 +98,7 @@ class ProcessingError(EventBusError):
 class QueueError(EventBusError):
     """Error related to queue operations."""
 
-    def __init__(self, message: str, queue_size: Optional[int] = None, **kwargs):
+    def __init__(self, message: str, queue_size: Optional[int] = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.QUEUE
         if queue_size is not None:
@@ -109,7 +109,7 @@ class QueueError(EventBusError):
 class ConfigurationError(EventBusError):
     """Error in system configuration."""
 
-    def __init__(self, message: str, config_key: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, config_key: Optional[str] = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CONFIGURATION
         context.severity = ErrorSeverity.HIGH
@@ -121,7 +121,7 @@ class ConfigurationError(EventBusError):
 class TimeoutError(EventBusError):
     """Error due to operation timeout."""
 
-    def __init__(self, message: str, timeout_seconds: Optional[float] = None, **kwargs):
+    def __init__(self, message: str, timeout_seconds: Optional[float] = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.TIMEOUT
         if timeout_seconds:
@@ -132,7 +132,7 @@ class TimeoutError(EventBusError):
 class CircuitBreakerError(EventBusError):
     """Error when circuit breaker is open."""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CIRCUIT_BREAKER
         context.severity = ErrorSeverity.HIGH
@@ -171,7 +171,7 @@ class ErrorHandler(ABC):
 class LoggingErrorHandler(ErrorHandler):
     """Error handler that logs errors with structured information."""
 
-    def __init__(self, logger: logging.Logger = None):
+    def __init__(self, logger: Optional[logging.Logger] = None) -> None:
         self._logger = logger or logging.getLogger(__name__)
 
     async def handle_error(self, error: EventBusError) -> bool:
@@ -214,7 +214,7 @@ class LoggingErrorHandler(ErrorHandler):
 class MetricsErrorHandler(ErrorHandler):
     """Error handler that tracks error metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._stats = ErrorStats()
         self._lock = asyncio.Lock()
 
@@ -250,7 +250,7 @@ class MetricsErrorHandler(ErrorHandler):
             logger.error(f"Failed to track error metrics: {e}")
             return False
 
-    async def _update_error_rate(self):
+    async def _update_error_rate(self) -> None:
         """Update error rate calculation."""
         now = datetime.utcnow()
         minute_ago = now - timedelta(minutes=1)
@@ -274,7 +274,7 @@ class MetricsErrorHandler(ErrorHandler):
                 last_reset=self._stats.last_reset,
             )
 
-    async def reset_stats(self):
+    async def reset_stats(self) -> None:
         """Reset error statistics."""
         async with self._lock:
             self._stats = ErrorStats()
@@ -336,7 +336,7 @@ class RetryableErrorHandler(ErrorHandler):
 class CompositeErrorHandler(ErrorHandler):
     """Error handler that delegates to multiple handlers."""
 
-    def __init__(self, handlers: List[ErrorHandler]):
+    def __init__(self, handlers: List[ErrorHandler]) -> None:
         self.handlers = handlers
 
     async def handle_error(self, error: EventBusError) -> bool:
@@ -358,7 +358,7 @@ class CompositeErrorHandler(ErrorHandler):
 class ErrorManager:
     """Central error management system for EventBus."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._handlers: List[ErrorHandler] = []
         self._metrics_handler = MetricsErrorHandler()
         self._logging_handler = LoggingErrorHandler()
@@ -367,11 +367,11 @@ class ErrorManager:
         self.add_handler(self._metrics_handler)
         self.add_handler(self._logging_handler)
 
-    def add_handler(self, handler: ErrorHandler):
+    def add_handler(self, handler: ErrorHandler) -> None:
         """Add an error handler."""
         self._handlers.append(handler)
 
-    def remove_handler(self, handler: ErrorHandler):
+    def remove_handler(self, handler: ErrorHandler) -> None:
         """Remove an error handler."""
         if handler in self._handlers:
             self._handlers.remove(handler)
@@ -415,7 +415,7 @@ class ErrorManager:
         """Get error statistics."""
         return await self._metrics_handler.get_stats()
 
-    async def reset_error_stats(self):
+    async def reset_error_stats(self) -> None:
         """Reset error statistics."""
         await self._metrics_handler.reset_stats()
 
@@ -437,7 +437,7 @@ def create_error_context(
     severity: ErrorSeverity = ErrorSeverity.MEDIUM,
     component: str = "",
     operation: str = "",
-    **metadata,
+    **metadata: Any,
 ) -> ErrorContext:
     """Create an error context with the specified parameters."""
     return ErrorContext(
@@ -466,28 +466,28 @@ class error_boundary:
         self.severity = severity
         self.reraise = reraise
 
-    def __call__(self, func):
+    def __call__(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Use as decorator."""
         if asyncio.iscoroutinefunction(func):
 
-            async def async_wrapper(*args, **kwargs):
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 async with self:
                     return await func(*args, **kwargs)
 
             return async_wrapper
         else:
 
-            def sync_wrapper(*args, **kwargs):
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 with self:
                     return func(*args, **kwargs)
 
             return sync_wrapper
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "error_boundary":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> bool:
         """Async context manager exit."""
         if exc_type is not None:
             context = create_error_context(
@@ -504,11 +504,11 @@ class error_boundary:
 
         return False
 
-    def __enter__(self):
+    def __enter__(self) -> "error_boundary":
         """Sync context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> bool:
         """Sync context manager exit."""
         if exc_type is not None:
             context = create_error_context(

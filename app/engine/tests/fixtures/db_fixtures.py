@@ -122,7 +122,7 @@ def create_test_zone(
 class DBFixtures:
     """Database fixture management for tests."""
 
-    def __init__(self, pool: Pool):
+    def __init__(self, pool: Pool) -> None:
         self.pool = pool
         self.test_db_name = "trading_test"
 
@@ -324,7 +324,7 @@ import pytest
 
 
 @pytest.fixture
-async def db_session():
+async def db_session() -> None:
     """Pytest fixture providing database session with test data."""
     # This would use the real connection pool in integration tests
     # For unit tests, it's mocked

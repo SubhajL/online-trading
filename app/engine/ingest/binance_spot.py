@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set
 from decimal import Decimal
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -119,14 +119,14 @@ class BinanceSpotIngester:
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
 
-    async def _process_stream_data(self, data: Dict) -> None:
+    async def _process_stream_data(self, data: Dict[str, Any]) -> None:
         """Process stream data based on event type."""
         event_type = data.get("e")
 
         if event_type == "kline":
             await self._on_kline_message(data)
 
-    async def _on_kline_message(self, data: Dict) -> None:
+    async def _on_kline_message(self, data: Dict[str, Any]) -> None:
         """
         Process kline message, emit only when k.x == true (closed).
 

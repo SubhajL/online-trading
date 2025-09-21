@@ -100,12 +100,12 @@ class EnvironmentValidator:
         "hostname": r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
     }
 
-    def __init__(self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT):
+    def __init__(self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT) -> None:
         self.security_level = security_level
         self.rules: Dict[str, ValidationRule] = {}
         self._setup_default_rules()
 
-    def _setup_default_rules(self):
+    def _setup_default_rules(self) -> None:
         """Setup default validation rules for common variables."""
         # Database configuration
         self.add_rule(
@@ -192,7 +192,7 @@ class EnvironmentValidator:
             )
         )
 
-    def add_rule(self, rule: ValidationRule):
+    def add_rule(self, rule: ValidationRule) -> None:
         """Add a validation rule."""
         self.rules[rule.name] = rule
 
@@ -365,7 +365,7 @@ class EnvironmentValidator:
 class SecretManager:
     """Manages encryption and decryption of sensitive data."""
 
-    def __init__(self, master_key: Optional[str] = None):
+    def __init__(self, master_key: Optional[str] = None) -> None:
         """Initialize with master key or generate one."""
         if master_key:
             self.master_key = master_key.encode()
@@ -493,7 +493,7 @@ class SecureConfig:
 
         return value
 
-    def set_secret(self, key: str, value: str, encrypt: bool = True):
+    def set_secret(self, key: str, value: str, encrypt: bool = True) -> None:
         """Set secret value with optional encryption."""
         if encrypt and self.secret_manager:
             encrypted = self.secret_manager.encrypt(value)
@@ -573,7 +573,7 @@ class SecureConfig:
 class SecurityGuard:
     """Runtime security guard for monitoring and protecting the application."""
 
-    def __init__(self, config: SecureConfig):
+    def __init__(self, config: SecureConfig) -> None:
         self.config = config
         self.violations: List[Dict[str, Any]] = []
         self.start_time = datetime.utcnow()

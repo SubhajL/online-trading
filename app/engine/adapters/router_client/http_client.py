@@ -9,7 +9,7 @@ import asyncio
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any, List, Optional
 from urllib.parse import urljoin
 
 import aiohttp
@@ -52,7 +52,7 @@ class RouterHTTPClient:
 
         logger.info(f"RouterHTTPClient configured for {base_url}")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the HTTP client"""
         if self._initialized:
             return
@@ -67,7 +67,7 @@ class RouterHTTPClient:
             logger.error(f"Error initializing router HTTP client: {e}")
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client"""
         if self._session:
             await self._session.close()
@@ -76,7 +76,7 @@ class RouterHTTPClient:
         self._initialized = False
         logger.info("Router HTTP client closed")
 
-    def _ensure_initialized(self):
+    def _ensure_initialized(self) -> None:
         """Ensure client is initialized"""
         if not self._initialized or not self._session:
             raise RuntimeError("Router HTTP client not initialized")
@@ -97,8 +97,8 @@ class RouterHTTPClient:
         self,
         method: str,
         endpoint: str,
-        data: Optional[Dict] = None,
-        params: Optional[Dict] = None,
+        data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Make HTTP request with retry logic"""
         self._ensure_initialized()
@@ -461,11 +461,11 @@ class RouterHTTPClient:
     # Context Manager Support
     # ============================================================================
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         """Async context manager entry"""
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit"""
         await self.close()

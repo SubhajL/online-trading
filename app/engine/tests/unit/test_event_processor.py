@@ -24,7 +24,7 @@ class TestEvent(BaseEvent):
 
     test_data: str
 
-    def __init__(self, test_data: str, **kwargs):
+    def __init__(self, test_data: str, **kwargs) -> None:
         super().__init__(
             event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
             timestamp=kwargs.get("timestamp", datetime.utcnow()),
@@ -39,7 +39,7 @@ class TestEvent(BaseEvent):
 
 
 class TestEventProcessingConfig:
-    def test_config_defaults(self):
+    def test_config_defaults(self) -> None:
         config = EventProcessingConfig()
 
         assert config.max_processing_time_seconds == 30.0
@@ -47,7 +47,7 @@ class TestEventProcessingConfig:
         assert config.enable_metrics == True
         assert config.circuit_breaker_enabled == True
 
-    def test_config_custom_values(self):
+    def test_config_custom_values(self) -> None:
         config = EventProcessingConfig(
             max_processing_time_seconds=60.0,
             max_concurrent_handlers=20,
@@ -63,7 +63,7 @@ class TestEventProcessingConfig:
 
 class TestEventProcessor:
     @pytest.mark.asyncio
-    async def test_processor_initialization(self):
+    async def test_processor_initialization(self) -> None:
         config = EventProcessingConfig()
         processor = EventProcessor(config)
 
@@ -73,7 +73,7 @@ class TestEventProcessor:
         assert stats.average_processing_time == 0.0
 
     @pytest.mark.asyncio
-    async def test_process_event_with_single_subscription_success(self):
+    async def test_process_event_with_single_subscription_success(self) -> None:
         processor = EventProcessor()
         event = TestEvent(test_data="test")
 
@@ -96,20 +96,20 @@ class TestEventProcessor:
         handler.assert_called_once_with(event)
 
     @pytest.mark.asyncio
-    async def test_process_event_with_multiple_subscriptions_priority_order(self):
+    async def test_process_event_with_multiple_subscriptions_priority_order(self) -> None:
         processor = EventProcessor()
         event = TestEvent(test_data="test")
 
         # Track call order
         call_order = []
 
-        async def high_priority_handler(event: BaseEvent):
+        async def high_priority_handler(event: BaseEvent) -> None:
             call_order.append("high")
 
-        async def low_priority_handler(event: BaseEvent):
+        async def low_priority_handler(event: BaseEvent) -> None:
             call_order.append("low")
 
-        async def medium_priority_handler(event: BaseEvent):
+        async def medium_priority_handler(event: BaseEvent) -> None:
             call_order.append("medium")
 
         subscriptions = [
@@ -147,14 +147,14 @@ class TestEventProcessor:
         assert call_order == ["high", "medium", "low"]
 
     @pytest.mark.asyncio
-    async def test_process_event_with_handler_failure(self):
+    async def test_process_event_with_handler_failure(self) -> None:
         processor = EventProcessor()
         event = TestEvent(test_data="test")
 
-        async def failing_handler(event: BaseEvent):
+        async def failing_handler(event: BaseEvent) -> None:
             raise ValueError("Test error")
 
-        async def success_handler(event: BaseEvent):
+        async def success_handler(event: BaseEvent) -> None:
             pass
 
         subscriptions = [
@@ -185,12 +185,12 @@ class TestEventProcessor:
         assert result.errors[0].subscription_id == "failing"
 
     @pytest.mark.asyncio
-    async def test_process_event_with_timeout(self):
+    async def test_process_event_with_timeout(self) -> None:
         config = EventProcessingConfig(max_processing_time_seconds=0.1)
         processor = EventProcessor(config)
         event = TestEvent(test_data="test")
 
-        async def slow_handler(event: BaseEvent):
+        async def slow_handler(event: BaseEvent) -> None:
             await asyncio.sleep(0.2)  # Longer than timeout
 
         subscription = EventSubscription(
@@ -210,12 +210,12 @@ class TestEventProcessor:
         assert "timeout" in result.errors[0].error_message.lower()
 
     @pytest.mark.asyncio
-    async def test_process_event_with_sync_handler(self):
+    async def test_process_event_with_sync_handler(self) -> None:
         processor = EventProcessor()
         event = TestEvent(test_data="test")
 
         # Non-async handler
-        def sync_handler(event: BaseEvent):
+        def sync_handler(event: BaseEvent) -> None:
             return "sync_result"
 
         subscription = EventSubscription(
@@ -234,7 +234,7 @@ class TestEventProcessor:
         assert len(result.errors) == 0
 
     @pytest.mark.asyncio
-    async def test_process_event_concurrent_processing(self):
+    async def test_process_event_concurrent_processing(self) -> None:
         config = EventProcessingConfig(max_concurrent_handlers=2)
         processor = EventProcessor(config)
         event = TestEvent(test_data="test")
@@ -244,7 +244,7 @@ class TestEventProcessor:
         max_concurrent = 0
         lock = asyncio.Lock()
 
-        async def concurrent_handler(event: BaseEvent):
+        async def concurrent_handler(event: BaseEvent) -> None:
             nonlocal concurrent_count, max_concurrent
             async with lock:
                 concurrent_count += 1
@@ -275,12 +275,12 @@ class TestEventProcessor:
         assert max_concurrent <= 2
 
     @pytest.mark.asyncio
-    async def test_process_event_tracks_metrics(self):
+    async def test_process_event_tracks_metrics(self) -> None:
         config = EventProcessingConfig(enable_metrics=True)
         processor = EventProcessor(config)
         event = TestEvent(test_data="test")
 
-        async def handler(event: BaseEvent):
+        async def handler(event: BaseEvent) -> None:
             await asyncio.sleep(0.01)  # Small delay for timing
 
         subscription = EventSubscription(
@@ -302,12 +302,12 @@ class TestEventProcessor:
         assert stats.failed_handlers == 0
 
     @pytest.mark.asyncio
-    async def test_process_event_metrics_disabled(self):
+    async def test_process_event_metrics_disabled(self) -> None:
         config = EventProcessingConfig(enable_metrics=False)
         processor = EventProcessor(config)
         event = TestEvent(test_data="test")
 
-        async def handler(event: BaseEvent):
+        async def handler(event: BaseEvent) -> None:
             pass
 
         subscription = EventSubscription(
@@ -327,12 +327,12 @@ class TestEventProcessor:
         assert stats.average_processing_time == 0.0
 
     @pytest.mark.asyncio
-    async def test_process_event_with_circuit_breaker(self):
+    async def test_process_event_with_circuit_breaker(self) -> None:
         config = EventProcessingConfig(circuit_breaker_enabled=True)
         processor = EventProcessor(config)
         event = TestEvent(test_data="test")
 
-        async def failing_handler(event: BaseEvent):
+        async def failing_handler(event: BaseEvent) -> None:
             raise Exception("Persistent failure")
 
         subscription = EventSubscription(
@@ -353,11 +353,11 @@ class TestEventProcessor:
         assert stats.circuit_breaker_activations > 0
 
     @pytest.mark.asyncio
-    async def test_reset_stats(self):
+    async def test_reset_stats(self) -> None:
         processor = EventProcessor()
         event = TestEvent(test_data="test")
 
-        async def handler(event: BaseEvent):
+        async def handler(event: BaseEvent) -> None:
             pass
 
         subscription = EventSubscription(
@@ -382,11 +382,11 @@ class TestEventProcessor:
         assert stats.average_processing_time == 0.0
 
     @pytest.mark.asyncio
-    async def test_process_event_returns_detailed_result(self):
+    async def test_process_event_returns_detailed_result(self) -> None:
         processor = EventProcessor()
         event = TestEvent(test_data="test")
 
-        async def handler(event: BaseEvent):
+        async def handler(event: BaseEvent) -> None:
             return "handler_result"
 
         subscription = EventSubscription(

@@ -23,7 +23,7 @@ from app.engine.models import (
 
 
 @pytest.fixture(scope="session")
-def event_loop():
+def event_loop() -> None:
     """Create event loop for async tests."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
@@ -31,7 +31,7 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-async def test_db_config():
+async def test_db_config() -> None:
     """Test database configuration."""
     return DBConfig(
         host=os.getenv("DB_HOST", "localhost"),
@@ -45,7 +45,7 @@ async def test_db_config():
 
 
 @pytest.fixture(scope="session")
-async def test_pool(test_db_config):
+async def test_pool(test_db_config) -> None:
     """Create test connection pool."""
     await timescale.initialize_pool(test_db_config)
     yield timescale.get_pool()
@@ -53,7 +53,7 @@ async def test_pool(test_db_config):
 
 
 @pytest.fixture(autouse=True)
-async def clean_database(test_pool):
+async def clean_database(test_pool) -> None:
     """Clean database before each test."""
     async with test_pool.acquire() as conn:
         await conn.execute("TRUNCATE TABLE candles CASCADE")
@@ -67,7 +67,7 @@ async def clean_database(test_pool):
 
 class TestCandleOperations:
     @pytest.mark.asyncio
-    async def test_candle_upsert_and_retrieve(self, test_pool):
+    async def test_candle_upsert_and_retrieve(self, test_pool) -> None:
         """Test inserting and retrieving candles with Decimal precision."""
         # Create test candle
         candle = Candle(
@@ -112,7 +112,7 @@ class TestCandleOperations:
         assert retrieved["taker_buy_quote_volume"] == candle.taker_buy_quote_volume
 
     @pytest.mark.asyncio
-    async def test_candle_upsert_idempotent(self, test_pool):
+    async def test_candle_upsert_idempotent(self, test_pool) -> None:
         """Test candle upsert is idempotent."""
         candle = Candle(
             symbol="ETHUSDT",
@@ -143,7 +143,7 @@ class TestCandleOperations:
         assert len(candles) == 1
 
     @pytest.mark.asyncio
-    async def test_candle_retrieval_with_filters(self, test_pool):
+    async def test_candle_retrieval_with_filters(self, test_pool) -> None:
         """Test candle retrieval with various filters."""
         base_time = datetime.utcnow().replace(microsecond=0)
 
@@ -182,7 +182,7 @@ class TestCandleOperations:
 
 class TestIndicatorOperations:
     @pytest.mark.asyncio
-    async def test_indicator_upsert_and_retrieve(self, test_pool):
+    async def test_indicator_upsert_and_retrieve(self, test_pool) -> None:
         """Test technical indicators with Decimal precision."""
         indicator = TechnicalIndicators(
             symbol="BTCUSDT",
@@ -230,7 +230,7 @@ class TestIndicatorOperations:
 
 class TestZoneOperations:
     @pytest.mark.asyncio
-    async def test_zone_upsert_and_update(self, test_pool):
+    async def test_zone_upsert_and_update(self, test_pool) -> None:
         """Test supply/demand zone operations."""
         zone = SupplyDemandZone(
             zone_id=str(uuid4()),
@@ -274,7 +274,7 @@ class TestZoneOperations:
 
 class TestOrderOperations:
     @pytest.mark.asyncio
-    async def test_order_lifecycle(self, test_pool):
+    async def test_order_lifecycle(self, test_pool) -> None:
         """Test order creation and updates."""
         # Create initial order
         order_data = {
@@ -320,7 +320,7 @@ class TestOrderOperations:
             assert row["commission"] == Decimal("0.00001")
 
     @pytest.mark.asyncio
-    async def test_order_decimal_conversion(self, test_pool):
+    async def test_order_decimal_conversion(self, test_pool) -> None:
         """Test order handles various numeric input types."""
         order_data = {
             "client_order_id": f"test_decimal_{uuid4()}",
@@ -351,7 +351,7 @@ class TestOrderOperations:
 
 class TestPositionOperations:
     @pytest.mark.asyncio
-    async def test_get_active_positions(self, test_pool):
+    async def test_get_active_positions(self, test_pool) -> None:
         """Test retrieving active positions with filters."""
         # Insert test positions directly
         async with test_pool.acquire() as conn:
@@ -414,7 +414,7 @@ class TestPositionOperations:
 
 class TestTransactionHandling:
     @pytest.mark.asyncio
-    async def test_transaction_rollback(self, test_pool):
+    async def test_transaction_rollback(self, test_pool) -> None:
         """Test transaction rollback on error."""
         async with test_pool.acquire() as conn:
             try:
@@ -461,10 +461,10 @@ class TestTransactionHandling:
 
 class TestConnectionPoolResilience:
     @pytest.mark.asyncio
-    async def test_concurrent_operations(self, test_pool):
+    async def test_concurrent_operations(self, test_pool) -> None:
         """Test pool handles concurrent operations."""
 
-        async def insert_candle(i):
+        async def insert_candle(i) -> None:
             candle = Candle(
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
@@ -494,7 +494,7 @@ class TestConnectionPoolResilience:
 
 class TestErrorHandling:
     @pytest.mark.asyncio
-    async def test_graceful_error_handling(self, test_pool):
+    async def test_graceful_error_handling(self, test_pool) -> None:
         """Test DAL functions handle errors gracefully."""
         # Test with invalid data
         invalid_candle = Candle(

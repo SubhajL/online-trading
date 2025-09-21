@@ -28,7 +28,7 @@ from app.engine.services.position_tracker import Position, PositionSide
 class TestAdaptLegacyOrderFormat:
     """Tests for converting legacy order format to new format."""
 
-    def test_adapt_legacy_order_format_market_buy(self):
+    def test_adapt_legacy_order_format_market_buy(self) -> None:
         """Converts legacy market buy order."""
         legacy_order = {
             "symbol": "BTCUSDT",
@@ -48,7 +48,7 @@ class TestAdaptLegacyOrderFormat:
         assert order.price is None
         assert order.stop_price is None
 
-    def test_adapt_legacy_order_format_limit_sell(self):
+    def test_adapt_legacy_order_format_limit_sell(self) -> None:
         """Converts legacy limit sell order."""
         legacy_order = {
             "symbol": "ETHUSDT",
@@ -68,7 +68,7 @@ class TestAdaptLegacyOrderFormat:
         assert order.price == Decimal("3500.50")
         assert order.stop_price is None
 
-    def test_adapt_legacy_order_format_stop_market(self):
+    def test_adapt_legacy_order_format_stop_market(self) -> None:
         """Converts legacy stop market order."""
         legacy_order = {
             "symbol": "BTCUSDT",
@@ -88,7 +88,7 @@ class TestAdaptLegacyOrderFormat:
         assert order.price is None
         assert order.stop_price == Decimal("49000")
 
-    def test_adapt_legacy_order_format_missing_required_fields(self):
+    def test_adapt_legacy_order_format_missing_required_fields(self) -> None:
         """Raises error for missing required fields."""
         legacy_order = {
             "symbol": "BTCUSDT",
@@ -101,7 +101,7 @@ class TestAdaptLegacyOrderFormat:
 
         assert "missing required field" in str(exc_info.value).lower()
 
-    def test_adapt_legacy_order_format_invalid_side(self):
+    def test_adapt_legacy_order_format_invalid_side(self) -> None:
         """Raises error for invalid side."""
         legacy_order = {
             "symbol": "BTCUSDT",
@@ -119,7 +119,7 @@ class TestAdaptLegacyOrderFormat:
 class TestAdaptLegacyPositionFormat:
     """Tests for converting legacy position format to new format."""
 
-    def test_adapt_legacy_position_format_long(self):
+    def test_adapt_legacy_position_format_long(self) -> None:
         """Converts legacy long position."""
         legacy_pos = {
             "symbol": "BTCUSDT",
@@ -143,7 +143,7 @@ class TestAdaptLegacyPositionFormat:
         assert position.open_time.month == 1
         assert position.open_time.day == 15
 
-    def test_adapt_legacy_position_format_short_with_stops(self):
+    def test_adapt_legacy_position_format_short_with_stops(self) -> None:
         """Converts legacy short position with stop loss and take profit."""
         legacy_pos = {
             "symbol": "ETHUSDT",
@@ -166,7 +166,7 @@ class TestAdaptLegacyPositionFormat:
         assert position.stop_loss == Decimal("3600")
         assert position.take_profit == Decimal("3300")
 
-    def test_adapt_legacy_position_format_closed(self):
+    def test_adapt_legacy_position_format_closed(self) -> None:
         """Converts closed position."""
         legacy_pos = {
             "symbol": "BTCUSDT",
@@ -187,7 +187,7 @@ class TestAdaptLegacyPositionFormat:
         assert position.close_time is not None
         assert position.realized_pnl == Decimal("200")
 
-    def test_adapt_legacy_position_format_defaults(self):
+    def test_adapt_legacy_position_format_defaults(self) -> None:
         """Uses sensible defaults for missing optional fields."""
         legacy_pos = {
             "symbol": "BTCUSDT",
@@ -209,7 +209,7 @@ class TestAdaptLegacyPositionFormat:
 class TestAdaptToLegacyFormat:
     """Tests for converting new format back to legacy format."""
 
-    def test_adapt_order_to_legacy_format(self):
+    def test_adapt_order_to_legacy_format(self) -> None:
         """Converts OrderRequest to legacy dictionary format."""
         order = OrderRequest(
             symbol="BTCUSDT",
@@ -228,7 +228,7 @@ class TestAdaptToLegacyFormat:
         assert legacy["price"] == "50000.50"
         assert legacy["stopPrice"] is None
 
-    def test_adapt_position_to_legacy_format(self):
+    def test_adapt_position_to_legacy_format(self) -> None:
         """Converts Position to legacy dictionary format."""
         position = Position(
             symbol="BTCUSDT",

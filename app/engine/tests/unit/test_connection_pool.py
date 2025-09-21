@@ -11,7 +11,7 @@ from app.engine.adapters.db.connection_pool import ConnectionPool, DBConfig
 
 
 @pytest.fixture
-def db_config():
+def db_config() -> None:
     return DBConfig(
         host="localhost",
         port=5432,
@@ -26,11 +26,11 @@ def db_config():
 
 class TestConnectionPool:
     @pytest.mark.asyncio
-    async def test_pool_creation_success(self, db_config):
+    async def test_pool_creation_success(self, db_config) -> None:
         """Pool initializes successfully with valid config."""
         mock_pool = AsyncMock(spec=Pool)
 
-        async def async_create_pool(*args, **kwargs):
+        async def async_create_pool(*args, **kwargs) -> None:
             return mock_pool
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool) as mock_create:
@@ -52,11 +52,11 @@ class TestConnectionPool:
             assert pool.is_initialized
 
     @pytest.mark.asyncio
-    async def test_pool_creation_retry(self, db_config):
+    async def test_pool_creation_retry(self, db_config) -> None:
         """Pool retries on initial connection failure."""
         mock_pool = AsyncMock(spec=Pool)
 
-        async def async_side_effect(*args, **kwargs):
+        async def async_side_effect(*args, **kwargs) -> None:
             # Track calls
             if not hasattr(async_side_effect, "call_count"):
                 async_side_effect.call_count = 0
@@ -74,10 +74,10 @@ class TestConnectionPool:
             assert pool.is_initialized
 
     @pytest.mark.asyncio
-    async def test_pool_creation_max_retries_exceeded(self, db_config):
+    async def test_pool_creation_max_retries_exceeded(self, db_config) -> None:
         """Pool raises exception after max retries exceeded."""
 
-        async def async_fail(*args, **kwargs):
+        async def async_fail(*args, **kwargs) -> None:
             raise Exception("Connection failed")
 
         with patch("asyncpg.create_pool", side_effect=async_fail) as mock_create:
@@ -90,14 +90,14 @@ class TestConnectionPool:
             assert not pool.is_initialized
 
     @pytest.mark.asyncio
-    async def test_acquire_release_cycle(self, db_config):
+    async def test_acquire_release_cycle(self, db_config) -> None:
         """Connections can be acquired and released properly."""
         mock_pool = AsyncMock(spec=Pool)
         mock_conn = AsyncMock(spec=Connection)
         mock_pool.acquire = AsyncMock(return_value=mock_conn)
         mock_pool.release = AsyncMock()
 
-        async def async_create_pool(*args, **kwargs):
+        async def async_create_pool(*args, **kwargs) -> None:
             return mock_pool
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
@@ -113,7 +113,7 @@ class TestConnectionPool:
             mock_pool.release.assert_called_once_with(mock_conn)
 
     @pytest.mark.asyncio
-    async def test_acquire_without_initialization(self, db_config):
+    async def test_acquire_without_initialization(self, db_config) -> None:
         """Acquire raises error if pool not initialized."""
         pool = ConnectionPool(db_config)
 
@@ -122,7 +122,7 @@ class TestConnectionPool:
                 pass
 
     @pytest.mark.asyncio
-    async def test_health_check_success(self, db_config):
+    async def test_health_check_success(self, db_config) -> None:
         """Health check returns True when pool is healthy."""
         mock_pool = AsyncMock(spec=Pool)
         mock_conn = AsyncMock(spec=Connection)
@@ -130,7 +130,7 @@ class TestConnectionPool:
         mock_pool.release = AsyncMock()
         mock_conn.fetchval = AsyncMock(return_value=1)
 
-        async def async_create_pool(*args, **kwargs):
+        async def async_create_pool(*args, **kwargs) -> None:
             return mock_pool
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
@@ -143,12 +143,12 @@ class TestConnectionPool:
             mock_conn.fetchval.assert_called_once_with("SELECT 1")
 
     @pytest.mark.asyncio
-    async def test_health_check_failure(self, db_config):
+    async def test_health_check_failure(self, db_config) -> None:
         """Health check returns False when pool is unhealthy."""
         mock_pool = AsyncMock(spec=Pool)
         mock_pool.acquire.side_effect = Exception("Pool is closed")
 
-        async def async_create_pool(*args, **kwargs):
+        async def async_create_pool(*args, **kwargs) -> None:
             return mock_pool
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
@@ -160,11 +160,11 @@ class TestConnectionPool:
             assert result is False
 
     @pytest.mark.asyncio
-    async def test_close_pool(self, db_config):
+    async def test_close_pool(self, db_config) -> None:
         """Pool can be closed gracefully."""
         mock_pool = AsyncMock(spec=Pool)
 
-        async def async_create_pool(*args, **kwargs):
+        async def async_create_pool(*args, **kwargs) -> None:
             return mock_pool
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
@@ -177,14 +177,14 @@ class TestConnectionPool:
             assert not pool.is_initialized
 
     @pytest.mark.asyncio
-    async def test_connection_context_manager(self, db_config):
+    async def test_connection_context_manager(self, db_config) -> None:
         """Connection context manager handles exceptions properly."""
         mock_pool = AsyncMock(spec=Pool)
         mock_conn = AsyncMock(spec=Connection)
         mock_pool.acquire = AsyncMock(return_value=mock_conn)
         mock_pool.release = AsyncMock()
 
-        async def async_create_pool(*args, **kwargs):
+        async def async_create_pool(*args, **kwargs) -> None:
             return mock_pool
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):

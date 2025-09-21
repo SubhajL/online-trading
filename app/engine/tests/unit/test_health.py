@@ -26,7 +26,7 @@ from app.engine.core.health import (
 class TestDatabaseHealth:
     """Tests for database health checks."""
 
-    def test_database_health_when_healthy(self):
+    def test_database_health_when_healthy(self) -> None:
         """Returns OK with low latency metrics."""
         # Simulate healthy database stats
         db_stats = {
@@ -44,7 +44,7 @@ class TestDatabaseHealth:
         assert "connections" in health.details
         assert health.details["utilization"] == 0.25  # 5/20
 
-    def test_database_health_when_pool_exhausted(self):
+    def test_database_health_when_pool_exhausted(self) -> None:
         """Detects degraded state on pool saturation."""
         # Simulate exhausted connection pool
         db_stats = {
@@ -61,7 +61,7 @@ class TestDatabaseHealth:
         assert health.message == "Connection pool near capacity"
         assert health.details["utilization"] == 0.95
 
-    def test_database_health_when_unhealthy(self):
+    def test_database_health_when_unhealthy(self) -> None:
         """Reports unhealthy when connections fail."""
         # Simulate connection failures
         db_stats = {
@@ -82,7 +82,7 @@ class TestDatabaseHealth:
 class TestRedisHealth:
     """Tests for Redis health checks."""
 
-    def test_redis_health_with_high_memory(self):
+    def test_redis_health_with_high_memory(self) -> None:
         """Warns when Redis memory exceeds threshold."""
         # Simulate high memory usage
         redis_stats = {
@@ -100,7 +100,7 @@ class TestRedisHealth:
         assert "memory" in health.message.lower()
         assert health.details["memory_usage_percent"] == 90
 
-    def test_redis_health_when_healthy(self):
+    def test_redis_health_when_healthy(self) -> None:
         """Returns healthy with good metrics."""
         redis_stats = {
             "connected": True,
@@ -117,7 +117,7 @@ class TestRedisHealth:
         assert health.latency_ms < 2
         assert health.details["hit_rate"] == 0.98
 
-    def test_redis_health_when_disconnected(self):
+    def test_redis_health_when_disconnected(self) -> None:
         """Reports unhealthy when disconnected."""
         redis_stats = {
             "connected": False,
@@ -137,7 +137,7 @@ class TestRedisHealth:
 class TestMemoryPoolsHealth:
     """Tests for memory pool health checks."""
 
-    def test_memory_pools_detect_leaks(self):
+    def test_memory_pools_detect_leaks(self) -> None:
         """Identifies arrays held beyond max duration."""
         # Simulate potential memory leaks
         pool_stats = {
@@ -163,7 +163,7 @@ class TestMemoryPoolsHealth:
         assert "leak" in health.message.lower()
         assert health.details["potential_leaks"] == 1
 
-    def test_memory_pools_healthy(self):
+    def test_memory_pools_healthy(self) -> None:
         """Reports healthy with normal usage."""
         pool_stats = {
             "pools": [
@@ -187,7 +187,7 @@ class TestMemoryPoolsHealth:
         assert health.status == HealthStatus.HEALTHY
         assert health.details["utilization"] == 0.3
 
-    def test_memory_pools_exhausted(self):
+    def test_memory_pools_exhausted(self) -> None:
         """Detects pool exhaustion."""
         pool_stats = {
             "pools": [
@@ -218,7 +218,7 @@ class TestMemoryPoolsHealth:
 class TestEventBusHealth:
     """Tests for event bus health checks."""
 
-    def test_event_bus_health_circuit_open(self):
+    def test_event_bus_health_circuit_open(self) -> None:
         """Reports unhealthy when circuits are open."""
         # Simulate open circuit breakers
         bus_stats = {
@@ -241,7 +241,7 @@ class TestEventBusHealth:
         assert "circuit" in health.message.lower()
         assert health.details["open_circuits"] == 1
 
-    def test_event_bus_health_queue_backing_up(self):
+    def test_event_bus_health_queue_backing_up(self) -> None:
         """Detects when queue is backing up."""
         bus_stats = {
             "queue_depth": 8000,
@@ -262,7 +262,7 @@ class TestEventBusHealth:
         assert "queue" in health.message.lower()
         assert health.details["queue_utilization"] == 0.8
 
-    def test_event_bus_healthy(self):
+    def test_event_bus_healthy(self) -> None:
         """Reports healthy with normal operation."""
         bus_stats = {
             "queue_depth": 100,
@@ -287,7 +287,7 @@ class TestEventBusHealth:
 class TestAggregateHealth:
     """Tests for health aggregation."""
 
-    def test_aggregate_combines_statuses(self):
+    def test_aggregate_combines_statuses(self) -> None:
         """Worst status wins, preserves component details."""
         components = [
             ComponentHealth(
@@ -321,7 +321,7 @@ class TestAggregateHealth:
         assert "redis" in overall.message  # Mentions degraded component
         assert "event_bus" in overall.message  # Mentions unhealthy component
 
-    def test_aggregate_all_healthy(self):
+    def test_aggregate_all_healthy(self) -> None:
         """Reports healthy when all components healthy."""
         components = [
             ComponentHealth(
@@ -346,7 +346,7 @@ class TestAggregateHealth:
         assert "healthy" in overall.message.lower()
         assert overall.latency_ms == max(2.0, 1.0)
 
-    def test_aggregate_empty_components(self):
+    def test_aggregate_empty_components(self) -> None:
         """Handles empty component list."""
         overall = aggregate_health_status([])
 
@@ -357,7 +357,7 @@ class TestAggregateHealth:
 class TestHealthEndpoint:
     """Tests for health HTTP endpoint."""
 
-    def test_health_endpoint_format(self):
+    def test_health_endpoint_format(self) -> None:
         """Returns proper JSON with HTTP status codes."""
         # Create mock health check
         health_check = HealthCheck(
@@ -386,7 +386,7 @@ class TestHealthEndpoint:
         assert "components" in body
         assert "database" in body["components"]
 
-    def test_health_endpoint_degraded(self):
+    def test_health_endpoint_degraded(self) -> None:
         """Returns 200 with degraded status."""
         health_check = HealthCheck(
             status=HealthStatus.DEGRADED,
@@ -402,7 +402,7 @@ class TestHealthEndpoint:
         body = json.loads(response["body"])
         assert body["status"] == "degraded"
 
-    def test_health_endpoint_unhealthy(self):
+    def test_health_endpoint_unhealthy(self) -> None:
         """Returns 503 when unhealthy."""
         health_check = HealthCheck(
             status=HealthStatus.UNHEALTHY,
@@ -418,7 +418,7 @@ class TestHealthEndpoint:
         body = json.loads(response["body"])
         assert body["status"] == "unhealthy"
 
-    def test_health_endpoint_kubernetes_compatible(self):
+    def test_health_endpoint_kubernetes_compatible(self) -> None:
         """Compatible with Kubernetes probes."""
         health_check = HealthCheck(
             status=HealthStatus.HEALTHY, message="Ready", latency_ms=1.0, components={}

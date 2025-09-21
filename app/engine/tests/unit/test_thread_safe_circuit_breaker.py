@@ -16,7 +16,7 @@ from app.engine.resilience.thread_safe_circuit_breaker import (
 
 
 class TestCircuitBreakerConfig:
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         config = CircuitBreakerConfig()
 
         assert config.failure_threshold == 5
@@ -24,7 +24,7 @@ class TestCircuitBreakerConfig:
         assert config.timeout_seconds == 60
         assert config.half_open_max_requests == 3
 
-    def test_custom_values(self):
+    def test_custom_values(self) -> None:
         config = CircuitBreakerConfig(
             failure_threshold=3,
             success_threshold=1,
@@ -40,7 +40,7 @@ class TestCircuitBreakerConfig:
 
 class TestCircuitBreaker:
     @pytest.mark.asyncio
-    async def test_initial_state_is_closed(self):
+    async def test_initial_state_is_closed(self) -> None:
         clock = FakeClock()
         breaker = CircuitBreaker(clock=clock)
 
@@ -48,7 +48,7 @@ class TestCircuitBreaker:
         assert await breaker.should_allow_request() is True
 
     @pytest.mark.asyncio
-    async def test_concurrent_failures_open_circuit(self):
+    async def test_concurrent_failures_open_circuit(self) -> None:
         clock = FakeClock()
         config = CircuitBreakerConfig(failure_threshold=3)
         breaker = CircuitBreaker(config=config, clock=clock)
@@ -65,7 +65,7 @@ class TestCircuitBreaker:
         assert await breaker.should_allow_request() is False
 
     @pytest.mark.asyncio
-    async def test_state_transitions_are_atomic(self):
+    async def test_state_transitions_are_atomic(self) -> None:
         clock = FakeClock()
         config = CircuitBreakerConfig(failure_threshold=2)
         breaker = CircuitBreaker(config=config, clock=clock)
@@ -73,13 +73,13 @@ class TestCircuitBreaker:
         # Track all state changes
         states_seen = []
 
-        async def record_state_changes():
+        async def record_state_changes() -> None:
             for _ in range(10):
                 state = await breaker.get_state()
                 states_seen.append(state)
                 await asyncio.sleep(0)
 
-        async def cause_failures():
+        async def cause_failures() -> None:
             for _ in range(3):
                 await breaker.record_failure()
                 await asyncio.sleep(0)
@@ -92,7 +92,7 @@ class TestCircuitBreaker:
         assert CircuitBreakerState.OPEN in states_seen
 
     @pytest.mark.asyncio
-    async def test_timeout_resets_to_half_open(self):
+    async def test_timeout_resets_to_half_open(self) -> None:
         clock = FakeClock()
         config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=30)
         breaker = CircuitBreaker(config=config, clock=clock)
@@ -112,7 +112,7 @@ class TestCircuitBreaker:
         assert await breaker.should_allow_request() is True
 
     @pytest.mark.asyncio
-    async def test_success_in_half_open_closes(self):
+    async def test_success_in_half_open_closes(self) -> None:
         clock = FakeClock()
         config = CircuitBreakerConfig(
             failure_threshold=2, success_threshold=2, timeout_seconds=10
@@ -135,7 +135,7 @@ class TestCircuitBreaker:
         assert await breaker.get_state() == CircuitBreakerState.CLOSED
 
     @pytest.mark.asyncio
-    async def test_failure_in_half_open_opens(self):
+    async def test_failure_in_half_open_opens(self) -> None:
         clock = FakeClock()
         config = CircuitBreakerConfig(failure_threshold=2, timeout_seconds=10)
         breaker = CircuitBreaker(config=config, clock=clock)
@@ -153,7 +153,7 @@ class TestCircuitBreaker:
         assert await breaker.get_state() == CircuitBreakerState.OPEN
 
     @pytest.mark.asyncio
-    async def test_half_open_limits_concurrent_requests(self):
+    async def test_half_open_limits_concurrent_requests(self) -> None:
         clock = FakeClock()
         config = CircuitBreakerConfig(
             failure_threshold=2, timeout_seconds=10, half_open_max_requests=3
@@ -178,7 +178,7 @@ class TestCircuitBreaker:
         assert results[3:] == [False, False]
 
     @pytest.mark.asyncio
-    async def test_get_stats_returns_metrics(self):
+    async def test_get_stats_returns_metrics(self) -> None:
         clock = FakeClock()
         breaker = CircuitBreaker(clock=clock)
 
@@ -195,7 +195,7 @@ class TestCircuitBreaker:
         assert stats.state == CircuitBreakerState.CLOSED
 
     @pytest.mark.asyncio
-    async def test_reset_clears_counts(self):
+    async def test_reset_clears_counts(self) -> None:
         clock = FakeClock()
         config = CircuitBreakerConfig(failure_threshold=3)
         breaker = CircuitBreaker(config=config, clock=clock)
@@ -214,7 +214,7 @@ class TestCircuitBreaker:
         assert stats.success_count == 0
 
     @pytest.mark.asyncio
-    async def test_concurrent_state_queries_consistent(self):
+    async def test_concurrent_state_queries_consistent(self) -> None:
         clock = FakeClock()
         breaker = CircuitBreaker(clock=clock)
 

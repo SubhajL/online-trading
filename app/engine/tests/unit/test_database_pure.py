@@ -13,7 +13,7 @@ from app.engine.core.database import DatabaseConfig, OptimisticLockError, Databa
 class TestDatabaseConfig:
     """Pure logic tests for DatabaseConfig validation."""
 
-    def test_database_config_creation(self):
+    def test_database_config_creation(self) -> None:
         """Test config creation with valid parameters."""
         config = DatabaseConfig(
             postgres_url="postgresql://user:pass@localhost:5432/db",
@@ -31,7 +31,7 @@ class TestDatabaseConfig:
         assert config.pool_timeout == 30
         assert config.retry_attempts == 3
 
-    def test_database_config_validation_invalid_postgres_url(self):
+    def test_database_config_validation_invalid_postgres_url(self) -> None:
         """Test config validation rejects invalid PostgreSQL URL."""
         with pytest.raises(ValueError) as exc_info:
             DatabaseConfig(
@@ -39,7 +39,7 @@ class TestDatabaseConfig:
             )
         assert "Invalid PostgreSQL URL scheme" in str(exc_info.value)
 
-    def test_database_config_validation_invalid_redis_url(self):
+    def test_database_config_validation_invalid_redis_url(self) -> None:
         """Test config validation rejects invalid Redis URL."""
         with pytest.raises(ValueError) as exc_info:
             DatabaseConfig(
@@ -48,7 +48,7 @@ class TestDatabaseConfig:
             )
         assert "Invalid Redis URL scheme" in str(exc_info.value)
 
-    def test_database_config_validation_invalid_pool_size(self):
+    def test_database_config_validation_invalid_pool_size(self) -> None:
         """Test config validation rejects invalid pool size."""
         with pytest.raises(ValueError) as exc_info:
             DatabaseConfig(
@@ -58,7 +58,7 @@ class TestDatabaseConfig:
             )
         assert "pool_size must be positive" in str(exc_info.value)
 
-    def test_database_config_validation_invalid_overflow(self):
+    def test_database_config_validation_invalid_overflow(self) -> None:
         """Test config validation rejects negative max_overflow."""
         with pytest.raises(ValueError) as exc_info:
             DatabaseConfig(
@@ -68,7 +68,7 @@ class TestDatabaseConfig:
             )
         assert "max_overflow cannot be negative" in str(exc_info.value)
 
-    def test_database_config_validation_invalid_timeout(self):
+    def test_database_config_validation_invalid_timeout(self) -> None:
         """Test config validation rejects invalid pool timeout."""
         with pytest.raises(ValueError) as exc_info:
             DatabaseConfig(
@@ -78,7 +78,7 @@ class TestDatabaseConfig:
             )
         assert "pool_timeout must be positive" in str(exc_info.value)
 
-    def test_database_config_defaults(self):
+    def test_database_config_defaults(self) -> None:
         """Test config uses sensible defaults."""
         config = DatabaseConfig(
             postgres_url="postgresql://user:pass@localhost:5432/db",
@@ -96,7 +96,7 @@ class TestDatabaseConfig:
 class TestOptimisticLockErrorHandling:
     """Pure logic tests for optimistic lock error conditions."""
 
-    def test_optimistic_lock_error_message(self):
+    def test_optimistic_lock_error_message(self) -> None:
         """Test OptimisticLockError carries meaningful message."""
         error_msg = "Row was modified by another transaction"
         error = OptimisticLockError(error_msg)
@@ -104,7 +104,7 @@ class TestOptimisticLockErrorHandling:
         assert str(error) == error_msg
         assert isinstance(error, DatabaseError)
 
-    def test_database_error_inheritance(self):
+    def test_database_error_inheritance(self) -> None:
         """Test error hierarchy is correct."""
         error = OptimisticLockError("test")
 

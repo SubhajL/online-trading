@@ -91,8 +91,8 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
         return ValidationResult(is_valid=False, errors=errors)
 
     # Check quantity limits
-    min_qty = filters.get("min_qty", Decimal("0"))
-    max_qty = filters.get("max_qty", Decimal("1000000"))
+    min_qty = Decimal(str(filters.get("min_qty", Decimal("0"))))
+    max_qty = Decimal(str(filters.get("max_qty", Decimal("1000000"))))
 
     if order.quantity < min_qty:
         errors.append(f"Quantity {order.quantity} below minimum quantity {min_qty}")
@@ -106,7 +106,7 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
             errors.append("Price required for limit orders")
         elif order.price > 0:
             # Check price precision
-            price_precision = filters.get("price_precision", 8)
+            price_precision = int(filters.get("price_precision", 8))
             price_str = str(order.price)
             if "." in price_str:
                 decimals = len(price_str.split(".")[1])
@@ -117,7 +117,7 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
 
             # Check notional value
             notional = order.quantity * order.price
-            min_notional = filters.get("min_notional", Decimal("0"))
+            min_notional = Decimal(str(filters.get("min_notional", Decimal("0"))))
             if notional < min_notional:
                 errors.append(f"Notional value {notional} below minimum {min_notional}")
 
@@ -170,10 +170,10 @@ def calculate_position_size(signal: TradingSignal, account: AccountInfo) -> Deci
 
     # Round to appropriate precision
     filters = SYMBOL_FILTERS.get(signal.symbol, {})
-    qty_step = filters.get("qty_step", Decimal("0.00001"))
+    qty_step = Decimal(str(filters.get("qty_step", Decimal("0.00001"))))
 
     # Round down to nearest step
-    if qty_step > 0:
+    if qty_step > Decimal("0"):
         final_size = (final_size // qty_step) * qty_step
 
     return final_size

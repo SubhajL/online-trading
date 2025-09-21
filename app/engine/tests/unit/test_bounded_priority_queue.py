@@ -28,7 +28,7 @@ class TestMessage:
 
 class TestBoundedPriorityQueue:
     @pytest.mark.asyncio
-    async def test_old_items_expire(self):
+    async def test_old_items_expire(self) -> None:
         start_time = datetime(2024, 1, 1, 12, 0, 0)
         clock = FakeClock(initial_time=start_time)
         queue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
@@ -53,7 +53,7 @@ class TestBoundedPriorityQueue:
         assert items[1].data.id == 2
 
     @pytest.mark.asyncio
-    async def test_max_size_enforced(self):
+    async def test_max_size_enforced(self) -> None:
         clock = FakeClock()
         queue = BoundedPriorityQueue(max_size=3, ttl_seconds=300, clock=clock)
 
@@ -67,7 +67,7 @@ class TestBoundedPriorityQueue:
             await queue.put_with_ttl(TestMessage(4, "d"), priority=4)
 
     @pytest.mark.asyncio
-    async def test_priority_order_maintained(self):
+    async def test_priority_order_maintained(self) -> None:
         clock = FakeClock()
         queue = BoundedPriorityQueue(max_size=10, ttl_seconds=300, clock=clock)
 
@@ -87,7 +87,7 @@ class TestBoundedPriorityQueue:
         assert item3.data.id == 1  # Lowest priority
 
     @pytest.mark.asyncio
-    async def test_memory_bounded(self):
+    async def test_memory_bounded(self) -> None:
         clock = FakeClock()
         queue = BoundedPriorityQueue(max_size=100, ttl_seconds=10, clock=clock)
 
@@ -118,14 +118,14 @@ class TestBoundedPriorityQueue:
         assert stats.expired_count == 100
 
     @pytest.mark.asyncio
-    async def test_concurrent_put_get(self):
+    async def test_concurrent_put_get(self) -> None:
         clock = FakeClock()
         queue = BoundedPriorityQueue(max_size=100, ttl_seconds=60, clock=clock)
 
         received = []
         producer_done = asyncio.Event()
 
-        async def producer(start_id: int):
+        async def producer(start_id: int) -> None:
             for i in range(10):
                 await queue.put_with_ttl(
                     TestMessage(start_id + i, f"msg{start_id + i}"),
@@ -133,7 +133,7 @@ class TestBoundedPriorityQueue:
                 )
                 await asyncio.sleep(0)
 
-        async def consumer():
+        async def consumer() -> None:
             # Wait for producers to finish
             await producer_done.wait()
             # Now consume all items in priority order
@@ -164,7 +164,7 @@ class TestBoundedPriorityQueue:
         assert received == sorted(received, reverse=True)
 
     @pytest.mark.asyncio
-    async def test_get_not_expired_skips_expired(self):
+    async def test_get_not_expired_skips_expired(self) -> None:
         start_time = datetime(2024, 1, 1, 12, 0, 0)
         clock = FakeClock(initial_time=start_time)
         queue = BoundedPriorityQueue(max_size=10, ttl_seconds=30, clock=clock)
@@ -184,7 +184,7 @@ class TestBoundedPriorityQueue:
         assert item is None
 
     @pytest.mark.asyncio
-    async def test_custom_ttl_override(self):
+    async def test_custom_ttl_override(self) -> None:
         start_time = datetime(2024, 1, 1, 12, 0, 0)
         clock = FakeClock(initial_time=start_time)
         queue = BoundedPriorityQueue(
@@ -203,7 +203,7 @@ class TestBoundedPriorityQueue:
         assert items[0].data.id == 2  # Long TTL item survives
 
     @pytest.mark.asyncio
-    async def test_stats_tracking(self):
+    async def test_stats_tracking(self) -> None:
         clock = FakeClock()
         queue = BoundedPriorityQueue(max_size=5, ttl_seconds=30, clock=clock)
 
@@ -226,17 +226,17 @@ class TestBoundedPriorityQueue:
         assert stats.max_size == 5
 
     @pytest.mark.asyncio
-    async def test_wait_for_item_blocks_until_available(self):
+    async def test_wait_for_item_blocks_until_available(self) -> None:
         clock = FakeClock()
         queue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
 
         result = []
 
-        async def waiter():
+        async def waiter() -> None:
             item = await queue.wait_for_item(timeout=5)
             result.append(item)
 
-        async def producer():
+        async def producer() -> None:
             await asyncio.sleep(0.01)
             await queue.put_with_ttl(TestMessage(1, "data"), priority=1)
 
@@ -246,7 +246,7 @@ class TestBoundedPriorityQueue:
         assert result[0].data.id == 1
 
     @pytest.mark.asyncio
-    async def test_clear_removes_all_items(self):
+    async def test_clear_removes_all_items(self) -> None:
         clock = FakeClock()
         queue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
 

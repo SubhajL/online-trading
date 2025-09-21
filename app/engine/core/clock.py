@@ -6,7 +6,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Awaitable, Callable, List, Optional, Tuple
+from typing import Awaitable, Callable, List, Any, Optional, Tuple
 
 
 class Clock(ABC):
@@ -55,13 +55,13 @@ class ScheduledCallback:
 class FakeClock(Clock):
     """Fake clock for testing with controllable time."""
 
-    def __init__(self, initial_time: Optional[datetime] = None):
+    def __init__(self, initial_time: Optional[datetime] = None) -> None:
         """Initialize with optional starting time."""
         self._current_time = initial_time or datetime.utcnow()
         self._monotonic_start = 0.0
         self._monotonic_current = 0.0
         self._scheduled: List[ScheduledCallback] = []
-        self._sleepers: List[Tuple[datetime, asyncio.Future]] = []
+        self._sleepers: List[Tuple[datetime, asyncio.Future[Any]]] = []
 
     def now(self) -> datetime:
         """Get current fake time."""
@@ -70,7 +70,7 @@ class FakeClock(Clock):
     async def sleep(self, seconds: float) -> None:
         """Fake sleep that advances time without waiting."""
         wake_time = self._current_time + timedelta(seconds=seconds)
-        future = asyncio.Future()
+        future: asyncio.Future[Any] = asyncio.Future[Any]()
         self._sleepers.append((wake_time, future))
 
         # If we're already past the wake time, wake immediately
