@@ -13,8 +13,8 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional, Union
 from contextlib import asynccontextmanager
 
-import aioredis
-from aioredis import Redis
+import redis.asyncio as redis
+from redis.asyncio import Redis
 
 from ...models import Candle, TechnicalIndicators, SMCSignal, TimeFrame
 
@@ -96,7 +96,7 @@ class RedisAdapter:
             if self.password:
                 connection_params["password"] = self.password
 
-            self._redis = aioredis.from_url(
+            self._redis = redis.from_url(
                 f"redis://{self.host}:{self.port}/{self.database}",
                 **{
                     k: v

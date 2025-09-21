@@ -8,12 +8,14 @@ for Smart Money Concepts analysis. Integrates with the event bus for real-time p
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Dict, Any, List, Optional
 
 from .pivot_detector import PivotDetector
 from .zone_identifier import ZoneIdentifier
 from ..models import (
     BaseEvent,
+    EventType,
     Candle,
     CandleUpdateEvent,
     SMCSignal,
@@ -42,9 +44,9 @@ class SMCService:
 
     def __init__(
         self,
-        pivot_config: Dict[str, Any] = None,
-        zone_config: Dict[str, Any] = None,
-        signal_config: Dict[str, Any] = None,
+        pivot_config: Optional[Dict[str, Any]] = None,
+        zone_config: Optional[Dict[str, Any]] = None,
+        signal_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize SMC service
@@ -114,7 +116,7 @@ class SMCService:
         self._subscription_id = await self._event_bus.subscribe(
             subscriber_id="smc_service",
             handler=self._handle_candle_update,
-            event_types=[BaseEvent.EventType.CANDLE_UPDATE],
+            event_types=[EventType.CANDLE_UPDATE],
             priority=4,  # Lower priority than features, higher than decisions
         )
 
@@ -236,7 +238,7 @@ class SMCService:
         timeframe: TimeFrame,
         current_candle: Candle,
         recent_candles: List[Candle],
-    ):
+    ) -> None:
         """Generate SMC signals based on current market conditions"""
         try:
             # Get nearby zones
@@ -289,15 +291,15 @@ class SMCService:
             if zone.zone_type == ZoneType.DEMAND:
                 direction = OrderSide.BUY
                 entry_price = price
-                stop_loss = zone.bottom_price * 0.998  # Slightly below zone
-                take_profit = price * 1.02  # 2% profit target
+                stop_loss = zone.bottom_price * Decimal("0.998")  # Slightly below zone
+                take_profit = price * Decimal("1.02")  # 2% profit target
                 signal_type = "demand_zone_entry"
 
             elif zone.zone_type == ZoneType.SUPPLY:
                 direction = OrderSide.SELL
                 entry_price = price
-                stop_loss = zone.top_price * 1.002  # Slightly above zone
-                take_profit = price * 0.98  # 2% profit target
+                stop_loss = zone.top_price * Decimal("1.002")  # Slightly above zone
+                take_profit = price * Decimal("0.98")  # 2% profit target
                 signal_type = "supply_zone_entry"
 
             else:
@@ -321,7 +323,7 @@ class SMCService:
                 entry_price=entry_price,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                confidence=confidence,
+                confidence=Decimal(str(confidence)),
                 zone=zone,
                 reasoning=f"{signal_type} at {zone.zone_type.value} zone with strength {zone.strength}",
             )
@@ -365,9 +367,9 @@ class SMCService:
                                 signal_type="order_block_entry",
                                 direction=OrderSide.BUY,
                                 entry_price=current_candle.close_price,
-                                stop_loss=zone.bottom_price * 0.998,
-                                take_profit=current_candle.close_price * 1.015,
-                                confidence=confidence,
+                                stop_loss=zone.bottom_price * Decimal("0.998"),
+                                take_profit=current_candle.close_price * Decimal("1.015"),
+                                confidence=Decimal(str(confidence)),
                                 zone=zone,
                                 reasoning="Bullish reaction at bullish order block",
                             )
@@ -388,9 +390,9 @@ class SMCService:
                                 signal_type="order_block_entry",
                                 direction=OrderSide.SELL,
                                 entry_price=current_candle.close_price,
-                                stop_loss=zone.top_price * 1.002,
-                                take_profit=current_candle.close_price * 0.985,
-                                confidence=confidence,
+                                stop_loss=zone.top_price * Decimal("1.002"),
+                                take_profit=current_candle.close_price * Decimal("0.985"),
+                                confidence=Decimal(str(confidence)),
                                 zone=zone,
                                 reasoning="Bearish reaction at bearish order block",
                             )
@@ -432,8 +434,8 @@ class SMCService:
                             direction=OrderSide.BUY,
                             entry_price=current_candle.close_price,
                             stop_loss=zone.bottom_price,
-                            take_profit=current_candle.close_price * 1.01,
-                            confidence=0.65,
+                            take_profit=current_candle.close_price * Decimal("1.01"),
+                            confidence=Decimal("0.65"),
                             zone=zone,
                             reasoning="FVG fill with bullish bias",
                         )
@@ -450,8 +452,8 @@ class SMCService:
                             direction=OrderSide.SELL,
                             entry_price=current_candle.close_price,
                             stop_loss=zone.top_price,
-                            take_profit=current_candle.close_price * 0.99,
-                            confidence=0.65,
+                            take_profit=current_candle.close_price * Decimal("0.99"),
+                            confidence=Decimal("0.65"),
                             zone=zone,
                             reasoning="FVG fill with bearish bias",
                         )

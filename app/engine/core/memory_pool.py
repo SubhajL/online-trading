@@ -8,7 +8,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Optio, Optional, List, Set, Tuple
+from typing import Optional, List, Set, Tuple
 import numpy as np
 
 logger = logging.getLogger(__name__)

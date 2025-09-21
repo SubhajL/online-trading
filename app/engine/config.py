@@ -3,7 +3,7 @@ Centralized configuration management with Pydantic validation.
 """
 
 import os
-from typing import Optio, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from decimal import Decimal
 from pydantic import BaseModel, Field, validator, SecretStr
 from pydantic_settings import BaseSettings
