@@ -1,5 +1,6 @@
-import pytest
 import numpy as np
+import pytest
+
 from .atr import calculate_atr, calculate_true_range
 
 

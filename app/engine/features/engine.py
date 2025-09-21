@@ -7,10 +7,10 @@ the shared math library, writes to the database, and publishes feature events.
 
 import asyncio
 import logging
+from collections import defaultdict, deque
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Deque
-from collections import defaultdict, deque
+from typing import Deque, Dict, List, Optional
 
 import numpy as np
 

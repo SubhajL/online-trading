@@ -5,8 +5,9 @@ VWAP resets daily and is commonly used for intraday trading.
 VWMA is a moving average weighted by volume.
 """
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 
 def calculate_vwap(

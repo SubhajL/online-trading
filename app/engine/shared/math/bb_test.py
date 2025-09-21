@@ -1,6 +1,7 @@
-import pytest
 import numpy as np
-from .bb import calculate_bollinger_bands, calculate_sma, calculate_rolling_std
+import pytest
+
+from .bb import calculate_bollinger_bands, calculate_rolling_std, calculate_sma
 
 
 def test_calculate_bollinger_bands_insufficient_data():

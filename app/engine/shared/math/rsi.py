@@ -5,6 +5,7 @@ Implements RSI using the standard Wilder's smoothing method.
 """
 
 import numpy as np
+
 from .ema import calculate_ema_wilder
 
 

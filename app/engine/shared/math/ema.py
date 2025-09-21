@@ -5,8 +5,9 @@ Implements EMA using Wilder's smoothing method for consistency
 with traditional technical analysis.
 """
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 
 def calculate_ema(

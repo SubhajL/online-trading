@@ -4,8 +4,9 @@ Bollinger Bands calculation
 Implements Bollinger Bands with standard parameters (20-period SMA, 2 std dev).
 """
 
-import numpy as np
 from typing import Tuple
+
+import numpy as np
 
 
 def calculate_bollinger_bands(

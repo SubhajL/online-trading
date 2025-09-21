@@ -5,6 +5,7 @@ Implements ATR using Wilder's smoothing method for volatility measurement.
 """
 
 import numpy as np
+
 from .ema import calculate_ema_wilder
 
 
