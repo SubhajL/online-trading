@@ -47,21 +47,12 @@ jobs:
       - name: Run linting (features only)
         working-directory: ./app/engine
         run: |
-          # Debug: Show current directory and available files
-          echo "Current directory: $(pwd)"
-          echo "Contents:"
-          ls -la
-          echo "Features contents:"
-          ls -la features/ || echo "features/ not found"
-          echo "Shared contents:"
-          ls -la shared/ || echo "shared/ not found"
-
           # Only check Python syntax errors, not style
-          flake8 features/ shared/technical/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 features shared/technical --count --select=E9,F63,F7,F82 --show-source --statistics
           # Check black formatting
-          black --check features/ shared/technical/
+          black --check features shared/technical
           # Run mypy ONLY on features and shared/technical modules
-          mypy features/ shared/technical/ --ignore-missing-imports --no-strict-optional
+          mypy features shared/technical --ignore-missing-imports --no-strict-optional
 
       - name: Run features tests
         working-directory: ./app/engine
