@@ -10,9 +10,7 @@ import numpy as np
 
 
 def calculate_bollinger_bands(
-    prices: np.ndarray,  # type: ignore[type-arg]
-    period: int = 20,
-    std_dev: float = 2.0
+    prices: np.ndarray, period: int = 20, std_dev: float = 2.0  # type: ignore[type-arg]
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:  # type: ignore[type-arg]
     """
     Calculate Bollinger Bands.

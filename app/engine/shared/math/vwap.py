@@ -78,7 +78,7 @@ def calculate_vwap(
 def calculate_vwma(
     prices: np.ndarray,  # type: ignore[type-arg]
     volume: np.ndarray,  # type: ignore[type-arg]
-    period: int = 20
+    period: int = 20,
 ) -> np.ndarray:  # type: ignore[type-arg]
     """
     Calculate Volume Weighted Moving Average (VWMA).
@@ -125,7 +125,7 @@ def calculate_vwma(
 
 def _calculate_cumulative_vwap(
     typical_price: np.ndarray,  # type: ignore[type-arg]
-    volume: np.ndarray  # type: ignore[type-arg]
+    volume: np.ndarray,  # type: ignore[type-arg]
 ) -> np.ndarray:  # type: ignore[type-arg]
     """Calculate cumulative VWAP without daily resets."""
     vwap = np.full_like(typical_price, np.nan)
