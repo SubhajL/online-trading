@@ -59,8 +59,20 @@ jobs:
       - name: Run mypy type check
         working-directory: ./app/engine
         run: |
+          # Debug: Check mypy version and Python version
+          echo "Python version:"
+          python --version
+          echo "Mypy version:"
+          mypy --version || echo "mypy not found"
+          echo "Current directory:"
+          pwd
+          echo "Directory contents:"
+          ls -la
           # Run mypy ONLY on features and shared/technical modules
-          mypy features shared/technical --ignore-missing-imports --no-strict-optional
+          mypy features shared/technical --ignore-missing-imports --no-strict-optional || true
+          # Run again with more verbose output to see the error
+          echo "Running mypy with verbose output:"
+          mypy features shared/technical --ignore-missing-imports --no-strict-optional --show-error-codes --show-error-context
 
       - name: Run features tests
         working-directory: ./app/engine
