@@ -171,11 +171,11 @@ def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus):
 
     # Start monitoring on app startup
     @app.on_event("startup")
-    async def start_health_monitoring():
+    async def start_health_monitoring() -> None:
         await health_checker.start_monitoring()
 
     @app.on_event("shutdown")
-    async def stop_health_monitoring():
+    async def stop_health_monitoring() -> None:
         await health_checker.stop_monitoring()
 
     return health_checker, readiness_checker
