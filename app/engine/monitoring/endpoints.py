@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Response, status
-from typing import Optional
+from typing import Optional, Dict, Any, Tuple
 
 from app.engine.monitoring.health import HealthChecker, ReadinessChecker
 
@@ -12,20 +12,20 @@ def create_health_endpoints(
     router = APIRouter(prefix="/health", tags=["health"])
 
     @router.get("/")
-    async def health_check() -> None:
+    async def health_check() -> Dict[str, str]:
         """Basic health check endpoint"""
         return {"status": "healthy"}
 
     @router.get("/live")
     @router.get("/liveness")
-    async def liveness_check() -> None:
+    async def liveness_check() -> Dict[str, str]:
         """Kubernetes liveness probe endpoint"""
         # Liveness just checks if the process is alive
         return {"status": "alive"}
 
     @router.get("/ready")
     @router.get("/readiness")
-    async def readiness_check(response: Response) -> None:
+    async def readiness_check(response: Response) -> Dict[str, Any]:
         """Kubernetes readiness probe endpoint"""
         if not readiness_checker:
             # If no readiness checker configured, assume ready
@@ -39,7 +39,7 @@ def create_health_endpoints(
         return result
 
     @router.get("/status")
-    async def detailed_health_status(response: Response) -> None:
+    async def detailed_health_status(response: Response) -> Dict[str, Any]:
         """Detailed health status of all components"""
         if not health_checker:
             return {"status": "unknown", "message": "Health checker not configured"}
@@ -55,7 +55,7 @@ def create_health_endpoints(
         return health
 
     @router.post("/check")
-    async def run_health_checks() -> None:
+    async def run_health_checks() -> Dict[str, Any]:
         """Manually trigger all health checks"""
         if not health_checker:
             return {"status": "error", "message": "Health checker not configured"}
@@ -70,7 +70,7 @@ def create_metrics_endpoints() -> APIRouter:
     router = APIRouter(prefix="/metrics", tags=["metrics"])
 
     @router.get("/")
-    async def prometheus_metrics() -> None:
+    async def prometheus_metrics() -> Response:
         """Prometheus metrics endpoint"""
         # This would be implemented with actual Prometheus client
         # For now, return basic metrics format
@@ -113,7 +113,7 @@ def create_metrics_endpoints() -> APIRouter:
     return router
 
 
-def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus) -> None:
+def setup_health_monitoring(app: Any, database_url: str, redis_url: str, event_bus: Any) -> Tuple[HealthChecker, ReadinessChecker]:
     """Setup health monitoring for the application"""
     from app.engine.monitoring.health import (
         HealthConfig,
@@ -126,13 +126,13 @@ def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus) -
     health_checker = HealthChecker(config)
 
     # Register components with custom checks
-    async def check_db() -> None:
+    async def check_db() -> Any:
         return await health_checker.check_database(database_url)
 
-    async def check_redis() -> None:
+    async def check_redis() -> Any:
         return await health_checker.check_redis(redis_url)
 
-    async def check_bus() -> None:
+    async def check_bus() -> Any:
         return await health_checker.check_event_bus(event_bus)
 
     health_checker.register_component("database", check_db)
@@ -142,17 +142,17 @@ def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus) -
     # Create readiness checker
     readiness_checker = ReadinessChecker()
 
-    async def db_ready() -> None:
+    async def db_ready() -> bool:
         try:
             result = await check_db()
-            return result.status != "unhealthy"
+            return bool(result.status != "unhealthy")
         except:
             return False
 
-    async def redis_ready() -> None:
+    async def redis_ready() -> bool:
         try:
             result = await check_redis()
-            return result.status != "unhealthy"
+            return bool(result.status != "unhealthy")
         except:
             return False
 
@@ -169,11 +169,11 @@ def setup_health_monitoring(app, database_url: str, redis_url: str, event_bus) -
     app.include_router(create_metrics_endpoints())
 
     # Start monitoring on app startup
-    @app.on_event("startup")
+    @app.on_event("startup")  # type: ignore[misc]
     async def start_health_monitoring() -> None:
         await health_checker.start_monitoring()
 
-    @app.on_event("shutdown")
+    @app.on_event("shutdown")  # type: ignore[misc]
     async def stop_health_monitoring() -> None:
         await health_checker.stop_monitoring()
 
