@@ -497,7 +497,7 @@ jobs:
   features-golden:
     name: Features Golden Tests
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#5') || contains(github.event.pull_request.labels.*.name, 'Prompt 5') || contains(github.event.pull_request.labels.*.name, 'Wave B')
+    if: contains(github.event.pull_request.title, '#5') || contains(github.event.pull_request.title, '#6') || contains(github.event.pull_request.labels.*.name, 'Prompt 5') || contains(github.event.pull_request.labels.*.name, 'Wave B')
 
     steps:
       - uses: actions/checkout@v4
