@@ -1,0 +1,54 @@
+name: Path-based CI Filter
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  detect-changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      engine: ${{ steps.filter.outputs.engine }}
+      ui: ${{ steps.filter.outputs.ui }}
+      bff: ${{ steps.filter.outputs.bff }}
+      router: ${{ steps.filter.outputs.router }}
+      features: ${{ steps.filter.outputs.features }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            engine:
+              - 'app/engine/**'
+            ui:
+              - 'app/ui/**'
+            bff:
+              - 'app/bff/**'
+            router:
+              - 'app/router/**'
+            features:
+              - 'app/engine/features/**'
+              - 'app/engine/shared/technical/**'
+
+  run-relevant-tests:
+    name: Trigger Relevant Tests
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "## Changes Detected" >> $GITHUB_STEP_SUMMARY
+          echo "- Engine: ${{ needs.detect-changes.outputs.engine }}" >> $GITHUB_STEP_SUMMARY
+          echo "- UI: ${{ needs.detect-changes.outputs.ui }}" >> $GITHUB_STEP_SUMMARY
+          echo "- BFF: ${{ needs.detect-changes.outputs.bff }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Router: ${{ needs.detect-changes.outputs.router }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Features: ${{ needs.detect-changes.outputs.features }}" >> $GITHUB_STEP_SUMMARY
+
+          # For features-only changes, skip UI/BFF tests
+          if [[ "${{ needs.detect-changes.outputs.features }}" == "true" ]] &&
+             [[ "${{ needs.detect-changes.outputs.ui }}" == "false" ]] &&
+             [[ "${{ needs.detect-changes.outputs.bff }}" == "false" ]]; then
+            echo "### ✅ Features-only change detected - UI/BFF tests will be skipped" >> $GITHUB_STEP_SUMMARY
+          fi
