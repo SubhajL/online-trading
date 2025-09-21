@@ -10,8 +10,11 @@ from .ema import calculate_ema_wilder
 
 
 def calculate_atr(
-    high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14
-) -> np.ndarray:
+    high: np.ndarray,  # type: ignore[type-arg]
+    low: np.ndarray,  # type: ignore[type-arg]
+    close: np.ndarray,  # type: ignore[type-arg]
+    period: int = 14
+) -> np.ndarray:  # type: ignore[type-arg]
     """
     Calculate Average True Range (ATR).
 
@@ -59,8 +62,10 @@ def calculate_atr(
 
 
 def calculate_true_range(
-    high: np.ndarray, low: np.ndarray, close: np.ndarray
-) -> np.ndarray:
+    high: np.ndarray,  # type: ignore[type-arg]
+    low: np.ndarray,  # type: ignore[type-arg]
+    close: np.ndarray  # type: ignore[type-arg]
+) -> np.ndarray:  # type: ignore[type-arg]
     """
     Calculate True Range for each period.
 

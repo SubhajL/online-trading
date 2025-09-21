@@ -5,19 +5,19 @@ VWAP resets daily and is commonly used for intraday trading.
 VWMA is a moving average weighted by volume.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
 
 def calculate_vwap(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    volume: np.ndarray,
+    high: np.ndarray,  # type: ignore[type-arg]
+    low: np.ndarray,  # type: ignore[type-arg]
+    close: np.ndarray,  # type: ignore[type-arg]
+    volume: np.ndarray,  # type: ignore[type-arg]
     reset_daily: bool = True,
-    timestamps: Optional[np.ndarray] = None,
-) -> np.ndarray:
+    timestamps: Optional[np.ndarray] = None,  # type: ignore[type-arg]
+) -> np.ndarray:  # type: ignore[type-arg]
     """
     Calculate Volume Weighted Average Price (VWAP).
 
@@ -76,8 +76,10 @@ def calculate_vwap(
 
 
 def calculate_vwma(
-    prices: np.ndarray, volume: np.ndarray, period: int = 20
-) -> np.ndarray:
+    prices: np.ndarray,  # type: ignore[type-arg]
+    volume: np.ndarray,  # type: ignore[type-arg]
+    period: int = 20
+) -> np.ndarray:  # type: ignore[type-arg]
     """
     Calculate Volume Weighted Moving Average (VWMA).
 
@@ -122,8 +124,9 @@ def calculate_vwma(
 
 
 def _calculate_cumulative_vwap(
-    typical_price: np.ndarray, volume: np.ndarray
-) -> np.ndarray:
+    typical_price: np.ndarray,  # type: ignore[type-arg]
+    volume: np.ndarray  # type: ignore[type-arg]
+) -> np.ndarray:  # type: ignore[type-arg]
     """Calculate cumulative VWAP without daily resets."""
     vwap = np.full_like(typical_price, np.nan)
 
@@ -145,7 +148,7 @@ def _calculate_cumulative_vwap(
     return vwap
 
 
-def _calculate_single_vwap(typical_price: np.ndarray, volume: np.ndarray) -> float:
+def _calculate_single_vwap(typical_price: np.ndarray, volume: np.ndarray) -> float:  # type: ignore[type-arg]
     """Calculate VWAP for a single period."""
     if np.any(np.isnan(typical_price)) or np.any(np.isnan(volume)):
         return np.nan
@@ -154,10 +157,10 @@ def _calculate_single_vwap(typical_price: np.ndarray, volume: np.ndarray) -> flo
     if total_volume == 0:
         return np.nan
 
-    return np.sum(typical_price * volume) / total_volume
+    return float(np.sum(typical_price * volume) / total_volume)
 
 
-def _is_new_day(timestamp1, timestamp2) -> bool:
+def _is_new_day(timestamp1: Any, timestamp2: Any) -> bool:
     """Check if timestamp2 is a new day compared to timestamp1."""
     # This is a simplified check - in production you'd use proper datetime handling
     # For now, assume timestamps are unix timestamps

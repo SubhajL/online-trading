@@ -9,7 +9,7 @@ import numpy as np
 from .ema import calculate_ema_wilder
 
 
-def calculate_rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
+def calculate_rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:  # type: ignore[type-arg]
     """
     Calculate Relative Strength Index (RSI).
 

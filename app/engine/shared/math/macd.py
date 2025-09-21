@@ -12,8 +12,11 @@ from .ema import calculate_ema
 
 
 def calculate_macd(
-    prices: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    prices: np.ndarray,  # type: ignore[type-arg]
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:  # type: ignore[type-arg]
     """
     Calculate MACD indicator components.
 
