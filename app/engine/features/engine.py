@@ -14,7 +14,7 @@ from typing import Deque, Dict, List, Optional
 
 import numpy as np
 
-from ..shared.math import (
+from ..shared.technical import (
     calculate_ema,
     calculate_rsi,
     calculate_macd,
