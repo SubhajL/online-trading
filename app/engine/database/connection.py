@@ -59,7 +59,7 @@ class ConnectionManager:
             raise RuntimeError("Database pool not initialized")
         async with self.pool.acquire() as conn:
             result = await conn.execute(query, *args)
-            return result
+            return str(result)
 
     async def fetch(self, query: str, *args: Any) -> List[asyncpg.Record]:
         """Fetch rows from a query"""
@@ -70,7 +70,7 @@ class ConnectionManager:
             raise RuntimeError("Database pool not initialized")
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *args)
-            return rows
+            return list(rows)
 
     async def fetchrow(self, query: str, *args: Any) -> Optional[asyncpg.Record]:
         """Fetch a single row from a query"""

@@ -602,6 +602,7 @@ class RedisAdapter:
 
         try:
             redis_keys = [self._build_key(prefix, key) for key in keys]
+            assert self._redis is not None
             values = await self._redis.mget(*redis_keys)
 
             result: list[Any] = []
@@ -630,6 +631,7 @@ class RedisAdapter:
                 redis_key = self._build_key(prefix, key)
                 redis_pairs[redis_key] = self._serialize_value(value)
 
+            assert self._redis is not None
             result = await self._redis.mset(redis_pairs)
             return bool(result)
 
@@ -647,6 +649,7 @@ class RedisAdapter:
             self._ensure_connected()
 
             # Test ping
+            assert self._redis is not None
             ping_result = await self._redis.ping()
 
             # Get Redis info
@@ -697,7 +700,8 @@ class RedisAdapter:
                 assert self._redis is not None
                 keys = await self._redis.keys(pattern)
                 if keys:
-                    return await self._redis.delete(*keys)
+                    deleted = await self._redis.delete(*keys)
+                    return int(deleted)
                 return 0
             else:
                 # Clear entire database

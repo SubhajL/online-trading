@@ -12,7 +12,7 @@ from contextlib import contextmanager, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Generator, AsyncGenerator, Callable, TypeVar
 import threading
 from collections import defaultdict
 
@@ -235,7 +235,7 @@ class Tracer:
         kind: SpanKind = SpanKind.INTERNAL,
         attributes: Optional[Dict[str, Any]] = None,
         links: Optional[List[Link]] = None,
-    ):
+    ) -> Generator["Span", None, None]:
         """Start a span and set it as current."""
         parent = self.get_current_span()
         span = self.start_span(name, kind, parent, attributes, links)
@@ -256,7 +256,7 @@ class Tracer:
         kind: SpanKind = SpanKind.INTERNAL,
         attributes: Optional[Dict[str, Any]] = None,
         links: Optional[List[Link]] = None,
-    ):
+    ) -> AsyncGenerator["Span", None]:
         """Async version of start_as_current_span."""
         parent = self.get_current_span()
         span = self.start_span(name, kind, parent, attributes, links)
@@ -290,10 +290,12 @@ class Tracer:
             return parent.context.trace_id
         elif isinstance(parent, SpanContext):
             return parent.trace_id
-        elif self.get_current_span():
-            return self.get_current_span().context.trace_id
         else:
-            return self._generate_trace_id()
+            current_span = self.get_current_span()
+            if current_span is not None:
+                return current_span.context.trace_id
+            else:
+                return self._generate_trace_id()
 
     def _generate_trace_id(self) -> str:
         """Generate a new trace ID."""
@@ -495,15 +497,17 @@ def get_tracer(name: str, version: Optional[str] = None) -> Tracer:
 
 
 # Convenience decorators
-def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL) -> None:
+T = TypeVar('T', bound=Callable[..., Any])
+
+def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL) -> Callable[[T], T]:
     """Decorator to trace a function."""
 
-    def decorator(func) -> None:
+    def decorator(func: T) -> T:
         span_name = name or f"{func.__module__}.{func.__name__}"
 
         if asyncio.iscoroutinefunction(func):
 
-            async def wrapper(*args, **kwargs) -> None:
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = get_tracer(func.__module__)
                 async with tracer.start_as_current_span_async(
                     span_name, kind=kind
@@ -511,16 +515,20 @@ def trace(name: Optional[str] = None, kind: SpanKind = SpanKind.INTERNAL) -> Non
                     span.set_attribute("function", func.__name__)
                     return await func(*args, **kwargs)
 
+            async_wrapper.__name__ = func.__name__
+            async_wrapper.__doc__ = func.__doc__
+            return async_wrapper  # type: ignore[return-value]
+
         else:
 
-            def wrapper(*args, **kwargs) -> None:
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = get_tracer(func.__module__)
                 with tracer.start_as_current_span(span_name, kind=kind) as span:
                     span.set_attribute("function", func.__name__)
                     return func(*args, **kwargs)
 
-        wrapper.__name__ = func.__name__
-        wrapper.__doc__ = func.__doc__
-        return wrapper
+            sync_wrapper.__name__ = func.__name__
+            sync_wrapper.__doc__ = func.__doc__
+            return sync_wrapper  # type: ignore[return-value]
 
     return decorator

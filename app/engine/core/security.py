@@ -491,7 +491,7 @@ class SecureConfig:
                     raise
                 return None
 
-        return value
+        return str(value) if value is not None else None
 
     def set_secret(self, key: str, value: str, encrypt: bool = True) -> None:
         """Set secret value with optional encryption."""
@@ -510,7 +510,7 @@ class SecureConfig:
 
     def mask_sensitive_values(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Mask sensitive values in dictionary for logging."""
-        masked = {}
+        masked: Dict[str, Any] = {}
 
         for key, value in data.items():
             if key in self._sensitive_keys or self._is_sensitive_key(key):
@@ -619,7 +619,7 @@ class SecurityGuard:
 
     def log_violation(
         self, violation_type: str, message: str, severity: str = "MEDIUM"
-    ):
+    ) -> None:
         """Log a security violation."""
         violation = {
             "timestamp": datetime.utcnow().isoformat(),

@@ -106,7 +106,7 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
             errors.append("Price required for limit orders")
         elif order.price > 0:
             # Check price precision
-            price_precision = int(filters.get("price_precision", 8))
+            price_precision = int(str(filters.get("price_precision", 8)))
             price_str = str(order.price)
             if "." in price_str:
                 decimals = len(price_str.split(".")[1])
