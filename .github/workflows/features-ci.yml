@@ -44,13 +44,21 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: Run linting (features only)
+      - name: Run flake8 syntax check
         working-directory: ./app/engine
         run: |
           # Only check Python syntax errors, not style
           flake8 features shared/technical --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Run black formatting check
+        working-directory: ./app/engine
+        run: |
           # Check black formatting
           black --check features shared/technical
+
+      - name: Run mypy type check
+        working-directory: ./app/engine
+        run: |
           # Run mypy ONLY on features and shared/technical modules
           mypy features shared/technical --ignore-missing-imports --no-strict-optional
 
