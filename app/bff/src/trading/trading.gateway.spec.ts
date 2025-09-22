@@ -3,6 +3,9 @@ import { TradingGateway } from './trading.gateway';
 import { TradingService } from './trading.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 
 describe('TradingGateway', () => {
   let gateway: TradingGateway;
@@ -24,6 +27,17 @@ describe('TradingGateway', () => {
     on: jest.fn(),
   };
 
+  const mockJwtService = {
+    verifyAsync: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      if (key === 'jwt.secret') return 'test-secret';
+      return null;
+    }),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -38,6 +52,15 @@ describe('TradingGateway', () => {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
         },
+        {
+          provide: JwtService,
+          useValue: mockJwtService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        WsJwtGuard,
       ],
     }).compile();
 
@@ -56,6 +79,13 @@ describe('TradingGateway', () => {
       emit: jest.fn(),
       join: jest.fn(),
       leave: jest.fn(),
+      data: {
+        user: {
+          sub: 'user-123',
+          username: 'testuser',
+          roles: ['operator'],
+        },
+      },
     } as any;
 
     // Set the server on the gateway
@@ -73,6 +103,10 @@ describe('TradingGateway', () => {
       expect(mockClient.join).toHaveBeenCalledWith('trading');
       expect(mockClient.emit).toHaveBeenCalledWith('connected', {
         message: 'Connected to trading gateway',
+        user: {
+          username: 'testuser',
+          roles: ['operator'],
+        },
       });
     });
   });

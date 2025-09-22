@@ -7,10 +7,13 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, UseGuards } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import { ConfigService } from '@nestjs/config';
+import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { WsUser } from '../auth/decorators/ws-user.decorator';
+import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
 interface SubscriptionData {
   symbol: string;
@@ -65,6 +68,7 @@ interface SignalData {
     credentials: true,
   },
 })
+@UseGuards(WsJwtGuard)
 export class MarketDataGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(MarketDataGateway.name);
   private server!: Server;
@@ -101,10 +105,15 @@ export class MarketDataGateway implements OnGatewayInit, OnGatewayConnection, On
   }
 
   handleConnection(client: Socket) {
-    this.logger.log(`Client connected: ${client.id}`);
+    const user = client.data.user as JwtPayload;
+    this.logger.log(`Client connected: ${client.id} (user: ${user?.username})`);
     client.emit('connected', {
       message: 'Connected to market data',
       clientId: client.id,
+      user: {
+        username: user?.username,
+        roles: user?.roles,
+      },
     });
   }
 

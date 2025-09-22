@@ -288,6 +288,8 @@ monitoring:
   alerts_enabled: true
   telegram_bot_token: ${TELEGRAM_BOT_TOKEN:-}
   telegram_chat_id: ${TELEGRAM_CHAT_ID:-}
+  line_access_token: ${LINE_ACCESS_TOKEN:-}
+  line_user_id: ${LINE_USER_ID:-}
 
 # Feature Flags
 features:

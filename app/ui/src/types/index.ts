@@ -133,3 +133,47 @@ export type OrderFormValues = {
   price?: number
   stopPrice?: number
 }
+
+export type SmcEventType = 'CHOCH' | 'BOS' | 'ORDER_BLOCK' | 'FVG'
+export type SmcDirection = 'bullish' | 'bearish'
+
+export type SmcEvent = {
+  id: string
+  symbol: string
+  type: SmcEventType
+  direction: SmcDirection
+  price: number
+  timeframe: string
+  timestamp: number
+}
+
+export type ZoneType = 'supply' | 'demand'
+
+export type Zone = {
+  id: string
+  symbol: string
+  type: ZoneType
+  priceFrom: number
+  priceTo: number
+  strength: number
+  touches: number
+  timeframe: string
+  created: number
+  lastTested?: number
+}
+
+// Alert types
+export type AlertType = 'smc_event' | 'zone_retest' | 'order_filled' | 'position_update' | 'risk_limit'
+export type AlertSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info'
+
+export type Alert = {
+  id: string
+  symbol: string
+  venue: Venue
+  type: AlertType
+  title: string
+  message: string
+  severity: AlertSeverity
+  createdAt: string
+  read: boolean
+}

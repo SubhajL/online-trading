@@ -6,16 +6,22 @@ import { EngineClientModule } from './engine-client/engine-client.module';
 import { RouterClientModule } from './router-client/router-client.module';
 import { MarketDataModule } from './market-data/market-data.module';
 import { TradingModule } from './trading/trading.module';
+import { AuthModule } from './auth/auth.module';
+import { DatabaseModule } from './database/database.module';
+import { AlertsModule } from './alerts/alerts.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
     EventEmitterModule.forRoot(),
+    DatabaseModule,
+    AuthModule,
     HealthModule,
     EngineClientModule,
     RouterClientModule,
     MarketDataModule,
     TradingModule,
+    AlertsModule,
   ],
 })
 export class AppModule {}
