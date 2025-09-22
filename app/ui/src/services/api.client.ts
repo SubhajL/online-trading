@@ -7,6 +7,7 @@ export type RequestOptions = {
   params?: Record<string, string | number | boolean>
   timeout?: number
   retries?: number
+  signal?: AbortSignal
 }
 
 export type ApiClientConfig = {
@@ -37,6 +38,7 @@ export class ApiClient {
       params,
       timeout = this.timeout,
       retries = 0,
+      signal: customSignal,
     } = options
 
     // Build URL with query parameters
@@ -49,9 +51,19 @@ export class ApiClient {
       url += `?${searchParams.toString()}`
     }
 
-    // Create abort controller for timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    // Handle abort signals
+    let timeoutId: NodeJS.Timeout | undefined
+    let signal: AbortSignal
+
+    if (customSignal) {
+      // Use the custom signal directly
+      signal = customSignal
+    } else {
+      // Create abort controller for timeout
+      const controller = new AbortController()
+      timeoutId = setTimeout(() => controller.abort(), timeout)
+      signal = controller.signal
+    }
 
     try {
       const response = await fetch(url, {
@@ -61,10 +73,12 @@ export class ApiClient {
           ...headers,
         },
         body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
+        signal,
       })
 
-      clearTimeout(timeoutId)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -72,15 +86,19 @@ export class ApiClient {
 
       return await response.json()
     } catch (error) {
-      clearTimeout(timeoutId)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
 
       // Check if the error is an abort error
       const isAbortError =
         error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))
 
-      // Retry logic
+      // Retry logic - don't retry on abort errors
       if (retries > 0 && error instanceof Error && !isAbortError) {
-        return this.request(endpoint, { ...options, retries: retries - 1 })
+        // Don't pass the signal on retry to avoid immediate abort
+        const { signal, ...retryOptions } = options
+        return this.request(endpoint, { ...retryOptions, retries: retries - 1 })
       }
 
       throw error

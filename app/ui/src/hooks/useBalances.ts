@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useRef } from 'react'
 import { apiClient } from '@/services/api'
+import { ApiClient } from '@/services/api.client'
 import type { Balance, Venue } from '@/types'
+import { useApiCache } from './useApiCache'
 
 type UseBalancesReturn = {
   balances: Balance[]
@@ -9,34 +11,33 @@ type UseBalancesReturn = {
   refresh: () => Promise<void>
 }
 
-export function useBalances(venue?: Venue): UseBalancesReturn {
-  const [balances, setBalances] = useState<Balance[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function useBalances(venue?: Venue, client?: ApiClient): UseBalancesReturn {
+  const apiClientRef = useRef(client || apiClient)
 
-  const fetchBalances = async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  const cacheKey = useMemo(
+    () => venue ? `balances-${venue}` : 'balances-all',
+    [venue]
+  )
 
+  const fetcher = useMemo(
+    () => async () => {
       const params = venue ? { venue } : undefined
-      const data = await apiClient.get<{ balances: Balance[] }>('/balances', { params })
-      setBalances(data.balances)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch balances')
-    } finally {
-      setLoading(false)
-    }
-  }
+      const data = await apiClientRef.current.get<Balance[]>('/balances', { params })
+      return data
+    },
+    [venue]
+  )
 
-  useEffect(() => {
-    fetchBalances()
-  }, [venue])
+  const { data, loading, error, refetch } = useApiCache<Balance[]>(
+    cacheKey,
+    fetcher,
+    { ttl: 30000 } // 30 seconds cache
+  )
 
   return {
-    balances,
+    balances: data || [],
     loading,
-    error,
-    refresh: fetchBalances,
+    error: error ? error.message || String(error) : null,
+    refresh: refetch,
   }
 }

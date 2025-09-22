@@ -30,13 +30,15 @@ export class WsJwtGuard implements CanActivate {
       client.data.user = payload;
       return true;
     } catch (error) {
-      this.logger.error(`JWT verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `JWT verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       return false;
     }
   }
 
   private extractToken(client: Socket): string | undefined {
-    let token = client.handshake.auth?.token || client.handshake.query?.token as string;
+    let token = client.handshake.auth?.token || (client.handshake.query?.token as string);
 
     if (token?.startsWith('Bearer ')) {
       token = token.slice(7);

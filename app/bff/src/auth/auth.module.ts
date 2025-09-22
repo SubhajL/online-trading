@@ -38,6 +38,6 @@ import { WsJwtGuard } from './guards/ws-jwt.guard';
       useClass: RolesGuard,
     },
   ],
-  exports: [AuthService, WsJwtGuard],
+  exports: [AuthService, WsJwtGuard, JwtModule],
 })
 export class AuthModule {}

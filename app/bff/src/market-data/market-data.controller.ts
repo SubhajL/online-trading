@@ -41,9 +41,7 @@ export class MarketDataController {
   }
 
   @Get('smc-events')
-  async getSmcEvents(
-    @Query() dto: GetCandlesDto & { eventTypes?: string[] },
-  ): Promise<SmcEvent[]> {
+  async getSmcEvents(@Query() dto: GetCandlesDto & { eventTypes?: string[] }): Promise<SmcEvent[]> {
     const query = new GetSmcEventsQuery(
       dto.symbol,
       dto.tf,

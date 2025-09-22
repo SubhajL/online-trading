@@ -161,6 +161,91 @@ describe('ApiClient', () => {
         expect.any(Object),
       )
     })
+
+    it('cancels request when signal aborts', async () => {
+      const controller = new AbortController()
+
+      // Mock fetch to simulate delay
+      vi.mocked(fetch).mockImplementationOnce(async (_, options) => {
+        // Check if signal is aborted
+        const signal = options?.signal
+        if (signal?.aborted) {
+          throw new DOMException('The operation was aborted.', 'AbortError')
+        }
+
+        // Simulate delay
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(resolve, 100)
+          signal?.addEventListener('abort', () => {
+            clearTimeout(timeout)
+            reject(new DOMException('The operation was aborted.', 'AbortError'))
+          })
+        })
+
+        return {
+          ok: true,
+          json: async () => ({ data: 'test' }),
+        } as Response
+      })
+
+      // Start request
+      const requestPromise = client.request('/test', {
+        signal: controller.signal,
+      })
+
+      // Abort immediately
+      controller.abort()
+
+      // Should throw AbortError
+      await expect(requestPromise).rejects.toThrow('The operation was aborted.')
+    })
+
+    it('handles abort error gracefully', async () => {
+      const controller = new AbortController()
+      controller.abort() // Pre-abort the signal
+
+      vi.mocked(fetch).mockRejectedValueOnce(
+        new DOMException('The operation was aborted.', 'AbortError')
+      )
+
+      await expect(
+        client.request('/test', { signal: controller.signal })
+      ).rejects.toThrow('The operation was aborted.')
+    })
+
+    it('passes custom signal through to fetch', async () => {
+      const controller = new AbortController()
+
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: 'test' }),
+      } as Response)
+
+      await client.request('/test', {
+        signal: controller.signal,
+      })
+
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:3000/api/test',
+        expect.objectContaining({
+          signal: controller.signal,
+        }),
+      )
+    })
+
+    it('does not retry on abort error', async () => {
+      vi.mocked(fetch).mockRejectedValue(
+        new DOMException('The operation was aborted.', 'AbortError')
+      )
+
+      await expect(
+        client.request('/test', { retries: 3 })
+      ).rejects.toThrow('The operation was aborted.')
+
+      // Should only be called once, not retried
+      expect(fetch).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('convenience methods', () => {

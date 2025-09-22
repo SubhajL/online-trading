@@ -173,7 +173,9 @@ describe('WsJwtGuard', () => {
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
-      expect(jwtService.verifyAsync).toHaveBeenCalledWith('valid-jwt-token', { secret: mockSecret });
+      expect(jwtService.verifyAsync).toHaveBeenCalledWith('valid-jwt-token', {
+        secret: mockSecret,
+      });
     });
   });
 });

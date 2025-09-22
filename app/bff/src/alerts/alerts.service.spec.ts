@@ -243,7 +243,12 @@ describe('AlertsService', () => {
         message: 'Order placed',
         data: { orderId: '123' },
       };
-      mockRepository.save.mockResolvedValue({ ...newAlert, id: 'new-alert', read: false, createdAt: new Date() });
+      mockRepository.save.mockResolvedValue({
+        ...newAlert,
+        id: 'new-alert',
+        read: false,
+        createdAt: new Date(),
+      });
 
       const result = await service.create(newAlert);
 

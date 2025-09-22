@@ -1,4 +1,11 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { AlertType, AlertPriority } from '../dto/alert.dto';
 
 @Entity('alerts')
 export class Alert {
@@ -9,13 +16,13 @@ export class Alert {
     type: 'enum',
     enum: ['order', 'position', 'decision', 'smc', 'error', 'info'],
   })
-  type: string;
+  type: AlertType;
 
   @Column({
     type: 'enum',
     enum: ['low', 'medium', 'high', 'critical'],
   })
-  priority: string;
+  priority: AlertPriority;
 
   @Column()
   title: string;

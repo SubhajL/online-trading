@@ -11,6 +11,7 @@ import {
   SearchAlertsDto,
   UpdateCountDto,
   UnreadCountDto,
+  Alert as AlertDto,
 } from './dto/alert.dto';
 
 @Injectable()
@@ -19,6 +20,20 @@ export class AlertsService {
     @InjectRepository(Alert)
     private readonly alertRepository: Repository<Alert>,
   ) {}
+
+  private toDto(entity: Alert): AlertDto {
+    return {
+      id: entity.id,
+      type: entity.type,
+      priority: entity.priority,
+      title: entity.title,
+      message: entity.message,
+      data: entity.data,
+      read: entity.read,
+      createdAt: entity.createdAt.toISOString(),
+      updatedAt: entity.updatedAt?.toISOString(),
+    };
+  }
 
   async findAll(page: number, limit: number, filters: AlertFilters): Promise<PaginatedAlertsDto> {
     const skip = (page - 1) * limit;
@@ -39,21 +54,25 @@ export class AlertsService {
       order: { createdAt: 'DESC' },
     });
 
-    return { data, total, page, limit };
+    return { data: data.map((alert) => this.toDto(alert)), total, page, limit };
   }
 
-  async findOne(id: string): Promise<Alert> {
+  async findOne(id: string): Promise<AlertDto> {
     const alert = await this.alertRepository.findOne({ where: { id } });
     if (!alert) {
       throw new NotFoundException(`Alert with ID ${id} not found`);
     }
-    return alert;
+    return this.toDto(alert);
   }
 
-  async markAsRead(id: string): Promise<Alert> {
-    const alert = await this.findOne(id);
+  async markAsRead(id: string): Promise<AlertDto> {
+    const alert = await this.alertRepository.findOne({ where: { id } });
+    if (!alert) {
+      throw new NotFoundException(`Alert with ID ${id} not found`);
+    }
     alert.read = true;
-    return this.alertRepository.save(alert);
+    const updated = await this.alertRepository.save(alert);
+    return this.toDto(updated);
   }
 
   async markAllAsRead(): Promise<UpdateCountDto> {
@@ -81,10 +100,13 @@ export class AlertsService {
       .groupBy('alert.type')
       .getRawMany();
 
-    const byType = typeStats.reduce((acc, { type, count }) => {
-      acc[type as AlertType] = parseInt(count);
-      return acc;
-    }, {} as Record<AlertType, number>);
+    const byType = typeStats.reduce(
+      (acc, { type, count }) => {
+        acc[type as AlertType] = parseInt(count);
+        return acc;
+      },
+      {} as Record<AlertType, number>,
+    );
 
     // Get counts by priority
     const priorityStats = await this.alertRepository
@@ -94,10 +116,13 @@ export class AlertsService {
       .groupBy('alert.priority')
       .getRawMany();
 
-    const byPriority = priorityStats.reduce((acc, { priority, count }) => {
-      acc[priority as AlertPriority] = parseInt(count);
-      return acc;
-    }, {} as Record<AlertPriority, number>);
+    const byPriority = priorityStats.reduce(
+      (acc, { priority, count }) => {
+        acc[priority as AlertPriority] = parseInt(count);
+        return acc;
+      },
+      {} as Record<AlertPriority, number>,
+    );
 
     // Ensure all types and priorities are included
     const allTypes: AlertType[] = ['order', 'position', 'decision', 'smc', 'error', 'info'];
@@ -128,7 +153,7 @@ export class AlertsService {
       .limit(limit)
       .getManyAndCount();
 
-    return { data, total };
+    return { data: data.map((alert) => this.toDto(alert)), total };
   }
 
   async export(format: 'csv' | 'json', filters: AlertFilters): Promise<Buffer> {
@@ -141,24 +166,30 @@ export class AlertsService {
     }
   }
 
-  async create(createAlertDto: Omit<Alert, 'id' | 'createdAt' | 'updatedAt' | 'read'>): Promise<Alert> {
+  async create(
+    createAlertDto: Omit<AlertDto, 'id' | 'createdAt' | 'updatedAt' | 'read'>,
+  ): Promise<AlertDto> {
     const alert = this.alertRepository.create({
       ...createAlertDto,
       read: false,
     });
-    return this.alertRepository.save(alert);
+    const saved = await this.alertRepository.save(alert);
+    return this.toDto(saved);
   }
 
-  private exportToCsv(alerts: Alert[]): Buffer {
+  private exportToCsv(alerts: AlertDto[]): Buffer {
     const headers = 'id,type,priority,title,message,read,createdAt\n';
-    const rows = alerts.map(alert =>
-      `"${alert.id}","${alert.type}","${alert.priority}","${alert.title}","${alert.message}",${alert.read},"${alert.createdAt}"`
-    ).join('\n');
+    const rows = alerts
+      .map(
+        (alert) =>
+          `"${alert.id}","${alert.type}","${alert.priority}","${alert.title}","${alert.message}",${alert.read},"${alert.createdAt}"`,
+      )
+      .join('\n');
 
     return Buffer.from(headers + rows);
   }
 
-  private exportToJson(alerts: Alert[]): Buffer {
+  private exportToJson(alerts: AlertDto[]): Buffer {
     return Buffer.from(JSON.stringify({ alerts, exportDate: new Date().toISOString() }, null, 2));
   }
 }

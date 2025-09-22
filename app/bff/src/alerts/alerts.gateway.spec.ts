@@ -180,7 +180,7 @@ describe('AlertsGateway', () => {
 
       // Get the callback that was registered for alert.new
       const alertNewCallback = mockEventEmitter.on.mock.calls.find(
-        call => call[0] === 'alert.new'
+        (call) => call[0] === 'alert.new',
       )[1];
 
       // Simulate the event
@@ -212,7 +212,7 @@ describe('AlertsGateway', () => {
 
       // Get the callback for decision.received
       const decisionCallback = mockEventEmitter.on.mock.calls.find(
-        call => call[0] === 'decision.received'
+        (call) => call[0] === 'decision.received',
       )[1];
 
       await decisionCallback(mockDecision);
@@ -222,7 +222,7 @@ describe('AlertsGateway', () => {
           type: 'decision',
           priority: 'high',
           title: 'Trading Signal: BUY BTCUSDT',
-        })
+        }),
       );
     });
 
@@ -247,7 +247,7 @@ describe('AlertsGateway', () => {
 
       // Get the callback for order.updated
       const orderCallback = mockEventEmitter.on.mock.calls.find(
-        call => call[0] === 'order.updated'
+        (call) => call[0] === 'order.updated',
       )[1];
 
       await orderCallback(mockOrderUpdate);
@@ -256,7 +256,7 @@ describe('AlertsGateway', () => {
         expect.objectContaining({
           type: 'order',
           title: 'Order FILLED: ETHUSDT',
-        })
+        }),
       );
     });
   });

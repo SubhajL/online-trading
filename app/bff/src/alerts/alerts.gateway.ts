@@ -120,8 +120,12 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   private async createOrderAlert(orderUpdate: any) {
-    const priority = orderUpdate.status === 'FILLED' ? 'medium' :
-                    orderUpdate.status === 'REJECTED' ? 'high' : 'low';
+    const priority =
+      orderUpdate.status === 'FILLED'
+        ? 'medium'
+        : orderUpdate.status === 'REJECTED'
+          ? 'high'
+          : 'low';
 
     const alert = await this.alertsService.create({
       type: 'order',

@@ -48,10 +48,7 @@ export class AlertsController {
   }
 
   @Get('search')
-  async search(
-    @Query('q') query: string,
-    @Query('limit') limit = 50,
-  ): Promise<SearchAlertsDto> {
+  async search(@Query('q') query: string, @Query('limit') limit = 50): Promise<SearchAlertsDto> {
     return this.alertsService.search(query, +limit);
   }
 
