@@ -16,6 +16,31 @@ jobs:
       matrix:
         node-version: ['18', '20']
 
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_DB: trading_platform
+          POSTGRES_USER: trading_user
+          POSTGRES_PASSWORD: your_secure_password_here
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U trading_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -37,8 +62,30 @@ jobs:
           pnpm lint
           pnpm format:check
 
+      - name: Run database migrations
+        env:
+          PGPASSWORD: your_secure_password_here
+        run: |
+          for sql in db/migrations/*.sql; do
+            echo "Running migration: $sql"
+            psql -h localhost -p 5432 -U trading_user -d trading_platform -f "$sql"
+          done
+
       - name: Run tests
         working-directory: ./app/bff
+        env:
+          NODE_ENV: test
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: trading_user
+          POSTGRES_PASSWORD: your_secure_password_here
+          POSTGRES_DB: trading_platform
+          DATABASE_URL: postgresql://trading_user:your_secure_password_here@localhost:5432/trading_platform
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test_jwt_secret_key_minimum_32_characters
+          JWT_EXPIRES_IN: 24h
         run: pnpm test:cov
 
   security-scan:
