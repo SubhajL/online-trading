@@ -6,15 +6,14 @@ Manages WebSocket connections and REST API calls.
 """
 
 import asyncio
+from datetime import datetime
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Set
 
-from .binance_ws import BinanceWebSocketClient
-from .binance_rest import BinanceRestClient
-from ..models import Candle, CandleUpdateEvent, TimeFrame
 from ..bus import get_event_bus
-
+from ..models import Candle, CandleUpdateEvent, TimeFrame
+from .binance_rest import BinanceRestClient
+from .binance_ws import BinanceWebSocketClient
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +32,9 @@ class IngestService:
 
     def __init__(
         self,
-        binance_config: Dict[str, Any],
-        symbols: List[str],
-        timeframes: List[TimeFrame],
+        binance_config: dict,
+        symbols: list[str],
+        timeframes: list[TimeFrame],
         backfill_days: int = 30,
         enable_realtime: bool = True,
         enable_backfill: bool = True,
@@ -62,13 +61,13 @@ class IngestService:
 
         self._event_bus = get_event_bus()
         self._running = False
-        self._backfill_tasks: List[asyncio.Task] = []
-        self._latest_candles: Dict[str, Dict[TimeFrame, Candle]] = {}
-        self._backfill_complete: Set[str] = set()
+        self._backfill_tasks: list[asyncio.Task] = []
+        self._latest_candles: dict[str, dict[TimeFrame, Candle]] = {}
+        self._backfill_complete: set[str] = set()
 
         logger.info(
             f"IngestService initialized for {len(symbols)} symbols "
-            f"and {len(timeframes)} timeframes"
+            f"and {len(timeframes)} timeframes",
         )
 
     async def start(self) -> None:
@@ -143,7 +142,7 @@ class IngestService:
             for symbol in self.symbols:
                 for timeframe in self.timeframes:
                     task = asyncio.create_task(
-                        self._backfill_symbol_timeframe(symbol, timeframe)
+                        self._backfill_symbol_timeframe(symbol, timeframe),
                     )
                     self._backfill_tasks.append(task)
 
@@ -160,11 +159,13 @@ class IngestService:
 
             # Get historical data
             candles = await self.rest_client.get_historical_data(
-                symbol=symbol, timeframe=timeframe, days_back=self.backfill_days
+                symbol=symbol,
+                timeframe=timeframe,
+                days_back=self.backfill_days,
             )
 
             logger.info(
-                f"Retrieved {len(candles)} candles for {symbol} {timeframe.value}"
+                f"Retrieved {len(candles)} candles for {symbol} {timeframe.value}",
             )
 
             # Publish historical candles as events
@@ -209,7 +210,7 @@ class IngestService:
         if self._running and self.enable_backfill:
             for timeframe in self.timeframes:
                 task = asyncio.create_task(
-                    self._backfill_symbol_timeframe(symbol, timeframe)
+                    self._backfill_symbol_timeframe(symbol, timeframe),
                 )
                 self._backfill_tasks.append(task)
 
@@ -260,19 +261,21 @@ class IngestService:
         if self._running and self.enable_backfill:
             for symbol in self.symbols:
                 task = asyncio.create_task(
-                    self._backfill_symbol_timeframe(symbol, timeframe)
+                    self._backfill_symbol_timeframe(symbol, timeframe),
                 )
                 self._backfill_tasks.append(task)
 
         logger.info(f"Added timeframe {timeframe.value} to ingestion")
 
     async def get_latest_candle(
-        self, symbol: str, timeframe: TimeFrame
-    ) -> Optional[Candle]:
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> Candle | None:
         """Get the latest candle for a symbol and timeframe"""
         return self._latest_candles.get(symbol, {}).get(timeframe)
 
-    async def get_gap_detection(self, symbol: str, timeframe: TimeFrame) -> List[Dict[str, Any]]:
+    async def get_gap_detection(self, symbol: str, timeframe: TimeFrame) -> list[dict]:
         """Detect gaps in historical data"""
         # This would implement gap detection logic
         # For now, return empty list
@@ -283,7 +286,7 @@ class IngestService:
 
         return gaps
 
-    async def fill_gaps(self, symbol: str, timeframe: TimeFrame, gaps: List[Dict[str, Any]]) -> None:
+    async def fill_gaps(self, symbol: str, timeframe: TimeFrame, gaps: list[dict]):
         """Fill detected gaps in historical data"""
         for gap in gaps:
             try:
@@ -310,7 +313,7 @@ class IngestService:
                     await self._event_bus.publish(event)
 
                 logger.info(
-                    f"Filled gap for {symbol} {timeframe.value}: {len(candles)} candles"
+                    f"Filled gap for {symbol} {timeframe.value}: {len(candles)} candles",
                 )
 
             except Exception as e:
@@ -321,18 +324,19 @@ class IngestService:
         backfill_key = f"{symbol}_{timeframe.value}"
         return backfill_key in self._backfill_complete
 
-    def get_backfill_progress(self) -> Dict[str, Dict[str, bool]]:
+    def get_backfill_progress(self) -> dict[str, dict[str, bool]]:
         """Get backfill progress for all symbols and timeframes"""
         progress = {}
         for symbol in self.symbols:
             progress[symbol] = {}
             for timeframe in self.timeframes:
                 progress[symbol][timeframe.value] = self.is_backfill_complete(
-                    symbol, timeframe
+                    symbol,
+                    timeframe,
                 )
         return progress
 
-    async def health_check(self) -> Dict[str, any]:
+    async def health_check(self) -> dict[str, any]:
         """Get health status of the ingestion service"""
         ws_health = (
             await self.ws_client.health_check()

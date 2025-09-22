@@ -6,19 +6,18 @@ Handles kline/candlestick data, ticker updates, and order book streams.
 """
 
 import asyncio
-import json
-import logging
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Callable, Dict, List, Optional, Set
+import json
+import logging
 from urllib.parse import urljoin
 
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidStatusCode
 
-from ..models import Candle, CandleUpdateEvent, TimeFrame
 from ..bus import get_event_bus
-
+from ..models import Candle, CandleUpdateEvent, TimeFrame
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +50,13 @@ class BinanceWebSocketClient:
         self.ping_interval = ping_interval
         self.ping_timeout = ping_timeout
 
-        self._websocket: Optional[websockets.WebSocketServerProtocol] = None
-        self._subscriptions: Set[str] = set()
-        self._symbols: Set[str] = set()
-        self._timeframes: Set[TimeFrame] = set()
+        self._websocket: websockets.WebSocketServerProtocol | None = None
+        self._subscriptions: set[str] = set()
+        self._symbols: set[str] = set()
+        self._timeframes: set[TimeFrame] = set()
         self._running = False
-        self._reconnect_task: Optional[asyncio.Task] = None
-        self._handlers: Dict[str, Callable] = {}
+        self._reconnect_task: asyncio.Task | None = None
+        self._handlers: dict[str, Callable] = {}
         self._event_bus = get_event_bus()
 
         # Stream message handlers
@@ -68,11 +67,11 @@ class BinanceWebSocketClient:
                 "!ticker": self._handle_all_tickers_message,
                 "depthUpdate": self._handle_depth_message,
                 "trade": self._handle_trade_message,
-            }
+            },
         )
 
         logger.info(
-            f"BinanceWebSocketClient initialized with base_url: {self.base_url}"
+            f"BinanceWebSocketClient initialized with base_url: {self.base_url}",
         )
 
     async def start(self) -> None:
@@ -104,13 +103,13 @@ class BinanceWebSocketClient:
 
         logger.info("WebSocket client stopped")
 
-    async def subscribe_klines(self, symbols: List[str], timeframes: List[TimeFrame]) -> None:
+    async def subscribe_klines(self, symbols: list[str], timeframes: list[TimeFrame]):
         """
         Subscribe to kline/candlestick streams
 
         Args:
-            symbols: List[Any] of trading symbols (e.g., ["BTCUSDT", "ETHUSDT"])
-            timeframes: List[Any] of timeframes to subscribe to
+            symbols: list[Any] of trading symbols (e.g., ["BTCUSDT", "ETHUSDT"])
+            timeframes: list[Any] of timeframes to subscribe to
         """
         streams = []
         for symbol in symbols:
@@ -126,15 +125,15 @@ class BinanceWebSocketClient:
             await self._subscribe_streams(streams)
 
         logger.info(
-            f"Subscribed to klines for {len(symbols)} symbols and {len(timeframes)} timeframes"
+            f"Subscribed to klines for {len(symbols)} symbols and {len(timeframes)} timeframes",
         )
 
-    async def subscribe_ticker(self, symbols: List[str]) -> None:
+    async def subscribe_ticker(self, symbols: list[str]):
         """
         Subscribe to 24hr ticker streams
 
         Args:
-            symbols: List[Any] of trading symbols
+            symbols: list[Any] of trading symbols
         """
         streams = [f"{symbol.lower()}@ticker" for symbol in symbols]
         self._subscriptions.update(streams)
@@ -156,13 +155,16 @@ class BinanceWebSocketClient:
         logger.info("Subscribed to all market tickers")
 
     async def subscribe_depth(
-        self, symbols: List[str], levels: int = 20, update_speed: str = "1000ms"
+        self,
+        symbols: list[str],
+        levels: int = 20,
+        update_speed: str = "1000ms",
     ):
         """
         Subscribe to partial book depth streams
 
         Args:
-            symbols: List[Any] of trading symbols
+            symbols: list[Any] of trading symbols
             levels: Number of price levels (5, 10, or 20)
             update_speed: Update speed (1000ms or 100ms)
         """
@@ -177,12 +179,12 @@ class BinanceWebSocketClient:
 
         logger.info(f"Subscribed to depth for {len(symbols)} symbols")
 
-    async def subscribe_trades(self, symbols: List[str]) -> None:
+    async def subscribe_trades(self, symbols: list[str]):
         """
         Subscribe to trade streams
 
         Args:
-            symbols: List[Any] of trading symbols
+            symbols: list[Any] of trading symbols
         """
         streams = [f"{symbol.lower()}@trade" for symbol in symbols]
         self._subscriptions.update(streams)
@@ -193,12 +195,12 @@ class BinanceWebSocketClient:
 
         logger.info(f"Subscribed to trades for {len(symbols)} symbols")
 
-    async def unsubscribe_streams(self, streams: List[str]) -> None:
+    async def unsubscribe_streams(self, streams: list[str]):
         """
         Unsubscribe from streams
 
         Args:
-            streams: List[Any] of stream names to unsubscribe from
+            streams: list[Any] of stream names to unsubscribe from
         """
         self._subscriptions.difference_update(streams)
 
@@ -277,7 +279,7 @@ class BinanceWebSocketClient:
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
-    async def _route_message(self, data: Dict[str, Any]) -> None:
+    async def _route_message(self, data: dict[str, Any]):
         """Route message to appropriate handler"""
         try:
             # Determine message type
@@ -293,7 +295,7 @@ class BinanceWebSocketClient:
         except Exception as e:
             logger.error(f"Error routing message: {e}")
 
-    async def _handle_kline_message(self, data: Dict[str, Any]) -> None:
+    async def _handle_kline_message(self, data: dict[str, Any]):
         """Handle kline/candlestick message"""
         try:
             kline_data = data["k"]
@@ -326,13 +328,13 @@ class BinanceWebSocketClient:
             await self._event_bus.publish(event)
 
             logger.debug(
-                f"Published candle update for {candle.symbol} {candle.timeframe}"
+                f"Published candle update for {candle.symbol} {candle.timeframe}",
             )
 
         except Exception as e:
             logger.error(f"Error handling kline message: {e}")
 
-    async def _handle_ticker_message(self, data: Dict[str, Any]) -> None:
+    async def _handle_ticker_message(self, data: dict[str, Any]):
         """Handle 24hr ticker message"""
         try:
             # Process ticker data
@@ -348,7 +350,7 @@ class BinanceWebSocketClient:
         except Exception as e:
             logger.error(f"Error handling ticker message: {e}")
 
-    async def _handle_all_tickers_message(self, data: Dict[str, Any]) -> None:
+    async def _handle_all_tickers_message(self, data: dict[str, Any]):
         """Handle all market tickers message"""
         try:
             symbol = data["s"]
@@ -360,7 +362,7 @@ class BinanceWebSocketClient:
         except Exception as e:
             logger.error(f"Error handling all tickers message: {e}")
 
-    async def _handle_depth_message(self, data: Dict[str, Any]) -> None:
+    async def _handle_depth_message(self, data: dict[str, Any]):
         """Handle order book depth message"""
         try:
             symbol = data["s"]
@@ -368,13 +370,13 @@ class BinanceWebSocketClient:
             asks = data["a"]
 
             logger.debug(
-                f"Depth update for {symbol}: {len(bids)} bids, {len(asks)} asks"
+                f"Depth update for {symbol}: {len(bids)} bids, {len(asks)} asks",
             )
 
         except Exception as e:
             logger.error(f"Error handling depth message: {e}")
 
-    async def _handle_trade_message(self, data: Dict[str, Any]) -> None:
+    async def _handle_trade_message(self, data: dict[str, Any]):
         """Handle trade message"""
         try:
             symbol = data["s"]
@@ -383,13 +385,13 @@ class BinanceWebSocketClient:
             is_buyer_maker = data["m"]
 
             logger.debug(
-                f"Trade: {symbol} {quantity} @ {price} (buyer_maker: {is_buyer_maker})"
+                f"Trade: {symbol} {quantity} @ {price} (buyer_maker: {is_buyer_maker})",
             )
 
         except Exception as e:
             logger.error(f"Error handling trade message: {e}")
 
-    async def _subscribe_streams(self, streams: List[str]) -> None:
+    async def _subscribe_streams(self, streams: list[str]):
         """Subscribe to additional streams"""
         if not streams:
             return
@@ -402,7 +404,7 @@ class BinanceWebSocketClient:
         except Exception as e:
             logger.error(f"Error subscribing to streams: {e}")
 
-    async def _unsubscribe_streams(self, streams: List[str]) -> None:
+    async def _unsubscribe_streams(self, streams: list[str]):
         """Unsubscribe from streams"""
         if not streams:
             return
@@ -420,7 +422,7 @@ class BinanceWebSocketClient:
         if self._subscriptions:
             await self._subscribe_streams(list(self._subscriptions))
 
-    def get_subscriptions(self) -> List[str]:
+    def get_subscriptions(self) -> list[str]:
         """Get current subscriptions"""
         return list(self._subscriptions)
 
@@ -428,7 +430,7 @@ class BinanceWebSocketClient:
         """Check if WebSocket is connected"""
         return self._websocket is not None and not self._websocket.closed
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Get health status"""
         return {
             "connected": self.is_connected(),

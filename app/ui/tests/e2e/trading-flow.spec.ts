@@ -27,9 +27,9 @@ test.describe('Trading Flow', () => {
     expect(orders.length).toBeGreaterThan(0)
 
     const latestOrder = orders[0]
-    await expect(latestOrder).toContainText('BTCUSDT')
-    await expect(latestOrder).toContainText('BUY')
-    await expect(latestOrder).toContainText('MARKET')
+    await expect(latestOrder).toHaveText(/BTCUSDT/)
+    await expect(latestOrder).toHaveText(/BUY/)
+    await expect(latestOrder).toHaveText(/MARKET/)
 
     // Verify position is created/updated
     const positions = await tradingPage.positionsList.positions.all()

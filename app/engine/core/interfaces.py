@@ -3,17 +3,14 @@ Interfaces and protocols for event bus dependency injection.
 Defines contracts for all major components.
 """
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Protocol
-from uuid import UUID
+from typing import Any, Protocol
 
-from app.engine.models import BaseEvent, EventType
-from app.engine.core.subscription_manager import EventSubscription, SubscriptionConfig
 from app.engine.core.event_processor import (
-    EventProcessingConfig,
     EventProcessingResult,
     EventProcessingStats,
 )
+from app.engine.core.subscription_manager import EventSubscription
+from app.engine.models import BaseEvent, EventType
 
 
 class SubscriptionManagerInterface(Protocol):
@@ -23,9 +20,9 @@ class SubscriptionManagerInterface(Protocol):
         self,
         subscriber_id: str,
         handler: Any,
-        event_types: Optional[List[EventType]] = None,
-        priority: Optional[int] = None,
-        max_retries: Optional[int] = None,
+        event_types: list[EventType] | None = None,
+        priority: int | None = None,
+        max_retries: int | None = None,
     ) -> str:
         """Add a new subscription and return subscription ID."""
         ...
@@ -35,8 +32,9 @@ class SubscriptionManagerInterface(Protocol):
         ...
 
     async def get_subscriptions_for_event(
-        self, event_type: EventType
-    ) -> List[EventSubscription]:
+        self,
+        event_type: EventType,
+    ) -> list[EventSubscription]:
         """Get all active subscriptions for an event type."""
         ...
 
@@ -49,7 +47,9 @@ class SubscriptionManagerInterface(Protocol):
         ...
 
     async def record_subscription_failure(
-        self, subscription_id: str, error_message: str
+        self,
+        subscription_id: str,
+        error_message: str,
     ) -> None:
         """Record a subscription failure."""
         ...
@@ -63,7 +63,9 @@ class EventProcessorInterface(Protocol):
     """Protocol for event processing components."""
 
     async def process_event(
-        self, event: BaseEvent, subscriptions: List[EventSubscription]
+        self,
+        event: BaseEvent,
+        subscriptions: list[EventSubscription],
     ) -> EventProcessingResult:
         """Process an event with given subscriptions."""
         ...
@@ -80,7 +82,7 @@ class EventProcessorInterface(Protocol):
 class EventBusInterface(Protocol):
     """Protocol for event bus implementations."""
 
-    async def start(self, num_workers: Optional[int] = None) -> None:
+    async def start(self, num_workers: int | None = None) -> None:
         """Start the event bus workers."""
         ...
 
@@ -92,7 +94,7 @@ class EventBusInterface(Protocol):
         self,
         subscriber_id: str,
         handler: Any,
-        event_types: Optional[List[EventType]] = None,
+        event_types: list[EventType] | None = None,
         priority: int = 0,
         max_retries: int = 3,
     ) -> str:
@@ -107,15 +109,15 @@ class EventBusInterface(Protocol):
         """Publish an event to the bus."""
         ...
 
-    async def publish_many(self, events: List[BaseEvent]) -> int:
+    async def publish_many(self, events: list[BaseEvent]) -> int:
         """Publish multiple events."""
         ...
 
-    async def get_metrics(self) -> Dict[str, Any]:
+    async def get_metrics(self) -> dict[str, Any]:
         """Get aggregated metrics from all components."""
         ...
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Get health status of the event bus."""
         ...
 

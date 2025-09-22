@@ -9,14 +9,12 @@ Implements various technical analysis indicators including:
 - Bollinger Bands
 """
 
-import numpy as np
-import pandas as pd
 from decimal import Decimal
-from typing import List, Any, Optional, Tuple
 import logging
 
-from ..models import Candle, TechnicalIndicators
+import numpy as np
 
+from ..models import Candle, TechnicalIndicators
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +28,16 @@ class TechnicalIndicatorsCalculator:
     """
 
     @staticmethod
-    def ema(values: List[Decimal], period: int) -> List[Optional[Decimal]]:
+    def ema(values: list[Decimal], period: int) -> list[Decimal | None]:
         """
         Calculate Exponential Moving Average
 
         Args:
-            values: List[Any] of price values
+            values: list[Any] of price values
             period: EMA period
 
         Returns:
-            List[Any] of EMA values (None for insufficient data points)
+            list[Any] of EMA values (None for insufficient data points)
         """
         if len(values) < period:
             return [None] * len(values)
@@ -48,7 +46,7 @@ class TechnicalIndicatorsCalculator:
         prices = np.array([float(v) for v in values])
 
         # Calculate EMA
-        ema_values: List[Optional[Decimal]] = []
+        ema_values: list[Decimal | None] = []
         multiplier = 2 / (period + 1)
 
         # Initialize with SMA for the first value
@@ -68,40 +66,42 @@ class TechnicalIndicatorsCalculator:
         return ema_values
 
     @staticmethod
-    def sma(values: List[Decimal], period: int) -> List[Optional[Decimal]]:
+    def sma(values: list[Decimal], period: int) -> list[Decimal | None]:
         """
         Calculate Simple Moving Average
 
         Args:
-            values: List[Any] of price values
+            values: list[Any] of price values
             period: SMA period
 
         Returns:
-            List[Any] of SMA values
+            list[Any] of SMA values
         """
         if len(values) < period:
             return [None] * len(values)
 
-        sma_values: List[Optional[Decimal]] = [None] * (period - 1)
+        sma_values: list[Decimal | None] = [None] * (period - 1)
 
         for i in range(period - 1, len(values)):
             window = values[i - period + 1 : i + 1]
-            avg = Decimal(str(sum(window) / len(window)))
-            sma_values.append(avg)
+            avg = sum(window) / len(window)
+            sma_values.append(
+                Decimal(str(avg)) if isinstance(avg, (int, float)) else avg
+            )
 
         return sma_values
 
     @staticmethod
-    def rsi(values: List[Decimal], period: int = 14) -> List[Optional[Decimal]]:
+    def rsi(values: list[Decimal], period: int = 14) -> list[Decimal | None]:
         """
         Calculate Relative Strength Index
 
         Args:
-            values: List[Any] of price values (typically close prices)
+            values: list[Any] of price values (typically close prices)
             period: RSI period (default 14)
 
         Returns:
-            List[Any] of RSI values (0-100)
+            list[Any] of RSI values (0-100)
         """
         if len(values) < period + 1:
             return [None] * len(values)
@@ -112,26 +112,30 @@ class TechnicalIndicatorsCalculator:
             deltas.append(values[i] - values[i - 1])
 
         # Separate gains and losses
-        gains = [max(delta, Decimal("0")) for delta in deltas]
-        losses = [abs(min(delta, Decimal("0"))) for delta in deltas]
+        gains = [max(delta, Decimal(0)) for delta in deltas]
+        losses = [abs(min(delta, Decimal(0))) for delta in deltas]
 
         # Calculate initial averages
         avg_gain = Decimal(str(sum(gains[:period]) / period))
         avg_loss = Decimal(str(sum(losses[:period]) / period))
 
-        rsi_values: List[Optional[Decimal]] = [None] * period
+        rsi_values: list[Decimal | None] = [None] * period
 
         # Calculate RSI values
         for i in range(period, len(gains)):
             # Smoothed averages (Wilder's method)
-            avg_gain = (avg_gain * Decimal(str(period - 1)) + gains[i]) / Decimal(str(period))
-            avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(str(period))
+            avg_gain = (avg_gain * Decimal(str(period - 1)) + gains[i]) / Decimal(
+                str(period)
+            )
+            avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(
+                str(period)
+            )
 
             if avg_loss == 0:
-                rsi = Decimal("100")
+                rsi = Decimal(100)
             else:
                 rs = avg_gain / avg_loss
-                rsi = Decimal("100") - (Decimal("100") / (Decimal("1") + rs))
+                rsi = Decimal(100) - (Decimal(100) / (Decimal(1) + rs))
 
             rsi_values.append(rsi)
 
@@ -139,18 +143,20 @@ class TechnicalIndicatorsCalculator:
 
     @staticmethod
     def macd(
-        values: List[Decimal],
+        values: list[Decimal],
         fast_period: int = 12,
         slow_period: int = 26,
         signal_period: int = 9,
-    ) -> Tuple[
-        List[Optional[Decimal]], List[Optional[Decimal]], List[Optional[Decimal]]
+    ) -> tuple[
+        list[Decimal | None],
+        list[Decimal | None],
+        list[Decimal | None],
     ]:
         """
         Calculate MACD (Moving Average Convergence Divergence)
 
         Args:
-            values: List[Any] of price values (typically close prices)
+            values: list[Any] of price values (typically close prices)
             fast_period: Fast EMA period (default 12)
             slow_period: Slow EMA period (default 26)
             signal_period: Signal line EMA period (default 9)
@@ -159,7 +165,7 @@ class TechnicalIndicatorsCalculator:
             Tuple of (MACD line, Signal line, Histogram)
         """
         if len(values) < slow_period:
-            none_list: List[Optional[Decimal]] = [None] * len(values)
+            none_list: list[Decimal | None] = [None] * len(values)
             return none_list, none_list.copy(), none_list.copy()
 
         # Calculate fast and slow EMAs
@@ -167,7 +173,7 @@ class TechnicalIndicatorsCalculator:
         slow_ema = TechnicalIndicatorsCalculator.ema(values, slow_period)
 
         # Calculate MACD line
-        macd_line: List[Optional[Decimal]] = []
+        macd_line: list[Decimal | None] = []
         for i in range(len(values)):
             fast_val = fast_ema[i]
             slow_val = slow_ema[i]
@@ -179,11 +185,12 @@ class TechnicalIndicatorsCalculator:
         # Calculate signal line (EMA of MACD line)
         macd_values_for_signal = [v for v in macd_line if v is not None]
         if len(macd_values_for_signal) < signal_period:
-            signal_line: List[Optional[Decimal]] = [None] * len(values)
-            histogram: List[Optional[Decimal]] = [None] * len(values)
+            signal_line: list[Decimal | None] = [None] * len(values)
+            histogram: list[Decimal | None] = [None] * len(values)
         else:
             signal_ema = TechnicalIndicatorsCalculator.ema(
-                macd_values_for_signal, signal_period
+                macd_values_for_signal,
+                signal_period,
             )
 
             # Align signal line with MACD line
@@ -206,16 +213,16 @@ class TechnicalIndicatorsCalculator:
         return macd_line, signal_line, histogram
 
     @staticmethod
-    def atr(candles: List[Candle], period: int = 14) -> List[Optional[Decimal]]:
+    def atr(candles: list[Candle], period: int = 14) -> list[Decimal | None]:
         """
         Calculate Average True Range
 
         Args:
-            candles: List[Any] of Candle objects
+            candles: list[Any] of Candle objects
             period: ATR period (default 14)
 
         Returns:
-            List[Any] of ATR values
+            list[Any] of ATR values
         """
         if len(candles) < period:
             return [None] * len(candles)
@@ -237,7 +244,7 @@ class TechnicalIndicatorsCalculator:
             true_ranges.append(tr)
 
         # Calculate ATR using smoothed moving average
-        atr_values: List[Optional[Decimal]] = [None] * (period - 1)
+        atr_values: list[Decimal | None] = [None] * (period - 1)
 
         # Initial ATR is simple average of first 'period' TRs
         initial_atr = Decimal(str(sum(true_ranges[:period]) / period))
@@ -247,7 +254,9 @@ class TechnicalIndicatorsCalculator:
         for i in range(period, len(true_ranges)):
             prev_atr = atr_values[-1]
             if prev_atr is not None:
-                atr = (prev_atr * Decimal(str(period - 1)) + true_ranges[i]) / Decimal(str(period))
+                atr = (prev_atr * Decimal(str(period - 1)) + true_ranges[i]) / Decimal(
+                    str(period)
+                )
                 atr_values.append(atr)
             else:
                 atr_values.append(None)
@@ -256,15 +265,19 @@ class TechnicalIndicatorsCalculator:
 
     @staticmethod
     def bollinger_bands(
-        values: List[Decimal], period: int = 20, std_dev: float = 2.0
-    ) -> Tuple[
-        List[Optional[Decimal]], List[Optional[Decimal]], List[Optional[Decimal]]
+        values: list[Decimal],
+        period: int = 20,
+        std_dev: float = 2.0,
+    ) -> tuple[
+        list[Decimal | None],
+        list[Decimal | None],
+        list[Decimal | None],
     ]:
         """
         Calculate Bollinger Bands
 
         Args:
-            values: List[Any] of price values (typically close prices)
+            values: list[Any] of price values (typically close prices)
             period: Period for moving average and standard deviation (default 20)
             std_dev: Number of standard deviations (default 2.0)
 
@@ -272,14 +285,14 @@ class TechnicalIndicatorsCalculator:
             Tuple of (Upper band, Middle band/SMA, Lower band)
         """
         if len(values) < period:
-            none_list: List[Optional[Decimal]] = [None] * len(values)
+            none_list: list[Decimal | None] = [None] * len(values)
             return none_list.copy(), none_list.copy(), none_list.copy()
 
         # Calculate middle band (SMA)
         middle_band = TechnicalIndicatorsCalculator.sma(values, period)
 
-        upper_band: List[Optional[Decimal]] = []
-        lower_band: List[Optional[Decimal]] = []
+        upper_band: list[Decimal | None] = []
+        lower_band: list[Decimal | None] = []
 
         for i in range(len(values)):
             if middle_band[i] is None:
@@ -294,7 +307,7 @@ class TechnicalIndicatorsCalculator:
                 window_float = [float(v) for v in window]
                 mean_val = sum(window_float) / len(window_float)
                 variance = sum((x - mean_val) ** 2 for x in window_float) / len(
-                    window_float
+                    window_float,
                 )
                 std = variance**0.5
 
@@ -310,8 +323,10 @@ class TechnicalIndicatorsCalculator:
 
     @staticmethod
     def bb_percent(
-        price: Decimal, upper_band: Decimal, lower_band: Decimal
-    ) -> Optional[Decimal]:
+        price: Decimal,
+        upper_band: Decimal,
+        lower_band: Decimal,
+    ) -> Decimal | None:
         """
         Calculate Bollinger Band Percent (%B)
 
@@ -330,7 +345,9 @@ class TechnicalIndicatorsCalculator:
 
     @staticmethod
     def bb_width(
-        upper_band: Decimal, lower_band: Decimal, middle_band: Decimal
+        upper_band: Decimal,
+        lower_band: Decimal,
+        middle_band: Decimal,
     ) -> Decimal:
         """
         Calculate Bollinger Band Width
@@ -348,10 +365,10 @@ class TechnicalIndicatorsCalculator:
     @classmethod
     def calculate_all_indicators(
         cls,
-        candles: List[Candle],
-        ema_periods: List[int] = [9, 21, 50, 200],
+        candles: list[Candle],
+        ema_periods: list[int] = [9, 21, 50, 200],
         rsi_period: int = 14,
-        macd_params: Tuple[int, int, int] = (12, 26, 9),
+        macd_params: tuple[int, int, int] = (12, 26, 9),
         atr_period: int = 14,
         bb_period: int = 20,
         bb_std_dev: float = 2.0,
@@ -360,8 +377,8 @@ class TechnicalIndicatorsCalculator:
         Calculate all technical indicators for the latest candle
 
         Args:
-            candles: List[Any] of Candle objects (should be in chronological order)
-            ema_periods: List[Any] of EMA periods to calculate
+            candles: list[Any] of Candle objects (should be in chronological order)
+            ema_periods: list[Any] of EMA periods to calculate
             rsi_period: RSI period
             macd_params: MACD parameters (fast, slow, signal)
             atr_period: ATR period
@@ -416,7 +433,10 @@ class TechnicalIndicatorsCalculator:
 
             # Calculate MACD
             macd_line, signal_line, histogram = cls.macd(
-                close_prices, macd_params[0], macd_params[1], macd_params[2]
+                close_prices,
+                macd_params[0],
+                macd_params[1],
+                macd_params[2],
             )
             indicators.macd_line = macd_line[-1] if macd_line[-1] is not None else None
             indicators.macd_signal = (
@@ -432,7 +452,9 @@ class TechnicalIndicatorsCalculator:
 
             # Calculate Bollinger Bands
             upper_band, middle_band, lower_band = cls.bollinger_bands(
-                close_prices, bb_period, bb_std_dev
+                close_prices,
+                bb_period,
+                bb_std_dev,
             )
             indicators.bb_upper = upper_band[-1] if upper_band[-1] is not None else None
             indicators.bb_middle = (
@@ -453,10 +475,14 @@ class TechnicalIndicatorsCalculator:
                 assert indicators.bb_middle is not None
                 assert indicators.bb_lower is not None
                 indicators.bb_width = cls.bb_width(
-                    indicators.bb_upper, indicators.bb_lower, indicators.bb_middle
+                    indicators.bb_upper,
+                    indicators.bb_lower,
+                    indicators.bb_middle,
                 )
                 indicators.bb_percent = cls.bb_percent(
-                    latest_candle.close_price, indicators.bb_upper, indicators.bb_lower
+                    latest_candle.close_price,
+                    indicators.bb_upper,
+                    indicators.bb_lower,
                 )
 
         except Exception as e:

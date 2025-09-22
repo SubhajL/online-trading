@@ -4,11 +4,10 @@ Following C-4: Prefer simple, composable, testable functions.
 """
 
 import asyncio
-import logging
-from decimal import Decimal
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import Enum
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +29,8 @@ class OrderRequest:
     side: OrderSide
     quantity: Decimal
     order_type: OrderType
-    price: Optional[Decimal] = None
-    stop_price: Optional[Decimal] = None
+    price: Decimal | None = None
+    stop_price: Decimal | None = None
 
 
 @dataclass
@@ -60,20 +59,20 @@ class TradingSignal:
 class OrderResponse:
     order_id: str
     status: str
-    filled_quantity: Decimal = Decimal("0")
-    average_price: Optional[Decimal] = None
+    filled_quantity: Decimal = Decimal(0)
+    average_price: Decimal | None = None
 
 
 # Exchange limits (would normally come from exchange API)
 SYMBOL_FILTERS = {
     "BTCUSDT": {
         "min_qty": Decimal("0.00010"),  # Actual Binance minimum is 0.00010 BTC
-        "max_qty": Decimal("9000"),
+        "max_qty": Decimal(9000),
         "qty_step": Decimal("0.00001"),
-        "min_notional": Decimal("5"),
+        "min_notional": Decimal(5),
         "price_precision": 2,
         "qty_precision": 5,
-    }
+    },
 }
 
 
@@ -91,8 +90,8 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
         return ValidationResult(is_valid=False, errors=errors)
 
     # Check quantity limits
-    min_qty = Decimal(str(filters.get("min_qty", Decimal("0"))))
-    max_qty = Decimal(str(filters.get("max_qty", Decimal("1000000"))))
+    min_qty = filters.get("min_qty", Decimal(0))
+    max_qty = filters.get("max_qty", Decimal(1000000))
 
     if order.quantity < min_qty:
         errors.append(f"Quantity {order.quantity} below minimum quantity {min_qty}")
@@ -112,12 +111,12 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
                 decimals = len(price_str.split(".")[1])
                 if decimals > price_precision:
                     errors.append(
-                        f"Price precision {decimals} exceeds maximum {price_precision}"
+                        f"Price precision {decimals} exceeds maximum {price_precision}",
                     )
 
             # Check notional value
             notional = order.quantity * order.price
-            min_notional = Decimal(str(filters.get("min_notional", Decimal("0"))))
+            min_notional = filters.get("min_notional", Decimal(0))
             if notional < min_notional:
                 errors.append(f"Notional value {notional} below minimum {min_notional}")
 
@@ -140,7 +139,7 @@ def calculate_position_size(signal: TradingSignal, account: AccountInfo) -> Deci
     price_diff = abs(signal.entry_price - signal.stop_loss)
 
     if price_diff == 0:
-        return Decimal("0")
+        return Decimal(0)
 
     # Base position size from risk
     base_size = risk_amount / price_diff
@@ -182,13 +181,9 @@ def calculate_position_size(signal: TradingSignal, account: AccountInfo) -> Deci
 class NetworkError(Exception):
     """Transient network error."""
 
-    pass
-
 
 class OrderError(Exception):
     """Permanent order error."""
-
-    pass
 
 
 # Mock order execution for testing
@@ -209,7 +204,7 @@ async def _execute_order(order: OrderRequest) -> OrderResponse:
         raise OrderError("Invalid symbol")
 
     # Simulate insufficient balance for huge orders
-    if order.quantity > Decimal("10000"):
+    if order.quantity > Decimal(10000):
         raise OrderError("Insufficient balance")
 
     # Simulate successful order
@@ -217,12 +212,13 @@ async def _execute_order(order: OrderRequest) -> OrderResponse:
         order_id=f"ORDER_{order.symbol}_{order.side.value}",
         status="FILLED",
         filled_quantity=order.quantity,
-        average_price=order.price or Decimal("50000"),
+        average_price=order.price or Decimal(50000),
     )
 
 
 async def create_order_with_retry(
-    order: OrderRequest, max_retries: int = 3
+    order: OrderRequest,
+    max_retries: int = 3,
 ) -> OrderResponse:
     """
     Creates order with exponential backoff retry logic.
@@ -246,7 +242,7 @@ async def create_order_with_retry(
                 # Exponential backoff
                 wait_time = 0.1 * (2**attempt)
                 logger.warning(
-                    f"Order attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s"
+                    f"Order attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s",
                 )
                 await asyncio.sleep(wait_time)
             else:

@@ -5,15 +5,13 @@ Provides structured error types, handling patterns, and recovery mechanisms
 following best practices for resilient distributed systems.
 """
 
-import asyncio
-import logging
 from abc import ABC, abstractmethod
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Callable, Type, Union
-from uuid import uuid4, UUID
-
+import logging
+from uuid import UUID, uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +49,8 @@ class ErrorContext:
     severity: ErrorSeverity = ErrorSeverity.MEDIUM
     component: str = ""
     operation: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    correlation_id: Optional[str] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    correlation_id: str | None = None
     retry_count: int = 0
     max_retries: int = 3
 
@@ -63,8 +61,8 @@ class EventBusError(Exception):
     def __init__(
         self,
         message: str,
-        context: Optional[ErrorContext] = None,
-        cause: Optional[Exception] = None,
+        context: ErrorContext | None = None,
+        cause: Exception | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -76,7 +74,7 @@ class EventBusError(Exception):
 class SubscriptionError(EventBusError):
     """Error related to subscription management."""
 
-    def __init__(self, message: str, subscription_id: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(self, message: str, subscription_id: str | None = None, **kwargs):
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.SUBSCRIPTION
         if subscription_id:
@@ -87,7 +85,7 @@ class SubscriptionError(EventBusError):
 class ProcessingError(EventBusError):
     """Error during event processing."""
 
-    def __init__(self, message: str, event_id: Optional[UUID] = None, **kwargs: Any) -> None:
+    def __init__(self, message: str, event_id: UUID | None = None, **kwargs):
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.PROCESSING
         if event_id:
@@ -98,7 +96,7 @@ class ProcessingError(EventBusError):
 class QueueError(EventBusError):
     """Error related to queue operations."""
 
-    def __init__(self, message: str, queue_size: Optional[int] = None, **kwargs: Any) -> None:
+    def __init__(self, message: str, queue_size: int | None = None, **kwargs):
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.QUEUE
         if queue_size is not None:
@@ -109,7 +107,7 @@ class QueueError(EventBusError):
 class ConfigurationError(EventBusError):
     """Error in system configuration."""
 
-    def __init__(self, message: str, config_key: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(self, message: str, config_key: str | None = None, **kwargs):
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CONFIGURATION
         context.severity = ErrorSeverity.HIGH
@@ -121,7 +119,7 @@ class ConfigurationError(EventBusError):
 class TimeoutError(EventBusError):
     """Error due to operation timeout."""
 
-    def __init__(self, message: str, timeout_seconds: Optional[float] = None, **kwargs: Any) -> None:
+    def __init__(self, message: str, timeout_seconds: float | None = None, **kwargs):
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.TIMEOUT
         if timeout_seconds:
@@ -144,9 +142,9 @@ class ErrorStats:
     """Statistics for error tracking."""
 
     total_errors: int = 0
-    errors_by_category: Dict[ErrorCategory, int] = field(default_factory=dict)
-    errors_by_severity: Dict[ErrorSeverity, int] = field(default_factory=dict)
-    recent_errors: List[ErrorContext] = field(default_factory=list)
+    errors_by_category: dict[ErrorCategory, int] = field(default_factory=dict)
+    errors_by_severity: dict[ErrorSeverity, int] = field(default_factory=dict)
+    recent_errors: list[ErrorContext] = field(default_factory=list)
     error_rate_per_minute: float = 0.0
     last_reset: datetime = field(default_factory=datetime.utcnow)
 
@@ -165,13 +163,12 @@ class ErrorHandler(ABC):
         Returns:
             True if error was handled successfully
         """
-        pass
 
 
 class LoggingErrorHandler(ErrorHandler):
     """Error handler that logs errors with structured information."""
 
-    def __init__(self, logger: Optional[logging.Logger] = None) -> None:
+    def __init__(self, logger: logging.Logger | None = None) -> None:
         self._logger = logger or logging.getLogger(__name__)
 
     async def handle_error(self, error: EventBusError) -> bool:
@@ -307,7 +304,8 @@ class RetryableErrorHandler(ErrorHandler):
 
         # Calculate delay with exponential backoff
         delay = min(
-            self.base_delay * (self.backoff_factor**retry_count), self.max_delay
+            self.base_delay * (self.backoff_factor**retry_count),
+            self.max_delay,
         )
 
         logger.info(f"Retrying operation after {delay}s (attempt {retry_count + 1})")
@@ -336,7 +334,7 @@ class RetryableErrorHandler(ErrorHandler):
 class CompositeErrorHandler(ErrorHandler):
     """Error handler that delegates to multiple handlers."""
 
-    def __init__(self, handlers: List[ErrorHandler]) -> None:
+    def __init__(self, handlers: list[ErrorHandler]):
         self.handlers = handlers
 
     async def handle_error(self, error: EventBusError) -> bool:
@@ -358,8 +356,8 @@ class CompositeErrorHandler(ErrorHandler):
 class ErrorManager:
     """Central error management system for EventBus."""
 
-    def __init__(self) -> None:
-        self._handlers: List[ErrorHandler] = []
+    def __init__(self):
+        self._handlers: list[ErrorHandler] = []
         self._metrics_handler = MetricsErrorHandler()
         self._logging_handler = LoggingErrorHandler()
 
@@ -378,8 +376,8 @@ class ErrorManager:
 
     async def handle_error(
         self,
-        error: Union[Exception, EventBusError],
-        context: Optional[ErrorContext] = None,
+        error: Exception | EventBusError,
+        context: ErrorContext | None = None,
     ) -> bool:
         """
         Handle an error through all registered handlers.
@@ -394,7 +392,9 @@ class ErrorManager:
         # Convert regular exceptions to EventBusError
         if not isinstance(error, EventBusError):
             eventbus_error = EventBusError(
-                message=str(error), context=context or ErrorContext(), cause=error
+                message=str(error),
+                context=context or ErrorContext(),
+                cause=error,
             )
         else:
             eventbus_error = error
@@ -426,7 +426,8 @@ error_manager = ErrorManager()
 
 # Convenience functions for error handling
 async def handle_error(
-    error: Union[Exception, EventBusError], context: Optional[ErrorContext] = None
+    error: Exception | EventBusError,
+    context: ErrorContext | None = None,
 ) -> bool:
     """Handle an error using the global error manager."""
     return await error_manager.handle_error(error, context)
@@ -475,13 +476,12 @@ class error_boundary:
                     return await func(*args, **kwargs)
 
             return async_wrapper
-        else:
 
-            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                with self:
-                    return func(*args, **kwargs)
+        def sync_wrapper(*args, **kwargs):
+            with self:
+                return func(*args, **kwargs)
 
-            return sync_wrapper
+        return sync_wrapper
 
     async def __aenter__(self) -> "error_boundary":
         """Async context manager entry."""
@@ -522,7 +522,9 @@ class error_boundary:
             # by using the logging handler directly
             try:
                 eventbus_error = EventBusError(
-                    message=str(exc_val), context=context, cause=exc_val
+                    message=str(exc_val),
+                    context=context,
+                    cause=exc_val,
                 )
 
                 # Use the global error manager's logging handler directly

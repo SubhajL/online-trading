@@ -1,15 +1,14 @@
 """Database migration management system."""
 
+from dataclasses import dataclass
 import hashlib
 import logging
-import os
+from pathlib import Path
 import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Any, Optional, Tuple
 
-import asyncpg
 from asyncpg import Connection
 
 from .connection_pool import ConnectionPool
@@ -38,7 +37,7 @@ class Migration:
         version = int(match.group(1))
         name = match.group(2).replace("_", " ").title()
 
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             content = f.read()
 
         checksum = hashlib.sha256(content.encode()).hexdigest()
@@ -69,7 +68,7 @@ class MigrationRunner:
                     SELECT 1 FROM information_schema.schemata
                     WHERE schema_name = '_migration'
                 )
-                """
+                """,
             )
 
             if not schema_exists:
@@ -80,12 +79,12 @@ class MigrationRunner:
                 SELECT COALESCE(MAX(version), 0)
                 FROM _migration.schema_version
                 WHERE status = 'applied'
-                """
+                """,
             )
 
             return version or 0
 
-    async def get_available_migrations(self) -> List[Migration]:
+    async def get_available_migrations(self) -> list[Migration]:
         """Get all available migrations from filesystem."""
         migrations = []
 
@@ -102,7 +101,7 @@ class MigrationRunner:
 
         return migrations
 
-    async def validate_migration_order(self, migrations: List[Migration]) -> None:
+    async def validate_migration_order(self, migrations: list[Migration]) -> None:
         """Ensure migrations are sequential with no gaps."""
         expected_version = 0
 
@@ -110,7 +109,7 @@ class MigrationRunner:
             if migration.version != expected_version:
                 raise ValueError(
                     f"Migration version gap detected: expected {expected_version}, "
-                    f"found {migration.version} ({migration.filename})"
+                    f"found {migration.version} ({migration.filename})",
                 )
             expected_version += 1
 
@@ -155,7 +154,7 @@ class MigrationRunner:
 
             logger.info(
                 f"Applied migration {migration.version}: {migration.name} "
-                f"({execution_time_ms}ms)"
+                f"({execution_time_ms}ms)",
             )
 
         except Exception as e:
@@ -188,8 +187,9 @@ class MigrationRunner:
             raise
 
     async def migrate_to_version(
-        self, target_version: Optional[int] = None
-    ) -> Tuple[int, int]:
+        self,
+        target_version: int | None = None,
+    ) -> tuple[int, int]:
         """
         Apply migrations up to target version.
 
@@ -220,47 +220,46 @@ class MigrationRunner:
         migrations_applied = 0
 
         # Apply migrations in a transaction
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                # Ensure migration schema exists
-                if current_version == 0:
-                    bootstrap_migration = Migration(
-                        version=0,
-                        name="Bootstrap Migration Schema",
-                        filename="000_migration_version.sql",
-                        content=open(
-                            self.migrations_dir / "000_migration_version.sql"
-                        ).read(),
-                        checksum="bootstrap",
-                    )
+        async with self.pool.acquire() as conn, conn.transaction():
+            # Ensure migration schema exists
+            if current_version == 0:
+                bootstrap_migration = Migration(
+                    version=0,
+                    name="Bootstrap Migration Schema",
+                    filename="000_migration_version.sql",
+                    content=open(
+                        self.migrations_dir / "000_migration_version.sql",
+                    ).read(),
+                    checksum="bootstrap",
+                )
 
-                    await conn.execute(bootstrap_migration.content)
-                    logger.info("Created migration tracking schema")
+                await conn.execute(bootstrap_migration.content)
+                logger.info("Created migration tracking schema")
 
-                # Apply each migration
-                for migration in sorted(migrations_to_apply, key=lambda m: m.version):
-                    # Check if migration was already partially applied
-                    existing_status = await conn.fetchval(
-                        """
+            # Apply each migration
+            for migration in sorted(migrations_to_apply, key=lambda m: m.version):
+                # Check if migration was already partially applied
+                existing_status = await conn.fetchval(
+                    """
                         SELECT status FROM _migration.schema_version
                         WHERE version = $1
                         """,
-                        migration.version,
+                    migration.version,
+                )
+
+                if existing_status == "applied":
+                    logger.info(
+                        f"Skipping already applied migration {migration.version}",
                     )
+                    continue
 
-                    if existing_status == "applied":
-                        logger.info(
-                            f"Skipping already applied migration {migration.version}"
-                        )
-                        continue
-
-                    await self.apply_migration(migration, conn)
-                    migrations_applied += 1
+                await self.apply_migration(migration, conn)
+                migrations_applied += 1
 
         final_version = await self.get_current_version()
         logger.info(
             f"Applied {migrations_applied} migrations. "
-            f"Database now at version {final_version}"
+            f"Database now at version {final_version}",
         )
 
         return migrations_applied, final_version
@@ -277,7 +276,7 @@ class MigrationRunner:
                 FROM _migration.schema_version
                 WHERE status = 'applied'
                 ORDER BY version
-                """
+                """,
             )
 
             # Get failed migrations
@@ -287,7 +286,7 @@ class MigrationRunner:
                 FROM _migration.schema_version
                 WHERE status = 'failed'
                 ORDER BY version
-                """
+                """,
             )
 
             # Get pending migrations

@@ -5,24 +5,22 @@ Provides secure handling of configuration, secrets management, and
 environment variable validation following security best practices.
 """
 
-import os
-import re
-import hashlib
-import secrets
-import logging
-from abc import ABC, abstractmethod
+from base64 import b64decode, b64encode
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Union, Callable
+import hashlib
+import logging
+import os
 from pathlib import Path
-import json
-from base64 import b64encode, b64decode
+import re
+import secrets
+
 from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
-
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +36,9 @@ class SecurityLevel(Enum):
 class ValidationError(Exception):
     """Raised when validation fails."""
 
-    pass
-
 
 class SecurityError(Exception):
     """Raised when security checks fail."""
-
-    pass
 
 
 @dataclass
@@ -52,14 +46,14 @@ class ValidationRule:
     """Rule for validating environment variables."""
 
     name: str
-    pattern: Optional[str] = None
-    min_length: Optional[int] = None
-    max_length: Optional[int] = None
+    pattern: str | None = None
+    min_length: int | None = None
+    max_length: int | None = None
     required: bool = False
     sensitive: bool = False
-    allowed_values: Optional[List[str]] = None
-    custom_validator: Optional[Callable[[str], bool]] = None
-    error_message: Optional[str] = None
+    allowed_values: list[str] | None = None
+    custom_validator: Callable[[str], bool] | None = None
+    error_message: str | None = None
 
 
 @dataclass
@@ -68,8 +62,8 @@ class ValidationResult:
 
     is_valid: bool
     variable_name: str
-    error: Optional[str] = None
-    suggestion: Optional[str] = None
+    error: str | None = None
+    suggestion: str | None = None
 
 
 @dataclass
@@ -79,9 +73,9 @@ class SecurityAudit:
     timestamp: datetime = field(default_factory=datetime.utcnow)
     total_variables: int = 0
     validated_variables: int = 0
-    failed_validations: List[ValidationResult] = field(default_factory=list)
-    missing_required: List[str] = field(default_factory=list)
-    weak_secrets: List[str] = field(default_factory=list)
+    failed_validations: list[ValidationResult] = field(default_factory=list)
+    missing_required: list[str] = field(default_factory=list)
+    weak_secrets: list[str] = field(default_factory=list)
     security_score: float = 0.0
 
 
@@ -102,7 +96,7 @@ class EnvironmentValidator:
 
     def __init__(self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT) -> None:
         self.security_level = security_level
-        self.rules: Dict[str, ValidationRule] = {}
+        self.rules: dict[str, ValidationRule] = {}
         self._setup_default_rules()
 
     def _setup_default_rules(self) -> None:
@@ -114,7 +108,7 @@ class EnvironmentValidator:
                 pattern=self.PATTERNS["url"],
                 required=self.security_level == SecurityLevel.PRODUCTION,
                 sensitive=True,
-            )
+            ),
         )
 
         self.add_rule(
@@ -124,20 +118,24 @@ class EnvironmentValidator:
                 required=self.security_level == SecurityLevel.PRODUCTION,
                 sensitive=True,
                 custom_validator=self._validate_password_strength,
-            )
+            ),
         )
 
         # Redis configuration
         self.add_rule(
             ValidationRule(
-                name="REDIS_HOST", pattern=self.PATTERNS["hostname"], required=False
-            )
+                name="REDIS_HOST",
+                pattern=self.PATTERNS["hostname"],
+                required=False,
+            ),
         )
 
         self.add_rule(
             ValidationRule(
-                name="REDIS_PORT", pattern=self.PATTERNS["port"], required=False
-            )
+                name="REDIS_PORT",
+                pattern=self.PATTERNS["port"],
+                required=False,
+            ),
         )
 
         # JWT and authentication
@@ -148,7 +146,7 @@ class EnvironmentValidator:
                 required=self.security_level != SecurityLevel.DEVELOPMENT,
                 sensitive=True,
                 custom_validator=self._validate_jwt_secret,
-            )
+            ),
         )
 
         # API keys
@@ -158,20 +156,26 @@ class EnvironmentValidator:
                 pattern=self.PATTERNS["api_key"],
                 required=False,
                 sensitive=True,
-            )
+            ),
         )
 
         self.add_rule(
             ValidationRule(
-                name="BINANCE_SECRET_KEY", min_length=32, required=False, sensitive=True
-            )
+                name="BINANCE_SECRET_KEY",
+                min_length=32,
+                required=False,
+                sensitive=True,
+            ),
         )
 
         # Vault configuration
         self.add_rule(
             ValidationRule(
-                name="VAULT_TOKEN", min_length=20, required=False, sensitive=True
-            )
+                name="VAULT_TOKEN",
+                min_length=20,
+                required=False,
+                sensitive=True,
+            ),
         )
 
         # Environment
@@ -180,7 +184,7 @@ class EnvironmentValidator:
                 name="ENVIRONMENT",
                 allowed_values=["development", "staging", "production"],
                 required=True,
-            )
+            ),
         )
 
         # Logging
@@ -189,14 +193,14 @@ class EnvironmentValidator:
                 name="LOG_LEVEL",
                 allowed_values=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                 required=False,
-            )
+            ),
         )
 
     def add_rule(self, rule: ValidationRule) -> None:
         """Add a validation rule."""
         self.rules[rule.name] = rule
 
-    def validate_variable(self, name: str, value: Optional[str]) -> ValidationResult:
+    def validate_variable(self, name: str, value: str | None) -> ValidationResult:
         """Validate a single environment variable."""
         rule = self.rules.get(name)
 
@@ -365,7 +369,7 @@ class EnvironmentValidator:
 class SecretManager:
     """Manages encryption and decryption of sensitive data."""
 
-    def __init__(self, master_key: Optional[str] = None) -> None:
+    def __init__(self, master_key: str | None = None):
         """Initialize with master key or generate one."""
         if master_key:
             self.master_key = master_key.encode()
@@ -385,7 +389,7 @@ class SecretManager:
         new_key = Fernet.generate_key()
         logger.warning(
             "No MASTER_ENCRYPTION_KEY found. Generated new key. "
-            "Set MASTER_ENCRYPTION_KEY environment variable to persist."
+            "Set MASTER_ENCRYPTION_KEY environment variable to persist.",
         )
         return new_key
 
@@ -416,7 +420,7 @@ class SecretManager:
         except Exception as e:
             raise SecurityError(f"Failed to decrypt data: {e}")
 
-    def hash_value(self, value: str, salt: Optional[str] = None) -> str:
+    def hash_value(self, value: str, salt: str | None = None) -> str:
         """Create secure hash of value."""
         if salt is None:
             salt = secrets.token_hex(16)
@@ -446,8 +450,8 @@ class SecureConfig:
         self.security_level = security_level
         self.validator = EnvironmentValidator(security_level)
         self.secret_manager = SecretManager() if enable_encryption else None
-        self._cached_values: Dict[str, Any] = {}
-        self._sensitive_keys: Set[str] = set()
+        self._cached_values: dict[str, Any] = {}
+        self._sensitive_keys: set[str] = set()
 
     def get(self, key: str, default: Any = None, sensitive: bool = False) -> Any:
         """Get configuration value with validation."""
@@ -463,8 +467,7 @@ class SecureConfig:
         if not result.is_valid:
             if self.security_level == SecurityLevel.PRODUCTION:
                 raise ValidationError(result.error)
-            else:
-                logger.warning(f"Validation warning: {result.error}")
+            logger.warning(f"Validation warning: {result.error}")
 
         # Mark as sensitive if needed
         if sensitive:
@@ -474,7 +477,7 @@ class SecureConfig:
         self._cached_values[key] = value
         return value
 
-    def get_secret(self, key: str, default: Optional[str] = None) -> Optional[str]:
+    def get_secret(self, key: str, default: str | None = None) -> str | None:
         """Get secret value with decryption if needed."""
         value = self.get(key, default, sensitive=True)
 
@@ -508,9 +511,9 @@ class SecureConfig:
         """Perform security audit of configuration."""
         return self.validator.validate_all()
 
-    def mask_sensitive_values(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def mask_sensitive_values(self, data: dict[str, Any]) -> dict[str, Any]:
         """Mask sensitive values in dictionary for logging."""
-        masked: Dict[str, Any] = {}
+        masked: dict[str, Any] = {}
 
         for key, value in data.items():
             if key in self._sensitive_keys or self._is_sensitive_key(key):
@@ -552,7 +555,7 @@ class SecureConfig:
                 return True
         return False
 
-    def export_safe_config(self) -> Dict[str, Any]:
+    def export_safe_config(self) -> dict[str, Any]:
         """Export configuration with sensitive values masked."""
         config = {}
 
@@ -575,7 +578,7 @@ class SecurityGuard:
 
     def __init__(self, config: SecureConfig) -> None:
         self.config = config
-        self.violations: List[Dict[str, Any]] = []
+        self.violations: list[dict[str, Any]] = []
         self.start_time = datetime.utcnow()
 
     def check_file_permissions(self, path: Path) -> bool:
@@ -590,7 +593,9 @@ class SecurityGuard:
         # Check if others have read permission
         if mode & 0o004:
             self.log_violation(
-                "file_permissions", f"File {path} is world-readable", severity="HIGH"
+                "file_permissions",
+                f"File {path} is world-readable",
+                severity="HIGH",
             )
             return False
 
@@ -618,8 +623,11 @@ class SecurityGuard:
         return True
 
     def log_violation(
-        self, violation_type: str, message: str, severity: str = "MEDIUM"
-    ) -> None:
+        self,
+        violation_type: str,
+        message: str,
+        severity: str = "MEDIUM",
+    ):
         """Log a security violation."""
         violation = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -631,7 +639,7 @@ class SecurityGuard:
         self.violations.append(violation)
         logger.warning(f"Security violation: {violation}")
 
-    def get_security_report(self) -> Dict[str, Any]:
+    def get_security_report(self) -> dict[str, Any]:
         """Generate security report."""
         audit = self.config.audit()
 
@@ -651,28 +659,28 @@ class SecurityGuard:
             "recommendations": self._get_recommendations(audit),
         }
 
-    def _get_recommendations(self, audit: SecurityAudit) -> List[str]:
+    def _get_recommendations(self, audit: SecurityAudit) -> list[str]:
         """Get security recommendations based on audit."""
         recommendations = []
 
         if audit.missing_required:
             recommendations.append(
-                f"Set required environment variables: {', '.join(audit.missing_required)}"
+                f"Set required environment variables: {', '.join(audit.missing_required)}",
             )
 
         if audit.weak_secrets:
             recommendations.append(
-                f"Strengthen weak secrets for: {', '.join(audit.weak_secrets)}"
+                f"Strengthen weak secrets for: {', '.join(audit.weak_secrets)}",
             )
 
         if audit.security_score < 0.8:
             recommendations.append(
-                "Security score below 80%, review configuration security"
+                "Security score below 80%, review configuration security",
             )
 
         if self.config.security_level == SecurityLevel.DEVELOPMENT:
             recommendations.append(
-                "Running in development mode - ensure production uses stronger security"
+                "Running in development mode - ensure production uses stronger security",
             )
 
         return recommendations
@@ -693,6 +701,6 @@ def get_secure_config(key: str, default: Any = None) -> Any:
     return secure_config.get(key, default)
 
 
-def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
+def get_secret(key: str, default: str | None = None) -> str | None:
     """Get secret value with decryption."""
     return secure_config.get_secret(key, default)

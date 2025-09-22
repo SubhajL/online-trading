@@ -3,21 +3,18 @@ Memory-safe priority queue with TTL support.
 """
 
 import asyncio
-import heapq
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Generic, List, Optional, TypeVar
+import heapq
+from typing import Generic, TypeVar
 
 from app.engine.core.clock import Clock, SystemClock
-
 
 T = TypeVar("T")
 
 
 class QueueFullError(Exception):
     """Raised when queue is at maximum capacity."""
-
-    pass
 
 
 @dataclass
@@ -43,7 +40,7 @@ class QueueStats:
     total_added: int
     total_retrieved: int
     expired_count: int
-    oldest_item_age: Optional[float] = None
+    oldest_item_age: float | None = None
 
 
 class BoundedPriorityQueue(Generic[T]):
@@ -55,7 +52,10 @@ class BoundedPriorityQueue(Generic[T]):
     """
 
     def __init__(
-        self, max_size: int, ttl_seconds: float, clock: Optional[Clock] = None
+        self,
+        max_size: int,
+        ttl_seconds: float,
+        clock: Clock | None = None,
     ):
         """Initialize queue with bounds."""
         self._max_size = max_size
@@ -63,7 +63,7 @@ class BoundedPriorityQueue(Generic[T]):
         self._clock = clock or SystemClock()
 
         # Thread-safe heap
-        self._heap: List[QueueItem[T]] = []
+        self._heap: list[QueueItem[T]] = []
         self._lock = asyncio.Lock()
 
         # Statistics
@@ -75,7 +75,10 @@ class BoundedPriorityQueue(Generic[T]):
         self._item_available = asyncio.Event()
 
     async def put_with_ttl(
-        self, item: T, priority: int, custom_ttl: Optional[float] = None
+        self,
+        item: T,
+        priority: int,
+        custom_ttl: float | None = None,
     ) -> None:
         """
         Add item with priority and TTL.
@@ -113,7 +116,7 @@ class BoundedPriorityQueue(Generic[T]):
             # Signal item available
             self._item_available.set()
 
-    async def get_not_expired(self) -> Optional[QueueItem[T]]:
+    async def get_not_expired(self) -> QueueItem[T] | None:
         """
         Get highest priority non-expired item.
 
@@ -130,17 +133,17 @@ class BoundedPriorityQueue(Generic[T]):
                     # Valid item
                     self._total_retrieved += 1
                     return item
-                else:
-                    # Expired
-                    self._expired_count += 1
+                # Expired
+                self._expired_count += 1
 
             # No valid items
             self._item_available.clear()
             return None
 
     async def wait_for_item(
-        self, timeout: Optional[float] = None
-    ) -> Optional[QueueItem[T]]:
+        self,
+        timeout: float | None = None,
+    ) -> QueueItem[T] | None:
         """
         Wait for an item to become available.
 
@@ -153,10 +156,10 @@ class BoundedPriorityQueue(Generic[T]):
         try:
             await asyncio.wait_for(self._item_available.wait(), timeout=timeout)
             return await self.get_not_expired()
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return None
 
-    async def get_all_valid(self) -> List[QueueItem[T]]:
+    async def get_all_valid(self) -> list[QueueItem[T]]:
         """Get all non-expired items in priority order."""
         async with self._lock:
             self._cleanup_expired_unsafe()

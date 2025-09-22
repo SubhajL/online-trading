@@ -6,31 +6,28 @@ and generates trading decisions based on multiple inputs and filters.
 """
 
 import asyncio
-import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Dict, Any, List, Optional
+import logging
 
-from .risk_manager import RiskManager, RiskCheckResult
+from ..adapters import RouterHTTPClient
+from ..bus import get_event_bus
 from ..models import (
     BaseEvent,
-    TradingDecision,
-    TradingDecisionEvent,
-    SMCSignal,
-    SMCSignalEvent,
-    RetestSignal,
-    RetestSignalEvent,
-    TechnicalIndicators,
     FeaturesCalculatedEvent,
+    MarketRegime,
     OrderSide,
     OrderType,
-    PositionSizing,
-    MarketRegime,
     Position,
+    RetestSignal,
+    RetestSignalEvent,
+    SMCSignal,
+    SMCSignalEvent,
+    TechnicalIndicators,
+    TradingDecision,
+    TradingDecisionEvent,
 )
-from ..bus import get_event_bus
-from ..adapters import RouterHTTPClient
-
+from .risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +46,7 @@ class DecisionEngine:
         self,
         risk_manager: RiskManager,
         router_client: RouterHTTPClient,
-        config: Dict[str, Any] = None,
+        config: dict = None,
     ):
         self.risk_manager = risk_manager
         self.router_client = router_client
@@ -61,22 +58,22 @@ class DecisionEngine:
         self.decision_timeout_minutes = self.config.get("decision_timeout_minutes", 15)
 
         # Signal storage
-        self._pending_signals: Dict[str, List[SMCSignal]] = {}  # symbol -> signals
-        self._retest_signals: Dict[str, List[RetestSignal]] = {}
-        self._latest_indicators: Dict[str, TechnicalIndicators] = {}
+        self._pending_signals: dict[str, list[SMCSignal]] = {}  # symbol -> signals
+        self._retest_signals: dict[str, list[RetestSignal]] = {}
+        self._latest_indicators: dict[str, TechnicalIndicators] = {}
 
         # Decision tracking
-        self._recent_decisions: List[TradingDecision] = []
-        self._execution_queue: List[TradingDecision] = []
+        self._recent_decisions: list[TradingDecision] = []
+        self._execution_queue: list[TradingDecision] = []
 
         # Market state
-        self._market_regime: Dict[str, MarketRegime] = {}
-        self._account_balance = Decimal("100000")  # Default
-        self._current_positions: List[Position] = []
+        self._market_regime: dict[str, MarketRegime] = {}
+        self._account_balance = Decimal(100000)  # Default
+        self._current_positions: list[Position] = []
 
         self._event_bus = get_event_bus()
         self._running = False
-        self._subscription_ids: List[str] = []
+        self._subscription_ids: list[str] = []
 
         # Statistics
         self._decisions_generated = 0
@@ -202,7 +199,7 @@ class DecisionEngine:
             )
 
             logger.debug(
-                f"Updated indicators for {symbol} {indicators.timeframe.value}"
+                f"Updated indicators for {symbol} {indicators.timeframe.value}",
             )
 
         except Exception as e:
@@ -235,7 +232,7 @@ class DecisionEngine:
         while self._running:
             try:
                 cutoff_time = datetime.utcnow() - timedelta(
-                    minutes=self.decision_timeout_minutes
+                    minutes=self.decision_timeout_minutes,
                 )
 
                 # Clean up SMC signals
@@ -280,7 +277,8 @@ class DecisionEngine:
 
                 if high_confidence_signals:
                     decision = await self._generate_decision(
-                        symbol, high_confidence_signals
+                        symbol,
+                        high_confidence_signals,
                     )
                     if decision:
                         await self._evaluate_and_queue_decision(decision)
@@ -289,8 +287,10 @@ class DecisionEngine:
             logger.error(f"Error processing pending signals: {e}")
 
     async def _generate_decision(
-        self, symbol: str, signals: List[SMCSignal]
-    ) -> Optional[TradingDecision]:
+        self,
+        symbol: str,
+        signals: list[SMCSignal],
+    ) -> TradingDecision | None:
         """Generate trading decision from signals"""
         try:
             if not signals:
@@ -313,7 +313,7 @@ class DecisionEngine:
             # Calculate decision parameters
             strongest_signal = max(relevant_signals, key=lambda s: s.confidence)
             avg_confidence = sum(s.confidence for s in relevant_signals) / len(
-                relevant_signals
+                relevant_signals,
             )
 
             # Get current market price
@@ -394,7 +394,7 @@ class DecisionEngine:
 
             self._decisions_generated += 1
             logger.info(
-                f"Generated decision for {symbol}: {action} at {strongest_signal.entry_price}"
+                f"Generated decision for {symbol}: {action} at {strongest_signal.entry_price}",
             )
 
             return decision
@@ -406,9 +406,9 @@ class DecisionEngine:
     def _calculate_risk_reward_ratio(
         self,
         entry_price: Decimal,
-        stop_loss: Optional[Decimal],
-        take_profit: Optional[Decimal],
-    ) -> Optional[Decimal]:
+        stop_loss: Decimal | None,
+        take_profit: Decimal | None,
+    ) -> Decimal | None:
         """Calculate risk-reward ratio"""
         try:
             if not stop_loss or not take_profit:
@@ -419,8 +419,7 @@ class DecisionEngine:
 
             if risk > 0:
                 return reward / risk
-            else:
-                return None
+            return None
 
         except Exception as e:
             logger.error(f"Error calculating risk-reward ratio: {e}")
@@ -453,15 +452,15 @@ class DecisionEngine:
                     await self._event_bus.publish(event, priority=8)
 
                     logger.info(
-                        f"Decision approved and queued for execution: {decision.symbol} {decision.action}"
+                        f"Decision approved and queued for execution: {decision.symbol} {decision.action}",
                     )
                 else:
                     logger.warning(
-                        f"Decision rejected by router risk check: {router_risk_check}"
+                        f"Decision rejected by router risk check: {router_risk_check}",
                     )
             else:
                 logger.warning(
-                    f"Decision rejected by risk manager: {risk_result.reasons}"
+                    f"Decision rejected by risk manager: {risk_result.reasons}",
                 )
 
             # Store decision for analysis
@@ -487,7 +486,7 @@ class DecisionEngine:
                     if order_result.get("success", False):
                         self._decisions_executed += 1
                         logger.info(
-                            f"Successfully executed decision: {decision.symbol} {decision.action}"
+                            f"Successfully executed decision: {decision.symbol} {decision.action}",
                         )
 
                         # Remove processed signals
@@ -536,13 +535,16 @@ class DecisionEngine:
             logger.error(f"Error updating account state: {e}")
 
     def force_decision(
-        self, symbol: str, action: str, reasoning: str = "Manual decision"
-    ) -> Optional[TradingDecision]:
+        self,
+        symbol: str,
+        action: str,
+        reasoning: str = "Manual decision",
+    ) -> TradingDecision | None:
         """Force a trading decision (for manual intervention)"""
         try:
             # Get current market price
             # This would need to be made async, simplified for now
-            current_price = Decimal("50000")  # Placeholder
+            current_price = Decimal(50000)  # Placeholder
 
             decision = TradingDecision(
                 symbol=symbol,
@@ -562,7 +564,7 @@ class DecisionEngine:
             logger.error(f"Error creating forced decision: {e}")
             return None
 
-    async def get_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> dict[str, Any]:
         """Get current status of the decision engine"""
         return {
             "running": self._running,
@@ -580,7 +582,7 @@ class DecisionEngine:
             "risk_metrics": self.risk_manager.get_risk_metrics(),
         }
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Health check for the decision engine"""
         try:
             router_health = await self.router_client.health_check()

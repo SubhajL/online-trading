@@ -5,14 +5,12 @@ Identifies swing highs and swing lows in price data for Smart Money Concepts ana
 Implements various pivot detection algorithms with configurable sensitivity.
 """
 
-import logging
 from collections import deque
 from decimal import Decimal
-from typing import Any, List, Optional, Dict, Tuple
 from datetime import datetime
+import logging
 
-from ..models import Candle, PivotPoint, TimeFrame
-
+from ..models import Candle, PivotPoint
 
 logger = logging.getLogger(__name__)
 
@@ -47,15 +45,15 @@ class PivotDetector:
         self.max_strength = max_strength
 
         # Buffer for candles needed for pivot detection
-        self._candle_buffer: deque[Candle] = deque(maxlen=left_bars + right_bars + 1)
-        self._confirmed_pivots: List[PivotPoint] = []
+        self._candle_buffer = deque(maxlen=left_bars + right_bars + 1)
+        self._confirmed_pivots: list[PivotPoint] = []
 
         logger.info(
             f"PivotDetector initialized with left_bars={left_bars}, "
-            f"right_bars={right_bars}"
+            f"right_bars={right_bars}",
         )
 
-    def add_candle(self, candle: Candle) -> List[PivotPoint]:
+    def add_candle(self, candle: Candle) -> list[PivotPoint]:
         """
         Add a new candle and detect any confirmed pivots
 
@@ -63,7 +61,7 @@ class PivotDetector:
             candle: New candle to process
 
         Returns:
-            List[Any] of newly confirmed pivot points
+            list[Any] of newly confirmed pivot points
         """
         self._candle_buffer.append(candle)
         new_pivots = []
@@ -88,7 +86,7 @@ class PivotDetector:
 
         return new_pivots
 
-    def _detect_swing_high(self, pivot_idx: int) -> Optional[PivotPoint]:
+    def _detect_swing_high(self, pivot_idx: int) -> PivotPoint | None:
         """
         Detect swing high at the given index
 
@@ -131,7 +129,7 @@ class PivotDetector:
 
         return None
 
-    def _detect_swing_low(self, pivot_idx: int) -> Optional[PivotPoint]:
+    def _detect_swing_low(self, pivot_idx: int) -> PivotPoint | None:
         """
         Detect swing low at the given index
 
@@ -222,7 +220,7 @@ class PivotDetector:
 
             # Volume strength (higher volume = stronger pivot)
             volume_avg = sum(candle.volume for candle in self._candle_buffer) / len(
-                self._candle_buffer
+                self._candle_buffer,
             )
             volume_ratio = (
                 float(pivot_candle.volume) / float(volume_avg) if volume_avg > 0 else 1
@@ -238,7 +236,7 @@ class PivotDetector:
             logger.error(f"Error calculating pivot strength: {e}")
             return self.min_strength
 
-    def get_recent_pivots(self, count: int = 20) -> List[PivotPoint]:
+    def get_recent_pivots(self, count: int = 20) -> list[PivotPoint]:
         """
         Get the most recent confirmed pivots
 
@@ -246,13 +244,15 @@ class PivotDetector:
             count: Number of recent pivots to return
 
         Returns:
-            List[Any] of recent PivotPoint objects
+            list[Any] of recent PivotPoint objects
         """
         return self._confirmed_pivots[-count:] if self._confirmed_pivots else []
 
     def get_pivots_in_range(
-        self, start_time: datetime, end_time: datetime
-    ) -> List[PivotPoint]:
+        self,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> list[PivotPoint]:
         """
         Get pivots within a specific time range
 
@@ -261,7 +261,7 @@ class PivotDetector:
             end_time: End of time range
 
         Returns:
-            List[Any] of PivotPoint objects in the time range
+            list[Any] of PivotPoint objects in the time range
         """
         return [
             pivot
@@ -269,7 +269,7 @@ class PivotDetector:
             if start_time <= pivot.timestamp <= end_time
         ]
 
-    def get_swing_highs(self, count: int = 10) -> List[PivotPoint]:
+    def get_swing_highs(self, count: int = 10) -> list[PivotPoint]:
         """
         Get recent swing highs
 
@@ -277,12 +277,12 @@ class PivotDetector:
             count: Number of swing highs to return
 
         Returns:
-            List[Any] of swing high PivotPoint objects
+            list[Any] of swing high PivotPoint objects
         """
         highs = [pivot for pivot in self._confirmed_pivots if pivot.is_high]
         return highs[-count:] if highs else []
 
-    def get_swing_lows(self, count: int = 10) -> List[PivotPoint]:
+    def get_swing_lows(self, count: int = 10) -> list[PivotPoint]:
         """
         Get recent swing lows
 
@@ -290,12 +290,12 @@ class PivotDetector:
             count: Number of swing lows to return
 
         Returns:
-            List[Any] of swing low PivotPoint objects
+            list[Any] of swing low PivotPoint objects
         """
         lows = [pivot for pivot in self._confirmed_pivots if not pivot.is_high]
         return lows[-count:] if lows else []
 
-    def get_highest_pivot(self, count: int = 50) -> Optional[PivotPoint]:
+    def get_highest_pivot(self, count: int = 50) -> PivotPoint | None:
         """
         Get the highest swing high from recent pivots
 
@@ -311,7 +311,7 @@ class PivotDetector:
 
         return max(recent_highs, key=lambda p: p.price)
 
-    def get_lowest_pivot(self, count: int = 50) -> Optional[PivotPoint]:
+    def get_lowest_pivot(self, count: int = 50) -> PivotPoint | None:
         """
         Get the lowest swing low from recent pivots
 
@@ -328,8 +328,9 @@ class PivotDetector:
         return min(recent_lows, key=lambda p: p.price)
 
     def detect_double_top(
-        self, tolerance: float = 0.001
-    ) -> Optional[Tuple[PivotPoint, PivotPoint]]:
+        self,
+        tolerance: float = 0.001,
+    ) -> tuple[PivotPoint, PivotPoint] | None:
         """
         Detect double top pattern in recent pivots
 
@@ -347,7 +348,8 @@ class PivotDetector:
             for j in range(i + 1, len(highs)):
                 peak1, peak2 = highs[i], highs[j]
                 price_diff = abs(peak1.price - peak2.price) / max(
-                    peak1.price, peak2.price
+                    peak1.price,
+                    peak2.price,
                 )
 
                 if price_diff <= tolerance:
@@ -356,8 +358,9 @@ class PivotDetector:
         return None
 
     def detect_double_bottom(
-        self, tolerance: float = 0.001
-    ) -> Optional[Tuple[PivotPoint, PivotPoint]]:
+        self,
+        tolerance: float = 0.001,
+    ) -> tuple[PivotPoint, PivotPoint] | None:
         """
         Detect double bottom pattern in recent pivots
 
@@ -375,7 +378,8 @@ class PivotDetector:
             for j in range(i + 1, len(lows)):
                 trough1, trough2 = lows[i], lows[j]
                 price_diff = abs(trough1.price - trough2.price) / max(
-                    trough1.price, trough2.price
+                    trough1.price,
+                    trough2.price,
                 )
 
                 if price_diff <= tolerance:
@@ -389,7 +393,7 @@ class PivotDetector:
         self._candle_buffer.clear()
         logger.info("Cleared pivot detector history")
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict:
         """Get pivot detection statistics"""
         if not self._confirmed_pivots:
             return {
@@ -404,7 +408,7 @@ class PivotDetector:
         lows = [p for p in self._confirmed_pivots if not p.is_high]
 
         avg_strength = sum(p.strength for p in self._confirmed_pivots) / len(
-            self._confirmed_pivots
+            self._confirmed_pivots,
         )
         strongest = max(self._confirmed_pivots, key=lambda p: p.strength)
 

@@ -8,20 +8,20 @@ to provide context for trading decisions.
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Any, List, Optional
 from collections import deque
+from decimal import Decimal
+import logging
 
+from ..bus import get_event_bus
 from ..models import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,
-    MarketRegime,
-    TimeFrame,
-    TechnicalIndicators,
     FeaturesCalculatedEvent,
+    MarketRegime,
+    TechnicalIndicators,
+    TimeFrame,
 )
-from ..bus import get_event_bus
-
 
 logger = logging.getLogger(__name__)
 
@@ -48,19 +48,19 @@ class RegimeVolatilityAnalyzer:
         self.trend_threshold = trend_threshold
 
         # Store market data
-        self._candles: Dict[str, deque] = {}  # symbol_timeframe -> candles
-        self._indicators: Dict[str, TechnicalIndicators] = {}
+        self._candles: dict[str, deque] = {}  # symbol_timeframe -> candles
+        self._indicators: dict[str, TechnicalIndicators] = {}
 
         # Current regime state
-        self._current_regime: Dict[str, MarketRegime] = {}  # symbol_timeframe -> regime
-        self._volatility_state: Dict[str, str] = (
+        self._current_regime: dict[str, MarketRegime] = {}  # symbol_timeframe -> regime
+        self._volatility_state: dict[str, str] = (
             {}
         )  # symbol_timeframe -> volatility level
 
         # Event bus
         self._event_bus = get_event_bus()
         self._running = False
-        self._subscription_ids: List[str] = []
+        self._subscription_ids: list[str] = []
 
         logger.info("RegimeVolatilityAnalyzer initialized")
 
@@ -159,13 +159,13 @@ class RegimeVolatilityAnalyzer:
             # Log regime changes
             if prev_regime and prev_regime != regime:
                 logger.info(
-                    f"Regime change detected: {symbol} {timeframe.value} from {prev_regime.value} to {regime.value}"
+                    f"Regime change detected: {symbol} {timeframe.value} from {prev_regime.value} to {regime.value}",
                 )
 
         except Exception as e:
             logger.error(f"Error analyzing regime: {e}")
 
-    def _detect_market_regime(self, candles: List[Candle]) -> MarketRegime:
+    def _detect_market_regime(self, candles: list[Candle]) -> MarketRegime:
         """Detect market regime from price action"""
         try:
             recent_candles = candles[-self.lookback_periods :]
@@ -180,7 +180,9 @@ class RegimeVolatilityAnalyzer:
             trend_strength = abs(price_change)
 
             # Volatility analysis
-            price_ranges = [(h - l) / c for h, l, c in zip(highs, lows, closes)]
+            price_ranges = [
+                (h - l) / c for h, l, c in zip(highs, lows, closes, strict=False)
+            ]
             avg_volatility = sum(price_ranges) / len(price_ranges)
 
             # Higher highs and higher lows detection
@@ -193,21 +195,18 @@ class RegimeVolatilityAnalyzer:
             if trend_strength > self.trend_threshold:
                 if price_change > 0:
                     return MarketRegime.TRENDING_UP
-                else:
-                    return MarketRegime.TRENDING_DOWN
-            elif avg_volatility > self.volatility_threshold:
+                return MarketRegime.TRENDING_DOWN
+            if avg_volatility > self.volatility_threshold:
                 return MarketRegime.VOLATILE
-            else:
-                if avg_volatility < self.volatility_threshold * 0.5:
-                    return MarketRegime.LOW_VOLATILITY
-                else:
-                    return MarketRegime.RANGING
+            if avg_volatility < self.volatility_threshold * 0.5:
+                return MarketRegime.LOW_VOLATILITY
+            return MarketRegime.RANGING
 
         except Exception as e:
             logger.error(f"Error detecting market regime: {e}")
             return MarketRegime.RANGING
 
-    def _classify_volatility(self, candles: List[Candle]) -> str:
+    def _classify_volatility(self, candles: list[Candle]) -> str:
         """Classify volatility level"""
         try:
             recent_candles = candles[-self.lookback_periods :]
@@ -231,21 +230,20 @@ class RegimeVolatilityAnalyzer:
             # Classify
             if avg_volatility > self.volatility_threshold * 1.5:
                 return "high"
-            elif avg_volatility > self.volatility_threshold:
+            if avg_volatility > self.volatility_threshold:
                 return "medium"
-            else:
-                return "low"
+            return "low"
 
         except Exception as e:
             logger.error(f"Error classifying volatility: {e}")
             return "medium"
 
-    def get_regime(self, symbol: str, timeframe: TimeFrame) -> Optional[MarketRegime]:
+    def get_regime(self, symbol: str, timeframe: TimeFrame) -> MarketRegime | None:
         """Get current market regime for symbol and timeframe"""
         key = f"{symbol}_{timeframe.value}"
         return self._current_regime.get(key)
 
-    def get_volatility_level(self, symbol: str, timeframe: TimeFrame) -> Optional[str]:
+    def get_volatility_level(self, symbol: str, timeframe: TimeFrame) -> str | None:
         """Get current volatility level"""
         key = f"{symbol}_{timeframe.value}"
         return self._volatility_state.get(key)
@@ -294,7 +292,7 @@ class RegimeVolatilityAnalyzer:
         # Simplified implementation
         return False
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict:
         """Health check for regime analyzer"""
         return {
             "running": self._running,

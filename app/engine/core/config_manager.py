@@ -3,21 +3,16 @@ Configuration management for production trading engine.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
-import json
+from dataclasses import dataclass, field
 import logging
 import os
 import threading
-from dataclasses import dataclass, field
-from decimal import Decimal
-from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class ConfigError(Exception):
     """Raised when configuration is invalid."""
-
-    pass
 
 
 @dataclass
@@ -36,7 +31,7 @@ class Config:
     # Trading settings
     risk_limit: float = 0.02
     max_position_size: float = 100000
-    symbols: List[str] = field(default_factory=lambda: ["BTCUSDT"])
+    symbols: list[str] = field(default_factory=lambda: ["BTCUSDT"])
 
     # System settings
     environment: str = "development"
@@ -126,7 +121,7 @@ def load_config_from_env() -> Config:
     return config
 
 
-def validate_config_schema(config_dict: Dict[str, Any]) -> None:
+def validate_config_schema(config_dict: dict[str, Any]) -> None:
     """
     Ensure all required fields present.
     Validate ranges/formats.
@@ -168,17 +163,17 @@ def validate_config_schema(config_dict: Dict[str, Any]) -> None:
 
 
 def merge_config_sources(
-    defaults: Dict[str, Any],
-    file_config: Optional[Dict[str, Any]] = None,
-    env_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    defaults: dict[str, Any],
+    file_config: dict[str, Any] | None = None,
+    env_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Combine env vars, config files, and defaults.
     Precedence: env > file > defaults.
     Handles nested dictionaries.
     """
 
-    def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    def deep_merge(base: dict, override: dict) -> dict:
         """Recursively merge dictionaries."""
         result = base.copy()
 
@@ -266,7 +261,7 @@ def watch_config_changes(initial_config: Config) -> ConfigWatcher:
     return watcher
 
 
-def export_config_schema() -> Dict[str, Any]:
+def export_config_schema() -> dict[str, Any]:
     """
     Generate JSON schema for config validation.
     Includes documentation, examples, and constraints.
@@ -347,7 +342,7 @@ def export_config_schema() -> Dict[str, Any]:
                 "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
                 "event_queue_size": 50000,
                 "worker_threads": 8,
-            }
+            },
         ],
     }
 

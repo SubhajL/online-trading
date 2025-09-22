@@ -1,31 +1,30 @@
 from fastapi import APIRouter, Response, status
-from typing import Optional, Dict, Any, Tuple
 
 from app.engine.monitoring.health import HealthChecker, ReadinessChecker
 
 
 def create_health_endpoints(
-    health_checker: Optional[HealthChecker] = None,
-    readiness_checker: Optional[ReadinessChecker] = None,
+    health_checker: HealthChecker | None = None,
+    readiness_checker: ReadinessChecker | None = None,
 ) -> APIRouter:
     """Create health check API endpoints"""
     router = APIRouter(prefix="/health", tags=["health"])
 
     @router.get("/")
-    async def health_check() -> Dict[str, str]:
+    async def health_check() -> dict[str, str]:
         """Basic health check endpoint"""
         return {"status": "healthy"}
 
     @router.get("/live")
     @router.get("/liveness")
-    async def liveness_check() -> Dict[str, str]:
+    async def liveness_check() -> dict[str, str]:
         """Kubernetes liveness probe endpoint"""
         # Liveness just checks if the process is alive
         return {"status": "alive"}
 
     @router.get("/ready")
     @router.get("/readiness")
-    async def readiness_check(response: Response) -> Dict[str, Any]:
+    async def readiness_check(response: Response) -> dict[str, Any]:
         """Kubernetes readiness probe endpoint"""
         if not readiness_checker:
             # If no readiness checker configured, assume ready
@@ -39,7 +38,7 @@ def create_health_endpoints(
         return result
 
     @router.get("/status")
-    async def detailed_health_status(response: Response) -> Dict[str, Any]:
+    async def detailed_health_status(response: Response) -> dict[str, Any]:
         """Detailed health status of all components"""
         if not health_checker:
             return {"status": "unknown", "message": "Health checker not configured"}
@@ -55,7 +54,7 @@ def create_health_endpoints(
         return health
 
     @router.post("/check")
-    async def run_health_checks() -> Dict[str, Any]:
+    async def run_health_checks() -> dict[str, Any]:
         """Manually trigger all health checks"""
         if not health_checker:
             return {"status": "error", "message": "Health checker not configured"}
@@ -82,13 +81,14 @@ def create_metrics_endpoints() -> APIRouter:
         metrics.append('python_info{implementation="CPython",version="3.9"} 1')
 
         metrics.append(
-            "# HELP process_virtual_memory_bytes Virtual memory size in bytes"
+            "# HELP process_virtual_memory_bytes Virtual memory size in bytes",
         )
         metrics.append("# TYPE process_virtual_memory_bytes gauge")
 
         # Add actual process metrics
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         memory_info = process.memory_info()
@@ -99,25 +99,26 @@ def create_metrics_endpoints() -> APIRouter:
         # CPU usage
         cpu_percent = process.cpu_percent(interval=0.1)
         metrics.append(
-            "# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds"
+            "# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds",
         )
         metrics.append("# TYPE process_cpu_seconds_total counter")
         metrics.append(
-            f"process_cpu_seconds_total {process.cpu_times().user + process.cpu_times().system}"
+            f"process_cpu_seconds_total {process.cpu_times().user + process.cpu_times().system}",
         )
 
         return Response(
-            content="\n".join(metrics) + "\n", media_type="text/plain; version=0.0.4"
+            content="\n".join(metrics) + "\n",
+            media_type="text/plain; version=0.0.4",
         )
 
     return router
 
 
-def setup_health_monitoring(app: Any, database_url: str, redis_url: str, event_bus: Any) -> Tuple[HealthChecker, ReadinessChecker]:
+def setup_health_monitoring(app: Any, database_url: str, redis_url: str, event_bus: Any) -> tuple[HealthChecker, ReadinessChecker]:
     """Setup health monitoring for the application"""
     from app.engine.monitoring.health import (
-        HealthConfig,
         HealthChecker,
+        HealthConfig,
         ReadinessChecker,
     )
 
@@ -169,11 +170,11 @@ def setup_health_monitoring(app: Any, database_url: str, redis_url: str, event_b
     app.include_router(create_metrics_endpoints())
 
     # Start monitoring on app startup
-    @app.on_event("startup")  # type: ignore[misc]
+    @app.on_event("startup")
     async def start_health_monitoring() -> None:
         await health_checker.start_monitoring()
 
-    @app.on_event("shutdown")  # type: ignore[misc]
+    @app.on_event("shutdown")
     async def stop_health_monitoring() -> None:
         await health_checker.stop_monitoring()
 

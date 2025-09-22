@@ -5,24 +5,21 @@ Analyzes price retests of key levels, zones, and support/resistance areas.
 Generates signals when price successfully retests important levels.
 """
 
-import logging
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Dict, List, Optional
 from collections import deque
+from datetime import datetime
+from decimal import Decimal
+import logging
 
+from ..bus import get_event_bus
 from ..models import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,
+    PivotPoint,
     RetestSignal,
     RetestSignalEvent,
     SupplyDemandZone,
-    PivotPoint,
-    TimeFrame,
 )
-from ..bus import get_event_bus
-
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +46,13 @@ class RetestAnalyzer:
         self.min_time_between_tests = min_time_between_tests
 
         # Track levels and zones
-        self._key_levels: Dict[str, List[Dict]] = {}  # symbol -> levels
-        self._recent_candles: Dict[str, deque] = {}  # symbol -> candles
+        self._key_levels: dict[str, list[dict]] = {}  # symbol -> levels
+        self._recent_candles: dict[str, deque] = {}  # symbol -> candles
 
         # Event bus
         self._event_bus = get_event_bus()
         self._running = False
-        self._subscription_id: Optional[str] = None
+        self._subscription_id: str | None = None
 
         logger.info("RetestAnalyzer initialized")
 
@@ -120,7 +117,9 @@ class RetestAnalyzer:
 
             for level in levels:
                 retest_signal = self._check_level_retest(
-                    level, current_candle, recent_candles
+                    level,
+                    current_candle,
+                    recent_candles,
                 )
 
                 if retest_signal:
@@ -130,8 +129,11 @@ class RetestAnalyzer:
             logger.error(f"Error analyzing retests: {e}")
 
     def _check_level_retest(
-        self, level: Dict, current_candle: Candle, recent_candles: List[Candle]
-    ) -> Optional[RetestSignal]:
+        self,
+        level: dict,
+        current_candle: Candle,
+        recent_candles: list[Candle],
+    ) -> RetestSignal | None:
         """Check if current price action represents a valid retest"""
         try:
             level_price = level["price"]
@@ -150,15 +152,21 @@ class RetestAnalyzer:
                     and current_candle.close_price > level_price
                 ):
                     volume_confirmation = self._check_volume_confirmation(
-                        current_candle, recent_candles
+                        current_candle,
+                        recent_candles,
                     )
 
                     success_probability = self._calculate_success_probability(
-                        level, current_candle, recent_candles, "support"
+                        level,
+                        current_candle,
+                        recent_candles,
+                        "support",
                     )
 
                     confluence_factors = self._get_confluence_factors(
-                        level, current_candle, recent_candles
+                        level,
+                        current_candle,
+                        recent_candles,
                     )
 
                     return RetestSignal(
@@ -179,15 +187,21 @@ class RetestAnalyzer:
                     and current_candle.close_price < level_price
                 ):
                     volume_confirmation = self._check_volume_confirmation(
-                        current_candle, recent_candles
+                        current_candle,
+                        recent_candles,
                     )
 
                     success_probability = self._calculate_success_probability(
-                        level, current_candle, recent_candles, "resistance"
+                        level,
+                        current_candle,
+                        recent_candles,
+                        "resistance",
                     )
 
                     confluence_factors = self._get_confluence_factors(
-                        level, current_candle, recent_candles
+                        level,
+                        current_candle,
+                        recent_candles,
                     )
 
                     return RetestSignal(
@@ -208,7 +222,9 @@ class RetestAnalyzer:
             return None
 
     def _check_volume_confirmation(
-        self, current_candle: Candle, recent_candles: List[Candle]
+        self,
+        current_candle: Candle,
+        recent_candles: list[Candle],
     ) -> bool:
         """Check if volume confirms the retest"""
         try:
@@ -229,9 +245,9 @@ class RetestAnalyzer:
 
     def _calculate_success_probability(
         self,
-        level: Dict,
+        level: dict,
         current_candle: Candle,
-        recent_candles: List[Candle],
+        recent_candles: list[Candle],
         level_type: str,
     ) -> Decimal:
         """Calculate probability of successful retest"""
@@ -267,11 +283,11 @@ class RetestAnalyzer:
             logger.error(f"Error calculating success probability: {e}")
             return Decimal("0.5")
 
-    def _calculate_recent_volatility(self, candles: List[Candle]) -> Decimal:
+    def _calculate_recent_volatility(self, candles: list[Candle]) -> Decimal:
         """Calculate recent volatility measure"""
         try:
             if len(candles) < 2:
-                return Decimal("0")
+                return Decimal(0)
 
             # Simple volatility based on price range
             recent = candles[-5:] if len(candles) >= 5 else candles
@@ -290,8 +306,11 @@ class RetestAnalyzer:
             return Decimal("0.02")
 
     def _get_confluence_factors(
-        self, level: Dict, current_candle: Candle, recent_candles: List[Candle]
-    ) -> List[str]:
+        self,
+        level: dict,
+        current_candle: Candle,
+        recent_candles: list[Candle],
+    ) -> list[str]:
         """Get confluence factors supporting the retest"""
         factors = []
 
@@ -315,13 +334,10 @@ class RetestAnalyzer:
                     < current_candle.close_price
                 ):
                     factors.append("wick_rejection")
-            else:  # resistance
-                if (
-                    current_candle.close_price
-                    < level["price"]
-                    < current_candle.high_price
-                ):
-                    factors.append("wick_rejection")
+            elif (
+                current_candle.close_price < level["price"] < current_candle.high_price
+            ):
+                factors.append("wick_rejection")
 
             # Multiple timeframe confluence (simplified)
             factors.append("multi_timeframe")
@@ -345,7 +361,7 @@ class RetestAnalyzer:
 
             logger.info(
                 f"Published retest signal: {signal.symbol} {signal.retest_type} "
-                f"at {signal.level_price} (probability: {signal.success_probability})"
+                f"at {signal.level_price} (probability: {signal.success_probability})",
             )
 
         except Exception as e:
@@ -357,7 +373,7 @@ class RetestAnalyzer:
         price: Decimal,
         level_type: str,
         strength: int = 5,
-        created_at: Optional[datetime] = None,
+        created_at: datetime | None = None,
     ):
         """Add a key level to track for retests"""
         try:
@@ -406,7 +422,7 @@ class RetestAnalyzer:
         except Exception as e:
             logger.error(f"Error adding zone for retest: {e}")
 
-    def add_pivot_levels(self, pivots: List[PivotPoint]) -> None:
+    def add_pivot_levels(self, pivots: list[PivotPoint]):
         """Add pivot points as key levels to track"""
         try:
             for pivot in pivots:
@@ -423,7 +439,7 @@ class RetestAnalyzer:
         except Exception as e:
             logger.error(f"Error adding pivot levels: {e}")
 
-    async def health_check(self) -> Dict:
+    async def health_check(self) -> dict:
         """Health check for retest analyzer"""
         return {
             "running": self._running,

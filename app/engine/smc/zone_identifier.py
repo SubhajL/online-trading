@@ -5,15 +5,11 @@ Identifies supply/demand zones, order blocks, and fair value gaps for Smart Mone
 Uses pivot points and price action analysis to detect institutional trading zones.
 """
 
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
-from typing import Any, List, Optional, Dict
-from uuid import uuid4
+import logging
 
-from .pivot_detector import PivotDetector
-from ..models import Candle, PivotPoint, SupplyDemandZone, ZoneType, TimeFrame
-
+from ..models import Candle, PivotPoint, SupplyDemandZone, TimeFrame, ZoneType
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +45,7 @@ class ZoneIdentifier:
         self.order_block_min_body_ratio = order_block_min_body_ratio
 
         # Active zones by type
-        self._zones: Dict[ZoneType, List[SupplyDemandZone]] = {
+        self._zones: dict[ZoneType, list[SupplyDemandZone]] = {
             ZoneType.SUPPLY: [],
             ZoneType.DEMAND: [],
             ZoneType.ORDER_BLOCK_BULLISH: [],
@@ -58,24 +54,26 @@ class ZoneIdentifier:
         }
 
         # Historical zones (for analysis)
-        self._historical_zones: List[SupplyDemandZone] = []
+        self._historical_zones: list[SupplyDemandZone] = []
 
         logger.info(f"ZoneIdentifier initialized with min_strength={min_zone_strength}")
 
     def identify_supply_demand_zones(
-        self, pivots: List[PivotPoint], recent_candles: List[Candle]
-    ) -> List[SupplyDemandZone]:
+        self,
+        pivots: list[PivotPoint],
+        recent_candles: list[Candle],
+    ) -> list[SupplyDemandZone]:
         """
         Identify supply and demand zones based on pivot points
 
         Args:
-            pivots: List[Any] of recent pivot points
+            pivots: list[Any] of recent pivot points
             recent_candles: Recent candle data for volume analysis
 
         Returns:
-            List[Any] of newly identified zones
+            list[Any] of newly identified zones
         """
-        new_zones: List[SupplyDemandZone] = []
+        new_zones: list[SupplyDemandZone] = []
 
         try:
             # Group pivots by type
@@ -103,17 +101,17 @@ class ZoneIdentifier:
 
         return new_zones
 
-    def identify_order_blocks(self, candles: List[Candle]) -> List[SupplyDemandZone]:
+    def identify_order_blocks(self, candles: list[Candle]) -> list[SupplyDemandZone]:
         """
         Identify order blocks from candle patterns
 
         Args:
-            candles: List[Any] of recent candles
+            candles: list[Any] of recent candles
 
         Returns:
-            List[Any] of identified order blocks
+            list[Any] of identified order blocks
         """
-        new_zones: List[SupplyDemandZone] = []
+        new_zones: list[SupplyDemandZone] = []
 
         try:
             if len(candles) < 3:
@@ -126,7 +124,9 @@ class ZoneIdentifier:
 
                 # Check for bullish order block
                 bullish_ob = self._identify_bullish_order_block(
-                    prev_candle, current, next_candle
+                    prev_candle,
+                    current,
+                    next_candle,
                 )
                 if bullish_ob:
                     new_zones.append(bullish_ob)
@@ -134,7 +134,9 @@ class ZoneIdentifier:
 
                 # Check for bearish order block
                 bearish_ob = self._identify_bearish_order_block(
-                    prev_candle, current, next_candle
+                    prev_candle,
+                    current,
+                    next_candle,
                 )
                 if bearish_ob:
                     new_zones.append(bearish_ob)
@@ -145,17 +147,17 @@ class ZoneIdentifier:
 
         return new_zones
 
-    def identify_fair_value_gaps(self, candles: List[Candle]) -> List[SupplyDemandZone]:
+    def identify_fair_value_gaps(self, candles: list[Candle]) -> list[SupplyDemandZone]:
         """
         Identify Fair Value Gaps (FVG) in price action
 
         Args:
-            candles: List[Any] of recent candles
+            candles: list[Any] of recent candles
 
         Returns:
-            List[Any] of identified FVGs
+            list[Any] of identified FVGs
         """
-        new_zones: List[SupplyDemandZone] = []
+        new_zones: list[SupplyDemandZone] = []
 
         try:
             if len(candles) < 3:
@@ -179,7 +181,9 @@ class ZoneIdentifier:
                         bottom_price=prev_candle.high_price,
                         created_at=current.open_time,
                         strength=self._calculate_fvg_strength(
-                            prev_candle, current, next_candle
+                            prev_candle,
+                            current,
+                            next_candle,
                         ),
                         volume_profile=current.volume,
                     )
@@ -201,7 +205,9 @@ class ZoneIdentifier:
                         bottom_price=next_candle.high_price,
                         created_at=current.open_time,
                         strength=self._calculate_fvg_strength(
-                            prev_candle, current, next_candle
+                            prev_candle,
+                            current,
+                            next_candle,
                         ),
                         volume_profile=current.volume,
                     )
@@ -216,8 +222,10 @@ class ZoneIdentifier:
         return new_zones
 
     def _create_supply_zone(
-        self, pivot: PivotPoint, recent_candles: List[Candle]
-    ) -> Optional[SupplyDemandZone]:
+        self,
+        pivot: PivotPoint,
+        recent_candles: list[Candle],
+    ) -> SupplyDemandZone | None:
         """Create a supply zone from a swing high pivot"""
         try:
             # Find the candle that created this high
@@ -240,7 +248,10 @@ class ZoneIdentifier:
 
             # Calculate volume profile
             volume_profile = self._calculate_zone_volume_profile(
-                pivot.timestamp, recent_candles, zone_bottom, zone_top
+                pivot.timestamp,
+                recent_candles,
+                zone_bottom,
+                zone_top,
             )
 
             return SupplyDemandZone(
@@ -259,8 +270,10 @@ class ZoneIdentifier:
             return None
 
     def _create_demand_zone(
-        self, pivot: PivotPoint, recent_candles: List[Candle]
-    ) -> Optional[SupplyDemandZone]:
+        self,
+        pivot: PivotPoint,
+        recent_candles: list[Candle],
+    ) -> SupplyDemandZone | None:
         """Create a demand zone from a swing low pivot"""
         try:
             # Find the candle that created this low
@@ -283,7 +296,10 @@ class ZoneIdentifier:
 
             # Calculate volume profile
             volume_profile = self._calculate_zone_volume_profile(
-                pivot.timestamp, recent_candles, zone_bottom, zone_top
+                pivot.timestamp,
+                recent_candles,
+                zone_bottom,
+                zone_top,
             )
 
             return SupplyDemandZone(
@@ -302,8 +318,11 @@ class ZoneIdentifier:
             return None
 
     def _identify_bullish_order_block(
-        self, prev_candle: Candle, current: Candle, next_candle: Candle
-    ) -> Optional[SupplyDemandZone]:
+        self,
+        prev_candle: Candle,
+        current: Candle,
+        next_candle: Candle,
+    ) -> SupplyDemandZone | None:
         """Identify bullish order block pattern"""
         try:
             # Bullish order block criteria:
@@ -343,8 +362,11 @@ class ZoneIdentifier:
         return None
 
     def _identify_bearish_order_block(
-        self, prev_candle: Candle, current: Candle, next_candle: Candle
-    ) -> Optional[SupplyDemandZone]:
+        self,
+        prev_candle: Candle,
+        current: Candle,
+        next_candle: Candle,
+    ) -> SupplyDemandZone | None:
         """Identify bearish order block pattern"""
         try:
             # Bearish order block criteria:
@@ -384,7 +406,10 @@ class ZoneIdentifier:
         return None
 
     def _calculate_fvg_strength(
-        self, prev_candle: Candle, current: Candle, next_candle: Candle
+        self,
+        prev_candle: Candle,
+        current: Candle,
+        next_candle: Candle,
     ) -> int:
         """Calculate strength of a Fair Value Gap"""
         try:
@@ -414,7 +439,7 @@ class ZoneIdentifier:
     def _calculate_zone_volume_profile(
         self,
         zone_time: datetime,
-        candles: List[Candle],
+        candles: list[Candle],
         bottom_price: Decimal,
         top_price: Decimal,
     ) -> Decimal:
@@ -429,7 +454,7 @@ class ZoneIdentifier:
             ]
 
             if not zone_candles:
-                return Decimal("0")
+                return Decimal(0)
 
             # Calculate average volume for candles that interacted with the zone
             interacting_volumes = []
@@ -440,12 +465,12 @@ class ZoneIdentifier:
             return (
                 Decimal(sum(interacting_volumes) / len(interacting_volumes))
                 if interacting_volumes
-                else Decimal("0")
+                else Decimal(0)
             )
 
         except Exception as e:
             logger.error(f"Error calculating zone volume profile: {e}")
-            return Decimal("0")
+            return Decimal(0)
 
     def _zone_exists(self, new_zone: SupplyDemandZone) -> bool:
         """Check if a similar zone already exists"""
@@ -481,8 +506,11 @@ class ZoneIdentifier:
             self._historical_zones.append(oldest)
 
     def update_zone_tests(
-        self, current_price: Decimal, symbol: str, timeframe: TimeFrame
-    ) -> None:
+        self,
+        current_price: Decimal,
+        symbol: str,
+        timeframe: TimeFrame,
+    ):
         """Update zone touch counts and invalidate if necessary"""
         try:
             for zone_type, zones in self._zones.items():
@@ -511,8 +539,11 @@ class ZoneIdentifier:
             logger.error(f"Error updating zone tests: {e}")
 
     def get_active_zones(
-        self, symbol: str, timeframe: TimeFrame, zone_type: Optional[ZoneType] = None
-    ) -> List[SupplyDemandZone]:
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        zone_type: ZoneType | None = None,
+    ) -> list[SupplyDemandZone]:
         """Get active zones for a symbol and timeframe"""
         result = []
 
@@ -539,7 +570,7 @@ class ZoneIdentifier:
         timeframe: TimeFrame,
         price: Decimal,
         distance_pct: float = 0.02,
-    ) -> List[SupplyDemandZone]:
+    ) -> list[SupplyDemandZone]:
         """Get zones within a percentage distance of current price"""
         active_zones = self.get_active_zones(symbol, timeframe)
         nearby_zones = []
@@ -554,8 +585,10 @@ class ZoneIdentifier:
         return nearby_zones
 
     def clear_zones(
-        self, symbol: Optional[str] = None, timeframe: Optional[TimeFrame] = None
-    ) -> None:
+        self,
+        symbol: str | None = None,
+        timeframe: TimeFrame | None = None,
+    ):
         """Clear zones for specific symbol/timeframe or all zones"""
         if symbol is None and timeframe is None:
             # Clear all zones
@@ -577,7 +610,7 @@ class ZoneIdentifier:
 
         logger.info(f"Cleared zones for {symbol or 'ALL'} {timeframe or 'ALL'}")
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict:
         """Get zone identification statistics"""
         total_active = sum(len(zones) for zones in self._zones.values())
 

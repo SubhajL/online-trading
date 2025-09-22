@@ -6,28 +6,25 @@ Uses dependency injection for subscription management and event processing.
 """
 
 import asyncio
-import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-from uuid import UUID
+import logging
+from typing import Any
 
-from .models import BaseEvent, EventType
-from .core.interfaces import (
-    EventBusInterface,
-    SubscriptionManagerInterface,
-    EventProcessorInterface,
-)
-from .core.event_bus_factory import EventBusConfig
 from .core.error_handling import (
     ErrorCategory,
     ErrorSeverity,
-    QueueError,
     ProcessingError,
-    error_boundary,
+    QueueError,
     create_error_context,
+    error_boundary,
     handle_error,
 )
-
+from .core.event_bus_factory import EventBusConfig
+from .core.interfaces import (
+    EventProcessorInterface,
+    SubscriptionManagerInterface,
+)
+from .models import BaseEvent, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -63,15 +60,18 @@ class EventBus:
 
         # Worker management
         self._running = False
-        self._worker_tasks: List[asyncio.Task] = []
+        self._worker_tasks: list[asyncio.Task] = []
         self._lock = asyncio.Lock()
 
         logger.info(f"EventBus initialized with {config.num_workers} workers")
 
     @error_boundary(
-        "EventBus", "start", ErrorCategory.CONFIGURATION, ErrorSeverity.HIGH
+        "EventBus",
+        "start",
+        ErrorCategory.CONFIGURATION,
+        ErrorSeverity.HIGH,
     )
-    async def start(self, num_workers: Optional[int] = None) -> None:
+    async def start(self, num_workers: int | None = None) -> None:
         """Start the event bus workers."""
         if self._running:
             logger.warning("EventBus is already running")
@@ -108,7 +108,7 @@ class EventBus:
         self,
         subscriber_id: str,
         handler: Any,
-        event_types: Optional[List[EventType]] = None,
+        event_types: list[EventType] | None = None,
         priority: int = 0,
         max_retries: int = 3,
     ) -> str:
@@ -203,7 +203,7 @@ class EventBus:
             await handle_error(error)
             return False
 
-    async def publish_many(self, events: List[BaseEvent]) -> int:
+    async def publish_many(self, events: list[BaseEvent]) -> int:
         """
         Publish multiple events.
 
@@ -219,7 +219,7 @@ class EventBus:
                 successful += 1
         return successful
 
-    async def get_metrics(self) -> Dict[str, Any]:
+    async def get_metrics(self) -> dict[str, Any]:
         """
         Get aggregated metrics from all components.
 
@@ -249,7 +249,7 @@ class EventBus:
             "is_running": self._running,
         }
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """
         Get health status of the event bus.
 
@@ -291,7 +291,7 @@ class EventBus:
 
                 await self._process_event_with_subscriptions(event)
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Normal timeout, continue loop
                 continue
             except Exception as e:
@@ -301,7 +301,10 @@ class EventBus:
         logger.info(f"Worker {worker_name} stopped")
 
     @error_boundary(
-        "EventBus", "process_event", ErrorCategory.PROCESSING, ErrorSeverity.MEDIUM
+        "EventBus",
+        "process_event",
+        ErrorCategory.PROCESSING,
+        ErrorSeverity.MEDIUM,
     )
     async def _process_event_with_subscriptions(self, event: BaseEvent) -> None:
         """
@@ -312,7 +315,7 @@ class EventBus:
         """
         # Get relevant subscriptions from subscription manager
         subscriptions = await self._subscription_manager.get_subscriptions_for_event(
-            event.event_type
+            event.event_type,
         )
 
         # Process event with subscriptions using event processor
@@ -321,7 +324,8 @@ class EventBus:
         # Update subscription manager with success/failure tracking
         for error in result.errors:
             await self._subscription_manager.record_subscription_failure(
-                error.subscription_id, error.error_message
+                error.subscription_id,
+                error.error_message,
             )
 
         # Record successes (any subscription not in errors)
@@ -329,7 +333,7 @@ class EventBus:
         for subscription in subscriptions:
             if subscription.subscription_id not in failed_subscription_ids:
                 await self._subscription_manager.record_subscription_success(
-                    subscription.subscription_id
+                    subscription.subscription_id,
                 )
 
     async def __aenter__(self) -> None:
@@ -354,8 +358,9 @@ def create_event_bus() -> EventBus:
     factory = EventBusFactory()
     return factory.create_event_bus()
 
+
 # Global event bus instance management
-_global_event_bus: Optional[EventBus] = None
+_global_event_bus: EventBus | None = None
 
 
 def set_event_bus(bus: EventBus) -> None:
@@ -384,7 +389,7 @@ def get_event_bus() -> EventBus:
     return _global_event_bus
 
 
-async def publish_event(topic: str, data: Dict[str, Any]) -> bool:
+async def publish_event(topic: str, data: dict[str, Any]) -> bool:
     """
     Simplified interface to publish an event to the global event bus.
 
@@ -400,8 +405,12 @@ async def publish_event(topic: str, data: Dict[str, Any]) -> bool:
     """
     bus = get_event_bus()
     event = BaseEvent(
-        event_type=EventType.CANDLE_UPDATE if topic == "candles.v1" else EventType.CANDLE_UPDATE,
+        event_type=(
+            EventType.CANDLE_UPDATE
+            if topic == "candles.v1"
+            else EventType.CANDLE_UPDATE
+        ),
         timestamp=data.get("timestamp", datetime.utcnow()),
-        data=data
+        data=data,
     )
     return await bus.publish(event)

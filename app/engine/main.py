@@ -5,69 +5,66 @@ Main FastAPI application for the trading engine with health endpoints,
 metrics, and service management.
 """
 
-import asyncio
+from contextlib import asynccontextmanager
+from datetime import datetime
 import logging
 import os
 import signal
-from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Dict, Any, Optional
-from decimal import Decimal
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-from .bus import EventBus, get_event_bus, set_event_bus
-from .ingest.ingest_service import IngestService
-from .features.feature_service import FeatureService
-from .smc.smc_service import SMCService
+from .adapters import RedisAdapter, RouterHTTPClient, TimescaleDBAdapter
+from .bus import EventBus, set_event_bus
 from .decision.decision_engine import DecisionEngine
 from .decision.risk_manager import RiskManager
-from .adapters import TimescaleDBAdapter, RedisAdapter, RouterHTTPClient
+from .features.feature_service import FeatureService
+from .ingest.ingest_service import IngestService
 from .models import (
-    RiskParameters,
     BinanceConfig,
     DatabaseConfig,
-    RedisConfig,
     EngineConfig,
+    RedisConfig,
+    RiskParameters,
 )
-
+from .smc.smc_service import SMCService
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
 # Global service instances
-services: Dict[str, Any] = {}
+services: dict[str, Any] = {}
 
 
 # Request/Response Models
 class HealthResponse(BaseModel):
     status: str
     timestamp: str
-    services: Dict[str, Any]
+    services: dict[str, Any]
     uptime_seconds: float
 
 
 class MetricsResponse(BaseModel):
     timestamp: str
-    event_bus: Dict[str, Any]
-    ingest: Dict[str, Any]
-    features: Dict[str, Any]
-    smc: Dict[str, Any]
-    decision: Dict[str, Any]
-    database: Dict[str, Any]
-    redis: Dict[str, Any]
+    event_bus: dict[str, Any]
+    ingest: dict[str, Any]
+    features: dict[str, Any]
+    smc: dict[str, Any]
+    decision: dict[str, Any]
+    database: dict[str, Any]
+    redis: dict[str, Any]
 
 
 class ServiceControlRequest(BaseModel):
     action: str  # "start", "stop", "restart"
-    service: Optional[str] = None  # None for all services
+    service: str | None = None  # None for all services
 
 
 @asynccontextmanager
@@ -237,7 +234,8 @@ async def initialize_services(config: EngineConfig) -> None:
 
         # Initialize decision engine
         decision_engine = DecisionEngine(
-            risk_manager=risk_manager, router_client=router_client
+            risk_manager=risk_manager,
+            router_client=router_client,
         )
         services["decision"] = decision_engine
 
@@ -332,11 +330,11 @@ async def health_check() -> HealthResponse:
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}")
 
 
 @app.get("/health/simple")
-async def simple_health_check() -> Dict[str, Any]:
+async def simple_health_check() -> dict[str, Any]:
     """Simple health check for load balancers"""
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
@@ -376,20 +374,23 @@ async def get_metrics() -> MetricsResponse:
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Metrics collection failed: {str(e)}"
+            status_code=500,
+            detail=f"Metrics collection failed: {e!s}",
         )
 
 
 # Service Control Endpoints
 @app.post("/control/service")
 async def control_service(
-    request: ServiceControlRequest, background_tasks: BackgroundTasks
-) -> Dict[str, Any]:
+    request: ServiceControlRequest,
+    background_tasks: BackgroundTasks,
+):
     """Control individual services"""
     try:
         if request.service and request.service not in services:
             raise HTTPException(
-                status_code=404, detail=f"Service {request.service} not found"
+                status_code=404,
+                detail=f"Service {request.service} not found",
             )
 
         if request.action == "restart":
@@ -402,10 +403,10 @@ async def control_service(
                 background_tasks.add_task(restart_all_services)
 
             return {
-                "message": f"Restart initiated for {request.service or 'all services'}"
+                "message": f"Restart initiated for {request.service or 'all services'}",
             }
 
-        elif request.action == "stop":
+        if request.action == "stop":
             if request.service:
                 service = services[request.service]
                 if hasattr(service, "stop"):
@@ -414,10 +415,10 @@ async def control_service(
                 await shutdown_services()
 
             return {
-                "message": f"Stop completed for {request.service or 'all services'}"
+                "message": f"Stop completed for {request.service or 'all services'}",
             }
 
-        elif request.action == "start":
+        if request.action == "start":
             if request.service:
                 service = services[request.service]
                 if hasattr(service, "start"):
@@ -426,13 +427,13 @@ async def control_service(
                 await start_services()
 
             return {
-                "message": f"Start completed for {request.service or 'all services'}"
+                "message": f"Start completed for {request.service or 'all services'}",
             }
 
-        else:
-            raise HTTPException(
-                status_code=400, detail=f"Unknown action: {request.action}"
-            )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown action: {request.action}",
+        )
 
     except Exception as e:
         logger.error(f"Error controlling service: {e}")
@@ -465,7 +466,7 @@ async def restart_all_services() -> None:
 
 # Status and Information Endpoints
 @app.get("/status")
-async def get_status() -> Dict[str, Any]:
+async def get_status() -> dict[str, Any]:
     """Get detailed status of all services"""
     try:
         status = {}
@@ -494,7 +495,7 @@ async def get_status() -> Dict[str, Any]:
 
 
 @app.get("/info")
-async def get_info() -> Dict[str, Any]:
+async def get_info() -> dict[str, Any]:
     """Get general information about the trading engine"""
     return {
         "name": "Trading Engine",

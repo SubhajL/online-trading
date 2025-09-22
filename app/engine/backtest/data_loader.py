@@ -3,15 +3,16 @@ Chunked data loader for memory-efficient backtesting.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
-import logging
-import pickle
-import redis
+from collections.abc import Callable, Iterator
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Iterator, List, Dict, Any, Optional, Callable
-import pandas as pd
+import logging
+import pickle
+
 import numpy as np
+import pandas as pd
+import redis
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,10 @@ class ChunkConfig:
 
 
 def load_candles_chunked(
-    symbol: str, start_date: datetime, end_date: datetime, chunk_days: int = 30
+    symbol: str,
+    start_date: datetime,
+    end_date: datetime,
+    chunk_days: int = 30,
 ) -> Iterator[pd.DataFrame]:
     """
     Yields DataFrame chunks to prevent OOM on large datasets.
@@ -56,7 +60,7 @@ def load_candles_chunked(
             else:
                 # Still advance even if no data
                 logger.debug(
-                    f"No data for {symbol} from {current_start} to {chunk_end}"
+                    f"No data for {symbol} from {current_start} to {chunk_end}",
                 )
                 # Yield empty DataFrame to maintain generator behavior
                 yield pd.DataFrame()
@@ -131,7 +135,7 @@ def cache_features(features: pd.DataFrame, cache_key: str, ttl_hours: int = 24) 
         logger.error(f"Failed to cache features: {e}")
 
 
-def load_cached_features(cache_key: str) -> Optional[pd.DataFrame]:
+def load_cached_features(cache_key: str) -> pd.DataFrame | None:
     """
     Retrieves features from cache if still valid.
     Returns None on miss/expiration.
@@ -163,10 +167,10 @@ def load_cached_features(cache_key: str) -> Optional[pd.DataFrame]:
 
 
 def precompute_features_parallel(
-    symbols: List[str],
-    feature_funcs: List[Callable],
-    config: Optional[ChunkConfig] = None,
-) -> Dict[str, pd.DataFrame]:
+    symbols: list[str],
+    feature_funcs: list[Callable],
+    config: ChunkConfig | None = None,
+) -> dict[str, pd.DataFrame]:
     """
     Computes features for multiple symbols in parallel.
     Uses process pool for CPU-bound feature engineering.
@@ -201,7 +205,8 @@ def precompute_features_parallel(
 
 
 def _compute_features_for_symbol(
-    symbol: str, feature_funcs: List[Callable]
+    symbol: str,
+    feature_funcs: list[Callable],
 ) -> pd.DataFrame:
     """
     Compute features for a single symbol.

@@ -5,22 +5,18 @@ Comprehensive risk management system for trading decisions.
 Implements position sizing, risk limits, correlation checks, and drawdown controls.
 """
 
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
+import logging
 
 from ..models import (
-    TradingDecision,
-    Position,
-    RiskParameters,
-    PositionSizing,
-    OrderSide,
     Candle,
-    TechnicalIndicators,
+    Position,
+    PositionSizing,
+    RiskParameters,
+    TradingDecision,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +37,8 @@ class RiskCheckResult:
         self,
         approved: bool,
         risk_level: RiskLevel,
-        checks: Dict[str, bool],
-        reasons: List[str],
+        checks: dict[str, bool],
+        reasons: list[str],
     ):
         self.approved = approved
         self.risk_level = risk_level
@@ -68,17 +64,17 @@ class RiskManager:
         self.risk_params = risk_parameters
 
         # Track positions and P&L
-        self._positions: Dict[str, Position] = {}
-        self._daily_pnl: Dict[str, Decimal] = {}  # date -> pnl
-        self._trade_history: List[Dict[str, Any]] = []
+        self._positions: dict[str, Position] = {}
+        self._daily_pnl: dict[str, Decimal] = {}  # date -> pnl
+        self._trade_history: list[dict] = []
 
         # Risk metrics
-        self._max_drawdown = Decimal("0")
-        self._peak_balance = Decimal("0")
-        self._current_balance = Decimal("100000")  # Default starting balance
+        self._max_drawdown = Decimal(0)
+        self._peak_balance = Decimal(0)
+        self._current_balance = Decimal(100000)  # Default starting balance
 
         # Correlation tracking
-        self._symbol_correlations: Dict[Tuple[str, str], Decimal] = {}
+        self._symbol_correlations: dict[tuple[str, str], Decimal] = {}
 
         logger.info("RiskManager initialized with comprehensive risk controls")
 
@@ -125,17 +121,16 @@ class RiskManager:
             max_position_value = account_balance * self.risk_params.max_position_size
             max_quantity = max_position_value / current_price
 
-            if position_size > max_quantity:
-                position_size = max_quantity
+            position_size = min(position_size, max_quantity)
 
             # Calculate margin requirements (assuming 1:1 leverage by default)
-            leverage = Decimal("1")
+            leverage = Decimal(1)
             margin_required = (position_size * current_price) / leverage
 
             return PositionSizing(
                 symbol=decision.symbol,
                 entry_price=current_price,
-                stop_loss=decision.stop_loss or Decimal("0"),
+                stop_loss=decision.stop_loss or Decimal(0),
                 risk_amount=risk_amount,
                 position_size=position_size,
                 leverage=leverage,
@@ -148,18 +143,18 @@ class RiskManager:
             return PositionSizing(
                 symbol=decision.symbol,
                 entry_price=current_price,
-                stop_loss=decision.stop_loss or Decimal("0"),
+                stop_loss=decision.stop_loss or Decimal(0),
                 risk_amount=account_balance * Decimal("0.01"),  # 1% default
                 position_size=Decimal("0.001"),
-                leverage=Decimal("1"),
-                margin_required=Decimal("100"),
+                leverage=Decimal(1),
+                margin_required=Decimal(100),
             )
 
     def check_risk_limits(
         self,
         decision: TradingDecision,
         account_balance: Decimal,
-        current_positions: List[Position],
+        current_positions: list[Position],
     ) -> RiskCheckResult:
         """
         Comprehensive risk check for trading decision
@@ -167,7 +162,7 @@ class RiskManager:
         Args:
             decision: Trading decision to evaluate
             account_balance: Current account balance
-            current_positions: List[Any] of current positions
+            current_positions: list[Any] of current positions
 
         Returns:
             RiskCheckResult with approval status and details
@@ -179,7 +174,7 @@ class RiskManager:
         try:
             # Check 1: Daily loss limit
             today = datetime.utcnow().date().isoformat()
-            daily_pnl = self._daily_pnl.get(today, Decimal("0"))
+            daily_pnl = self._daily_pnl.get(today, Decimal(0))
             max_daily_loss = account_balance * self.risk_params.max_daily_loss
 
             if abs(daily_pnl) >= max_daily_loss:
@@ -196,7 +191,7 @@ class RiskManager:
             if current_drawdown >= max_allowed_drawdown:
                 checks["max_drawdown"] = False
                 reasons.append(
-                    f"Maximum drawdown exceeded: {current_drawdown * 100:.2f}%"
+                    f"Maximum drawdown exceeded: {current_drawdown * 100:.2f}%",
                 )
                 risk_level = RiskLevel.EXTREME
             else:
@@ -208,7 +203,7 @@ class RiskManager:
             if len(current_positions) >= self.risk_params.max_open_positions:
                 checks["max_positions"] = False
                 reasons.append(
-                    f"Maximum open positions limit reached: {len(current_positions)}"
+                    f"Maximum open positions limit reached: {len(current_positions)}",
                 )
                 risk_level = max(risk_level, RiskLevel.HIGH)
             else:
@@ -238,7 +233,7 @@ class RiskManager:
                 if position_value > max_position_value:
                     checks["position_size"] = False
                     reasons.append(
-                        f"Position size too large: {position_value} > {max_position_value}"
+                        f"Position size too large: {position_value} > {max_position_value}",
                     )
                     risk_level = max(risk_level, RiskLevel.HIGH)
                 else:
@@ -248,7 +243,8 @@ class RiskManager:
 
             # Check 6: Correlation limits
             correlation_risk = self._check_correlation_risk(
-                decision.symbol, current_positions
+                decision.symbol,
+                current_positions,
             )
             if correlation_risk > self.risk_params.max_correlation:
                 checks["correlation"] = False
@@ -287,11 +283,14 @@ class RiskManager:
                 logger.warning(f"Risk check failed for {decision.symbol}: {reasons}")
             else:
                 logger.info(
-                    f"Risk check passed for {decision.symbol} with {risk_level.value} risk"
+                    f"Risk check passed for {decision.symbol} with {risk_level.value} risk",
                 )
 
             return RiskCheckResult(
-                approved=approved, risk_level=risk_level, checks=checks, reasons=reasons
+                approved=approved,
+                risk_level=risk_level,
+                checks=checks,
+                reasons=reasons,
             )
 
         except Exception as e:
@@ -300,7 +299,7 @@ class RiskManager:
                 approved=False,
                 risk_level=RiskLevel.EXTREME,
                 checks={"error": False},
-                reasons=[f"Risk check error: {str(e)}"],
+                reasons=[f"Risk check error: {e!s}"],
             )
 
     def update_position(self, position: Position) -> None:
@@ -311,7 +310,7 @@ class RiskManager:
             # Update daily P&L
             today = datetime.utcnow().date().isoformat()
             if today not in self._daily_pnl:
-                self._daily_pnl[today] = Decimal("0")
+                self._daily_pnl[today] = Decimal(0)
 
             # Add realized P&L to daily total
             self._daily_pnl[today] += position.realized_pnl
@@ -321,7 +320,7 @@ class RiskManager:
         except Exception as e:
             logger.error(f"Error updating position: {e}")
 
-    def add_trade_result(self, symbol: str, pnl: Decimal, trade_data: Dict[str, Any]) -> None:
+    def add_trade_result(self, symbol: str, pnl: Decimal, trade_data: dict):
         """Add completed trade result for analysis"""
         try:
             trade_record = {
@@ -336,21 +335,19 @@ class RiskManager:
             # Update daily P&L
             today = datetime.utcnow().date().isoformat()
             if today not in self._daily_pnl:
-                self._daily_pnl[today] = Decimal("0")
+                self._daily_pnl[today] = Decimal(0)
             self._daily_pnl[today] += pnl
 
             # Update balance tracking
             self._current_balance += pnl
-            if self._current_balance > self._peak_balance:
-                self._peak_balance = self._current_balance
+            self._peak_balance = max(self._peak_balance, self._current_balance)
 
             # Update max drawdown
             if self._peak_balance > 0:
                 current_drawdown = (
                     self._peak_balance - self._current_balance
                 ) / self._peak_balance
-                if current_drawdown > self._max_drawdown:
-                    self._max_drawdown = current_drawdown
+                self._max_drawdown = max(self._max_drawdown, current_drawdown)
 
             logger.info(f"Added trade result: {symbol} P&L: {pnl}")
 
@@ -362,28 +359,30 @@ class RiskManager:
         try:
             if self._peak_balance == 0:
                 self._peak_balance = current_balance
-                return Decimal("0")
+                return Decimal(0)
 
             if current_balance > self._peak_balance:
                 self._peak_balance = current_balance
-                return Decimal("0")
+                return Decimal(0)
 
             drawdown = (self._peak_balance - current_balance) / self._peak_balance
             return drawdown
 
         except Exception as e:
             logger.error(f"Error calculating drawdown: {e}")
-            return Decimal("0")
+            return Decimal(0)
 
     def _check_correlation_risk(
-        self, symbol: str, current_positions: List[Position]
+        self,
+        symbol: str,
+        current_positions: list[Position],
     ) -> Decimal:
         """Check correlation risk with existing positions"""
         try:
             if not current_positions:
-                return Decimal("0")
+                return Decimal(0)
 
-            max_correlation = Decimal("0")
+            max_correlation = Decimal(0)
 
             for position in current_positions:
                 if position.symbol == symbol:
@@ -391,8 +390,7 @@ class RiskManager:
 
                 # Get correlation between symbols (simplified - in reality would use price data)
                 correlation = self._get_symbol_correlation(symbol, position.symbol)
-                if correlation > max_correlation:
-                    max_correlation = correlation
+                max_correlation = max(max_correlation, correlation)
 
             return max_correlation
 
@@ -412,9 +410,9 @@ class RiskManager:
             # Default correlations based on symbol similarity
             if symbol1[:3] == symbol2[:3]:  # Same base currency
                 correlation = Decimal("0.7")
-            elif "BTC" in symbol1 and "BTC" in symbol2:
-                correlation = Decimal("0.8")
-            elif "ETH" in symbol1 and "ETH" in symbol2:
+            elif ("BTC" in symbol1 and "BTC" in symbol2) or (
+                "ETH" in symbol1 and "ETH" in symbol2
+            ):
                 correlation = Decimal("0.8")
             else:
                 correlation = Decimal("0.3")  # Default moderate correlation
@@ -429,8 +427,8 @@ class RiskManager:
     def adjust_risk_for_volatility(
         self,
         decision: TradingDecision,
-        recent_candles: List[Candle],
-        atr_value: Optional[Decimal] = None,
+        recent_candles: list[Candle],
+        atr_value: Decimal | None = None,
     ) -> TradingDecision:
         """Adjust risk parameters based on market volatility"""
         try:
@@ -465,11 +463,11 @@ class RiskManager:
             logger.error(f"Error adjusting risk for volatility: {e}")
             return decision
 
-    def _calculate_simple_volatility(self, candles: List[Candle]) -> Decimal:
+    def _calculate_simple_volatility(self, candles: list[Candle]) -> Decimal:
         """Calculate simple volatility measure"""
         try:
             if len(candles) < 2:
-                return Decimal("0")
+                return Decimal(0)
 
             # Calculate average true range over recent candles
             true_ranges = []
@@ -486,19 +484,18 @@ class RiskManager:
                 true_ranges.append(true_range)
 
             if true_ranges:
-                return Decimal(sum(true_ranges) / len(true_ranges))
-            else:
-                return Decimal("0")
+                return sum(true_ranges) / len(true_ranges)
+            return Decimal(0)
 
         except Exception as e:
             logger.error(f"Error calculating volatility: {e}")
-            return Decimal("0")
+            return Decimal(0)
 
-    def get_risk_metrics(self) -> Dict[str, Any]:
+    def get_risk_metrics(self) -> dict:
         """Get current risk metrics and statistics"""
         try:
             today = datetime.utcnow().date().isoformat()
-            daily_pnl = self._daily_pnl.get(today, Decimal("0"))
+            daily_pnl = self._daily_pnl.get(today, Decimal(0))
 
             # Calculate win rate from trade history
             if self._trade_history:
@@ -534,7 +531,7 @@ class RiskManager:
         """Reset daily limits (call at start of new trading day)"""
         try:
             today = datetime.utcnow().date().isoformat()
-            self._daily_pnl[today] = Decimal("0")
+            self._daily_pnl[today] = Decimal(0)
             logger.info("Reset daily risk limits")
 
         except Exception as e:

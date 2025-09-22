@@ -3,14 +3,12 @@ Graceful lifecycle management for production systems.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
-import asyncio
+from dataclasses import dataclass, field
 import json
 import logging
 import signal
-import threading
 import time
-from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Set
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +16,17 @@ logger = logging.getLogger(__name__)
 class LifecycleError(Exception):
     """Raised when lifecycle operations fail."""
 
-    pass
-
 
 @dataclass
 class ShutdownState:
     """Tracks shutdown progress and state."""
 
     shutdown_requested: bool = False
-    shutdown_time: Optional[float] = None
-    signal_received: Optional[int] = None
+    shutdown_time: float | None = None
+    signal_received: int | None = None
     signal_count: int = 0
     max_shutdown_seconds: float = 30.0
-    components_stopped: Set[str] = field(default_factory=set)
+    components_stopped: set[str] = field(default_factory=set)
 
     def is_timeout(self) -> bool:
         """Check if shutdown has timed out."""
@@ -44,7 +40,7 @@ class ShutdownHandler:
     """Handles shutdown signals."""
 
     shutdown_state: ShutdownState
-    signals: List[int] = field(default_factory=lambda: [signal.SIGTERM, signal.SIGINT])
+    signals: list[int] = field(default_factory=lambda: [signal.SIGTERM, signal.SIGINT])
     is_registered: bool = False
 
     def handle_signal(self, sig: int, frame: Any) -> None:
@@ -67,9 +63,9 @@ class ShutdownHandler:
 class ShutdownCoordinator:
     """Coordinates component shutdown."""
 
-    components: Dict[str, Dict[str, Any]]
+    components: dict[str, dict[str, Any]]
 
-    def get_shutdown_order(self) -> List[str]:
+    def get_shutdown_order(self) -> list[str]:
         """Calculate safe shutdown order based on dependencies."""
         # Build dependency graph
         deps = {
@@ -94,7 +90,7 @@ class ShutdownCoordinator:
 
         return list(reversed(order))
 
-    def get_parallel_groups(self) -> List[List[str]]:
+    def get_parallel_groups(self) -> list[list[str]]:
         """Group components that can shut down in parallel."""
         deps = {
             name: set(comp.get("dependencies", []))
@@ -121,7 +117,7 @@ class ShutdownCoordinator:
 
         return groups
 
-    def execute_shutdown(self) -> Dict[str, Any]:
+    def execute_shutdown(self) -> dict[str, Any]:
         """Execute coordinated shutdown."""
         shutdown_components = []
         failures = []
@@ -145,11 +141,11 @@ class ShutdownCoordinator:
 class StartupHealthChecker:
     """Verifies system health before accepting traffic."""
 
-    dependencies: Dict[str, Dict[str, Any]]
+    dependencies: dict[str, dict[str, Any]]
     max_retries: int = 10
     retry_delay_seconds: float = 1.0
 
-    def wait_for_healthy(self, timeout_seconds: float = 60.0) -> Dict[str, Any]:
+    def wait_for_healthy(self, timeout_seconds: float = 60.0) -> dict[str, Any]:
         """Wait for all dependencies to be healthy."""
         start_time = time.time()
         retry_count = 0
@@ -213,8 +209,9 @@ def register_shutdown_handler(shutdown_state: ShutdownState) -> ShutdownHandler:
 
 
 def drain_event_queues(
-    queue_stats: Dict[str, Any], max_drain_seconds: float = 10.0
-) -> Dict[str, Any]:
+    queue_stats: dict[str, Any],
+    max_drain_seconds: float = 10.0,
+) -> dict[str, Any]:
     """
     Process remaining events in queues with timeout.
     Ensures no data loss during shutdown.
@@ -258,10 +255,10 @@ def drain_event_queues(
 
 
 def close_database_connections(
-    connection_pool: Dict[str, Any],
+    connection_pool: dict[str, Any],
     grace_period_seconds: float = 5.0,
     force: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Gracefully close all pooled connections.
     Completes active transactions with fallback to forced termination.
@@ -301,7 +298,7 @@ def close_database_connections(
     }
 
 
-def save_application_state(app_state: Dict[str, Any]) -> Dict[str, Any]:
+def save_application_state(app_state: dict[str, Any]) -> dict[str, Any]:
     """
     Persist critical state to durable storage.
     Atomic operation - no partial saves.
@@ -335,7 +332,7 @@ def save_application_state(app_state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def shutdown_coordinator(components: Dict[str, Dict[str, Any]]) -> ShutdownCoordinator:
+def shutdown_coordinator(components: dict[str, dict[str, Any]]) -> ShutdownCoordinator:
     """
     Orchestrate shutdown sequence with proper ordering.
     Handles dependencies and parallel shutdown where safe.
@@ -344,7 +341,7 @@ def shutdown_coordinator(components: Dict[str, Dict[str, Any]]) -> ShutdownCoord
 
 
 def startup_health_check(
-    dependencies: Dict[str, Dict[str, Any]],
+    dependencies: dict[str, dict[str, Any]],
     max_retries: int = 10,
     retry_delay_seconds: float = 1.0,
 ) -> StartupHealthChecker:

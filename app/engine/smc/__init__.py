@@ -10,7 +10,7 @@ Implements Smart Money Concepts including:
 """
 
 from .pivot_detector import PivotDetector
-from .zone_identifier import ZoneIdentifier
 from .smc_service import SMCService
+from .zone_identifier import ZoneIdentifier
 
-__all__ = ["PivotDetector", "ZoneIdentifier", "SMCService"]
+__all__ = ["PivotDetector", "SMCService", "ZoneIdentifier"]

@@ -2,13 +2,13 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect } from 'vitest'
 import { OrderHistory } from './OrderHistory'
-import type { Order } from '@/types'
+import type { Order, OrderId, Symbol } from '@/types'
 
 describe('OrderHistory', () => {
   const mockOrders: Order[] = [
     {
-      orderId: 'ORD001' as any,
-      symbol: 'BTCUSDT' as any,
+      orderId: 'ORD001' as OrderId,
+      symbol: 'BTCUSDT' as Symbol,
       side: 'BUY',
       type: 'MARKET',
       quantity: 0.1,
@@ -20,8 +20,8 @@ describe('OrderHistory', () => {
       avgPrice: 42000,
     },
     {
-      orderId: 'ORD002' as any,
-      symbol: 'ETHUSDT' as any,
+      orderId: 'ORD001' as OrderId,
+      symbol: 'BTCUSDT' as Symbol,
       side: 'SELL',
       type: 'LIMIT',
       quantity: 1,
@@ -33,8 +33,8 @@ describe('OrderHistory', () => {
       executedQuantity: 0,
     },
     {
-      orderId: 'ORD003' as any,
-      symbol: 'BTCUSDT' as any,
+      orderId: 'ORD001' as OrderId,
+      symbol: 'BTCUSDT' as Symbol,
       side: 'BUY',
       type: 'LIMIT',
       quantity: 0.5,
@@ -182,7 +182,7 @@ describe('OrderHistory', () => {
     const user = userEvent.setup()
     const manyOrders = Array.from({ length: 25 }, (_, i) => ({
       ...mockOrders[0],
-      orderId: `ORD${i}` as any,
+      orderId: `ORD${i}` as OrderId,
     }))
 
     render(<OrderHistory orders={manyOrders} pageSize={10} />)

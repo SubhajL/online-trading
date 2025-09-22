@@ -2,24 +2,22 @@
 Paper trading broker for simulation.
 """
 
-import asyncio
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Any, List, Optional
 from uuid import uuid4
 
+from ..bus import EventBus
 from ..models import (
+    EventType,
     Order,
+    OrderFilledEvent,
     OrderSide,
     OrderStatus,
     OrderType,
     Position,
-    TradingDecision,
-    OrderFilledEvent,
     PositionUpdateEvent,
-    EventType,
+    TradingDecision,
 )
-from ..bus import EventBus
 
 
 class PaperBroker:
@@ -28,14 +26,16 @@ class PaperBroker:
     """
 
     def __init__(
-        self, event_bus: EventBus, initial_balance: Decimal = Decimal("10000")
+        self,
+        event_bus: EventBus,
+        initial_balance: Decimal = Decimal(10000),
     ):
         self.event_bus = event_bus
         self.balance = initial_balance
         self.available_balance = initial_balance
-        self.positions: Dict[str, Position] = {}
-        self.orders: Dict[str, Order] = {}
-        self.order_history: List[Order] = []
+        self.positions: dict[str, Position] = {}
+        self.orders: dict[str, Order] = {}
+        self.order_history: list[Order] = []
 
         # Simulation parameters
         self.market_slippage_pct = Decimal("0.001")  # 0.1%
@@ -52,7 +52,7 @@ class PaperBroker:
             symbol=decision.symbol,
             side=OrderSide.BUY if decision.action == "BUY" else OrderSide.SELL,
             type=decision.order_type or OrderType.MARKET,
-            quantity=decision.quantity or Decimal("0"),
+            quantity=decision.quantity or Decimal(0),
             price=decision.entry_price,
             stop_price=decision.stop_loss,
             status=OrderStatus.NEW,
@@ -74,9 +74,9 @@ class PaperBroker:
         """
         # Apply slippage
         if order.side == OrderSide.BUY:
-            fill_price = order.price * (Decimal("1") + self.market_slippage_pct)
+            fill_price = order.price * (Decimal(1) + self.market_slippage_pct)
         else:
-            fill_price = order.price * (Decimal("1") - self.market_slippage_pct)
+            fill_price = order.price * (Decimal(1) - self.market_slippage_pct)
 
         # Calculate fees
         fee = order.quantity * fill_price * self.taker_fee_pct
@@ -111,7 +111,7 @@ class PaperBroker:
                 fill_price=fill_price,
                 fill_quantity=order.quantity,
                 fill_timestamp=datetime.utcnow(),
-            )
+            ),
         )
 
         self.order_history.append(order)
@@ -130,7 +130,7 @@ class PaperBroker:
                 size=order.filled_quantity,
                 entry_price=fill_price,
                 current_price=fill_price,
-                unrealized_pnl=Decimal("0"),
+                unrealized_pnl=Decimal(0),
                 margin_used=order.filled_quantity * fill_price,
                 opened_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
@@ -147,21 +147,22 @@ class PaperBroker:
                 )
                 position.size += order.filled_quantity
                 position.entry_price = total_cost / position.size
+            # Reduce or close position
+            elif order.filled_quantity >= position.size:
+                # Close position
+                pnl = self._calculate_pnl(position, fill_price)
+                position.realized_pnl += pnl
+                del self.positions[symbol]
+                return
             else:
-                # Reduce or close position
-                if order.filled_quantity >= position.size:
-                    # Close position
-                    pnl = self._calculate_pnl(position, fill_price)
-                    position.realized_pnl += pnl
-                    del self.positions[symbol]
-                    return
-                else:
-                    # Partial close
-                    partial_pnl = self._calculate_pnl(
-                        position, fill_price, order.filled_quantity
-                    )
-                    position.realized_pnl += partial_pnl
-                    position.size -= order.filled_quantity
+                # Partial close
+                partial_pnl = self._calculate_pnl(
+                    position,
+                    fill_price,
+                    order.filled_quantity,
+                )
+                position.realized_pnl += partial_pnl
+                position.size -= order.filled_quantity
 
             position.updated_at = datetime.utcnow()
 
@@ -173,11 +174,14 @@ class PaperBroker:
                     timestamp=datetime.utcnow(),
                     symbol=symbol,
                     position=self.positions[symbol],
-                )
+                ),
             )
 
     def _calculate_pnl(
-        self, position: Position, price: Decimal, quantity: Optional[Decimal] = None
+        self,
+        position: Position,
+        price: Decimal,
+        quantity: Decimal | None = None,
     ) -> Decimal:
         """
         Calculate P&L for a position.
@@ -186,10 +190,9 @@ class PaperBroker:
 
         if position.side == OrderSide.BUY:
             return qty * (price - position.entry_price)
-        else:
-            return qty * (position.entry_price - price)
+        return qty * (position.entry_price - price)
 
-    async def update_market_prices(self, prices: Dict[str, Decimal]) -> None:
+    async def update_market_prices(self, prices: dict[str, Decimal]):
         """
         Update market prices and calculate unrealized P&L.
         """
@@ -200,7 +203,7 @@ class PaperBroker:
                 position.unrealized_pnl = self._calculate_pnl(position, price)
                 position.updated_at = datetime.utcnow()
 
-    def get_account_summary(self) -> Dict[str, Any]:
+    def get_account_summary(self) -> dict:
         """
         Get account summary including balance and positions.
         """
@@ -215,7 +218,7 @@ class PaperBroker:
             "equity": self.balance + total_unrealized_pnl + total_realized_pnl,
             "positions": len(self.positions),
             "open_orders": len(
-                [o for o in self.orders.values() if o.status == OrderStatus.NEW]
+                [o for o in self.orders.values() if o.status == OrderStatus.NEW],
             ),
         }
 

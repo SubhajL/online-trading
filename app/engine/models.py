@@ -7,11 +7,10 @@ the trading platform, including events, market data, signals, and decisions.
 
 from __future__ import annotations
 
-import enum as _enum
-import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union
+import enum as _enum
+import uuid
 
 from pydantic import BaseModel, Field, validator
 
@@ -143,8 +142,8 @@ class BaseEvent(BaseModel):
     event_type: EventType
     timestamp: datetime
     symbol: str
-    timeframe: Optional[TimeFrame] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    timeframe: TimeFrame | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     class Config:
         json_encoders = {
@@ -227,28 +226,28 @@ class TechnicalIndicators(BaseModel):
     timestamp: datetime
 
     # Moving Averages
-    ema_9: Optional[Decimal] = None
-    ema_21: Optional[Decimal] = None
-    ema_50: Optional[Decimal] = None
-    ema_200: Optional[Decimal] = None
+    ema_9: Decimal | None = None
+    ema_21: Decimal | None = None
+    ema_50: Decimal | None = None
+    ema_200: Decimal | None = None
 
     # RSI
-    rsi_14: Optional[Decimal] = None
+    rsi_14: Decimal | None = None
 
     # MACD
-    macd_line: Optional[Decimal] = None
-    macd_signal: Optional[Decimal] = None
-    macd_histogram: Optional[Decimal] = None
+    macd_line: Decimal | None = None
+    macd_signal: Decimal | None = None
+    macd_histogram: Decimal | None = None
 
     # ATR
-    atr_14: Optional[Decimal] = None
+    atr_14: Decimal | None = None
 
     # Bollinger Bands
-    bb_upper: Optional[Decimal] = None
-    bb_middle: Optional[Decimal] = None
-    bb_lower: Optional[Decimal] = None
-    bb_width: Optional[Decimal] = None
-    bb_percent: Optional[Decimal] = None
+    bb_upper: Decimal | None = None
+    bb_middle: Decimal | None = None
+    bb_lower: Decimal | None = None
+    bb_width: Decimal | None = None
+    bb_percent: Decimal | None = None
 
 
 # ============================================================================
@@ -265,7 +264,7 @@ class PivotPoint(BaseModel):
     price: Decimal
     is_high: bool
     strength: int = Field(ge=1, le=10)
-    volume_profile: Optional[Decimal] = None
+    volume_profile: Decimal | None = None
 
 
 class SupplyDemandZone(BaseModel):
@@ -282,7 +281,7 @@ class SupplyDemandZone(BaseModel):
     volume_profile: Decimal
     touches: int = Field(default=0)
     is_active: bool = Field(default=True)
-    tested_at: Optional[datetime] = None
+    tested_at: datetime | None = None
 
 
 class MarketStructure(BaseModel):
@@ -293,8 +292,8 @@ class MarketStructure(BaseModel):
     timestamp: datetime
     structure_type: SMCStructure
     price: Decimal
-    previous_structure: Optional[SMCStructure] = None
-    trend_direction: Optional[str] = None  # "bullish", "bearish", "neutral"
+    previous_structure: SMCStructure | None = None
+    trend_direction: str | None = None  # "bullish", "bearish", "neutral"
 
 
 # ============================================================================
@@ -312,10 +311,10 @@ class SMCSignal(BaseModel):
     signal_type: str  # "order_block_entry", "liquidity_grab", "fair_value_gap"
     direction: OrderSide
     entry_price: Decimal
-    stop_loss: Optional[Decimal] = None
-    take_profit: Optional[Decimal] = None
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
     confidence: Decimal = Field(ge=0, le=1)
-    zone: Optional[SupplyDemandZone] = None
+    zone: SupplyDemandZone | None = None
     reasoning: str
 
 
@@ -330,7 +329,7 @@ class RetestSignal(BaseModel):
     retest_type: str  # "support_retest", "resistance_retest", "zone_retest"
     success_probability: Decimal = Field(ge=0, le=1)
     volume_confirmation: bool
-    confluence_factors: List[str] = Field(default_factory=list)
+    confluence_factors: list[str] = Field(default_factory=list)
 
 
 # ============================================================================
@@ -347,8 +346,8 @@ class RiskParameters(BaseModel):
     risk_per_trade: Decimal = Field(gt=0, le=0.1)  # Max 10% per trade
     max_correlation: Decimal = Field(ge=0, le=1)
     max_open_positions: int = Field(ge=1)
-    allowed_symbols: List[str] = Field(default_factory=list)
-    trading_hours: Optional[Dict[str, Any]] = None
+    allowed_symbols: list[str] = Field(default_factory=list)
+    trading_hours: dict[str, Any] | None = None
 
 
 class PositionSizing(BaseModel):
@@ -359,7 +358,7 @@ class PositionSizing(BaseModel):
     stop_loss: Decimal
     risk_amount: Decimal
     position_size: Decimal
-    leverage: Decimal = Field(default=Decimal("1"))
+    leverage: Decimal = Field(default=Decimal(1))
     margin_required: Decimal
 
 
@@ -377,28 +376,28 @@ class TradingDecision(BaseModel):
     action: str  # "BUY", "SELL", "HOLD", "CLOSE"
 
     # Entry details
-    entry_price: Optional[Decimal] = None
-    quantity: Optional[Decimal] = None
-    order_type: Optional[OrderType] = None
+    entry_price: Decimal | None = None
+    quantity: Decimal | None = None
+    order_type: OrderType | None = None
 
     # Risk management
-    stop_loss: Optional[Decimal] = None
-    take_profit: Optional[Decimal] = None
-    position_sizing: Optional[PositionSizing] = None
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
+    position_sizing: PositionSizing | None = None
 
     # Signal context
-    signals: List[Union[SMCSignal, RetestSignal]] = Field(default_factory=list)
-    technical_indicators: Optional[TechnicalIndicators] = None
-    market_regime: Optional[MarketRegime] = None
+    signals: list[SMCSignal | RetestSignal] = Field(default_factory=list)
+    technical_indicators: TechnicalIndicators | None = None
+    market_regime: MarketRegime | None = None
 
     # Decision rationale
     confidence: Decimal = Field(ge=0, le=1)
     reasoning: str
-    risk_reward_ratio: Optional[Decimal] = None
+    risk_reward_ratio: Decimal | None = None
 
     # Guards and filters
-    news_sentiment: Optional[str] = None
-    funding_rate_impact: Optional[Decimal] = None
+    news_sentiment: str | None = None
+    funding_rate_impact: Decimal | None = None
     volatility_filter: bool = Field(default=True)
 
 
@@ -416,17 +415,17 @@ class Order(BaseModel):
     side: OrderSide
     type: OrderType
     quantity: Decimal
-    price: Optional[Decimal] = None
-    stop_price: Optional[Decimal] = None
+    price: Decimal | None = None
+    stop_price: Decimal | None = None
     time_in_force: str = "GTC"
     status: OrderStatus = OrderStatus.NEW
-    filled_quantity: Decimal = Field(default=Decimal("0"))
-    average_fill_price: Optional[Decimal] = None
+    filled_quantity: Decimal = Field(default=Decimal(0))
+    average_fill_price: Decimal | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     # Associated decision
-    decision_id: Optional[UUID] = None
+    decision_id: UUID | None = None
 
 
 class Position(BaseModel):
@@ -439,18 +438,18 @@ class Position(BaseModel):
     entry_price: Decimal
     current_price: Decimal
     unrealized_pnl: Decimal
-    realized_pnl: Decimal = Field(default=Decimal("0"))
+    realized_pnl: Decimal = Field(default=Decimal(0))
     margin_used: Decimal
-    leverage: Decimal = Field(default=Decimal("1"))
+    leverage: Decimal = Field(default=Decimal(1))
     opened_at: datetime
     updated_at: datetime
 
     # Risk management
-    stop_loss: Optional[Decimal] = None
-    take_profit: Optional[Decimal] = None
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
 
     # Associated decision
-    decision_id: Optional[UUID] = None
+    decision_id: UUID | None = None
 
 
 # ============================================================================
@@ -523,7 +522,7 @@ class ErrorEvent(BaseEvent):
     event_type: EventType = EventType.ERROR
     error_type: str
     error_message: str
-    stack_trace: Optional[str] = None
+    stack_trace: str | None = None
     component: str
 
 
@@ -538,8 +537,8 @@ class HealthStatus(BaseModel):
     service: str
     status: str  # "healthy", "degraded", "unhealthy"
     timestamp: datetime
-    details: Dict[str, Any] = Field(default_factory=dict)
-    response_time_ms: Optional[float] = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    response_time_ms: float | None = None
 
 
 class SystemMetrics(BaseModel):
@@ -549,7 +548,7 @@ class SystemMetrics(BaseModel):
     cpu_usage: float
     memory_usage: float
     disk_usage: float
-    network_io: Dict[str, float]
+    network_io: dict[str, float]
     active_connections: int
     events_processed: int
     errors_count: int
@@ -566,8 +565,8 @@ class TradingMetrics(BaseModel):
     win_rate: Decimal
     total_pnl: Decimal
     max_drawdown: Decimal
-    sharpe_ratio: Optional[Decimal] = None
-    profit_factor: Optional[Decimal] = None
+    sharpe_ratio: Decimal | None = None
+    profit_factor: Decimal | None = None
     average_win: Decimal
     average_loss: Decimal
     largest_win: Decimal
@@ -597,7 +596,7 @@ class RedisConfig(BaseModel):
 
     host: str
     port: int = 6379
-    password: Optional[str] = None
+    password: str | None = None
     database: int = 0
     max_connections: int = 10
 
@@ -608,8 +607,8 @@ class BinanceConfig(BaseModel):
     api_key: str
     api_secret: str
     testnet: bool = True
-    base_url: Optional[str] = None
-    ws_base_url: Optional[str] = None
+    base_url: str | None = None
+    ws_base_url: str | None = None
 
 
 class EngineConfig(BaseModel):
@@ -627,7 +626,7 @@ class EngineConfig(BaseModel):
     risk_parameters: RiskParameters
 
     # Feature flags
-    features: Dict[str, bool] = Field(default_factory=dict)
+    features: dict[str, bool] = Field(default_factory=dict)
 
     # Monitoring
     metrics_enabled: bool = True
@@ -638,7 +637,8 @@ class EngineConfig(BaseModel):
 # Transform Utilities
 # ============================================================================
 
-def kline_to_candle(data: Dict[str, Any], venue: str) -> Candle:
+
+def kline_to_candle(data: dict[str, Any], venue: str) -> Candle:
     """
     Convert Binance WebSocket kline data to Candle model.
 
@@ -662,11 +662,13 @@ def kline_to_candle(data: Dict[str, Any], venue: str) -> Candle:
         quote_volume=Decimal(data["q"]),
         trades=data["n"],
         taker_buy_base_volume=Decimal(data["V"]),
-        taker_buy_quote_volume=Decimal(data["Q"])
+        taker_buy_quote_volume=Decimal(data["Q"]),
     )
 
 
-def rest_kline_to_candle(data: List[Any], symbol: str, timeframe: str, venue: str) -> Candle:
+def rest_kline_to_candle(
+    data: list[Any], symbol: str, timeframe: str, venue: str
+) -> Candle:
     """
     Convert Binance REST API kline array to Candle model.
 
@@ -697,7 +699,7 @@ def rest_kline_to_candle(data: List[Any], symbol: str, timeframe: str, venue: st
         quote_volume=Decimal(data[7]),
         trades=int(data[8]),
         taker_buy_base_volume=Decimal(data[9]),
-        taker_buy_quote_volume=Decimal(data[10])
+        taker_buy_quote_volume=Decimal(data[10]),
     )
 
 
@@ -755,7 +757,6 @@ __all__ = [
     "RedisConfig",
     "BinanceConfig",
     "EngineConfig",
-
     # Transform utilities
     "kline_to_candle",
     "rest_kline_to_candle",

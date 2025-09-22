@@ -3,23 +3,23 @@ Legacy adapter for converting between old and new data formats.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
-import logging
+from datetime import datetime
 from decimal import Decimal
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+import logging
+from typing import Any
 
 from app.engine.services.order_service import (
     OrderRequest,
+    OrderResponse,
     OrderSide,
     OrderType,
-    OrderResponse,
 )
 from app.engine.services.position_tracker import Position, PositionSide
 
 logger = logging.getLogger(__name__)
 
 
-def adapt_legacy_order_format(legacy_order: Dict[str, Any]) -> OrderRequest:
+def adapt_legacy_order_format(legacy_order: dict[str, Any]) -> OrderRequest:
     """
     Converts legacy order dictionary format to new strongly-typed OrderRequest model.
     Validates required fields and handles type conversions.
@@ -66,7 +66,7 @@ def adapt_legacy_order_format(legacy_order: Dict[str, Any]) -> OrderRequest:
     )
 
 
-def adapt_legacy_position_format(legacy_pos: Dict[str, Any]) -> Position:
+def adapt_legacy_position_format(legacy_pos: dict[str, Any]) -> Position:
     """
     Transforms legacy position representation to new Position model.
     Provides sensible defaults for missing optional fields.
@@ -125,7 +125,7 @@ def adapt_legacy_position_format(legacy_pos: Dict[str, Any]) -> Position:
     )
 
 
-def adapt_order_to_legacy_format(order: OrderRequest) -> Dict[str, Any]:
+def adapt_order_to_legacy_format(order: OrderRequest) -> dict[str, Any]:
     """
     Converts new OrderRequest to legacy dictionary format.
     Used for backwards compatibility with existing systems.
@@ -140,7 +140,7 @@ def adapt_order_to_legacy_format(order: OrderRequest) -> Dict[str, Any]:
     }
 
 
-def adapt_position_to_legacy_format(position: Position) -> Dict[str, Any]:
+def adapt_position_to_legacy_format(position: Position) -> dict[str, Any]:
     """
     Converts new Position to legacy dictionary format.
     Used for backwards compatibility with existing systems.
@@ -167,7 +167,7 @@ def adapt_position_to_legacy_format(position: Position) -> Dict[str, Any]:
     return legacy
 
 
-def adapt_order_response_to_legacy(response: OrderResponse) -> Dict[str, Any]:
+def adapt_order_response_to_legacy(response: OrderResponse) -> dict[str, Any]:
     """
     Converts OrderResponse to legacy format.
     """

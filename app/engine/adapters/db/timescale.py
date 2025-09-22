@@ -4,22 +4,18 @@ Lightweight TimescaleDB DAL helpers for trading platform.
 Provides async database operations with connection pooling and retry logic.
 """
 
-import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List, Dict, Any
-from uuid import UUID
+import logging
+from typing import Any
 
-import asyncpg
-from asyncpg import Connection
-
-from ...models import Candle, TechnicalIndicators, TimeFrame, SupplyDemandZone
+from ...models import Candle, SupplyDemandZone, TechnicalIndicators, TimeFrame
 from .connection_pool import ConnectionPool, DBConfig
 
 logger = logging.getLogger(__name__)
 
 # Global connection pool instance
-_pool: Optional[ConnectionPool] = None
+_pool: ConnectionPool | None = None
 
 
 async def initialize_pool(config: DBConfig) -> None:
@@ -122,10 +118,10 @@ async def get_candles(
     symbol: str,
     timeframe: TimeFrame,
     venue: str = "binance",
-    start_time: Optional[datetime] = None,
-    end_time: Optional[datetime] = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
     limit: int = 1000,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Query candles with symbol/timeframe filters and time range.
 
@@ -190,7 +186,7 @@ async def get_candles(
                         "taker_buy_quote_volume": row[
                             "taker_buy_quote_volume"
                         ],  # Keep as Decimal
-                    }
+                    },
                 )
 
             return list(reversed(candles))  # Return chronological order
@@ -201,7 +197,8 @@ async def get_candles(
 
 
 async def upsert_indicator(
-    indicator: TechnicalIndicators, venue: str = "binance"
+    indicator: TechnicalIndicators,
+    venue: str = "binance",
 ) -> bool:
     """
     Save calculated technical indicators.
@@ -317,7 +314,7 @@ async def upsert_zone(zone: SupplyDemandZone, venue: str = "binance") -> bool:
         return False
 
 
-async def upsert_order(order_data: Dict[str, Any], venue: str = "binance") -> bool:
+async def upsert_order(order_data: dict[str, Any], venue: str = "binance") -> bool:
     """
     Track order lifecycle with client order ID uniqueness.
 
@@ -399,8 +396,9 @@ async def upsert_order(order_data: Dict[str, Any], venue: str = "binance") -> bo
 
 
 async def get_active_positions(
-    venue: str = "binance", symbol: Optional[str] = None
-) -> List[Dict[str, Any]]:
+    venue: str = "binance",
+    symbol: str | None = None,
+) -> list[dict[str, Any]]:
     """
     Query open positions.
 
@@ -457,7 +455,7 @@ async def get_active_positions(
                             row["take_profit"] if row["take_profit"] else None
                         ),  # Keep as Decimal
                         "decision_id": row["decision_id"],
-                    }
+                    },
                 )
 
             return positions

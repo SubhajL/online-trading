@@ -3,12 +3,11 @@ Memory pool for efficient numpy array reuse.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
-import hashlib
+from dataclasses import dataclass, field
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Optional, List, Set, Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -17,13 +16,9 @@ logger = logging.getLogger(__name__)
 class PoolExhaustedError(Exception):
     """Raised when pool cannot allocate more arrays."""
 
-    pass
-
 
 class ArrayCorruptedError(Exception):
     """Raised when array integrity check fails."""
-
-    pass
 
 
 @dataclass
@@ -35,7 +30,7 @@ class PoolStats:
     allocations: int
     memory_bytes: int
     avg_hold_time: float
-    potential_leaks: List["PooledArray"] = field(default_factory=list)
+    potential_leaks: list["PooledArray"] = field(default_factory=list)
 
 
 class PooledArray:
@@ -53,7 +48,7 @@ class PooledArray:
         return hash(tuple(self._array.shape)) + hash(self._array.dtype)
 
     @property
-    def shape(self) -> Tuple:
+    def shape(self) -> tuple:
         return self._array.shape
 
     @property
@@ -65,11 +60,11 @@ class PooledArray:
 class ArrayPool:
     """Pool of reusable numpy arrays."""
 
-    shape: Tuple
+    shape: tuple
     dtype: np.dtype
     capacity: int
-    free: List[np.ndarray] = field(default_factory=list)
-    used: Set[PooledArray] = field(default_factory=set)
+    free: list[np.ndarray] = field(default_factory=list)
+    used: set[PooledArray] = field(default_factory=set)
     stats: "PoolStatsTracker" = field(init=False)
     lock: threading.Lock = field(default_factory=threading.Lock)
     max_hold_seconds: float = 300.0  # 5 minutes default
@@ -133,7 +128,7 @@ def acquire(pool: ArrayPool) -> PooledArray:
             pool.stats.misses += 1
             pool.stats.allocations += 1
             logger.debug(
-                f"Pool exhausted, allocated new array. Total allocations: {pool.stats.allocations}"
+                f"Pool exhausted, allocated new array. Total allocations: {pool.stats.allocations}",
             )
 
         # Zero the array for safety
@@ -158,7 +153,7 @@ def release(array: PooledArray) -> None:
     expected_checksum = array._compute_checksum()
     if array._checksum != expected_checksum:
         raise ArrayCorruptedError(
-            f"Array checksum mismatch: {array._checksum} != {expected_checksum}"
+            f"Array checksum mismatch: {array._checksum} != {expected_checksum}",
         )
 
     with pool.lock:
