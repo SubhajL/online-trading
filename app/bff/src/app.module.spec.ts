@@ -4,9 +4,11 @@ import { ConfigModule } from './config/config.module';
 import { HealthModule } from './health/health.module';
 import { EngineClientModule } from './engine-client/engine-client.module';
 import { RouterClientModule } from './router-client/router-client.module';
-import { MarketDataModule } from './market-data/market-data.module';
-import { TradingModule } from './trading/trading.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { DatabaseModule } from './database/database.module';
+import { AuthModule } from './auth/auth.module';
+import { BalancesModule } from './balances/balances.module';
+import { OrdersModule } from './orders/orders.module';
 
 describe('AppModule', () => {
   let module: TestingModule;
@@ -15,7 +17,7 @@ describe('AppModule', () => {
     module = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-  });
+  }, 10000);
 
   it('should be defined', () => {
     expect(module).toBeDefined();
@@ -69,19 +71,35 @@ describe('AppModule', () => {
     expect(hasRouterClientModule).toBe(true);
   });
 
-  it('should import MarketDataModule', () => {
+  it('should import DatabaseModule', () => {
     const imports = Reflect.getMetadata('imports', AppModule) || [];
-    const hasMarketDataModule = imports.some((importedModule: any) => {
-      return importedModule === MarketDataModule;
+    const hasDatabaseModule = imports.some((importedModule: any) => {
+      return importedModule === DatabaseModule;
     });
-    expect(hasMarketDataModule).toBe(true);
+    expect(hasDatabaseModule).toBe(true);
   });
 
-  it('should import TradingModule', () => {
+  it('should import AuthModule', () => {
     const imports = Reflect.getMetadata('imports', AppModule) || [];
-    const hasTradingModule = imports.some((importedModule: any) => {
-      return importedModule === TradingModule;
+    const hasAuthModule = imports.some((importedModule: any) => {
+      return importedModule === AuthModule;
     });
-    expect(hasTradingModule).toBe(true);
+    expect(hasAuthModule).toBe(true);
+  });
+
+  it('should import BalancesModule', () => {
+    const imports = Reflect.getMetadata('imports', AppModule) || [];
+    const hasBalancesModule = imports.some((importedModule: any) => {
+      return importedModule === BalancesModule;
+    });
+    expect(hasBalancesModule).toBe(true);
+  });
+
+  it('should import OrdersModule', () => {
+    const imports = Reflect.getMetadata('imports', AppModule) || [];
+    const hasOrdersModule = imports.some((importedModule: any) => {
+      return importedModule === OrdersModule;
+    });
+    expect(hasOrdersModule).toBe(true);
   });
 });

@@ -6,6 +6,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { CommandBus } from '@nestjs/cqrs';
 
 describe('TradingGateway', () => {
   let gateway: TradingGateway;
@@ -38,6 +39,10 @@ describe('TradingGateway', () => {
     }),
   };
 
+  const mockCommandBus = {
+    execute: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -59,6 +64,10 @@ describe('TradingGateway', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: CommandBus,
+          useValue: mockCommandBus,
         },
         WsJwtGuard,
       ],
@@ -134,12 +143,12 @@ describe('TradingGateway', () => {
         status: 'NEW',
       };
 
-      mockTradingService.placeOrder.mockResolvedValue(orderResponse);
+      mockCommandBus.execute.mockResolvedValue(orderResponse);
 
       const result = await gateway.placeOrder(mockClient, orderRequest);
 
       expect(result).toEqual({ success: true, data: orderResponse });
-      expect(tradingService.placeOrder).toHaveBeenCalledWith(orderRequest);
+      expect(mockCommandBus.execute).toHaveBeenCalled();
     });
 
     it('should handle order placement errors', async () => {
@@ -152,7 +161,7 @@ describe('TradingGateway', () => {
       };
 
       const error = new Error('Insufficient balance');
-      mockTradingService.placeOrder.mockRejectedValue(error);
+      mockCommandBus.execute.mockRejectedValue(error);
 
       const result = await gateway.placeOrder(mockClient, orderRequest);
 
