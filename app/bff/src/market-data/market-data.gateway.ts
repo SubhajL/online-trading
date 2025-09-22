@@ -12,7 +12,6 @@ import { Server, Socket } from 'socket.io';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
-import { WsUser } from '../auth/decorators/ws-user.decorator';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
 interface SubscriptionData {

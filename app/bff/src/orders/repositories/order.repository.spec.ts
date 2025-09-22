@@ -76,7 +76,9 @@ describe('OrderRepository', () => {
 
       await orderRepository.findAll({ venue: Venue.USD_M });
 
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.venue = :venue', { venue: Venue.USD_M });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.venue = :venue', {
+        venue: Venue.USD_M,
+      });
     });
 
     it('should filter by symbol', async () => {
@@ -85,7 +87,9 @@ describe('OrderRepository', () => {
 
       await orderRepository.findAll({ symbol: 'ETHUSDT' });
 
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.symbol = :symbol', { symbol: 'ETHUSDT' });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.symbol = :symbol', {
+        symbol: 'ETHUSDT',
+      });
     });
 
     it('should filter by status', async () => {
@@ -94,7 +98,9 @@ describe('OrderRepository', () => {
 
       await orderRepository.findAll({ status: OrderStatus.NEW });
 
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.status = :status', { status: OrderStatus.NEW });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.status = :status', {
+        status: OrderStatus.NEW,
+      });
     });
 
     it('should apply limit', async () => {
@@ -114,10 +120,9 @@ describe('OrderRepository', () => {
 
       await orderRepository.findActiveOrders();
 
-      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-        'order.status IN (:...statuses)',
-        { statuses: ['NEW', 'PARTIALLY_FILLED'] }
-      );
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith('order.status IN (:...statuses)', {
+        statuses: ['NEW', 'PARTIALLY_FILLED'],
+      });
     });
 
     it('should filter active orders by venue and symbol', async () => {
@@ -126,8 +131,12 @@ describe('OrderRepository', () => {
 
       await orderRepository.findActiveOrders({ venue: Venue.SPOT, symbol: 'BTCUSDT' });
 
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.venue = :venue', { venue: Venue.SPOT });
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.symbol = :symbol', { symbol: 'BTCUSDT' });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.venue = :venue', {
+        venue: Venue.SPOT,
+      });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.symbol = :symbol', {
+        symbol: 'BTCUSDT',
+      });
     });
   });
 

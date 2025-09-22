@@ -2,9 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { QueryBus } from '@nestjs/cqrs';
 import { MarketDataController } from './market-data.controller';
 import { GetCandlesDto } from './dto/get-candles.dto';
-import { GetCandlesQuery } from './queries/get-candles.query';
-import { GetIndicatorsQuery } from './queries/get-indicators.query';
-import { GetSmcEventsQuery } from './queries/get-smc-events.query';
 
 describe('MarketDataController', () => {
   let controller: MarketDataController;

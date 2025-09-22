@@ -14,7 +14,6 @@ import { CommandBus } from '@nestjs/cqrs';
 import { TradingService } from './trading.service';
 import { OrderRequest } from '../router-client/router-client.service';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
-import { WsUser } from '../auth/decorators/ws-user.decorator';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PlaceOrderCommand } from './commands/place-order.command';
 import { CancelOrderCommand } from './commands/cancel-order.command';

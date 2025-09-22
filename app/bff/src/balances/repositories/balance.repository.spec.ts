@@ -88,7 +88,9 @@ describe('BalanceRepository', () => {
 
       const result = await balanceRepository.findAll('USD_M');
 
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('balance.venue = :venue', { venue: 'USD_M' });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('balance.venue = :venue', {
+        venue: 'USD_M',
+      });
       expect(result).toEqual(mockBalances);
     });
   });

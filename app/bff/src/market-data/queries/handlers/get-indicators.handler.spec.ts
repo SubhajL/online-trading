@@ -1,13 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { GetIndicatorsHandler } from './get-indicators.handler';
 import { GetIndicatorsQuery } from '../get-indicators.query';
 import { Indicators } from '../../../database/entities/indicators.entity';
 
 describe('GetIndicatorsHandler', () => {
   let handler: GetIndicatorsHandler;
-  let indicatorsRepository: Repository<Indicators>;
 
   const mockIndicatorsRepository = {
     createQueryBuilder: jest.fn(),
@@ -25,7 +23,6 @@ describe('GetIndicatorsHandler', () => {
     }).compile();
 
     handler = module.get<GetIndicatorsHandler>(GetIndicatorsHandler);
-    indicatorsRepository = module.get<Repository<Indicators>>(getRepositoryToken(Indicators));
   });
 
   afterEach(() => {

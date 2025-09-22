@@ -44,6 +44,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _password, ...result } = user;
     return result;
   }

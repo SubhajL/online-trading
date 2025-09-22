@@ -1,7 +1,6 @@
 import {
   WebSocketGateway,
   SubscribeMessage,
-  MessageBody,
   ConnectedSocket,
   OnGatewayInit,
   OnGatewayConnection,
@@ -14,11 +13,6 @@ import { AlertsService } from './alerts.service';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import type { Alert } from './dto/alert.dto';
-
-interface AlertEvent {
-  type: 'new' | 'updated' | 'deleted';
-  alert: Alert;
-}
 
 @WebSocketGateway({
   namespace: '/alerts',

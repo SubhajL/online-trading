@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions, ILike, Between } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { Alert } from './entities/alert.entity';
 import {
   AlertFilters,
@@ -81,7 +81,7 @@ export class AlertsService {
   }
 
   async delete(id: string): Promise<void> {
-    const alert = await this.findOne(id);
+    await this.findOne(id);
     await this.alertRepository.delete(id);
   }
 

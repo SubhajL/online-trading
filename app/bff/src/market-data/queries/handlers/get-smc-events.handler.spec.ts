@@ -1,13 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { GetSmcEventsHandler } from './get-smc-events.handler';
 import { GetSmcEventsQuery } from '../get-smc-events.query';
 import { SmcEvent } from '../../../database/entities/smc-events.entity';
 
 describe('GetSmcEventsHandler', () => {
   let handler: GetSmcEventsHandler;
-  let smcEventRepository: Repository<SmcEvent>;
 
   const mockSmcEventRepository = {
     createQueryBuilder: jest.fn(),
@@ -25,7 +23,6 @@ describe('GetSmcEventsHandler', () => {
     }).compile();
 
     handler = module.get<GetSmcEventsHandler>(GetSmcEventsHandler);
-    smcEventRepository = module.get<Repository<SmcEvent>>(getRepositoryToken(SmcEvent));
   });
 
   afterEach(() => {

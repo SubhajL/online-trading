@@ -1,13 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { GetCandlesHandler } from './get-candles.handler';
 import { GetCandlesQuery } from '../get-candles.query';
 import { Candle } from '../../../database/entities/candle.entity';
 
 describe('GetCandlesHandler', () => {
   let handler: GetCandlesHandler;
-  let candleRepository: Repository<Candle>;
 
   const mockCandleRepository = {
     createQueryBuilder: jest.fn(),
@@ -25,7 +23,6 @@ describe('GetCandlesHandler', () => {
     }).compile();
 
     handler = module.get<GetCandlesHandler>(GetCandlesHandler);
-    candleRepository = module.get<Repository<Candle>>(getRepositoryToken(Candle));
   });
 
   afterEach(() => {
