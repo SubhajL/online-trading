@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { OrderRepository } from './order.repository';
-import { OrderEntity, OrderStatus, Venue } from '../entities/order-entity';
+import { OrderEntity } from '../entities/order-entity';
+import type { OrderStatus, Venue } from '../entities/order-entity';
 import { Repository } from 'typeorm';
 
 describe('OrderRepository', () => {
@@ -50,12 +51,26 @@ describe('OrderRepository', () => {
           symbol: 'BTCUSDT',
           side: 'BUY',
           type: 'LIMIT',
-          quantity: '0.1',
-          price: '50000',
-          status: OrderStatus.FILLED,
-          venue: Venue.SPOT,
-          executedQuantity: '0.1',
-          avgPrice: '50000',
+          quantity: 0.1,
+          price: 50000,
+          stopPrice: null,
+          status: 'FILLED' as OrderStatus,
+          venue: 'SPOT' as Venue,
+          timeInForce: 'GTC' as const,
+          filledQuantity: 0.1,
+          averageFillPrice: 50000,
+          commission: 0,
+          commissionAsset: 'USDT',
+          lastUpdateTime: new Date(),
+          decisionId: null,
+          reduceOnly: false,
+          closePosition: false,
+          postOnly: false,
+          activationPrice: null,
+          callbackRate: null,
+          workingType: null,
+          priceProtect: false,
+          rejectReason: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -74,10 +89,10 @@ describe('OrderRepository', () => {
       const mockOrders: OrderEntity[] = [];
       mockQueryBuilder.getMany.mockResolvedValue(mockOrders);
 
-      await orderRepository.findAll({ venue: Venue.USD_M });
+      await orderRepository.findAll({ venue: 'USD_M' as Venue });
 
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.venue = :venue', {
-        venue: Venue.USD_M,
+        venue: 'USD_M' as Venue,
       });
     });
 
@@ -96,10 +111,10 @@ describe('OrderRepository', () => {
       const mockOrders: OrderEntity[] = [];
       mockQueryBuilder.getMany.mockResolvedValue(mockOrders);
 
-      await orderRepository.findAll({ status: OrderStatus.NEW });
+      await orderRepository.findAll({ status: 'NEW' as OrderStatus });
 
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.status = :status', {
-        status: OrderStatus.NEW,
+        status: 'NEW' as OrderStatus,
       });
     });
 
@@ -129,10 +144,10 @@ describe('OrderRepository', () => {
       const mockOrders: OrderEntity[] = [];
       mockQueryBuilder.getMany.mockResolvedValue(mockOrders);
 
-      await orderRepository.findActiveOrders({ venue: Venue.SPOT, symbol: 'BTCUSDT' });
+      await orderRepository.findActiveOrders({ venue: 'SPOT' as Venue, symbol: 'BTCUSDT' });
 
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.venue = :venue', {
-        venue: Venue.SPOT,
+        venue: 'SPOT' as Venue,
       });
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('order.symbol = :symbol', {
         symbol: 'BTCUSDT',
@@ -142,13 +157,13 @@ describe('OrderRepository', () => {
 
   describe('findByClientOrderId', () => {
     it('should find order by client order ID', async () => {
-      const mockOrder = { clientOrderId: 'client-1', venue: Venue.SPOT } as OrderEntity;
+      const mockOrder = { clientOrderId: 'client-1', venue: 'SPOT' as Venue } as OrderEntity;
       (mockRepository.findOne as jest.Mock).mockResolvedValue(mockOrder);
 
-      const result = await orderRepository.findByClientOrderId('client-1', Venue.SPOT);
+      const result = await orderRepository.findByClientOrderId('client-1', 'SPOT' as Venue);
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { clientOrderId: 'client-1', venue: Venue.SPOT },
+        where: { clientOrderId: 'client-1', venue: 'SPOT' as Venue },
       });
       expect(result).toEqual(mockOrder);
     });
@@ -184,7 +199,7 @@ describe('OrderRepository', () => {
   describe('update', () => {
     it('should update order', async () => {
       const orderId = 'order-1';
-      const updates = { status: OrderStatus.FILLED };
+      const updates = { status: 'FILLED' as OrderStatus };
 
       await orderRepository.update(orderId, updates);
 
