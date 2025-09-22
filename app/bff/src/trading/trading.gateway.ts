@@ -7,11 +7,17 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, UseGuards } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CommandBus } from '@nestjs/cqrs';
 import { TradingService } from './trading.service';
 import { OrderRequest } from '../router-client/router-client.service';
+import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+import { PlaceOrderCommand } from './commands/place-order.command';
+import { CancelOrderCommand } from './commands/cancel-order.command';
+import { SetAutoTradingCommand } from './commands/set-auto-trading.command';
 
 interface WebSocketResponse<T = any> {
   success: boolean;
@@ -26,6 +32,7 @@ interface WebSocketResponse<T = any> {
     credentials: true,
   },
 })
+@UseGuards(WsJwtGuard)
 export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(TradingGateway.name);
   private server!: Server;
@@ -33,6 +40,7 @@ export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGat
   constructor(
     private readonly tradingService: TradingService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly commandBus: CommandBus,
   ) {}
 
   afterInit(server: Server) {
@@ -78,10 +86,15 @@ export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGat
   }
 
   handleConnection(client: Socket) {
-    this.logger.log(`Client connected to trading: ${client.id}`);
+    const user = client.data.user as JwtPayload;
+    this.logger.log(`Client connected to trading: ${client.id} (user: ${user?.username})`);
     client.join('trading');
     client.emit('connected', {
       message: 'Connected to trading gateway',
+      user: {
+        username: user?.username,
+        roles: user?.roles,
+      },
     });
   }
 
@@ -96,7 +109,9 @@ export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGat
     @MessageBody() orderRequest: OrderRequest,
   ): Promise<WebSocketResponse> {
     try {
-      const result = await this.tradingService.placeOrder(orderRequest);
+      const user = client.data.user as JwtPayload;
+      const command = new PlaceOrderCommand(user.sub, orderRequest);
+      const result = await this.commandBus.execute(command);
       return { success: true, data: result };
     } catch (error) {
       this.logger.error(`Failed to place order: ${error}`);
@@ -113,7 +128,9 @@ export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGat
     @MessageBody() data: { orderId: string; symbol: string; venue: 'SPOT' | 'USD_M' },
   ): Promise<WebSocketResponse> {
     try {
-      const result = await this.tradingService.cancelOrder(data.orderId, data.symbol, data.venue);
+      const user = client.data.user as JwtPayload;
+      const command = new CancelOrderCommand(user.sub, data.orderId, data.symbol, data.venue);
+      const result = await this.commandBus.execute(command);
       return { success: true, data: result };
     } catch (error) {
       this.logger.error(`Failed to cancel order: ${error}`);
@@ -157,7 +174,9 @@ export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGat
     @MessageBody() data: { enabled: boolean },
   ): Promise<WebSocketResponse> {
     try {
-      await this.tradingService.setAutoTrading(data.enabled);
+      const user = client.data.user as JwtPayload;
+      const command = new SetAutoTradingCommand(user.sub, data.enabled);
+      await this.commandBus.execute(command);
       return {
         success: true,
         data: {

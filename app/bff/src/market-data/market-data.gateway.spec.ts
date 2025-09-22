@@ -2,7 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MarketDataGateway } from './market-data.gateway';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
+import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 
 describe('MarketDataGateway', () => {
   let gateway: MarketDataGateway;
@@ -19,9 +21,14 @@ describe('MarketDataGateway', () => {
     get: jest.fn((key: string) => {
       const config: any = {
         'websocket.namespace': '/trading',
+        'jwt.secret': 'test-secret',
       };
       return config[key];
     }),
+  };
+
+  const mockJwtService = {
+    verifyAsync: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -38,6 +45,11 @@ describe('MarketDataGateway', () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
+        {
+          provide: JwtService,
+          useValue: mockJwtService,
+        },
+        WsJwtGuard,
       ],
     }).compile();
 
@@ -59,6 +71,13 @@ describe('MarketDataGateway', () => {
       emit: jest.fn(),
       on: jest.fn(),
       disconnect: jest.fn(),
+      data: {
+        user: {
+          sub: 'user-123',
+          username: 'testuser',
+          roles: ['operator'],
+        },
+      },
     } as any;
 
     // Set the server on the gateway
@@ -76,6 +95,10 @@ describe('MarketDataGateway', () => {
       expect(mockClient.emit).toHaveBeenCalledWith('connected', {
         message: 'Connected to market data',
         clientId: 'test-client-123',
+        user: {
+          username: 'testuser',
+          roles: ['operator'],
+        },
       });
     });
   });
