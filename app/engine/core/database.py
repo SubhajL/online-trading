@@ -52,7 +52,7 @@ class DatabaseConfig:
     retry_delay: float = 0.1
     health_check_interval: int = 30
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration."""
         self._validate_urls()
         self._validate_pool_settings()
@@ -84,7 +84,7 @@ class DatabaseConfig:
 class ConnectionPool:
     """Manages connection pools for PostgreSQL and Redis."""
 
-    def __init__(self, config: DatabaseConfig):
+    def __init__(self, config: DatabaseConfig) -> None:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self._postgres_pool: asyncpg.Pool | None = None
@@ -191,7 +191,7 @@ class ConnectionPool:
 class TransactionContext:
     """Context manager for PostgreSQL transactions with ACID guarantees."""
 
-    def __init__(self, connection: asyncpg.Connection):
+    def __init__(self, connection: asyncpg.Connection) -> None:
         self.connection = connection
         self.transaction: asyncpg.Transaction | None = None
         self.logger = logging.getLogger(__name__)
@@ -346,7 +346,7 @@ class DatabaseManager:
     unified interface for all database operations.
     """
 
-    def __init__(self, config: DatabaseConfig):
+    def __init__(self, config: DatabaseConfig) -> None:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self._pool = ConnectionPool(config)
@@ -521,7 +521,7 @@ class DatabaseManager:
             self.logger.error(f"Database shutdown error: {e}")
             raise
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on garbage collection."""
         if self._initialized and self._pool:
             # Log warning about ungraceful shutdown

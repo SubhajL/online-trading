@@ -118,7 +118,7 @@ class EventBus:
         Args:
             subscriber_id: Unique identifier for the subscriber
             handler: Function to handle events
-            event_types: List of event types to subscribe to (None for all)
+            event_types: List[Any] of event types to subscribe to (None for all)
             priority: Priority level (higher = processed first)
             max_retries: Maximum retry attempts on failure
 
@@ -208,7 +208,7 @@ class EventBus:
         Publish multiple events.
 
         Args:
-            events: List of events to publish
+            events: List[Any] of events to publish
 
         Returns:
             Number of events successfully queued
@@ -336,12 +336,12 @@ class EventBus:
                     subscription.subscription_id,
                 )
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         """Async context manager entry."""
         await self.start()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
         await self.stop()
 

@@ -67,7 +67,7 @@ class FakeClock(Clock):
     async def sleep(self, seconds: float) -> None:
         """Fake sleep that advances time without waiting."""
         wake_time = self._current_time + timedelta(seconds=seconds)
-        future = asyncio.Future()
+        future: asyncio.Future[Any] = asyncio.Future[Any]()
         self._sleepers.append((wake_time, future))
 
         # If we're already past the wake time, wake immediately

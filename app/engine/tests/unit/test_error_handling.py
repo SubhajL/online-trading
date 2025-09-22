@@ -33,7 +33,7 @@ from app.engine.core.error_handling import (
 
 
 class TestErrorContext:
-    def test_error_context_defaults(self):
+    def test_error_context_defaults(self) -> None:
         context = ErrorContext()
 
         assert context.error_id is not None
@@ -47,7 +47,7 @@ class TestErrorContext:
         assert context.retry_count == 0
         assert context.max_retries == 3
 
-    def test_error_context_custom_values(self):
+    def test_error_context_custom_values(self) -> None:
         context = ErrorContext(
             category=ErrorCategory.SUBSCRIPTION,
             severity=ErrorSeverity.HIGH,
@@ -70,7 +70,7 @@ class TestErrorContext:
 
 
 class TestEventBusErrors:
-    def test_eventbus_error_basic(self):
+    def test_eventbus_error_basic(self) -> None:
         error = EventBusError("Test error")
 
         assert error.message == "Test error"
@@ -78,7 +78,7 @@ class TestEventBusErrors:
         assert error.cause is None
         assert isinstance(error.timestamp, datetime)
 
-    def test_eventbus_error_with_context_and_cause(self):
+    def test_eventbus_error_with_context_and_cause(self) -> None:
         context = ErrorContext(component="test")
         cause = ValueError("Original error")
 
@@ -88,13 +88,13 @@ class TestEventBusErrors:
         assert error.context is context
         assert error.cause is cause
 
-    def test_subscription_error_sets_category_and_metadata(self):
+    def test_subscription_error_sets_category_and_metadata(self) -> None:
         error = SubscriptionError("Sub error", subscription_id="sub-123")
 
         assert error.context.category == ErrorCategory.SUBSCRIPTION
         assert error.context.metadata["subscription_id"] == "sub-123"
 
-    def test_processing_error_sets_category_and_event_id(self):
+    def test_processing_error_sets_category_and_event_id(self) -> None:
         from uuid import uuid4
 
         event_id = uuid4()
@@ -104,26 +104,26 @@ class TestEventBusErrors:
         assert error.context.category == ErrorCategory.PROCESSING
         assert error.context.metadata["event_id"] == str(event_id)
 
-    def test_queue_error_sets_category_and_queue_size(self):
+    def test_queue_error_sets_category_and_queue_size(self) -> None:
         error = QueueError("Queue error", queue_size=100)
 
         assert error.context.category == ErrorCategory.QUEUE
         assert error.context.metadata["queue_size"] == 100
 
-    def test_configuration_error_sets_high_severity(self):
+    def test_configuration_error_sets_high_severity(self) -> None:
         error = ConfigurationError("Config error", config_key="test_key")
 
         assert error.context.category == ErrorCategory.CONFIGURATION
         assert error.context.severity == ErrorSeverity.HIGH
         assert error.context.metadata["config_key"] == "test_key"
 
-    def test_timeout_error_sets_timeout_metadata(self):
+    def test_timeout_error_sets_timeout_metadata(self) -> None:
         error = TimeoutError("Timeout error", timeout_seconds=5.0)
 
         assert error.context.category == ErrorCategory.TIMEOUT
         assert error.context.metadata["timeout_seconds"] == 5.0
 
-    def test_circuit_breaker_error_sets_high_severity(self):
+    def test_circuit_breaker_error_sets_high_severity(self) -> None:
         error = CircuitBreakerError("Circuit breaker open")
 
         assert error.context.category == ErrorCategory.CIRCUIT_BREAKER
@@ -132,7 +132,7 @@ class TestEventBusErrors:
 
 class TestLoggingErrorHandler:
     @pytest.mark.asyncio
-    async def test_logging_handler_logs_error_with_structured_data(self):
+    async def test_logging_handler_logs_error_with_structured_data(self) -> None:
         mock_logger = Mock()
         handler = LoggingErrorHandler(mock_logger)
 
@@ -148,7 +148,7 @@ class TestLoggingErrorHandler:
         assert "EventBus warning" in call_args[0][0]
 
     @pytest.mark.asyncio
-    async def test_logging_handler_logs_critical_error(self):
+    async def test_logging_handler_logs_critical_error(self) -> None:
         mock_logger = Mock()
         handler = LoggingErrorHandler(mock_logger)
 
@@ -160,7 +160,7 @@ class TestLoggingErrorHandler:
         mock_logger.critical.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_logging_handler_logs_error_with_cause(self):
+    async def test_logging_handler_logs_error_with_cause(self) -> None:
         mock_logger = Mock()
         handler = LoggingErrorHandler(mock_logger)
 
@@ -176,7 +176,7 @@ class TestLoggingErrorHandler:
         assert log_data["cause"] == str(cause)
 
     @pytest.mark.asyncio
-    async def test_logging_handler_handles_logging_failure(self):
+    async def test_logging_handler_handles_logging_failure(self) -> None:
         mock_logger = Mock()
         mock_logger.warning.side_effect = Exception("Logging failed")
         handler = LoggingErrorHandler(mock_logger)
@@ -192,7 +192,7 @@ class TestLoggingErrorHandler:
 
 class TestMetricsErrorHandler:
     @pytest.mark.asyncio
-    async def test_metrics_handler_tracks_error_counts(self):
+    async def test_metrics_handler_tracks_error_counts(self) -> None:
         handler = MetricsErrorHandler()
 
         error1 = EventBusError("Error 1")
@@ -216,7 +216,7 @@ class TestMetricsErrorHandler:
         assert len(stats.recent_errors) == 2
 
     @pytest.mark.asyncio
-    async def test_metrics_handler_limits_recent_errors(self):
+    async def test_metrics_handler_limits_recent_errors(self) -> None:
         handler = MetricsErrorHandler()
 
         # Add more than 100 errors
@@ -230,7 +230,7 @@ class TestMetricsErrorHandler:
         assert len(stats.recent_errors) == 100  # Should be limited
 
     @pytest.mark.asyncio
-    async def test_metrics_handler_calculates_error_rate(self):
+    async def test_metrics_handler_calculates_error_rate(self) -> None:
         handler = MetricsErrorHandler()
 
         # Add some errors
@@ -243,7 +243,7 @@ class TestMetricsErrorHandler:
         assert stats.error_rate_per_minute == 5
 
     @pytest.mark.asyncio
-    async def test_metrics_handler_reset_stats(self):
+    async def test_metrics_handler_reset_stats(self) -> None:
         handler = MetricsErrorHandler()
 
         error = EventBusError("Test error")
@@ -259,7 +259,7 @@ class TestMetricsErrorHandler:
 
 class TestRetryableErrorHandler:
     @pytest.mark.asyncio
-    async def test_retryable_handler_should_retry_processing_error(self):
+    async def test_retryable_handler_should_retry_processing_error(self) -> None:
         handler = RetryableErrorHandler(max_retries=3, base_delay=0.01)
 
         error = ProcessingError("Temporary error")
@@ -271,7 +271,7 @@ class TestRetryableErrorHandler:
         assert error.context.retry_count == 2
 
     @pytest.mark.asyncio
-    async def test_retryable_handler_should_not_retry_config_error(self):
+    async def test_retryable_handler_should_not_retry_config_error(self) -> None:
         handler = RetryableErrorHandler()
 
         error = ConfigurationError("Config error")
@@ -281,7 +281,7 @@ class TestRetryableErrorHandler:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_retryable_handler_should_not_retry_max_retries_exceeded(self):
+    async def test_retryable_handler_should_not_retry_max_retries_exceeded(self) -> None:
         handler = RetryableErrorHandler(max_retries=2)
 
         error = ProcessingError("Error")
@@ -292,7 +292,7 @@ class TestRetryableErrorHandler:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_retryable_handler_exponential_backoff(self):
+    async def test_retryable_handler_exponential_backoff(self) -> None:
         handler = RetryableErrorHandler(base_delay=0.01, backoff_factor=2.0)
 
         error = ProcessingError("Error")
@@ -310,7 +310,7 @@ class TestRetryableErrorHandler:
 
 class TestCompositeErrorHandler:
     @pytest.mark.asyncio
-    async def test_composite_handler_calls_all_handlers(self):
+    async def test_composite_handler_calls_all_handlers(self) -> None:
         handler1 = Mock(spec=LoggingErrorHandler)
         handler1.handle_error = AsyncMock(return_value=True)
 
@@ -327,7 +327,7 @@ class TestCompositeErrorHandler:
         handler2.handle_error.assert_called_once_with(error)
 
     @pytest.mark.asyncio
-    async def test_composite_handler_returns_true_if_any_succeeds(self):
+    async def test_composite_handler_returns_true_if_any_succeeds(self) -> None:
         handler1 = Mock()
         handler1.handle_error = AsyncMock(return_value=False)
 
@@ -342,7 +342,7 @@ class TestCompositeErrorHandler:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_composite_handler_handles_handler_exceptions(self):
+    async def test_composite_handler_handles_handler_exceptions(self) -> None:
         handler1 = Mock()
         handler1.handle_error = AsyncMock(side_effect=Exception("Handler failed"))
 
@@ -359,7 +359,7 @@ class TestCompositeErrorHandler:
 
 class TestErrorManager:
     @pytest.mark.asyncio
-    async def test_error_manager_handles_eventbus_error(self):
+    async def test_error_manager_handles_eventbus_error(self) -> None:
         manager = ErrorManager()
 
         error = EventBusError("Test error")
@@ -368,7 +368,7 @@ class TestErrorManager:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_error_manager_converts_regular_exception(self):
+    async def test_error_manager_converts_regular_exception(self) -> None:
         manager = ErrorManager()
 
         error = ValueError("Regular exception")
@@ -379,7 +379,7 @@ class TestErrorManager:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_error_manager_add_remove_handlers(self):
+    async def test_error_manager_add_remove_handlers(self) -> None:
         manager = ErrorManager()
         initial_count = len(manager._handlers)
 
@@ -393,7 +393,7 @@ class TestErrorManager:
         assert len(manager._handlers) == initial_count
 
     @pytest.mark.asyncio
-    async def test_error_manager_get_error_stats(self):
+    async def test_error_manager_get_error_stats(self) -> None:
         manager = ErrorManager()
 
         error = EventBusError("Test error")
@@ -406,14 +406,14 @@ class TestErrorManager:
 
 class TestConvenienceFunctions:
     @pytest.mark.asyncio
-    async def test_handle_error_function_uses_global_manager(self):
+    async def test_handle_error_function_uses_global_manager(self) -> None:
         error = EventBusError("Test error")
 
         result = await handle_error(error)
 
         assert result is True
 
-    def test_create_error_context_function(self):
+    def test_create_error_context_function(self) -> None:
         context = create_error_context(
             category=ErrorCategory.SUBSCRIPTION,
             severity=ErrorSeverity.HIGH,
@@ -431,7 +431,7 @@ class TestConvenienceFunctions:
 
 class TestErrorBoundary:
     @pytest.mark.asyncio
-    async def test_error_boundary_async_context_manager(self):
+    async def test_error_boundary_async_context_manager(self) -> None:
         with patch("app.engine.core.error_handling.handle_error") as mock_handle:
             mock_handle.return_value = True
 
@@ -442,12 +442,12 @@ class TestErrorBoundary:
             mock_handle.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_error_boundary_async_decorator(self):
+    async def test_error_boundary_async_decorator(self) -> None:
         with patch("app.engine.core.error_handling.handle_error") as mock_handle:
             mock_handle.return_value = True
 
             @error_boundary("test_component", "test_operation")
-            async def failing_function():
+            async def failing_function() -> None:
                 raise ValueError("Test error")
 
             with pytest.raises(ValueError):
@@ -456,7 +456,7 @@ class TestErrorBoundary:
             mock_handle.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_error_boundary_suppresses_exception_when_reraise_false(self):
+    async def test_error_boundary_suppresses_exception_when_reraise_false(self) -> None:
         with patch("app.engine.core.error_handling.handle_error") as mock_handle:
             mock_handle.return_value = True
 
@@ -466,7 +466,7 @@ class TestErrorBoundary:
             # Should not raise exception
             mock_handle.assert_called_once()
 
-    def test_error_boundary_sync_context_manager(self):
+    def test_error_boundary_sync_context_manager(self) -> None:
         with patch("app.engine.core.error_handling.logger") as mock_logger:
             with pytest.raises(ValueError):
                 with error_boundary("test_component", "test_operation"):
@@ -475,11 +475,11 @@ class TestErrorBoundary:
             # Should log the error synchronously
             mock_logger.error.assert_called()
 
-    def test_error_boundary_sync_decorator(self):
+    def test_error_boundary_sync_decorator(self) -> None:
         with patch("app.engine.core.error_handling.logger") as mock_logger:
 
             @error_boundary("test_component", "test_operation")
-            def failing_function():
+            def failing_function() -> None:
                 raise ValueError("Test error")
 
             with pytest.raises(ValueError):
@@ -490,7 +490,7 @@ class TestErrorBoundary:
 
 
 class TestErrorStats:
-    def test_error_stats_defaults(self):
+    def test_error_stats_defaults(self) -> None:
         stats = ErrorStats()
 
         assert stats.total_errors == 0

@@ -6,6 +6,7 @@ Implements various pivot detection algorithms with configurable sensitivity.
 """
 
 from collections import deque
+from decimal import Decimal
 from datetime import datetime
 import logging
 
@@ -60,7 +61,7 @@ class PivotDetector:
             candle: New candle to process
 
         Returns:
-            List of newly confirmed pivot points
+            list[Any] of newly confirmed pivot points
         """
         self._candle_buffer.append(candle)
         new_pivots = []
@@ -222,7 +223,7 @@ class PivotDetector:
                 self._candle_buffer,
             )
             volume_ratio = (
-                float(pivot_candle.volume / volume_avg) if volume_avg > 0 else 1
+                float(pivot_candle.volume) / float(volume_avg) if volume_avg > 0 else 1
             )
             volume_strength = min(int(volume_ratio), 5)  # Scale to 0-5
 
@@ -243,7 +244,7 @@ class PivotDetector:
             count: Number of recent pivots to return
 
         Returns:
-            List of recent PivotPoint objects
+            list[Any] of recent PivotPoint objects
         """
         return self._confirmed_pivots[-count:] if self._confirmed_pivots else []
 
@@ -260,7 +261,7 @@ class PivotDetector:
             end_time: End of time range
 
         Returns:
-            List of PivotPoint objects in the time range
+            list[Any] of PivotPoint objects in the time range
         """
         return [
             pivot
@@ -276,7 +277,7 @@ class PivotDetector:
             count: Number of swing highs to return
 
         Returns:
-            List of swing high PivotPoint objects
+            list[Any] of swing high PivotPoint objects
         """
         highs = [pivot for pivot in self._confirmed_pivots if pivot.is_high]
         return highs[-count:] if highs else []
@@ -289,7 +290,7 @@ class PivotDetector:
             count: Number of swing lows to return
 
         Returns:
-            List of swing low PivotPoint objects
+            list[Any] of swing low PivotPoint objects
         """
         lows = [pivot for pivot in self._confirmed_pivots if not pivot.is_high]
         return lows[-count:] if lows else []
@@ -386,7 +387,7 @@ class PivotDetector:
 
         return None
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """Clear all stored pivot history"""
         self._confirmed_pivots.clear()
         self._candle_buffer.clear()

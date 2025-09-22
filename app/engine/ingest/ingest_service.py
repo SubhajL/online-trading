@@ -8,6 +8,7 @@ Manages WebSocket connections and REST API calls.
 import asyncio
 from datetime import datetime
 import logging
+from datetime import datetime, timedelta
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
@@ -69,7 +70,7 @@ class IngestService:
             f"and {len(timeframes)} timeframes",
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the ingestion service"""
         if self._running:
             logger.warning("IngestService is already running")
@@ -97,7 +98,7 @@ class IngestService:
             await self.stop()
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the ingestion service"""
         if not self._running:
             return
@@ -120,7 +121,7 @@ class IngestService:
 
         logger.info("IngestService stopped")
 
-    async def _setup_realtime_streams(self):
+    async def _setup_realtime_streams(self) -> None:
         """Setup real-time WebSocket streams"""
         try:
             # Subscribe to kline streams for all symbols and timeframes
@@ -135,7 +136,7 @@ class IngestService:
             logger.error(f"Error setting up real-time streams: {e}")
             raise
 
-    async def _start_backfill(self):
+    async def _start_backfill(self) -> None:
         """Start historical data backfill for all symbols and timeframes"""
         try:
             for symbol in self.symbols:
@@ -151,7 +152,7 @@ class IngestService:
             logger.error(f"Error starting backfill: {e}")
             raise
 
-    async def _backfill_symbol_timeframe(self, symbol: str, timeframe: TimeFrame):
+    async def _backfill_symbol_timeframe(self, symbol: str, timeframe: TimeFrame) -> None:
         """Backfill historical data for a specific symbol and timeframe"""
         try:
             logger.info(f"Starting backfill for {symbol} {timeframe.value}")
@@ -192,7 +193,7 @@ class IngestService:
         except Exception as e:
             logger.error(f"Error backfilling {symbol} {timeframe.value}: {e}")
 
-    async def add_symbol(self, symbol: str):
+    async def add_symbol(self, symbol: str) -> None:
         """Add a new symbol to ingestion"""
         if symbol in self.symbols:
             logger.warning(f"Symbol {symbol} already being tracked")
@@ -215,7 +216,7 @@ class IngestService:
 
         logger.info(f"Added symbol {symbol} to ingestion")
 
-    async def remove_symbol(self, symbol: str):
+    async def remove_symbol(self, symbol: str) -> None:
         """Remove a symbol from ingestion"""
         if symbol not in self.symbols:
             logger.warning(f"Symbol {symbol} not being tracked")
@@ -244,7 +245,7 @@ class IngestService:
 
         logger.info(f"Removed symbol {symbol} from ingestion")
 
-    async def add_timeframe(self, timeframe: TimeFrame):
+    async def add_timeframe(self, timeframe: TimeFrame) -> None:
         """Add a new timeframe to ingestion"""
         if timeframe in self.timeframes:
             logger.warning(f"Timeframe {timeframe.value} already being tracked")

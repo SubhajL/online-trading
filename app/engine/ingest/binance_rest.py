@@ -69,30 +69,30 @@ class BinanceRestClient:
 
         logger.info(f"BinanceRestClient initialized (testnet: {testnet})")
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
         """Async context manager entry"""
         await self.start()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit"""
         await self.stop()
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the REST client"""
         if self._session is None:
             timeout = aiohttp.ClientTimeout(total=self.request_timeout)
             self._session = aiohttp.ClientSession(timeout=timeout)
         logger.info("Binance REST client started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the REST client"""
         if self._session:
             await self._session.close()
             self._session = None
         logger.info("Binance REST client stopped")
 
-    async def _rate_limit_check(self):
+    async def _rate_limit_check(self) -> None:
         """Check and enforce rate limits"""
         async with self._rate_limit_lock:
             now = time.time()
@@ -237,7 +237,7 @@ class BinanceRestClient:
             limit: Number of klines to return (max 1000)
 
         Returns:
-            List of Candle objects
+            List[Any] of Candle objects
         """
         params = {
             "symbol": symbol,
@@ -288,7 +288,7 @@ class BinanceRestClient:
             days_back: Number of days to go back
 
         Returns:
-            List of Candle objects
+            List[Any] of Candle objects
         """
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(days=days_back)

@@ -67,13 +67,13 @@ class ZoneIdentifier:
         Identify supply and demand zones based on pivot points
 
         Args:
-            pivots: List of recent pivot points
+            pivots: list[Any] of recent pivot points
             recent_candles: Recent candle data for volume analysis
 
         Returns:
-            List of newly identified zones
+            list[Any] of newly identified zones
         """
-        new_zones = []
+        new_zones: list[SupplyDemandZone] = []
 
         try:
             # Group pivots by type
@@ -106,12 +106,12 @@ class ZoneIdentifier:
         Identify order blocks from candle patterns
 
         Args:
-            candles: List of recent candles
+            candles: list[Any] of recent candles
 
         Returns:
-            List of identified order blocks
+            list[Any] of identified order blocks
         """
-        new_zones = []
+        new_zones: list[SupplyDemandZone] = []
 
         try:
             if len(candles) < 3:
@@ -152,12 +152,12 @@ class ZoneIdentifier:
         Identify Fair Value Gaps (FVG) in price action
 
         Args:
-            candles: List of recent candles
+            candles: list[Any] of recent candles
 
         Returns:
-            List of identified FVGs
+            list[Any] of identified FVGs
         """
-        new_zones = []
+        new_zones: list[SupplyDemandZone] = []
 
         try:
             if len(candles) < 3:
@@ -463,7 +463,7 @@ class ZoneIdentifier:
                     interacting_volumes.append(candle.volume)
 
             return (
-                sum(interacting_volumes) / len(interacting_volumes)
+                Decimal(sum(interacting_volumes) / len(interacting_volumes))
                 if interacting_volumes
                 else Decimal(0)
             )
@@ -493,7 +493,7 @@ class ZoneIdentifier:
 
         return False
 
-    def _add_zone(self, zone: SupplyDemandZone):
+    def _add_zone(self, zone: SupplyDemandZone) -> None:
         """Add a zone to the appropriate collection"""
         zones = self._zones[zone.zone_type]
         zones.append(zone)

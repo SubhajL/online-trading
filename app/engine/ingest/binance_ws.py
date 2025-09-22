@@ -11,7 +11,6 @@ from datetime import datetime
 from decimal import Decimal
 import json
 import logging
-from typing import Any
 from urllib.parse import urljoin
 
 import websockets
@@ -75,7 +74,7 @@ class BinanceWebSocketClient:
             f"BinanceWebSocketClient initialized with base_url: {self.base_url}",
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the WebSocket client"""
         if self._running:
             logger.warning("WebSocket client is already running")
@@ -85,7 +84,7 @@ class BinanceWebSocketClient:
         self._reconnect_task = asyncio.create_task(self._connection_manager())
         logger.info("WebSocket client started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the WebSocket client"""
         if not self._running:
             return
@@ -109,8 +108,8 @@ class BinanceWebSocketClient:
         Subscribe to kline/candlestick streams
 
         Args:
-            symbols: List of trading symbols (e.g., ["BTCUSDT", "ETHUSDT"])
-            timeframes: List of timeframes to subscribe to
+            symbols: list[Any] of trading symbols (e.g., ["BTCUSDT", "ETHUSDT"])
+            timeframes: list[Any] of timeframes to subscribe to
         """
         streams = []
         for symbol in symbols:
@@ -134,7 +133,7 @@ class BinanceWebSocketClient:
         Subscribe to 24hr ticker streams
 
         Args:
-            symbols: List of trading symbols
+            symbols: list[Any] of trading symbols
         """
         streams = [f"{symbol.lower()}@ticker" for symbol in symbols]
         self._subscriptions.update(streams)
@@ -145,7 +144,7 @@ class BinanceWebSocketClient:
 
         logger.info(f"Subscribed to ticker for {len(symbols)} symbols")
 
-    async def subscribe_all_tickers(self):
+    async def subscribe_all_tickers(self) -> None:
         """Subscribe to all market tickers stream"""
         stream = "!ticker@arr"
         self._subscriptions.add(stream)
@@ -165,7 +164,7 @@ class BinanceWebSocketClient:
         Subscribe to partial book depth streams
 
         Args:
-            symbols: List of trading symbols
+            symbols: list[Any] of trading symbols
             levels: Number of price levels (5, 10, or 20)
             update_speed: Update speed (1000ms or 100ms)
         """
@@ -185,7 +184,7 @@ class BinanceWebSocketClient:
         Subscribe to trade streams
 
         Args:
-            symbols: List of trading symbols
+            symbols: list[Any] of trading symbols
         """
         streams = [f"{symbol.lower()}@trade" for symbol in symbols]
         self._subscriptions.update(streams)
@@ -201,7 +200,7 @@ class BinanceWebSocketClient:
         Unsubscribe from streams
 
         Args:
-            streams: List of stream names to unsubscribe from
+            streams: list[Any] of stream names to unsubscribe from
         """
         self._subscriptions.difference_update(streams)
 
@@ -210,7 +209,7 @@ class BinanceWebSocketClient:
 
         logger.info(f"Unsubscribed from {len(streams)} streams")
 
-    async def _connection_manager(self):
+    async def _connection_manager(self) -> None:
         """Manage WebSocket connection with automatic reconnection"""
         while self._running:
             try:
@@ -222,7 +221,7 @@ class BinanceWebSocketClient:
                 logger.info(f"Reconnecting in {self.reconnect_interval} seconds...")
                 await asyncio.sleep(self.reconnect_interval)
 
-    async def _connect_and_listen(self):
+    async def _connect_and_listen(self) -> None:
         """Connect to WebSocket and listen for messages"""
         try:
             # Build WebSocket URL
@@ -263,7 +262,7 @@ class BinanceWebSocketClient:
             logger.error(f"WebSocket connection error: {e}")
             raise
 
-    async def _handle_message(self, message: str):
+    async def _handle_message(self, message: str) -> None:
         """Handle incoming WebSocket message"""
         try:
             data = json.loads(message)
@@ -418,7 +417,7 @@ class BinanceWebSocketClient:
         except Exception as e:
             logger.error(f"Error unsubscribing from streams: {e}")
 
-    async def _resubscribe_all(self):
+    async def _resubscribe_all(self) -> None:
         """Resubscribe to all streams after reconnection"""
         if self._subscriptions:
             await self._subscribe_streams(list(self._subscriptions))

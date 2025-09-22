@@ -6,7 +6,6 @@ Separates event processing logic from subscription management.
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from app.engine.core.subscription_manager import EventSubscription
@@ -106,7 +105,7 @@ class EventProcessor:
 
         Args:
             event: The event to process
-            subscriptions: List of subscriptions to dispatch to
+            subscriptions: list[Any] of subscriptions to dispatch to
 
         Returns:
             Processing result with success/failure counts and errors

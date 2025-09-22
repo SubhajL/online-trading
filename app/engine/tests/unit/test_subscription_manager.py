@@ -23,14 +23,14 @@ class TestEvent(BaseEvent):
 
 
 class TestSubscriptionManager:
-    def test_subscription_config_defaults(self):
+    def test_subscription_config_defaults(self) -> None:
         config = SubscriptionConfig()
 
         assert config.max_subscriptions == 1000
         assert config.default_priority == 0
         assert config.default_max_retries == 3
 
-    def test_subscription_config_custom_values(self):
+    def test_subscription_config_custom_values(self) -> None:
         config = SubscriptionConfig(
             max_subscriptions=500, default_priority=5, default_max_retries=2
         )
@@ -40,7 +40,7 @@ class TestSubscriptionManager:
         assert config.default_max_retries == 2
 
     @pytest.mark.asyncio
-    async def test_subscription_manager_initialization(self):
+    async def test_subscription_manager_initialization(self) -> None:
         config = SubscriptionConfig()
         manager = SubscriptionManager(config)
 
@@ -48,7 +48,7 @@ class TestSubscriptionManager:
         assert await manager.get_active_subscription_count() == 0
 
     @pytest.mark.asyncio
-    async def test_add_specific_event_subscription(self):
+    async def test_add_specific_event_subscription(self) -> None:
         manager = SubscriptionManager()
 
         async def handler(event: BaseEvent) -> None:
@@ -65,7 +65,7 @@ class TestSubscriptionManager:
         assert await manager.get_active_subscription_count() == 1
 
     @pytest.mark.asyncio
-    async def test_add_all_events_subscription(self):
+    async def test_add_all_events_subscription(self) -> None:
         manager = SubscriptionManager()
 
         async def handler(event: BaseEvent) -> None:
@@ -81,7 +81,7 @@ class TestSubscriptionManager:
         assert await manager.get_subscription_count() == 1
 
     @pytest.mark.asyncio
-    async def test_remove_subscription_success(self):
+    async def test_remove_subscription_success(self) -> None:
         manager = SubscriptionManager()
 
         async def handler(event: BaseEvent) -> None:
@@ -99,7 +99,7 @@ class TestSubscriptionManager:
         assert await manager.get_subscription_count() == 0
 
     @pytest.mark.asyncio
-    async def test_remove_nonexistent_subscription(self):
+    async def test_remove_nonexistent_subscription(self) -> None:
         manager = SubscriptionManager()
 
         removed = await manager.remove_subscription("nonexistent_id")
@@ -107,7 +107,7 @@ class TestSubscriptionManager:
         assert removed is False
 
     @pytest.mark.asyncio
-    async def test_get_subscriptions_for_event_type(self):
+    async def test_get_subscriptions_for_event_type(self) -> None:
         manager = SubscriptionManager()
 
         async def handler1(event: BaseEvent) -> None:
@@ -143,7 +143,7 @@ class TestSubscriptionManager:
         assert order_subscriptions[0].subscriber_id == "subscriber2"
 
     @pytest.mark.asyncio
-    async def test_get_subscriptions_includes_all_events_subscribers(self):
+    async def test_get_subscriptions_includes_all_events_subscribers(self) -> None:
         manager = SubscriptionManager()
 
         async def specific_handler(event: BaseEvent) -> None:
@@ -175,7 +175,7 @@ class TestSubscriptionManager:
         assert "all_subscriber" in subscriber_ids
 
     @pytest.mark.asyncio
-    async def test_subscriptions_sorted_by_priority(self):
+    async def test_subscriptions_sorted_by_priority(self) -> None:
         manager = SubscriptionManager()
 
         async def handler1(event: BaseEvent) -> None:
@@ -220,7 +220,7 @@ class TestSubscriptionManager:
         assert subscriptions[2].subscriber_id == "low_priority"
 
     @pytest.mark.asyncio
-    async def test_max_subscriptions_limit_enforced(self):
+    async def test_max_subscriptions_limit_enforced(self) -> None:
         config = SubscriptionConfig(max_subscriptions=2)
         manager = SubscriptionManager(config)
 
@@ -251,7 +251,7 @@ class TestSubscriptionManager:
         assert "maximum number of subscriptions" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_subscription_retry_tracking(self):
+    async def test_subscription_retry_tracking(self) -> None:
         manager = SubscriptionManager()
 
         async def handler(event: BaseEvent) -> None:
@@ -287,7 +287,7 @@ class TestSubscriptionManager:
         assert subscription.is_active is True
 
     @pytest.mark.asyncio
-    async def test_subscription_disabled_after_max_retries(self):
+    async def test_subscription_disabled_after_max_retries(self) -> None:
         manager = SubscriptionManager()
 
         async def handler(event: BaseEvent) -> None:
@@ -313,7 +313,7 @@ class TestSubscriptionManager:
         assert await manager.get_active_subscription_count() == 0
 
     @pytest.mark.asyncio
-    async def test_subscription_success_resets_retry_count(self):
+    async def test_subscription_success_resets_retry_count(self) -> None:
         manager = SubscriptionManager()
 
         async def handler(event: BaseEvent) -> None:
@@ -338,7 +338,7 @@ class TestSubscriptionManager:
         assert subscription.last_error is None
 
     @pytest.mark.asyncio
-    async def test_concurrent_subscription_operations_thread_safe(self):
+    async def test_concurrent_subscription_operations_thread_safe(self) -> None:
         import asyncio
 
         manager = SubscriptionManager()

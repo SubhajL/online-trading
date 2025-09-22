@@ -27,7 +27,7 @@ from app.engine.core.security import (
 
 class TestSecurityIntegration:
     @pytest.mark.asyncio
-    async def test_eventbus_with_secure_configuration(self):
+    async def test_eventbus_with_secure_configuration(self) -> None:
         """Test EventBus creation with secure configuration."""
         factory = EventBusFactory()
 
@@ -49,7 +49,7 @@ class TestSecurityIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_eventbus_secure_config_validation_in_production(self):
+    async def test_eventbus_secure_config_validation_in_production(self) -> None:
         """Test that production mode validates required security variables."""
         factory = EventBusFactory()
 
@@ -69,7 +69,7 @@ class TestSecurityIntegration:
             )
 
     @pytest.mark.asyncio
-    async def test_secure_config_with_encrypted_secrets(self):
+    async def test_secure_config_with_encrypted_secrets(self) -> None:
         """Test secure configuration with encrypted secrets."""
         secure_config = SecureConfig(SecurityLevel.DEVELOPMENT, enable_encryption=True)
 
@@ -84,7 +84,7 @@ class TestSecurityIntegration:
         raw_value = os.environ.get("API_KEY")
         assert raw_value.startswith("enc:")
 
-    def test_environment_validation_with_custom_rules(self):
+    def test_environment_validation_with_custom_rules(self) -> None:
         """Test custom validation rules for application-specific variables."""
         validator = EnvironmentValidator(SecurityLevel.PRODUCTION)
 
@@ -153,7 +153,7 @@ class TestSecurityIntegration:
             ]
             assert len(risk_failures) > 0
 
-    def test_security_guard_monitors_configuration(self):
+    def test_security_guard_monitors_configuration(self) -> None:
         """Test security guard monitoring and reporting."""
         secure_config = SecureConfig(SecurityLevel.PRODUCTION)
         guard = SecurityGuard(secure_config)
@@ -183,7 +183,7 @@ class TestSecurityIntegration:
             assert "recommendations" in report
 
     @pytest.mark.asyncio
-    async def test_eventbus_config_from_secure_config(self):
+    async def test_eventbus_config_from_secure_config(self) -> None:
         """Test EventBusConfig loading from SecureConfig."""
         with patch.dict(
             os.environ,
@@ -207,7 +207,7 @@ class TestSecurityIntegration:
             assert config.processing_config["max_processing_time_seconds"] == 45.5
             assert config.processing_config["circuit_breaker_enabled"] is False
 
-    def test_masked_configuration_export(self):
+    def test_masked_configuration_export(self) -> None:
         """Test that sensitive configuration is masked for export."""
         secure_config = SecureConfig()
 
@@ -237,7 +237,7 @@ class TestSecurityIntegration:
             assert safe_config["PUBLIC_ENDPOINT"] == "https://api.example.com"
             assert safe_config["LOG_LEVEL"] == "INFO"
 
-    def test_secret_rotation_workflow(self):
+    def test_secret_rotation_workflow(self) -> None:
         """Test secret rotation and re-encryption workflow."""
         # Create initial secret manager
         manager1 = SecretManager(master_key="old_master_key")
@@ -263,7 +263,7 @@ class TestSecurityIntegration:
         new_decrypted = manager2.decrypt(re_encrypted)
         assert new_decrypted == "sensitive_data"
 
-    def test_file_permission_security_check(self):
+    def test_file_permission_security_check(self) -> None:
         """Test file permission security validation."""
         secure_config = SecureConfig()
         guard = SecurityGuard(secure_config)
@@ -293,7 +293,7 @@ class TestSecurityIntegration:
                 tmp_path.unlink()
 
     @pytest.mark.asyncio
-    async def test_comprehensive_security_audit(self):
+    async def test_comprehensive_security_audit(self) -> None:
         """Test comprehensive security audit of EventBus configuration."""
         with patch.dict(
             os.environ,
@@ -329,7 +329,7 @@ class TestSecurityIntegration:
             )  # Should have some recommendations
 
     @pytest.mark.asyncio
-    async def test_eventbus_lifecycle_with_security(self):
+    async def test_eventbus_lifecycle_with_security(self) -> None:
         """Test complete EventBus lifecycle with security features."""
         factory = EventBusFactory()
 
@@ -353,7 +353,7 @@ class TestSecurityIntegration:
             assert metrics["is_running"] is True
 
             # Test subscription with secure config
-            async def test_handler(event):
+            async def test_handler(event) -> None:
                 pass
 
             sub_id = await event_bus.subscribe("test", test_handler)

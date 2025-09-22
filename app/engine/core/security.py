@@ -16,7 +16,6 @@ import os
 from pathlib import Path
 import re
 import secrets
-from typing import Any
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
@@ -95,7 +94,7 @@ class EnvironmentValidator:
         "hostname": r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
     }
 
-    def __init__(self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT):
+    def __init__(self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT) -> None:
         self.security_level = security_level
         self.rules: dict[str, ValidationRule] = {}
         self._setup_default_rules()
@@ -495,7 +494,7 @@ class SecureConfig:
                     raise
                 return None
 
-        return value
+        return str(value) if value is not None else None
 
     def set_secret(self, key: str, value: str, encrypt: bool = True) -> None:
         """Set secret value with optional encryption."""
@@ -514,7 +513,7 @@ class SecureConfig:
 
     def mask_sensitive_values(self, data: dict[str, Any]) -> dict[str, Any]:
         """Mask sensitive values in dictionary for logging."""
-        masked = {}
+        masked: dict[str, Any] = {}
 
         for key, value in data.items():
             if key in self._sensitive_keys or self._is_sensitive_key(key):
@@ -577,7 +576,7 @@ class SecureConfig:
 class SecurityGuard:
     """Runtime security guard for monitoring and protecting the application."""
 
-    def __init__(self, config: SecureConfig):
+    def __init__(self, config: SecureConfig) -> None:
         self.config = config
         self.violations: list[dict[str, Any]] = []
         self.start_time = datetime.utcnow()

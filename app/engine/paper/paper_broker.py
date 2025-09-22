@@ -68,7 +68,7 @@ class PaperBroker:
 
         return order
 
-    async def _fill_market_order(self, order: Order):
+    async def _fill_market_order(self, order: Order) -> None:
         """
         Simulate market order fill with slippage.
         """
@@ -116,7 +116,7 @@ class PaperBroker:
 
         self.order_history.append(order)
 
-    async def _update_position(self, order: Order, fill_price: Decimal):
+    async def _update_position(self, order: Order, fill_price: Decimal) -> None:
         """
         Update position based on filled order.
         """
@@ -234,7 +234,7 @@ class PaperBroker:
                 return True
         return False
 
-    async def close_all_positions(self):
+    async def close_all_positions(self) -> None:
         """
         Close all open positions at market.
         """

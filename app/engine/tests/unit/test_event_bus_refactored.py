@@ -24,7 +24,7 @@ class TestEvent(BaseEvent):
 
     test_data: str
 
-    def __init__(self, test_data: str, **kwargs):
+    def __init__(self, test_data: str, **kwargs) -> None:
         super().__init__(
             event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
             timestamp=kwargs.get("timestamp", datetime.utcnow()),
@@ -40,7 +40,7 @@ class TestEvent(BaseEvent):
 
 class TestRefactoredEventBus:
     @pytest.mark.asyncio
-    async def test_event_bus_initialization_with_dependencies(self):
+    async def test_event_bus_initialization_with_dependencies(self) -> None:
         from app.engine.bus import EventBus
 
         # Create mock dependencies
@@ -60,7 +60,7 @@ class TestRefactoredEventBus:
         assert not event_bus._running
 
     @pytest.mark.asyncio
-    async def test_event_bus_publish_queues_event_successfully(self):
+    async def test_event_bus_publish_queues_event_successfully(self) -> None:
         from app.engine.bus import EventBus
 
         # Create mock dependencies
@@ -89,7 +89,7 @@ class TestRefactoredEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_event_bus_subscribe_delegates_to_manager(self):
+    async def test_event_bus_subscribe_delegates_to_manager(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
@@ -103,7 +103,7 @@ class TestRefactoredEventBus:
             config=EventBusConfig(),
         )
 
-        async def test_handler(event: BaseEvent):
+        async def test_handler(event: BaseEvent) -> None:
             pass
 
         subscription_id = await event_bus.subscribe(
@@ -124,7 +124,7 @@ class TestRefactoredEventBus:
         )
 
     @pytest.mark.asyncio
-    async def test_event_bus_unsubscribe_delegates_to_manager(self):
+    async def test_event_bus_unsubscribe_delegates_to_manager(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
@@ -144,7 +144,7 @@ class TestRefactoredEventBus:
         subscription_manager.remove_subscription.assert_called_once_with("test-sub-id")
 
     @pytest.mark.asyncio
-    async def test_event_bus_metrics_aggregation_from_components(self):
+    async def test_event_bus_metrics_aggregation_from_components(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
@@ -178,7 +178,7 @@ class TestRefactoredEventBus:
         assert metrics["average_processing_time"] == 0.15  # 1.5 / 10
 
     @pytest.mark.asyncio
-    async def test_event_bus_start_stop_lifecycle_management(self):
+    async def test_event_bus_start_stop_lifecycle_management(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
@@ -206,7 +206,7 @@ class TestRefactoredEventBus:
         assert len(event_bus._worker_tasks) == 0
 
     @pytest.mark.asyncio
-    async def test_event_bus_error_propagation_from_dependencies(self):
+    async def test_event_bus_error_propagation_from_dependencies(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
@@ -222,7 +222,7 @@ class TestRefactoredEventBus:
             config=EventBusConfig(),
         )
 
-        async def test_handler(event: BaseEvent):
+        async def test_handler(event: BaseEvent) -> None:
             pass
 
         # Error should propagate
@@ -234,7 +234,7 @@ class TestRefactoredEventBus:
         assert "Test error" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_event_bus_with_mock_dependencies_isolation(self):
+    async def test_event_bus_with_mock_dependencies_isolation(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
@@ -258,7 +258,7 @@ class TestRefactoredEventBus:
         )
 
         # Should work with mocks without side effects
-        async def test_handler(event: BaseEvent):
+        async def test_handler(event: BaseEvent) -> None:
             pass
 
         subscription_id = await event_bus.subscribe("test", test_handler)
@@ -272,7 +272,7 @@ class TestRefactoredEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_event_bus_health_check_aggregates_status(self):
+    async def test_event_bus_health_check_aggregates_status(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
@@ -297,7 +297,7 @@ class TestRefactoredEventBus:
         assert health["events_processed"] == 5
 
     @pytest.mark.asyncio
-    async def test_event_bus_reset_metrics_delegates_to_processor(self):
+    async def test_event_bus_reset_metrics_delegates_to_processor(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)
@@ -316,7 +316,7 @@ class TestRefactoredEventBus:
         event_processor.reset_stats.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_event_bus_publish_many_queues_all_events(self):
+    async def test_event_bus_publish_many_queues_all_events(self) -> None:
         from app.engine.bus import EventBus
 
         subscription_manager = Mock(spec=SubscriptionManagerInterface)

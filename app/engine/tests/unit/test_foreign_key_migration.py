@@ -14,7 +14,7 @@ from app.engine.adapters.db.connection_pool import ConnectionPool
 
 
 @pytest.fixture
-def mock_connection():
+def mock_connection() -> None:
     """Mock database connection."""
     conn = AsyncMock(spec=Connection)
     conn.fetchval = AsyncMock()
@@ -22,7 +22,7 @@ def mock_connection():
     conn.execute = AsyncMock()
 
     @asynccontextmanager
-    async def mock_transaction():
+    async def mock_transaction() -> None:
         yield
 
     conn.transaction = mock_transaction
@@ -30,12 +30,12 @@ def mock_connection():
 
 
 @pytest.fixture
-def mock_pool(mock_connection):
+def mock_pool(mock_connection) -> None:
     """Mock connection pool."""
     pool = MagicMock(spec=ConnectionPool)
 
     @asynccontextmanager
-    async def mock_acquire():
+    async def mock_acquire() -> None:
         yield mock_connection
 
     pool.acquire = mock_acquire
@@ -43,7 +43,7 @@ def mock_pool(mock_connection):
 
 
 @pytest.fixture
-def migrations_dir(tmp_path):
+def migrations_dir(tmp_path) -> None:
     """Create temporary migrations directory with foreign key migration."""
     migrations = tmp_path / "migrations"
     migrations.mkdir()
@@ -79,7 +79,7 @@ ON DELETE SET NULL;
 
 class TestForeignKeyMigration:
     @pytest.mark.asyncio
-    async def test_foreign_key_migration_parsing(self, migrations_dir):
+    async def test_foreign_key_migration_parsing(self, migrations_dir) -> None:
         """Test foreign key migration file is parsed correctly."""
         filepath = migrations_dir / "008_add_foreign_keys.sql"
         migration = Migration.from_file(filepath)

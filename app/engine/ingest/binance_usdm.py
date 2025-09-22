@@ -1,5 +1,5 @@
 """
-Binance USD-M Futures WebSocket and REST ingester.
+Binance USD-M Future[Any]s WebSocket and REST ingester.
 
 Subscribes to futures kline streams for multiple symbols and timeframes,
 emits only closed candles, handles reconnection with backfill.
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class BinanceUSDMIngester:
     """
-    Binance USD-M Futures market data ingester.
+    Binance USD-M Future[Any]s market data ingester.
 
     Features:
     - WebSocket streaming for real-time futures kline data
@@ -100,7 +100,7 @@ class BinanceUSDMIngester:
         # Combined stream URL for futures
         url = f"{self.ws_base_url}/stream?streams={'/'.join(streams)}"
 
-        logger.info(f"Connecting to Binance USD-M Futures WebSocket: {url}")
+        logger.info(f"Connecting to Binance USD-M Future[Any]s WebSocket: {url}")
         self._websocket = await websockets.connect(url)
         self._reconnect_count = 0
         logger.info(f"Connected and subscribed to {len(streams)} futures streams")
@@ -244,7 +244,7 @@ class BinanceUSDMIngester:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        logger.info("Futures backfill completed")
+        logger.info("Future[Any]s backfill completed")
 
     async def _backfill_missing_candles(
         self,
@@ -254,7 +254,7 @@ class BinanceUSDMIngester:
         retry_count: int = 0,
     ) -> None:
         """
-        Backfill missing candles via Futures REST API.
+        Backfill missing candles via Future[Any]s REST API.
 
         Args:
             symbol: Trading symbol

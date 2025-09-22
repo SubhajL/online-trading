@@ -19,14 +19,14 @@ from app.engine.tests.fixtures.db_fixtures import (
 
 
 @pytest.fixture
-def mock_pool():
+def mock_pool() -> None:
     """Mock connection pool for testing."""
     pool = MagicMock()
     conn = AsyncMock()
 
     # Create async context manager for acquire
     @asynccontextmanager
-    async def mock_acquire():
+    async def mock_acquire() -> None:
         yield conn
 
     pool.acquire = mock_acquire
@@ -39,7 +39,7 @@ def mock_pool():
 
 class TestDBFixtures:
     @pytest.mark.asyncio
-    async def test_setup_test_db(self, mock_pool):
+    async def test_setup_test_db(self, mock_pool) -> None:
         """Test database setup creates schema correctly."""
         pool, conn = mock_pool
 
@@ -53,7 +53,7 @@ class TestDBFixtures:
         assert conn.execute.call_count >= 2
 
     @pytest.mark.asyncio
-    async def test_teardown_test_db(self, mock_pool):
+    async def test_teardown_test_db(self, mock_pool) -> None:
         """Test database teardown drops database."""
         pool, conn = mock_pool
 
@@ -72,7 +72,7 @@ class TestDBFixtures:
         assert "DROP DATABASE" in drop_call
 
     @pytest.mark.asyncio
-    async def test_load_test_data(self, mock_pool):
+    async def test_load_test_data(self, mock_pool) -> None:
         """Test loading sample data into database."""
         pool, conn = mock_pool
 
@@ -86,7 +86,7 @@ class TestDBFixtures:
         assert len(test_data.zones) > 0
 
     @pytest.mark.asyncio
-    async def test_clear_tables(self, mock_pool):
+    async def test_clear_tables(self, mock_pool) -> None:
         """Test clearing all tables maintains referential integrity."""
         pool, conn = mock_pool
 
@@ -103,7 +103,7 @@ class TestDBFixtures:
 
 
 class TestDataFactories:
-    def test_create_test_candle(self):
+    def test_create_test_candle(self) -> None:
         """Test candle factory creates valid candle."""
         candle = create_test_candle(
             symbol="BTCUSDT", open_price=Decimal("50000"), volume=Decimal("100")
@@ -118,7 +118,7 @@ class TestDataFactories:
         assert isinstance(candle["close_time"], datetime)
         assert candle["close_time"] > candle["open_time"]
 
-    def test_create_test_order(self):
+    def test_create_test_order(self) -> None:
         """Test order factory creates valid order."""
         order = create_test_order(
             symbol="BTCUSDT",
@@ -135,7 +135,7 @@ class TestDataFactories:
         assert order["status"] == "NEW"
         assert order["type"] == "LIMIT"
 
-    def test_create_test_zone(self):
+    def test_create_test_zone(self) -> None:
         """Test zone factory creates valid supply/demand zone."""
         zone = create_test_zone(
             symbol="BTCUSDT",
@@ -155,7 +155,7 @@ class TestDataFactories:
 
 
 @pytest.fixture
-async def db_session(mock_pool):
+async def db_session(mock_pool) -> None:
     """Pytest fixture for database session."""
     pool, conn = mock_pool
     fixtures = DBFixtures(pool)
@@ -170,7 +170,7 @@ async def db_session(mock_pool):
 
 class TestFixtureIntegration:
     @pytest.mark.asyncio
-    async def test_fixture_isolation(self, mock_pool):
+    async def test_fixture_isolation(self, mock_pool) -> None:
         """Test that each test gets clean database state."""
         pool, conn = mock_pool
 
@@ -189,7 +189,7 @@ class TestFixtureIntegration:
         assert data1.candles[0] != data2.candles[0]
 
     @pytest.mark.asyncio
-    async def test_fixture_performance(self, mock_pool):
+    async def test_fixture_performance(self, mock_pool) -> None:
         """Test setup/teardown completes in reasonable time."""
         pool, conn = mock_pool
         fixtures = DBFixtures(pool)

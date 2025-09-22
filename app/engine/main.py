@@ -10,7 +10,6 @@ from datetime import datetime
 import logging
 import os
 import signal
-from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,7 +40,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Global service instances
-services = {}
+services: dict[str, Any] = {}
 
 
 # Request/Response Models
@@ -69,7 +68,7 @@ class ServiceControlRequest(BaseModel):
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> Any:
     """Application lifespan management"""
     logger.info("Starting trading engine...")
 
@@ -142,10 +141,11 @@ def load_configuration() -> EngineConfig:
         )
 
         risk_parameters = RiskParameters(
-            max_position_size=float(os.getenv("MAX_POSITION_SIZE", "0.1")),
-            max_daily_loss=float(os.getenv("MAX_DAILY_LOSS", "0.05")),
-            max_drawdown=float(os.getenv("MAX_DRAWDOWN", "0.15")),
-            risk_per_trade=float(os.getenv("RISK_PER_TRADE", "0.02")),
+            max_position_size=Decimal(os.getenv("MAX_POSITION_SIZE", "0.1")),
+            max_daily_loss=Decimal(os.getenv("MAX_DAILY_LOSS", "0.05")),
+            max_drawdown=Decimal(os.getenv("MAX_DRAWDOWN", "0.15")),
+            risk_per_trade=Decimal(os.getenv("RISK_PER_TRADE", "0.02")),
+            max_correlation=Decimal(os.getenv("MAX_CORRELATION", "0.7")),
             max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "5")),
         )
 
@@ -166,11 +166,12 @@ def load_configuration() -> EngineConfig:
         raise
 
 
-async def initialize_services(config: EngineConfig):
+async def initialize_services(config: EngineConfig) -> None:
     """Initialize all services"""
     try:
         # Initialize event bus
-        event_bus = EventBus(max_queue_size=10000)
+        from .bus import create_event_bus
+        event_bus = create_event_bus()
         set_event_bus(event_bus)
         services["event_bus"] = event_bus
 
@@ -245,7 +246,7 @@ async def initialize_services(config: EngineConfig):
         raise
 
 
-async def start_services():
+async def start_services() -> None:
     """Start all services"""
     try:
         # Start services in dependency order
@@ -262,15 +263,16 @@ async def start_services():
         raise
 
 
-async def shutdown_services():
+async def shutdown_services() -> None:
     """Shutdown all services"""
     try:
         # Stop services in reverse order
         for service_name in ["decision", "smc", "features", "ingest", "event_bus"]:
             if service_name in services:
                 try:
-                    await services[service_name].stop()
-                    logger.info(f"Stopped {service_name}")
+                    if hasattr(services[service_name], "stop"):
+                        await services[service_name].stop()
+                        logger.info(f"Stopped {service_name}")
                 except Exception as e:
                     logger.error(f"Error stopping {service_name}: {e}")
 
@@ -278,7 +280,9 @@ async def shutdown_services():
         for adapter_name in ["router", "redis", "database"]:
             if adapter_name in services:
                 try:
-                    await services[adapter_name].close()
+                    adapter = services[adapter_name]
+                    if hasattr(adapter, 'close'):
+                        await adapter.close()
                     logger.info(f"Closed {adapter_name}")
                 except Exception as e:
                     logger.error(f"Error closing {adapter_name}: {e}")
@@ -289,7 +293,7 @@ async def shutdown_services():
 
 # Health Check Endpoints
 @app.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check() -> HealthResponse:
     """Comprehensive health check"""
     try:
         service_health = {}
@@ -330,13 +334,13 @@ async def health_check():
 
 
 @app.get("/health/simple")
-async def simple_health_check():
+async def simple_health_check() -> dict[str, Any]:
     """Simple health check for load balancers"""
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 
 @app.get("/metrics", response_model=MetricsResponse)
-async def get_metrics():
+async def get_metrics() -> MetricsResponse:
     """Get detailed metrics from all services"""
     try:
         metrics = {}
@@ -436,7 +440,7 @@ async def control_service(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def restart_service(service_name: str, service):
+async def restart_service(service_name: str, service: Any) -> None:
     """Restart a specific service"""
     try:
         logger.info(f"Restarting service: {service_name}")
@@ -449,7 +453,7 @@ async def restart_service(service_name: str, service):
         logger.error(f"Error restarting {service_name}: {e}")
 
 
-async def restart_all_services():
+async def restart_all_services() -> None:
     """Restart all services"""
     try:
         logger.info("Restarting all services")
@@ -462,7 +466,7 @@ async def restart_all_services():
 
 # Status and Information Endpoints
 @app.get("/status")
-async def get_status():
+async def get_status() -> dict[str, Any]:
     """Get detailed status of all services"""
     try:
         status = {}
@@ -491,7 +495,7 @@ async def get_status():
 
 
 @app.get("/info")
-async def get_info():
+async def get_info() -> dict[str, Any]:
     """Get general information about the trading engine"""
     return {
         "name": "Trading Engine",
@@ -505,7 +509,7 @@ async def get_info():
 
 # Error Handlers
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
+async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse:
     """Global exception handler"""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
@@ -519,7 +523,7 @@ async def global_exception_handler(request, exc):
 
 
 # Signal handlers for graceful shutdown
-def signal_handler(signum, frame):
+def signal_handler(signum: Any, frame: Any) -> None:
     """Handle shutdown signals"""
     logger.info(f"Received signal {signum}, initiating graceful shutdown...")
     # FastAPI will handle the shutdown through the lifespan context manager

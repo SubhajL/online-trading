@@ -25,7 +25,7 @@ from app.engine.backtest.data_loader import (
 class TestLoadCandlesChunked:
     """Tests for chunked data loading."""
 
-    def test_load_candles_chunked_basic(self):
+    def test_load_candles_chunked_basic(self) -> None:
         """Yields chunks of specified size."""
         start = datetime(2024, 1, 1)
         end = datetime(2024, 2, 1)  # 1 month
@@ -37,7 +37,7 @@ class TestLoadCandlesChunked:
         assert len(chunks) >= 3
         assert all(isinstance(chunk, pd.DataFrame) for chunk in chunks)
 
-    def test_load_candles_chunked_handles_gaps(self):
+    def test_load_candles_chunked_handles_gaps(self) -> None:
         """Continues through missing data."""
         start = datetime(2024, 1, 1)
         end = datetime(2024, 1, 31)
@@ -50,7 +50,7 @@ class TestLoadCandlesChunked:
         # Check no chunks are empty
         assert all(len(chunk) > 0 or chunk.empty for chunk in chunks)
 
-    def test_load_candles_chunked_memory_constant(self):
+    def test_load_candles_chunked_memory_constant(self) -> None:
         """Memory usage stays flat."""
         start = datetime(2023, 1, 1)
         end = datetime(2024, 1, 1)  # 1 year
@@ -70,7 +70,7 @@ class TestLoadCandlesChunked:
         # Memory usage should be similar (within 2x)
         assert second_memory < first_memory * 2
 
-    def test_load_candles_chunked_empty_range(self):
+    def test_load_candles_chunked_empty_range(self) -> None:
         """Handles empty date range."""
         start = datetime(2024, 1, 1)
         end = datetime(2024, 1, 1)  # Same day
@@ -79,7 +79,7 @@ class TestLoadCandlesChunked:
 
         assert len(chunks) <= 1  # At most one empty chunk
 
-    def test_load_candles_chunked_columns(self):
+    def test_load_candles_chunked_columns(self) -> None:
         """Returns expected DataFrame columns."""
         start = datetime(2024, 1, 1)
         end = datetime(2024, 1, 2)
@@ -95,7 +95,7 @@ class TestLoadCandlesChunked:
 class TestCacheFeatures:
     """Tests for feature caching."""
 
-    def test_cache_features_store_retrieve(self):
+    def test_cache_features_store_retrieve(self) -> None:
         """Round-trip caching works correctly."""
         # Create test DataFrame
         df = pd.DataFrame(
@@ -117,7 +117,7 @@ class TestCacheFeatures:
         if result is not None:
             pd.testing.assert_frame_equal(result, df)
 
-    def test_cache_features_ttl_expiration(self):
+    def test_cache_features_ttl_expiration(self) -> None:
         """Cache expires after TTL."""
         df = pd.DataFrame({"value": [1, 2, 3]})
 
@@ -134,7 +134,7 @@ class TestCacheFeatures:
         # Either None (Redis not available) or None (expired)
         assert result is None
 
-    def test_cache_features_versioning(self):
+    def test_cache_features_versioning(self) -> None:
         """Invalidates on schema change."""
         df1 = pd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
         df2 = pd.DataFrame({"col1": [1, 2], "col3": [5, 6]})  # Different columns
@@ -155,7 +155,7 @@ class TestCacheFeatures:
         if result2 is not None:
             pd.testing.assert_frame_equal(result2, df2)
 
-    def test_load_cached_features_found(self):
+    def test_load_cached_features_found(self) -> None:
         """Retrieves cached features if valid."""
         # Create test data
         df = pd.DataFrame({"value": [1, 2, 3]})
@@ -170,7 +170,7 @@ class TestCacheFeatures:
         if result is not None:
             pd.testing.assert_frame_equal(result, df)
 
-    def test_load_cached_features_miss(self):
+    def test_load_cached_features_miss(self) -> None:
         """Returns None on cache miss."""
         result = load_cached_features("missing_key_that_does_not_exist")
         assert result is None
@@ -179,11 +179,11 @@ class TestCacheFeatures:
 class TestPrecomputeFeaturesParallel:
     """Tests for parallel feature computation."""
 
-    def test_precompute_features_parallel_basic(self):
+    def test_precompute_features_parallel_basic(self) -> None:
         """Computes features for multiple symbols."""
         symbols = ["BTCUSDT", "ETHUSDT"]
 
-        def simple_feature(df):
+        def simple_feature(df) -> None:
             df["sma"] = df["close"].rolling(20).mean()
             return df
 
@@ -193,11 +193,11 @@ class TestPrecomputeFeaturesParallel:
         assert "BTCUSDT" in results
         assert "ETHUSDT" in results
 
-    def test_precompute_features_parallel_speedup(self):
+    def test_precompute_features_parallel_speedup(self) -> None:
         """Achieves linear speedup with cores."""
         symbols = ["SYM1", "SYM2", "SYM3", "SYM4"]
 
-        def slow_feature(df):
+        def slow_feature(df) -> None:
             # Simulate computation
             import time
 
@@ -216,11 +216,11 @@ class TestPrecomputeFeaturesParallel:
         sequential_time = 0.01 * len(symbols)
         assert parallel_time < sequential_time * 1.5
 
-    def test_precompute_features_partial_failure(self):
+    def test_precompute_features_partial_failure(self) -> None:
         """Continues despite individual failures."""
         symbols = ["GOOD1", "BAD", "GOOD2"]
 
-        def failing_feature(df):
+        def failing_feature(df) -> None:
             if "BAD" in str(df.index.name):
                 raise ValueError("Simulated failure")
             df["feature"] = 1

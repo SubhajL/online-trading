@@ -11,7 +11,6 @@ from enum import Enum
 import json
 import threading
 import time
-from typing import Any, Optional
 import uuid
 
 
@@ -81,7 +80,7 @@ class Span:
         name: str,
         context: SpanContext,
         kind: SpanKind = SpanKind.INTERNAL,
-        parent: Optional["Span"] = None,
+        parent: "Span" | None = None,
         attributes: dict[str, Any] | None = None,
         links: list[Link] | None = None,
         start_time: float | None = None,
@@ -361,7 +360,7 @@ class SpanProcessor:
 class ConsoleSpanExporter(SpanProcessor):
     """Exports spans to console for debugging."""
 
-    def __init__(self, pretty_print: bool = True):
+    def __init__(self, pretty_print: bool = True) -> None:
         self.pretty_print = pretty_print
 
     def on_end(self, span: Span) -> None:
@@ -494,12 +493,12 @@ def get_tracer(name: str, version: str | None = None) -> Tracer:
 def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL):
     """Decorator to trace a function."""
 
-    def decorator(func):
+    def decorator(func: T) -> T:
         span_name = name or f"{func.__module__}.{func.__name__}"
 
         if asyncio.iscoroutinefunction(func):
 
-            async def wrapper(*args, **kwargs):
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = get_tracer(func.__module__)
                 async with tracer.start_as_current_span_async(
                     span_name,
@@ -508,16 +507,20 @@ def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL):
                     span.set_attribute("function", func.__name__)
                     return await func(*args, **kwargs)
 
+            async_wrapper.__name__ = func.__name__
+            async_wrapper.__doc__ = func.__doc__
+            return async_wrapper  # type: ignore[return-value]
+
         else:
 
-            def wrapper(*args, **kwargs):
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = get_tracer(func.__module__)
                 with tracer.start_as_current_span(span_name, kind=kind) as span:
                     span.set_attribute("function", func.__name__)
                     return func(*args, **kwargs)
 
-        wrapper.__name__ = func.__name__
-        wrapper.__doc__ = func.__doc__
-        return wrapper
+            sync_wrapper.__name__ = func.__name__
+            sync_wrapper.__doc__ = func.__doc__
+            return sync_wrapper  # type: ignore[return-value]
 
     return decorator

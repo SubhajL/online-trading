@@ -42,13 +42,13 @@ def get_test_db_config() -> DatabaseConfig:
 
 
 @pytest.fixture
-async def test_db_config():
+async def test_db_config() -> None:
     """Fixture for test database configuration."""
     return get_test_db_config()
 
 
 @pytest.fixture
-async def test_pool(test_db_config):
+async def test_pool(test_db_config) -> None:
     """Fixture for initialized connection pool."""
     pool = ConnectionPool(test_db_config)
     await pool.initialize()
@@ -57,7 +57,7 @@ async def test_pool(test_db_config):
 
 
 @pytest.fixture
-async def test_db_manager(test_db_config):
+async def test_db_manager(test_db_config) -> None:
     """Fixture for initialized database manager."""
     manager = DatabaseManager(test_db_config)
     await manager.initialize()
@@ -66,7 +66,7 @@ async def test_db_manager(test_db_config):
 
 
 @pytest.fixture
-async def setup_test_table(test_pool):
+async def setup_test_table(test_pool) -> None:
     """Create test table for integration tests."""
     async with test_pool.get_postgres_connection() as conn:
         # Drop and recreate test table
@@ -93,7 +93,7 @@ class TestConnectionPoolIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_pool_initialization_and_connection(self):
+    async def test_pool_initialization_and_connection(self) -> None:
         """Test pool can initialize and provide connections."""
         config = get_test_db_config()
         pool = ConnectionPool(config)
@@ -118,7 +118,7 @@ class TestConnectionPoolIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_pool_health_check(self, test_pool):
+    async def test_pool_health_check(self, test_pool) -> None:
         """Test health check reports correct status."""
         health = await test_pool.health_check()
 
@@ -129,10 +129,10 @@ class TestConnectionPoolIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_pool_concurrent_connections(self, test_pool):
+    async def test_pool_concurrent_connections(self, test_pool) -> None:
         """Test pool handles concurrent connections correctly."""
 
-        async def use_connection(n: int):
+        async def use_connection(n: int) -> None:
             async with test_pool.get_postgres_connection() as conn:
                 result = await conn.fetchval("SELECT $1::int", n)
                 return result
@@ -149,7 +149,7 @@ class TestTransactionContextIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_transaction_commit(self, test_pool, setup_test_table):
+    async def test_transaction_commit(self, test_pool, setup_test_table) -> None:
         """Test transaction commits successfully."""
         async with test_pool.get_postgres_connection() as conn:
             async with TransactionContext(conn) as tx:
@@ -165,7 +165,7 @@ class TestTransactionContextIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_transaction_rollback(self, test_pool, setup_test_table):
+    async def test_transaction_rollback(self, test_pool, setup_test_table) -> None:
         """Test transaction rollback on exception."""
         async with test_pool.get_postgres_connection() as conn:
             # Insert initial row
@@ -193,7 +193,7 @@ class TestTransactionContextIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_transaction_isolation(self, test_pool, setup_test_table):
+    async def test_transaction_isolation(self, test_pool, setup_test_table) -> None:
         """Test transactions are properly isolated."""
         async with (
             test_pool.get_postgres_connection() as conn1,
@@ -224,7 +224,7 @@ class TestOptimisticLockingIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_optimistic_lock_success(self, test_pool, setup_test_table):
+    async def test_optimistic_lock_success(self, test_pool, setup_test_table) -> None:
         """Test successful optimistic lock update."""
         mixin = OptimisticLockMixin()
 
@@ -258,7 +258,7 @@ class TestOptimisticLockingIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_optimistic_lock_conflict(self, test_pool, setup_test_table):
+    async def test_optimistic_lock_conflict(self, test_pool, setup_test_table) -> None:
         """Test optimistic lock detects concurrent modifications."""
         mixin = OptimisticLockMixin()
 
@@ -293,7 +293,7 @@ class TestDatabaseManagerIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_manager_connection_retry(self):
+    async def test_manager_connection_retry(self) -> None:
         """Test manager retries failed connections."""
         # Use invalid config that will fail initially
         config = DatabaseConfig(
@@ -311,7 +311,7 @@ class TestDatabaseManagerIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_manager_transaction_helper(self, test_db_manager, setup_test_table):
+    async def test_manager_transaction_helper(self, test_db_manager, setup_test_table) -> None:
         """Test manager's transaction helper method."""
         async with test_db_manager.transaction() as tx:
             await tx.execute("INSERT INTO test_table (value) VALUES ($1)", "tx_test")
@@ -324,7 +324,7 @@ class TestDatabaseManagerIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_manager_health_check(self, test_db_manager):
+    async def test_manager_health_check(self, test_db_manager) -> None:
         """Test manager's health check aggregation."""
         health = await test_db_manager.health_check()
 
@@ -336,7 +336,7 @@ class TestDatabaseManagerIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_manager_redis_operations(self, test_db_manager):
+    async def test_manager_redis_operations(self, test_db_manager) -> None:
         """Test manager can perform Redis operations."""
         async with test_db_manager.redis_connection() as redis_conn:
             # Set and get
@@ -353,10 +353,10 @@ class TestConcurrencyIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_concurrent_transactions(self, test_db_manager, setup_test_table):
+    async def test_concurrent_transactions(self, test_db_manager, setup_test_table) -> None:
         """Test multiple concurrent transactions work correctly."""
 
-        async def insert_value(value: str):
+        async def insert_value(value: str) -> None:
             async with test_db_manager.transaction() as tx:
                 await tx.execute("INSERT INTO test_table (value) VALUES ($1)", value)
                 # Small delay to increase chance of overlap
@@ -379,7 +379,7 @@ class TestConcurrencyIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_connection_pool_exhaustion(self):
+    async def test_connection_pool_exhaustion(self) -> None:
         """Test pool exhaustion handling."""
         config = get_test_db_config()
         config.pool_size = 1  # Very small pool

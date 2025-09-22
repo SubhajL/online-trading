@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 import threading
 import time
-from typing import Any
 
 
 class MetricType(Enum):
@@ -34,7 +33,7 @@ class Metric:
     timestamp: float = field(default_factory=time.time)
     unit: str | None = None
 
-    def __hash__(self):
+    def __hash__(self) -> None:
         """Make metric hashable based on name and labels."""
         return hash((self.name, tuple(sorted(self.labels.items()))))
 
@@ -292,7 +291,7 @@ class MetricsRegistry:
 class PrometheusExporter:
     """Exports metrics in Prometheus format."""
 
-    def __init__(self, registry: MetricsRegistry):
+    def __init__(self, registry: MetricsRegistry) -> None:
         self.registry = registry
 
     def export(self) -> str:
@@ -352,7 +351,7 @@ class PrometheusExporter:
 class MetricsCollector:
     """Collects and manages metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.registry = MetricsRegistry()
         self.exporter = PrometheusExporter(self.registry)
         self._start_time = time.time()

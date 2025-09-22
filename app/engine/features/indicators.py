@@ -33,11 +33,11 @@ class TechnicalIndicatorsCalculator:
         Calculate Exponential Moving Average
 
         Args:
-            values: List of price values
+            values: list[Any] of price values
             period: EMA period
 
         Returns:
-            List of EMA values (None for insufficient data points)
+            list[Any] of EMA values (None for insufficient data points)
         """
         if len(values) < period:
             return [None] * len(values)
@@ -56,8 +56,12 @@ class TechnicalIndicatorsCalculator:
 
         # Calculate remaining EMA values
         for i in range(period, len(prices)):
-            ema = (prices[i] * multiplier) + (float(ema_values[-1]) * (1 - multiplier))
-            ema_values.append(Decimal(str(ema)))
+            prev_ema = ema_values[-1]
+            if prev_ema is not None:
+                ema = (prices[i] * multiplier) + (float(prev_ema) * (1 - multiplier))
+                ema_values.append(Decimal(str(ema)))
+            else:
+                ema_values.append(None)
 
         return ema_values
 
@@ -67,11 +71,11 @@ class TechnicalIndicatorsCalculator:
         Calculate Simple Moving Average
 
         Args:
-            values: List of price values
+            values: list[Any] of price values
             period: SMA period
 
         Returns:
-            List of SMA values
+            list[Any] of SMA values
         """
         if len(values) < period:
             return [None] * len(values)
@@ -93,11 +97,11 @@ class TechnicalIndicatorsCalculator:
         Calculate Relative Strength Index
 
         Args:
-            values: List of price values (typically close prices)
+            values: list[Any] of price values (typically close prices)
             period: RSI period (default 14)
 
         Returns:
-            List of RSI values (0-100)
+            list[Any] of RSI values (0-100)
         """
         if len(values) < period + 1:
             return [None] * len(values)
@@ -152,7 +156,7 @@ class TechnicalIndicatorsCalculator:
         Calculate MACD (Moving Average Convergence Divergence)
 
         Args:
-            values: List of price values (typically close prices)
+            values: list[Any] of price values (typically close prices)
             fast_period: Fast EMA period (default 12)
             slow_period: Slow EMA period (default 26)
             signal_period: Signal line EMA period (default 9)
@@ -171,8 +175,10 @@ class TechnicalIndicatorsCalculator:
         # Calculate MACD line
         macd_line: list[Decimal | None] = []
         for i in range(len(values)):
-            if fast_ema[i] is not None and slow_ema[i] is not None:
-                macd_line.append(fast_ema[i] - slow_ema[i])
+            fast_val = fast_ema[i]
+            slow_val = slow_ema[i]
+            if fast_val is not None and slow_val is not None:
+                macd_line.append(fast_val - slow_val)
             else:
                 macd_line.append(None)
 
@@ -197,8 +203,10 @@ class TechnicalIndicatorsCalculator:
             # Calculate histogram
             histogram = []
             for i in range(len(values)):
-                if macd_line[i] is not None and signal_line[i] is not None:
-                    histogram.append(macd_line[i] - signal_line[i])
+                macd_val = macd_line[i]
+                sig_val = signal_line[i]
+                if macd_val is not None and sig_val is not None:
+                    histogram.append(macd_val - sig_val)
                 else:
                     histogram.append(None)
 
@@ -210,11 +218,11 @@ class TechnicalIndicatorsCalculator:
         Calculate Average True Range
 
         Args:
-            candles: List of Candle objects
+            candles: list[Any] of Candle objects
             period: ATR period (default 14)
 
         Returns:
-            List of ATR values
+            list[Any] of ATR values
         """
         if len(candles) < period:
             return [None] * len(candles)
@@ -269,7 +277,7 @@ class TechnicalIndicatorsCalculator:
         Calculate Bollinger Bands
 
         Args:
-            values: List of price values (typically close prices)
+            values: list[Any] of price values (typically close prices)
             period: Period for moving average and standard deviation (default 20)
             std_dev: Number of standard deviations (default 2.0)
 
@@ -369,8 +377,8 @@ class TechnicalIndicatorsCalculator:
         Calculate all technical indicators for the latest candle
 
         Args:
-            candles: List of Candle objects (should be in chronological order)
-            ema_periods: List of EMA periods to calculate
+            candles: list[Any] of Candle objects (should be in chronological order)
+            ema_periods: list[Any] of EMA periods to calculate
             rsi_period: RSI period
             macd_params: MACD parameters (fast, slow, signal)
             atr_period: ATR period

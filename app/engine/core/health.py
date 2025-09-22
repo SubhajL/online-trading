@@ -308,7 +308,7 @@ def aggregate_health_status(components: list[ComponentHealth]) -> HealthCheck:
     )
 
 
-def create_health_endpoint(health_check_fn: Callable[[], HealthCheck]) -> Callable:
+def create_health_endpoint(health_check_fn: Callable[[], HealthCheck]) -> Callable[[str], Dict[str, Any]]:
     """
     Create HTTP endpoint for health checks.
     Returns JSON with proper status codes.
@@ -321,7 +321,7 @@ def create_health_endpoint(health_check_fn: Callable[[], HealthCheck]) -> Callab
             health = health_check_fn()
 
             # Build response body
-            body = {
+            body: Dict[str, Any] = {
                 "status": health.status.value,
                 "message": health.message,
                 "timestamp": health.timestamp,

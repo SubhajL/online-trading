@@ -56,7 +56,7 @@ class RetestAnalyzer:
 
         logger.info("RetestAnalyzer initialized")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the retest analyzer"""
         if self._running:
             return
@@ -73,7 +73,7 @@ class RetestAnalyzer:
 
         logger.info("RetestAnalyzer started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the retest analyzer"""
         if not self._running:
             return
@@ -85,7 +85,7 @@ class RetestAnalyzer:
 
         logger.info("RetestAnalyzer stopped")
 
-    async def _handle_candle_update(self, event: CandleUpdateEvent):
+    async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
         """Handle candle updates for retest analysis"""
         try:
             candle = event.candle
@@ -103,7 +103,7 @@ class RetestAnalyzer:
         except Exception as e:
             logger.error(f"Error handling candle update: {e}")
 
-    async def _analyze_retests(self, symbol: str, current_candle: Candle):
+    async def _analyze_retests(self, symbol: str, current_candle: Candle) -> None:
         """Analyze current candle for retest opportunities"""
         try:
             if symbol not in self._key_levels:
@@ -347,7 +347,7 @@ class RetestAnalyzer:
 
         return factors
 
-    async def _publish_retest_signal(self, signal: RetestSignal):
+    async def _publish_retest_signal(self, signal: RetestSignal) -> None:
         """Publish retest signal event"""
         try:
             event = RetestSignalEvent(
@@ -399,7 +399,7 @@ class RetestAnalyzer:
         except Exception as e:
             logger.error(f"Error adding key level: {e}")
 
-    def add_zone_for_retest(self, zone: SupplyDemandZone):
+    def add_zone_for_retest(self, zone: SupplyDemandZone) -> None:
         """Add a supply/demand zone to track for retests"""
         try:
             symbol = zone.symbol

@@ -20,7 +20,7 @@ from app.engine.models import (
 
 
 @pytest.fixture
-def db_config():
+def db_config() -> None:
     """Database configuration for testing."""
     return DBConfig(
         host="localhost",
@@ -32,7 +32,7 @@ def db_config():
 
 
 @pytest.fixture
-def mock_connection():
+def mock_connection() -> None:
     """Mock database connection."""
     conn = AsyncMock(spec=Connection)
     conn.execute = AsyncMock()
@@ -42,12 +42,12 @@ def mock_connection():
 
 
 @pytest.fixture
-def mock_pool(mock_connection):
+def mock_pool(mock_connection) -> None:
     """Mock connection pool."""
     pool = MagicMock(spec=ConnectionPool)
 
     @asynccontextmanager
-    async def mock_acquire():
+    async def mock_acquire() -> None:
         yield mock_connection
 
     pool.acquire = mock_acquire
@@ -55,7 +55,7 @@ def mock_pool(mock_connection):
 
 
 @pytest.fixture
-def sample_candle():
+def sample_candle() -> None:
     """Sample candle for testing."""
     return Candle(
         symbol="BTCUSDT",
@@ -76,7 +76,7 @@ def sample_candle():
 
 class TestPoolManagement:
     @pytest.mark.asyncio
-    async def test_initialize_pool(self, db_config):
+    async def test_initialize_pool(self, db_config) -> None:
         """Test pool initialization."""
         with patch(
             "app.engine.adapters.db.timescale.ConnectionPool"
@@ -91,7 +91,7 @@ class TestPoolManagement:
             mock_pool.initialize.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_close_pool(self):
+    async def test_close_pool(self) -> None:
         """Test pool closure."""
         mock_pool = MagicMock()
         mock_pool.close = AsyncMock()
@@ -104,14 +104,14 @@ class TestPoolManagement:
         mock_pool.close.assert_called_once()
         assert timescale._pool is None
 
-    def test_get_pool_not_initialized(self):
+    def test_get_pool_not_initialized(self) -> None:
         """Test getting pool when not initialized."""
         timescale._pool = None
 
         with pytest.raises(RuntimeError, match="Database pool not initialized"):
             timescale.get_pool()
 
-    def test_get_pool_initialized(self, mock_pool):
+    def test_get_pool_initialized(self, mock_pool) -> None:
         """Test getting pool when initialized."""
         timescale._pool = mock_pool
 
@@ -147,7 +147,7 @@ class TestCandleOperations:
         assert params[5] == sample_candle.open_price  # Should be Decimal
 
     @pytest.mark.asyncio
-    async def test_upsert_candle_error(self, mock_pool, mock_connection, sample_candle):
+    async def test_upsert_candle_error(self, mock_pool, mock_connection, sample_candle) -> None:
         """Test candle upsert with error."""
         timescale._pool = mock_pool
         mock_connection.execute.side_effect = Exception("Database error")
@@ -157,7 +157,7 @@ class TestCandleOperations:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_get_candles_decimal_precision(self, mock_pool, mock_connection):
+    async def test_get_candles_decimal_precision(self, mock_pool, mock_connection) -> None:
         """Test get_candles preserves Decimal precision."""
         timescale._pool = mock_pool
 
@@ -201,7 +201,7 @@ class TestCandleOperations:
         assert candle["high_price"] == Decimal("51000.87654321")
 
     @pytest.mark.asyncio
-    async def test_get_candles_with_filters(self, mock_pool, mock_connection):
+    async def test_get_candles_with_filters(self, mock_pool, mock_connection) -> None:
         """Test get_candles with time filters."""
         timescale._pool = mock_pool
         mock_connection.fetch.return_value = []
@@ -232,7 +232,7 @@ class TestCandleOperations:
 
 class TestOrderOperations:
     @pytest.mark.asyncio
-    async def test_upsert_order_decimal_conversion(self, mock_pool, mock_connection):
+    async def test_upsert_order_decimal_conversion(self, mock_pool, mock_connection) -> None:
         """Test order upsert converts to Decimal properly."""
         timescale._pool = mock_pool
 
@@ -264,7 +264,7 @@ class TestOrderOperations:
         assert params[15] == Decimal("0.00001")  # commission
 
     @pytest.mark.asyncio
-    async def test_upsert_order_optional_fields(self, mock_pool, mock_connection):
+    async def test_upsert_order_optional_fields(self, mock_pool, mock_connection) -> None:
         """Test order upsert with minimal required fields."""
         timescale._pool = mock_pool
 
@@ -368,7 +368,7 @@ class TestPositionOperations:
 
 # Cleanup global state after tests
 @pytest.fixture(autouse=True)
-def cleanup_global_pool():
+def cleanup_global_pool() -> None:
     """Clean up global pool after each test."""
     yield
     timescale._pool = None

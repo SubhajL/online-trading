@@ -17,7 +17,7 @@ class TestEvent(BaseEvent):
 
     test_data: str
 
-    def __init__(self, test_data: str, **kwargs):
+    def __init__(self, test_data: str, **kwargs) -> None:
         super().__init__(
             event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
             timestamp=kwargs.get("timestamp", datetime.utcnow()),
@@ -33,14 +33,14 @@ class TestEvent(BaseEvent):
 
 class TestEventBusIntegration:
     @pytest.mark.asyncio
-    async def test_end_to_end_event_flow_with_real_components(self):
+    async def test_end_to_end_event_flow_with_real_components(self) -> None:
         """Test complete event flow from publish to handler execution."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
 
         received_events = []
 
-        async def test_handler(event: BaseEvent):
+        async def test_handler(event: BaseEvent) -> None:
             received_events.append(event.test_data)
 
         # Subscribe to events
@@ -70,20 +70,20 @@ class TestEventBusIntegration:
             await event_bus.unsubscribe(subscription_id)
 
     @pytest.mark.asyncio
-    async def test_multiple_subscribers_priority_ordering_integration(self):
+    async def test_multiple_subscribers_priority_ordering_integration(self) -> None:
         """Test that multiple subscribers are called in priority order."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
 
         call_order = []
 
-        async def high_priority_handler(event: BaseEvent):
+        async def high_priority_handler(event: BaseEvent) -> None:
             call_order.append("high")
 
-        async def low_priority_handler(event: BaseEvent):
+        async def low_priority_handler(event: BaseEvent) -> None:
             call_order.append("low")
 
-        async def medium_priority_handler(event: BaseEvent):
+        async def medium_priority_handler(event: BaseEvent) -> None:
             call_order.append("medium")
 
         try:
@@ -110,7 +110,7 @@ class TestEventBusIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_subscription_failure_recovery_with_circuit_breaker(self):
+    async def test_subscription_failure_recovery_with_circuit_breaker(self) -> None:
         """Test that failing subscriptions are handled and disabled after retries."""
         config = EventBusConfig(processing_config={"circuit_breaker_enabled": True})
         factory = EventBusFactory()
@@ -118,7 +118,7 @@ class TestEventBusIntegration:
 
         failure_count = 0
 
-        async def failing_handler(event: BaseEvent):
+        async def failing_handler(event: BaseEvent) -> None:
             nonlocal failure_count
             failure_count += 1
             raise ValueError(f"Test failure {failure_count}")
@@ -152,7 +152,7 @@ class TestEventBusIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_concurrent_operations_thread_safety_integration(self):
+    async def test_concurrent_operations_thread_safety_integration(self) -> None:
         """Test thread safety under concurrent operations."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
@@ -160,7 +160,7 @@ class TestEventBusIntegration:
         received_count = 0
         lock = asyncio.Lock()
 
-        async def counting_handler(event: BaseEvent):
+        async def counting_handler(event: BaseEvent) -> None:
             nonlocal received_count
             async with lock:
                 received_count += 1
@@ -194,7 +194,7 @@ class TestEventBusIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_memory_bounded_operations_with_queue_management(self):
+    async def test_memory_bounded_operations_with_queue_management(self) -> None:
         """Test that the system manages queue size appropriately."""
         # Use configuration with bounded queue
         config = EventBusConfig(max_queue_size=20)
@@ -203,7 +203,7 @@ class TestEventBusIntegration:
 
         processed_count = 0
 
-        async def counting_handler(event: BaseEvent):
+        async def counting_handler(event: BaseEvent) -> None:
             nonlocal processed_count
             processed_count += 1
 
@@ -234,14 +234,14 @@ class TestEventBusIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_metrics_aggregation_across_all_components(self):
+    async def test_metrics_aggregation_across_all_components(self) -> None:
         """Test that metrics are properly aggregated from all components."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
 
         success_count = 0
 
-        async def metrics_handler(event: BaseEvent):
+        async def metrics_handler(event: BaseEvent) -> None:
             nonlocal success_count
             success_count += 1
 
@@ -281,7 +281,7 @@ class TestEventBusIntegration:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_graceful_shutdown_with_pending_events(self):
+    async def test_graceful_shutdown_with_pending_events(self) -> None:
         """Test that shutdown properly handles pending events."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()
@@ -289,7 +289,7 @@ class TestEventBusIntegration:
         processed_events = []
         processing_started = asyncio.Event()
 
-        async def slow_handler(event: BaseEvent):
+        async def slow_handler(event: BaseEvent) -> None:
             # Signal that processing has started
             processing_started.set()
             # Simulate slow processing
@@ -322,7 +322,7 @@ class TestEventBusIntegration:
         assert len(processed_events) >= 0  # Graceful - some may complete, some may not
 
     @pytest.mark.asyncio
-    async def test_event_bus_factory_creates_working_instances(self):
+    async def test_event_bus_factory_creates_working_instances(self) -> None:
         """Test that factory creates working EventBus instances."""
         factory = EventBusFactory()
 
@@ -346,7 +346,7 @@ class TestEventBusIntegration:
         assert bus2 is not bus3
 
     @pytest.mark.asyncio
-    async def test_health_check_provides_system_status(self):
+    async def test_health_check_provides_system_status(self) -> None:
         """Test that health check provides comprehensive system status."""
         factory = EventBusFactory()
         event_bus = factory.create_event_bus()

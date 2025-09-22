@@ -4,7 +4,6 @@ Base plugin interface for extending the trading engine.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any
 
 from ..models import BaseEvent, Candle, TechnicalIndicators
 
@@ -40,12 +39,12 @@ class BasePlugin(ABC):
         Process an event and optionally return new events.
         """
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """
         Initialize the plugin (optional override).
         """
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """
         Cleanup resources (optional override).
         """
@@ -81,7 +80,10 @@ class IndicatorPlugin(BasePlugin):
         Process candle events and calculate indicators.
         """
         if event.event_type.value == "candle_update":
-            indicators = await self.calculate(event.metadata.get("candle"))
+            candle = event.metadata.get("candle")
+            if not isinstance(candle, Candle):
+                return None
+            indicators = await self.calculate(candle)
             if indicators:
                 # Create custom indicator event
                 return [

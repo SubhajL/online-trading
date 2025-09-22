@@ -28,7 +28,7 @@ from app.engine.core.security import (
 
 
 class TestValidationRule:
-    def test_validation_rule_creation(self):
+    def test_validation_rule_creation(self) -> None:
         rule = ValidationRule(
             name="TEST_VAR",
             pattern=r"^\d+$",
@@ -47,12 +47,12 @@ class TestValidationRule:
 
 
 class TestEnvironmentValidator:
-    def test_validator_initialization_with_security_level(self):
+    def test_validator_initialization_with_security_level(self) -> None:
         validator = EnvironmentValidator(SecurityLevel.PRODUCTION)
         assert validator.security_level == SecurityLevel.PRODUCTION
         assert len(validator.rules) > 0  # Should have default rules
 
-    def test_validate_required_variable_missing(self):
+    def test_validate_required_variable_missing(self) -> None:
         validator = EnvironmentValidator()
         rule = ValidationRule(name="REQUIRED_VAR", required=True)
         validator.add_rule(rule)
@@ -63,7 +63,7 @@ class TestEnvironmentValidator:
         assert "Required variable" in result.error
         assert result.suggestion is not None
 
-    def test_validate_pattern_matching(self):
+    def test_validate_pattern_matching(self) -> None:
         validator = EnvironmentValidator()
         rule = ValidationRule(name="PORT_VAR", pattern=r"^\d{4}$")
         validator.add_rule(rule)
@@ -77,7 +77,7 @@ class TestEnvironmentValidator:
         assert result.is_valid is False
         assert "does not match required pattern" in result.error
 
-    def test_validate_length_constraints(self):
+    def test_validate_length_constraints(self) -> None:
         validator = EnvironmentValidator()
         rule = ValidationRule(name="PASSWORD", min_length=8, max_length=20)
         validator.add_rule(rule)
@@ -96,7 +96,7 @@ class TestEnvironmentValidator:
         assert result.is_valid is False
         assert "too long" in result.error
 
-    def test_validate_allowed_values(self):
+    def test_validate_allowed_values(self) -> None:
         validator = EnvironmentValidator()
         rule = ValidationRule(
             name="LOG_LEVEL", allowed_values=["DEBUG", "INFO", "ERROR"]
@@ -112,7 +112,7 @@ class TestEnvironmentValidator:
         assert result.is_valid is False
         assert "invalid value" in result.error
 
-    def test_custom_validator(self):
+    def test_custom_validator(self) -> None:
         validator = EnvironmentValidator()
 
         def is_even(value: str) -> bool:
@@ -137,7 +137,7 @@ class TestEnvironmentValidator:
         assert result.is_valid is False
         assert "even number" in result.error
 
-    def test_validate_all_with_environment_variables(self):
+    def test_validate_all_with_environment_variables(self) -> None:
         validator = EnvironmentValidator()
         # Clear default rules first
         validator.rules.clear()
@@ -153,7 +153,7 @@ class TestEnvironmentValidator:
             assert len(audit.failed_validations) == 0
             assert audit.security_score > 0
 
-    def test_password_strength_validation(self):
+    def test_password_strength_validation(self) -> None:
         validator = EnvironmentValidator(SecurityLevel.PRODUCTION)
 
         # Weak password
@@ -164,7 +164,7 @@ class TestEnvironmentValidator:
         result = validator._validate_password_strength("StrongP@ssw0rd123")
         assert result is True
 
-    def test_jwt_secret_validation(self):
+    def test_jwt_secret_validation(self) -> None:
         validator = EnvironmentValidator()
 
         # Weak secret
@@ -177,12 +177,12 @@ class TestEnvironmentValidator:
 
 
 class TestSecretManager:
-    def test_secret_manager_initialization(self):
+    def test_secret_manager_initialization(self) -> None:
         manager = SecretManager(master_key="test_master_key_32_bytes_long!!!")
         assert manager.master_key is not None
         assert manager._cipher is not None
 
-    def test_encrypt_decrypt_cycle(self):
+    def test_encrypt_decrypt_cycle(self) -> None:
         manager = SecretManager(master_key="test_master_key_32_bytes_long!!!")
 
         original = "sensitive_data_123"
@@ -194,13 +194,13 @@ class TestSecretManager:
         decrypted = manager.decrypt(encrypted)
         assert decrypted == original
 
-    def test_decrypt_invalid_data_raises_error(self):
+    def test_decrypt_invalid_data_raises_error(self) -> None:
         manager = SecretManager(master_key="test_master_key_32_bytes_long!!!")
 
         with pytest.raises(SecurityError):
             manager.decrypt("invalid_encrypted_data")
 
-    def test_hash_value_with_salt(self):
+    def test_hash_value_with_salt(self) -> None:
         manager = SecretManager()
 
         value = "password123"
@@ -209,7 +209,7 @@ class TestSecretManager:
         assert "$" in hashed  # Contains salt separator
         assert len(hashed) > 32  # Has salt and hash
 
-    def test_verify_hash(self):
+    def test_verify_hash(self) -> None:
         manager = SecretManager()
 
         value = "password123"
@@ -223,14 +223,14 @@ class TestSecretManager:
 
 
 class TestSecureConfig:
-    def test_secure_config_initialization(self):
+    def test_secure_config_initialization(self) -> None:
         config = SecureConfig(SecurityLevel.PRODUCTION, enable_encryption=True)
 
         assert config.security_level == SecurityLevel.PRODUCTION
         assert config.validator is not None
         assert config.secret_manager is not None
 
-    def test_get_configuration_value(self):
+    def test_get_configuration_value(self) -> None:
         config = SecureConfig()
 
         with patch.dict(os.environ, {"TEST_KEY": "test_value"}):
@@ -240,13 +240,13 @@ class TestSecureConfig:
             # Should be cached
             assert "TEST_KEY" in config._cached_values
 
-    def test_get_with_default_value(self):
+    def test_get_with_default_value(self) -> None:
         config = SecureConfig()
 
         value = config.get("MISSING_KEY", default="default_value")
         assert value == "default_value"
 
-    def test_get_secret_with_encryption(self):
+    def test_get_secret_with_encryption(self) -> None:
         config = SecureConfig(enable_encryption=True)
 
         # Set encrypted secret
@@ -256,14 +256,14 @@ class TestSecureConfig:
         value = config.get_secret("SECRET_KEY")
         assert value == "secret_value"
 
-    def test_get_secret_without_encryption_prefix(self):
+    def test_get_secret_without_encryption_prefix(self) -> None:
         config = SecureConfig(enable_encryption=True)
 
         with patch.dict(os.environ, {"PLAIN_SECRET": "plain_value"}):
             value = config.get_secret("PLAIN_SECRET")
             assert value == "plain_value"
 
-    def test_validation_error_in_production(self):
+    def test_validation_error_in_production(self) -> None:
         config = SecureConfig(SecurityLevel.PRODUCTION)
         config.validator.add_rule(ValidationRule(name="INVALID_VAR", pattern=r"^\d+$"))
 
@@ -271,7 +271,7 @@ class TestSecureConfig:
             with pytest.raises(ValidationError):
                 config.get("INVALID_VAR")
 
-    def test_validation_warning_in_development(self):
+    def test_validation_warning_in_development(self) -> None:
         config = SecureConfig(SecurityLevel.DEVELOPMENT)
         config.validator.add_rule(ValidationRule(name="INVALID_VAR", pattern=r"^\d+$"))
 
@@ -280,7 +280,7 @@ class TestSecureConfig:
             value = config.get("INVALID_VAR")
             assert value == "not_a_number"
 
-    def test_mask_sensitive_values(self):
+    def test_mask_sensitive_values(self) -> None:
         config = SecureConfig()
         config._sensitive_keys.add("API_KEY")
 
@@ -296,7 +296,7 @@ class TestSecureConfig:
         assert masked["NORMAL_KEY"] == "normal_value"
         assert masked["PASSWORD"] == "pa***23"
 
-    def test_export_safe_config(self):
+    def test_export_safe_config(self) -> None:
         config = SecureConfig()
         config._sensitive_keys.add("SECRET")
 
@@ -313,7 +313,7 @@ class TestSecureConfig:
 
 
 class TestSecurityGuard:
-    def test_security_guard_initialization(self):
+    def test_security_guard_initialization(self) -> None:
         config = SecureConfig()
         guard = SecurityGuard(config)
 
@@ -321,7 +321,7 @@ class TestSecurityGuard:
         assert guard.violations == []
         assert isinstance(guard.start_time, datetime)
 
-    def test_check_file_permissions(self):
+    def test_check_file_permissions(self) -> None:
         config = SecureConfig()
         guard = SecurityGuard(config)
 
@@ -337,7 +337,7 @@ class TestSecurityGuard:
             # Clean up
             tmp_path.unlink()
 
-    def test_check_secure_communication_production(self):
+    def test_check_secure_communication_production(self) -> None:
         config = SecureConfig(SecurityLevel.PRODUCTION)
         guard = SecurityGuard(config)
 
@@ -348,7 +348,7 @@ class TestSecurityGuard:
             assert result is False
             assert len(guard.violations) >= 2
 
-    def test_log_violation(self):
+    def test_log_violation(self) -> None:
         config = SecureConfig()
         guard = SecurityGuard(config)
 
@@ -360,7 +360,7 @@ class TestSecurityGuard:
         assert violation["message"] == "test message"
         assert violation["severity"] == "HIGH"
 
-    def test_get_security_report(self):
+    def test_get_security_report(self) -> None:
         config = SecureConfig()
         guard = SecurityGuard(config)
 
@@ -378,7 +378,7 @@ class TestSecurityGuard:
 
 
 class TestConvenienceFunctions:
-    def test_validate_environment_function(self):
+    def test_validate_environment_function(self) -> None:
         with patch("app.engine.core.security.secure_config") as mock_config:
             mock_audit = SecurityAudit()
             mock_config.audit.return_value = mock_audit
@@ -387,7 +387,7 @@ class TestConvenienceFunctions:
             assert audit == mock_audit
             mock_config.audit.assert_called_once()
 
-    def test_get_secure_config_function(self):
+    def test_get_secure_config_function(self) -> None:
         with patch("app.engine.core.security.secure_config") as mock_config:
             mock_config.get.return_value = "test_value"
 
@@ -395,7 +395,7 @@ class TestConvenienceFunctions:
             assert value == "test_value"
             mock_config.get.assert_called_once_with("TEST_KEY", "default")
 
-    def test_get_secret_function(self):
+    def test_get_secret_function(self) -> None:
         with patch("app.engine.core.security.secure_config") as mock_config:
             mock_config.get_secret.return_value = "secret_value"
 
@@ -405,7 +405,7 @@ class TestConvenienceFunctions:
 
 
 class TestSecurityAudit:
-    def test_security_audit_structure(self):
+    def test_security_audit_structure(self) -> None:
         audit = SecurityAudit()
 
         assert isinstance(audit.timestamp, datetime)

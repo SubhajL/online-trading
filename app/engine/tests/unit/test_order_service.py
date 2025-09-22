@@ -25,7 +25,7 @@ from app.engine.services.order_service import (
 class TestValidateOrderParams:
     """Tests for order parameter validation."""
 
-    def test_validate_order_params_valid(self):
+    def test_validate_order_params_valid(self) -> None:
         """Valid order passes all validation checks."""
         order = OrderRequest(
             symbol="BTCUSDT",
@@ -39,7 +39,7 @@ class TestValidateOrderParams:
         assert result.is_valid is True
         assert len(result.errors) == 0
 
-    def test_validate_order_params_quantity_too_small(self):
+    def test_validate_order_params_quantity_too_small(self) -> None:
         """Rejects order below minimum quantity."""
         order = OrderRequest(
             symbol="BTCUSDT",
@@ -53,7 +53,7 @@ class TestValidateOrderParams:
         assert result.is_valid is False
         assert any("minimum quantity" in error.lower() for error in result.errors)
 
-    def test_validate_order_params_price_precision_invalid(self):
+    def test_validate_order_params_price_precision_invalid(self) -> None:
         """Rejects order with incorrect price precision."""
         order = OrderRequest(
             symbol="BTCUSDT",
@@ -68,7 +68,7 @@ class TestValidateOrderParams:
         assert result.is_valid is False
         assert any("price precision" in error.lower() for error in result.errors)
 
-    def test_validate_order_params_missing_price_for_limit(self):
+    def test_validate_order_params_missing_price_for_limit(self) -> None:
         """Rejects limit order without price."""
         order = OrderRequest(
             symbol="BTCUSDT",
@@ -83,7 +83,7 @@ class TestValidateOrderParams:
         assert result.is_valid is False
         assert any("price required" in error.lower() for error in result.errors)
 
-    def test_validate_order_params_notional_too_small(self):
+    def test_validate_order_params_notional_too_small(self) -> None:
         """Rejects order with notional value below minimum."""
         order = OrderRequest(
             symbol="BTCUSDT",
@@ -102,7 +102,7 @@ class TestValidateOrderParams:
 class TestCalculatePositionSize:
     """Tests for position size calculation."""
 
-    def test_calculate_position_size_risk_limit(self):
+    def test_calculate_position_size_risk_limit(self) -> None:
         """Respects maximum risk per trade."""
         signal = TradingSignal(
             symbol="BTCUSDT",
@@ -121,7 +121,7 @@ class TestCalculatePositionSize:
         # Expected: $50 risk / ($1000 loss per BTC) = 0.05 BTC
         assert position_size == Decimal("0.05")
 
-    def test_calculate_position_size_insufficient_balance(self):
+    def test_calculate_position_size_insufficient_balance(self) -> None:
         """Handles insufficient balance gracefully."""
         signal = TradingSignal(
             symbol="BTCUSDT",
@@ -139,7 +139,7 @@ class TestCalculatePositionSize:
         # Should return 0 or very small position
         assert position_size <= Decimal("0.002")  # Max possible with $100
 
-    def test_calculate_position_size_with_leverage(self):
+    def test_calculate_position_size_with_leverage(self) -> None:
         """Uses leverage appropriately."""
         signal = TradingSignal(
             symbol="BTCUSDT",
@@ -159,7 +159,7 @@ class TestCalculatePositionSize:
         # Risk is $10, stop loss is $500 per BTC, so position = 0.02 BTC
         assert position_size == Decimal("0.02")
 
-    def test_calculate_position_size_confidence_scaling(self):
+    def test_calculate_position_size_confidence_scaling(self) -> None:
         """Scales position size based on signal confidence."""
         signal_high = TradingSignal(
             symbol="BTCUSDT",
@@ -189,7 +189,7 @@ class TestCreateOrderWithRetry:
     """Tests for order creation with retry logic."""
 
     @pytest.mark.asyncio
-    async def test_create_order_with_retry_success(self):
+    async def test_create_order_with_retry_success(self) -> None:
         """Successfully creates order on first attempt."""
         order = OrderRequest(
             symbol="BTCUSDT",
@@ -205,7 +205,7 @@ class TestCreateOrderWithRetry:
         assert response.filled_quantity == order.quantity
 
     @pytest.mark.asyncio
-    async def test_create_order_with_retry_transient_failure(self):
+    async def test_create_order_with_retry_transient_failure(self) -> None:
         """Retries on network error and succeeds."""
         order = OrderRequest(
             symbol="BTCUSDT",
@@ -221,7 +221,7 @@ class TestCreateOrderWithRetry:
         assert response.order_id is not None
 
     @pytest.mark.asyncio
-    async def test_create_order_with_retry_permanent_failure(self):
+    async def test_create_order_with_retry_permanent_failure(self) -> None:
         """Fails after max retries on permanent error."""
         order = OrderRequest(
             symbol="INVALID",  # Invalid symbol
@@ -236,7 +236,7 @@ class TestCreateOrderWithRetry:
         assert "invalid symbol" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_create_order_with_retry_timeout(self):
+    async def test_create_order_with_retry_timeout(self) -> None:
         """Handles timeout appropriately."""
         order = OrderRequest(
             symbol="BTCUSDT",

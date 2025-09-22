@@ -28,7 +28,7 @@ class DBConfig:
 class ConnectionPool:
     """Manages database connection pooling with retry logic."""
 
-    def __init__(self, config: DBConfig):
+    def __init__(self, config: DBConfig) -> None:
         self.config = config
         self._pool: Pool | None = None
 
@@ -67,7 +67,7 @@ class ConnectionPool:
                     raise
 
     @asynccontextmanager
-    async def acquire(self):
+    async def acquire(self) -> None:
         """Acquire connection from pool."""
         if not self.is_initialized:
             raise RuntimeError("Connection pool not initialized")

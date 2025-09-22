@@ -19,7 +19,7 @@ from app.engine.core.observability import (
 
 
 class TestHealthCheck:
-    def test_health_check_creation(self):
+    def test_health_check_creation(self) -> None:
         check = HealthCheck(
             name="test_check",
             status=HealthStatus.HEALTHY,
@@ -35,7 +35,7 @@ class TestHealthCheck:
 
 
 class TestHealthReport:
-    def test_health_report_creation(self):
+    def test_health_report_creation(self) -> None:
         checks = [
             HealthCheck("check1", HealthStatus.HEALTHY),
             HealthCheck("check2", HealthStatus.DEGRADED),
@@ -46,7 +46,7 @@ class TestHealthReport:
         assert report.status == HealthStatus.DEGRADED
         assert len(report.checks) == 2
 
-    def test_health_report_to_dict(self):
+    def test_health_report_to_dict(self) -> None:
         checks = [HealthCheck("check1", HealthStatus.HEALTHY, "OK", {"metric": 100})]
 
         report = HealthReport(HealthStatus.HEALTHY, checks)
@@ -59,7 +59,7 @@ class TestHealthReport:
 
 
 class TestObservabilityManager:
-    def test_initialization_with_metrics_and_tracing(self):
+    def test_initialization_with_metrics_and_tracing(self) -> None:
         manager = ObservabilityManager(
             service_name="test-service", enable_metrics=True, enable_tracing=True
         )
@@ -73,29 +73,29 @@ class TestObservabilityManager:
         assert hasattr(manager, "request_duration")
         assert hasattr(manager, "request_errors")
 
-    def test_initialization_without_metrics(self):
+    def test_initialization_without_metrics(self) -> None:
         manager = ObservabilityManager(enable_metrics=False, enable_tracing=True)
 
         assert manager.metrics is None
         assert manager.tracer is not None
 
-    def test_initialization_without_tracing(self):
+    def test_initialization_without_tracing(self) -> None:
         manager = ObservabilityManager(enable_metrics=True, enable_tracing=False)
 
         assert manager.metrics is not None
         assert manager.tracer is None
 
-    def test_register_health_check(self):
+    def test_register_health_check(self) -> None:
         manager = ObservabilityManager()
 
-        def test_check():
+        def test_check() -> None:
             return HealthCheck("test", HealthStatus.HEALTHY)
 
         manager.register_health_check("test", test_check)
 
         assert "test" in manager._health_checks
 
-    def test_health_report_generation(self):
+    def test_health_report_generation(self) -> None:
         manager = ObservabilityManager()
 
         # Register checks
@@ -111,10 +111,10 @@ class TestObservabilityManager:
         assert report.status == HealthStatus.DEGRADED
         assert len(report.checks) == 2
 
-    def test_health_check_exception_handling(self):
+    def test_health_check_exception_handling(self) -> None:
         manager = ObservabilityManager()
 
-        def failing_check():
+        def failing_check() -> None:
             raise ValueError("Check failed")
 
         manager.register_health_check("failing", failing_check)
@@ -129,7 +129,7 @@ class TestObservabilityManager:
         assert "failed" in failing_check_result.message.lower()
 
     @pytest.mark.asyncio
-    async def test_trace_operation_with_metrics(self):
+    async def test_trace_operation_with_metrics(self) -> None:
         manager = ObservabilityManager(enable_metrics=True, enable_tracing=True)
 
         async with manager.trace_operation(
@@ -147,7 +147,7 @@ class TestObservabilityManager:
         assert stats["total_operations"] > 0
 
     @pytest.mark.asyncio
-    async def test_trace_operation_with_error(self):
+    async def test_trace_operation_with_error(self) -> None:
         manager = ObservabilityManager()
 
         with pytest.raises(ValueError):
@@ -161,7 +161,7 @@ class TestObservabilityManager:
             assert len(error_metrics) > 0
 
     @pytest.mark.asyncio
-    async def test_trace_operation_without_tracing(self):
+    async def test_trace_operation_without_tracing(self) -> None:
         manager = ObservabilityManager(enable_metrics=True, enable_tracing=False)
 
         async with manager.trace_operation("test_op") as span:
@@ -172,7 +172,7 @@ class TestObservabilityManager:
         metrics = manager.metrics.registry.collect_all()
         assert len(metrics) > 0
 
-    def test_update_queue_metrics(self):
+    def test_update_queue_metrics(self) -> None:
         manager = ObservabilityManager()
 
         manager.update_queue_metrics(queue_size=100, processing_lag=0.5)
@@ -183,7 +183,7 @@ class TestObservabilityManager:
             assert len(queue_metrics) > 0
             assert queue_metrics[0].value == 100
 
-    def test_record_event(self):
+    def test_record_event(self) -> None:
         manager = ObservabilityManager(enable_tracing=True)
 
         # Create a span context
@@ -193,7 +193,7 @@ class TestObservabilityManager:
             assert len(span.events) == 1
             assert span.events[0].name == "test_event"
 
-    def test_get_metrics_summary(self):
+    def test_get_metrics_summary(self) -> None:
         manager = ObservabilityManager(enable_metrics=True)
 
         # Record some metrics
@@ -205,7 +205,7 @@ class TestObservabilityManager:
         assert "metrics" in summary
         assert len(summary["metrics"]) > 0
 
-    def test_get_operation_statistics(self):
+    def test_get_operation_statistics(self) -> None:
         manager = ObservabilityManager()
 
         # Add some operations to history
@@ -236,7 +236,7 @@ class TestObservabilityManager:
         assert "p50_duration" in stats
         assert "p95_duration" in stats
 
-    def test_operation_statistics_empty(self):
+    def test_operation_statistics_empty(self) -> None:
         manager = ObservabilityManager()
 
         stats = manager.get_operation_statistics()
@@ -245,7 +245,7 @@ class TestObservabilityManager:
         assert stats["success_rate"] == 0.0
         assert stats["average_duration"] == 0.0
 
-    def test_export_metrics_prometheus(self):
+    def test_export_metrics_prometheus(self) -> None:
         manager = ObservabilityManager(enable_metrics=True)
 
         # Record a metric
@@ -256,19 +256,19 @@ class TestObservabilityManager:
         assert "requests_total" in prometheus_output
         assert "GET" in prometheus_output
 
-    def test_export_metrics_disabled(self):
+    def test_export_metrics_disabled(self) -> None:
         manager = ObservabilityManager(enable_metrics=False)
 
         prometheus_output = manager.export_metrics_prometheus()
 
         assert prometheus_output == ""
 
-    def test_health_check_background_loop(self):
+    def test_health_check_background_loop(self) -> None:
         manager = ObservabilityManager()
 
         check_called = False
 
-        def test_check():
+        def test_check() -> None:
             nonlocal check_called
             check_called = True
             return HealthCheck("test", HealthStatus.HEALTHY)
@@ -281,7 +281,7 @@ class TestObservabilityManager:
 
         assert check_called
 
-    def test_shutdown(self):
+    def test_shutdown(self) -> None:
         manager = ObservabilityManager(
             enable_metrics=True, enable_tracing=True, enable_console_export=True
         )
@@ -294,7 +294,7 @@ class TestObservabilityManager:
 
 class TestEventBusHealthCheck:
     @pytest.mark.asyncio
-    async def test_check_queue_health_healthy(self):
+    async def test_check_queue_health_healthy(self) -> None:
         mock_event_bus = AsyncMock()
         mock_event_bus.get_metrics = AsyncMock(
             return_value={"queue_size": 100, "max_queue_size": 10000}
@@ -307,7 +307,7 @@ class TestEventBusHealthCheck:
         assert "healthy" in check.message.lower()
 
     @pytest.mark.asyncio
-    async def test_check_queue_health_degraded(self):
+    async def test_check_queue_health_degraded(self) -> None:
         mock_event_bus = AsyncMock()
         mock_event_bus.get_metrics = AsyncMock(
             return_value={"queue_size": 7500, "max_queue_size": 10000}
@@ -320,7 +320,7 @@ class TestEventBusHealthCheck:
         assert "filling" in check.message.lower()
 
     @pytest.mark.asyncio
-    async def test_check_queue_health_unhealthy(self):
+    async def test_check_queue_health_unhealthy(self) -> None:
         mock_event_bus = AsyncMock()
         mock_event_bus.get_metrics = AsyncMock(
             return_value={"queue_size": 9500, "max_queue_size": 10000}
@@ -333,7 +333,7 @@ class TestEventBusHealthCheck:
         assert "critical" in check.message.lower()
 
     @pytest.mark.asyncio
-    async def test_check_processing_health_healthy(self):
+    async def test_check_processing_health_healthy(self) -> None:
         mock_event_bus = AsyncMock()
         mock_event_bus.get_metrics = AsyncMock(
             return_value={"error_rate": 0.01, "is_running": True}
@@ -345,7 +345,7 @@ class TestEventBusHealthCheck:
         assert check.status == HealthStatus.HEALTHY
 
     @pytest.mark.asyncio
-    async def test_check_processing_health_not_running(self):
+    async def test_check_processing_health_not_running(self) -> None:
         mock_event_bus = AsyncMock()
         mock_event_bus.get_metrics = AsyncMock(
             return_value={"error_rate": 0.0, "is_running": False}
@@ -358,7 +358,7 @@ class TestEventBusHealthCheck:
         assert "not running" in check.message.lower()
 
     @pytest.mark.asyncio
-    async def test_check_processing_health_high_errors(self):
+    async def test_check_processing_health_high_errors(self) -> None:
         mock_event_bus = AsyncMock()
         mock_event_bus.get_metrics = AsyncMock(
             return_value={"error_rate": 0.6, "is_running": True}
@@ -372,7 +372,7 @@ class TestEventBusHealthCheck:
 
 
 class TestGlobalObservability:
-    def test_init_observability(self):
+    def test_init_observability(self) -> None:
         manager = init_observability(
             service_name="test-global", enable_metrics=True, enable_tracing=True
         )
@@ -381,7 +381,7 @@ class TestGlobalObservability:
         assert manager.service_name == "test-global"
         assert get_observability() is manager
 
-    def test_get_observability_none(self):
+    def test_get_observability_none(self) -> None:
         # Reset global
         import app.engine.core.observability
 

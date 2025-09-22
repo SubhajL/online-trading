@@ -19,7 +19,7 @@ from app.engine.models import BaseEvent, EventType
 
 
 class TestEventBusConfig:
-    def test_from_env_loads_configuration(self, monkeypatch):
+    def test_from_env_loads_configuration(self, monkeypatch) -> None:
         monkeypatch.setenv("EVENT_BUS_MAX_QUEUE_SIZE", "5000")
         monkeypatch.setenv("EVENT_BUS_NUM_WORKERS", "2")
         monkeypatch.setenv("EVENT_BUS_ENABLE_PERSISTENCE", "false")
@@ -32,7 +32,7 @@ class TestEventBusConfig:
         assert config.enable_persistence is False
         assert config.dead_letter_queue_size == 500
 
-    def test_from_env_uses_defaults_when_not_set(self):
+    def test_from_env_uses_defaults_when_not_set(self) -> None:
         config = EventBusConfig.from_env()
 
         assert config.max_queue_size == 10000
@@ -40,7 +40,7 @@ class TestEventBusConfig:
         assert config.enable_persistence is False
         assert config.dead_letter_queue_size == 1000
 
-    def test_validates_positive_values(self):
+    def test_validates_positive_values(self) -> None:
         with pytest.raises(ValidationError) as exc_info:
             EventBusConfig(max_queue_size=-1)
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -51,7 +51,7 @@ class TestEventBusConfig:
 
 
 class TestEventBusFactory:
-    def test_create_event_bus_returns_configured_instance(self):
+    def test_create_event_bus_returns_configured_instance(self) -> None:
         config = EventBusConfig(
             max_queue_size=100, num_workers=2, enable_persistence=True
         )
@@ -63,7 +63,7 @@ class TestEventBusFactory:
         assert event_bus._num_workers == 2
         assert event_bus._enable_persistence is True
 
-    def test_create_event_bus_with_dependencies(self):
+    def test_create_event_bus_with_dependencies(self) -> None:
         config = EventBusConfig()
         persistence = MagicMock()
         metrics = MagicMock()
@@ -78,7 +78,7 @@ class TestEventBusFactory:
 
 class TestEventBus:
     @pytest.mark.asyncio
-    async def test_publish_event_success(self):
+    async def test_publish_event_success(self) -> None:
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         event_bus = create_event_bus(config)
         await event_bus.start()
@@ -98,7 +98,7 @@ class TestEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_multiple_subscribers_receive_event(self):
+    async def test_multiple_subscribers_receive_event(self) -> None:
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         event_bus = create_event_bus(config)
         await event_bus.start()
@@ -106,10 +106,10 @@ class TestEventBus:
         try:
             received_events = []
 
-            async def handler1(event):
+            async def handler1(event) -> None:
                 received_events.append(("handler1", event))
 
-            async def handler2(event):
+            async def handler2(event) -> None:
                 received_events.append(("handler2", event))
 
             await event_bus.subscribe("sub1", handler1, [EventType.CANDLE_UPDATE])
@@ -131,7 +131,7 @@ class TestEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_priority_ordering(self):
+    async def test_priority_ordering(self) -> None:
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         event_bus = create_event_bus(config)
         await event_bus.start()
@@ -139,7 +139,7 @@ class TestEventBus:
         try:
             received_order = []
 
-            async def handler(event):
+            async def handler(event) -> None:
                 received_order.append(event.metadata.get("priority"))
 
             await event_bus.subscribe("sub1", handler, priority=10)
@@ -159,14 +159,14 @@ class TestEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_dead_letter_queue_on_failure(self):
+    async def test_dead_letter_queue_on_failure(self) -> None:
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         event_bus = create_event_bus(config)
         await event_bus.start()
 
         try:
 
-            async def failing_handler(event):
+            async def failing_handler(event) -> None:
                 raise ValueError("Simulated failure")
 
             await event_bus.subscribe(
@@ -189,14 +189,14 @@ class TestEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_circuit_breaker_opens_on_errors(self):
+    async def test_circuit_breaker_opens_on_errors(self) -> None:
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         event_bus = create_event_bus(config)
         await event_bus.start()
 
         try:
 
-            async def failing_handler(event):
+            async def failing_handler(event) -> None:
                 raise ValueError("Simulated error")
 
             subscription_id = await event_bus.subscribe(
@@ -226,7 +226,7 @@ class TestEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_concurrent_publish_thread_safety(self):
+    async def test_concurrent_publish_thread_safety(self) -> None:
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         event_bus = create_event_bus(config)
         await event_bus.start()
@@ -234,7 +234,7 @@ class TestEventBus:
         try:
             received_events = set()
 
-            async def handler(event):
+            async def handler(event) -> None:
                 received_events.add(event.event_id)
 
             await event_bus.subscribe("concurrent_sub", handler)
@@ -260,7 +260,7 @@ class TestEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_subscriber_retry_logic(self):
+    async def test_subscriber_retry_logic(self) -> None:
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         event_bus = create_event_bus(config)
         await event_bus.start()
@@ -268,7 +268,7 @@ class TestEventBus:
         try:
             attempt_count = 0
 
-            async def flaky_handler(event):
+            async def flaky_handler(event) -> None:
                 nonlocal attempt_count
                 attempt_count += 1
                 if attempt_count < 3:
@@ -300,7 +300,7 @@ class TestEventBus:
             await event_bus.stop()
 
     @pytest.mark.asyncio
-    async def test_metrics_accuracy(self):
+    async def test_metrics_accuracy(self) -> None:
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         event_bus = create_event_bus(config)
         await event_bus.start()
@@ -308,7 +308,7 @@ class TestEventBus:
         try:
             events_to_publish = 10
 
-            async def handler(event):
+            async def handler(event) -> None:
                 pass
 
             await event_bus.subscribe("metrics_sub", handler)

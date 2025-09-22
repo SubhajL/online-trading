@@ -36,7 +36,7 @@ class PoolStats:
 class PooledArray:
     """Wrapper for pooled numpy array with metadata."""
 
-    def __init__(self, array: np.ndarray, pool: "ArrayPool"):
+    def __init__(self, array: np.ndarray, pool: "ArrayPool") -> None:
         self._array = array
         self._pool = pool
         self._acquired_at = time.time()
@@ -69,14 +69,14 @@ class ArrayPool:
     lock: threading.Lock = field(default_factory=threading.Lock)
     max_hold_seconds: float = 300.0  # 5 minutes default
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.stats = PoolStatsTracker()
 
 
 class PoolStatsTracker:
     """Tracks pool usage statistics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.hits = 0
         self.misses = 0
         self.allocations = 0

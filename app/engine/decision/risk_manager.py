@@ -60,7 +60,7 @@ class RiskManager:
     - Time-based risk controls
     """
 
-    def __init__(self, risk_parameters: RiskParameters):
+    def __init__(self, risk_parameters: RiskParameters) -> None:
         self.risk_params = risk_parameters
 
         # Track positions and P&L
@@ -162,7 +162,7 @@ class RiskManager:
         Args:
             decision: Trading decision to evaluate
             account_balance: Current account balance
-            current_positions: List of current positions
+            current_positions: list[Any] of current positions
 
         Returns:
             RiskCheckResult with approval status and details
@@ -302,7 +302,7 @@ class RiskManager:
                 reasons=[f"Risk check error: {e!s}"],
             )
 
-    def update_position(self, position: Position):
+    def update_position(self, position: Position) -> None:
         """Update position tracking for risk calculations"""
         try:
             self._positions[position.symbol] = position
@@ -527,7 +527,7 @@ class RiskManager:
             logger.error(f"Error getting risk metrics: {e}")
             return {}
 
-    def reset_daily_limits(self):
+    def reset_daily_limits(self) -> None:
         """Reset daily limits (call at start of new trading day)"""
         try:
             today = datetime.utcnow().date().isoformat()
@@ -537,7 +537,7 @@ class RiskManager:
         except Exception as e:
             logger.error(f"Error resetting daily limits: {e}")
 
-    def update_risk_parameters(self, new_params: RiskParameters):
+    def update_risk_parameters(self, new_params: RiskParameters) -> None:
         """Update risk parameters"""
         try:
             self.risk_params = new_params

@@ -30,7 +30,7 @@ class TestConfig:
 
 
 class TestEventBusConfig:
-    def test_config_defaults(self):
+    def test_config_defaults(self) -> None:
         config = EventBusConfig()
 
         assert config.max_queue_size == 10000
@@ -38,7 +38,7 @@ class TestEventBusConfig:
         assert config.enable_persistence == False
         assert config.dead_letter_queue_size == 1000
 
-    def test_config_custom_values(self):
+    def test_config_custom_values(self) -> None:
         config = EventBusConfig(
             max_queue_size=5000,
             num_workers=8,
@@ -51,7 +51,7 @@ class TestEventBusConfig:
         assert config.enable_persistence == True
         assert config.dead_letter_queue_size == 500
 
-    def test_config_validation_positive_values(self):
+    def test_config_validation_positive_values(self) -> None:
         with pytest.raises(ValueError) as exc_info:
             EventBusConfig(max_queue_size=0)
         assert "max_queue_size must be positive" in str(exc_info.value)
@@ -60,7 +60,7 @@ class TestEventBusConfig:
             EventBusConfig(num_workers=0)
         assert "num_workers must be positive" in str(exc_info.value)
 
-    def test_config_validation_max_values(self):
+    def test_config_validation_max_values(self) -> None:
         with pytest.raises(ValueError) as exc_info:
             EventBusConfig(max_queue_size=1000000)
         assert "max_queue_size too large" in str(exc_info.value)
@@ -71,11 +71,11 @@ class TestEventBusConfig:
 
 
 class TestEventBusFactory:
-    def test_factory_initialization(self):
+    def test_factory_initialization(self) -> None:
         factory = EventBusFactory()
         assert factory is not None
 
-    def test_create_event_bus_with_defaults(self):
+    def test_create_event_bus_with_defaults(self) -> None:
         factory = EventBusFactory()
 
         event_bus = factory.create_event_bus()
@@ -86,7 +86,7 @@ class TestEventBusFactory:
         assert hasattr(event_bus, "publish")
         assert hasattr(event_bus, "subscribe")
 
-    def test_create_event_bus_with_custom_config(self):
+    def test_create_event_bus_with_custom_config(self) -> None:
         factory = EventBusFactory()
         config = EventBusConfig(max_queue_size=5000, num_workers=2)
 
@@ -97,7 +97,7 @@ class TestEventBusFactory:
         assert event_bus._config.max_queue_size == 5000
         assert event_bus._config.num_workers == 2
 
-    def test_create_for_testing_with_mocks(self):
+    def test_create_for_testing_with_mocks(self) -> None:
         factory = EventBusFactory()
 
         event_bus = factory.create_for_testing()
@@ -107,7 +107,7 @@ class TestEventBusFactory:
         assert hasattr(event_bus._subscription_manager, "_is_mock")
         assert hasattr(event_bus._event_processor, "_is_mock")
 
-    def test_create_with_custom_dependencies(self):
+    def test_create_with_custom_dependencies(self) -> None:
         factory = EventBusFactory()
 
         # Create mock dependencies
@@ -125,7 +125,7 @@ class TestEventBusFactory:
         assert event_bus._subscription_manager is subscription_manager
         assert event_bus._event_processor is event_processor
 
-    def test_factory_validates_invalid_config(self):
+    def test_factory_validates_invalid_config(self) -> None:
         factory = EventBusFactory()
 
         with pytest.raises(InvalidConfigurationError) as exc_info:
@@ -133,7 +133,7 @@ class TestEventBusFactory:
 
         assert "Configuration cannot be None" in str(exc_info.value)
 
-    def test_factory_creates_independent_instances(self):
+    def test_factory_creates_independent_instances(self) -> None:
         factory = EventBusFactory()
 
         event_bus1 = factory.create_event_bus()
@@ -143,7 +143,7 @@ class TestEventBusFactory:
         assert event_bus1._subscription_manager is not event_bus2._subscription_manager
         assert event_bus1._event_processor is not event_bus2._event_processor
 
-    def test_factory_with_custom_subscription_config(self):
+    def test_factory_with_custom_subscription_config(self) -> None:
         factory = EventBusFactory()
         config = EventBusConfig(
             subscription_config={"max_subscriptions": 100, "default_priority": 5}
@@ -156,7 +156,7 @@ class TestEventBusFactory:
         assert event_bus._subscription_manager._config.max_subscriptions == 100
         assert event_bus._subscription_manager._config.default_priority == 5
 
-    def test_factory_with_custom_processing_config(self):
+    def test_factory_with_custom_processing_config(self) -> None:
         factory = EventBusFactory()
         config = EventBusConfig(
             processing_config={
@@ -172,7 +172,7 @@ class TestEventBusFactory:
         assert event_bus._event_processor._config.max_processing_time_seconds == 60.0
         assert event_bus._event_processor._config.max_concurrent_handlers == 20
 
-    def test_factory_validates_dependency_interfaces(self):
+    def test_factory_validates_dependency_interfaces(self) -> None:
         factory = EventBusFactory()
 
         # Use a simple object that doesn't auto-create attributes
@@ -189,7 +189,7 @@ class TestEventBusFactory:
 
         assert "Invalid subscription manager" in str(exc_info.value)
 
-    def test_factory_singleton_pattern_disabled_by_default(self):
+    def test_factory_singleton_pattern_disabled_by_default(self) -> None:
         factory = EventBusFactory()
 
         # Should create new instances each time
@@ -198,7 +198,7 @@ class TestEventBusFactory:
 
         assert bus1 is not bus2
 
-    def test_factory_error_handling_for_component_creation(self):
+    def test_factory_error_handling_for_component_creation(self) -> None:
         factory = EventBusFactory()
 
         # Test with configuration that would cause component creation to fail

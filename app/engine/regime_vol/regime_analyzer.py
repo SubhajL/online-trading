@@ -5,6 +5,9 @@ Analyzes market regime (trending/ranging) and volatility conditions
 to provide context for trading decisions.
 """
 
+import logging
+from datetime import datetime
+from decimal import Decimal
 from collections import deque
 from decimal import Decimal
 import logging
@@ -61,7 +64,7 @@ class RegimeVolatilityAnalyzer:
 
         logger.info("RegimeVolatilityAnalyzer initialized")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the regime analyzer"""
         if self._running:
             return
@@ -93,7 +96,7 @@ class RegimeVolatilityAnalyzer:
 
         logger.info("RegimeVolatilityAnalyzer started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the regime analyzer"""
         if not self._running:
             return
@@ -106,7 +109,7 @@ class RegimeVolatilityAnalyzer:
 
         logger.info("RegimeVolatilityAnalyzer stopped")
 
-    async def _handle_candle_update(self, event: CandleUpdateEvent):
+    async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
         """Handle candle updates"""
         try:
             candle = event.candle
@@ -125,7 +128,7 @@ class RegimeVolatilityAnalyzer:
         except Exception as e:
             logger.error(f"Error handling candle update: {e}")
 
-    async def _handle_features_calculated(self, event: FeaturesCalculatedEvent):
+    async def _handle_features_calculated(self, event: FeaturesCalculatedEvent) -> None:
         """Handle features calculated events"""
         try:
             indicators = event.features
@@ -135,7 +138,7 @@ class RegimeVolatilityAnalyzer:
         except Exception as e:
             logger.error(f"Error handling features calculated: {e}")
 
-    async def _analyze_regime(self, symbol: str, timeframe: TimeFrame):
+    async def _analyze_regime(self, symbol: str, timeframe: TimeFrame) -> None:
         """Analyze market regime for symbol and timeframe"""
         try:
             key = f"{symbol}_{timeframe.value}"

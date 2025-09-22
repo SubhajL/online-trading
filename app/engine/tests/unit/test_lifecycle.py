@@ -26,7 +26,7 @@ from app.engine.core.lifecycle import (
 class TestShutdownHandler:
     """Tests for shutdown signal handling."""
 
-    def test_shutdown_handler_catches_signals(self):
+    def test_shutdown_handler_catches_signals(self) -> None:
         """SIGTERM triggers graceful shutdown."""
         shutdown_state = ShutdownState()
 
@@ -45,7 +45,7 @@ class TestShutdownHandler:
         assert shutdown_state.shutdown_requested
         assert shutdown_state.signal_received == signal.SIGTERM
 
-    def test_shutdown_handler_idempotent(self):
+    def test_shutdown_handler_idempotent(self) -> None:
         """Multiple signals don't cause issues."""
         shutdown_state = ShutdownState()
         handler = register_shutdown_handler(shutdown_state)
@@ -61,7 +61,7 @@ class TestShutdownHandler:
         assert shutdown_state.shutdown_time == first_time
         assert shutdown_state.signal_count == 2
 
-    def test_shutdown_handler_timeout(self):
+    def test_shutdown_handler_timeout(self) -> None:
         """Enforces maximum shutdown time."""
         shutdown_state = ShutdownState(max_shutdown_seconds=0.1)
         handler = register_shutdown_handler(shutdown_state)
@@ -79,7 +79,7 @@ class TestShutdownHandler:
 class TestDrainQueues:
     """Tests for queue draining."""
 
-    def test_drain_queues_timeout(self):
+    def test_drain_queues_timeout(self) -> None:
         """Respects max drain time."""
         # Create queue with items
         queue_stats = {
@@ -96,7 +96,7 @@ class TestDrainQueues:
         assert drained["timed_out"]
         assert drained["remaining_items"] > 0
 
-    def test_drain_queues_completes(self):
+    def test_drain_queues_completes(self) -> None:
         """Drains all items when possible."""
         # Small queue
         queue_stats = {"event_queue": {"items": [1, 2, 3], "processed": 0}}
@@ -107,7 +107,7 @@ class TestDrainQueues:
         assert drained["remaining_items"] == 0
         assert drained["items_processed"] == 3
 
-    def test_drain_queues_empty(self):
+    def test_drain_queues_empty(self) -> None:
         """Handles empty queues gracefully."""
         queue_stats = {"event_queue": {"items": [], "processed": 0}}
 
@@ -121,7 +121,7 @@ class TestDrainQueues:
 class TestDatabaseConnectionClose:
     """Tests for connection closing."""
 
-    def test_database_connections_closed(self):
+    def test_database_connections_closed(self) -> None:
         """All connections returned to OS."""
         # Simulate active connections
         connection_pool = {
@@ -140,7 +140,7 @@ class TestDatabaseConnectionClose:
         assert len(connection_pool["active"]) == 0
         assert len(connection_pool["idle"]) == 0
 
-    def test_database_connections_force_close(self):
+    def test_database_connections_force_close(self) -> None:
         """Forces termination after timeout."""
         # Simulate stuck connection
         connection_pool = {
@@ -160,7 +160,7 @@ class TestDatabaseConnectionClose:
 class TestStatePersistence:
     """Tests for application state saving."""
 
-    def test_state_persistence_atomic(self):
+    def test_state_persistence_atomic(self) -> None:
         """No partial state saves."""
         # Application state to save
         app_state = {
@@ -184,7 +184,7 @@ class TestStatePersistence:
         assert "checkpoint_id" in result
         assert result["components_saved"] == ["positions", "pending_orders", "config"]
 
-    def test_state_persistence_validation(self):
+    def test_state_persistence_validation(self) -> None:
         """Validates state before saving."""
         # Invalid state (corrupted data)
         invalid_state = {
@@ -197,7 +197,7 @@ class TestStatePersistence:
 
         assert "validation" in str(exc.value).lower()
 
-    def test_state_persistence_empty(self):
+    def test_state_persistence_empty(self) -> None:
         """Handles empty state gracefully."""
         empty_state = {"positions": {}, "pending_orders": [], "config": {}}
 
@@ -210,7 +210,7 @@ class TestStatePersistence:
 class TestShutdownCoordinator:
     """Tests for shutdown orchestration."""
 
-    def test_shutdown_order_dependencies(self):
+    def test_shutdown_order_dependencies(self) -> None:
         """Components shut down safely."""
         components = {
             "event_bus": {"status": "running", "dependencies": []},
@@ -227,7 +227,7 @@ class TestShutdownCoordinator:
         # Should shut down in reverse dependency order
         assert shutdown_order == ["order_service", "database", "event_bus"]
 
-    def test_shutdown_parallel_where_safe(self):
+    def test_shutdown_parallel_where_safe(self) -> None:
         """Shuts down independent components in parallel."""
         components = {
             "metrics": {"status": "running", "dependencies": []},
@@ -242,7 +242,7 @@ class TestShutdownCoordinator:
         assert len(parallel_groups) == 1
         assert set(parallel_groups[0]) == {"metrics", "health", "cache"}
 
-    def test_shutdown_handles_failures(self):
+    def test_shutdown_handles_failures(self) -> None:
         """Continues shutdown despite component failures."""
         components = {
             "failing_service": {"status": "error", "dependencies": []},
@@ -260,7 +260,7 @@ class TestShutdownCoordinator:
 class TestStartupHealthCheck:
     """Tests for startup verification."""
 
-    def test_startup_blocks_until_healthy(self):
+    def test_startup_blocks_until_healthy(self) -> None:
         """Won't accept traffic prematurely."""
         # Simulate unhealthy dependencies
         dependencies = {
@@ -274,7 +274,7 @@ class TestStartupHealthCheck:
         )
 
         # Simulate dependencies becoming healthy
-        def make_healthy():
+        def make_healthy() -> None:
             time.sleep(0.02)
             dependencies["database"]["healthy"] = True
             dependencies["redis"]["healthy"] = True
@@ -289,7 +289,7 @@ class TestStartupHealthCheck:
         assert result["ready"]
         assert result["retry_count"] >= 0  # May be 0 if deps healthy immediately
 
-    def test_startup_timeout(self):
+    def test_startup_timeout(self) -> None:
         """Times out if dependencies don't become healthy."""
         dependencies = {"database": {"healthy": False, "retry_count": 0}}
 
@@ -305,7 +305,7 @@ class TestStartupHealthCheck:
         assert result["timed_out"]
         assert result["unhealthy_dependencies"] == ["database"]
 
-    def test_startup_immediate_success(self):
+    def test_startup_immediate_success(self) -> None:
         """Starts immediately if all healthy."""
         dependencies = {"database": {"healthy": True}, "redis": {"healthy": True}}
 

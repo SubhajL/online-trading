@@ -22,7 +22,7 @@ from app.engine.backtest.vector_engine import (
 class TestCalculateReturns:
     """Tests for vectorized return calculation."""
 
-    def test_calculate_returns_long_positions(self):
+    def test_calculate_returns_long_positions(self) -> None:
         """Correctly computes long position returns."""
         prices = np.array([100, 110, 105, 115, 120])
         positions = np.array([1, 1, 1, 1, 0])  # Long then exit
@@ -33,7 +33,7 @@ class TestCalculateReturns:
         expected = np.array([0, 0.1, -0.045454545, 0.095238095, 0.043478261])
         np.testing.assert_array_almost_equal(returns, expected, decimal=5)
 
-    def test_calculate_returns_short_positions(self):
+    def test_calculate_returns_short_positions(self) -> None:
         """Handles short positions with proper sign."""
         prices = np.array([100, 110, 105, 95, 100])
         positions = np.array([-1, -1, -1, -1, 0])  # Short then exit
@@ -44,7 +44,7 @@ class TestCalculateReturns:
         expected = np.array([0, -0.1, 0.045454545, 0.095238095, -0.052631579])
         np.testing.assert_array_almost_equal(returns, expected, decimal=5)
 
-    def test_calculate_returns_with_fees(self):
+    def test_calculate_returns_with_fees(self) -> None:
         """Deducts transaction fees from returns."""
         prices = np.array([100, 110, 120])
         positions = np.array([0, 1, 0])  # Enter and exit
@@ -59,7 +59,7 @@ class TestCalculateReturns:
         expected = np.array([0, -0.001, 0.089909091])
         np.testing.assert_array_almost_equal(returns, expected, decimal=5)
 
-    def test_calculate_returns_mixed_positions(self):
+    def test_calculate_returns_mixed_positions(self) -> None:
         """Handles alternating long/short positions."""
         prices = np.array([100, 105, 110, 105, 100])
         positions = np.array([1, -1, 1, -1, 0])
@@ -75,7 +75,7 @@ class TestCalculateReturns:
 class TestCalculateSharpeRatio:
     """Tests for Sharpe ratio calculation."""
 
-    def test_calculate_sharpe_ratio_normal(self):
+    def test_calculate_sharpe_ratio_normal(self) -> None:
         """Computes Sharpe for typical returns."""
         returns = np.array([0.01, -0.005, 0.02, 0.015, -0.01, 0.025])
 
@@ -85,7 +85,7 @@ class TestCalculateSharpeRatio:
         assert sharpe > 0
         assert sharpe < 20  # Reasonable range for volatile returns
 
-    def test_calculate_sharpe_ratio_zero_variance(self):
+    def test_calculate_sharpe_ratio_zero_variance(self) -> None:
         """Handles constant returns gracefully."""
         returns = np.array([0.01, 0.01, 0.01, 0.01])
 
@@ -94,7 +94,7 @@ class TestCalculateSharpeRatio:
         # Zero variance should return inf or very large number
         assert sharpe > 100 or np.isinf(sharpe)
 
-    def test_calculate_sharpe_ratio_negative(self):
+    def test_calculate_sharpe_ratio_negative(self) -> None:
         """Computes negative Sharpe for losses."""
         returns = np.array([-0.01, -0.02, -0.015, -0.005])
 
@@ -102,7 +102,7 @@ class TestCalculateSharpeRatio:
 
         assert sharpe < 0
 
-    def test_calculate_sharpe_ratio_annual_scaling(self):
+    def test_calculate_sharpe_ratio_annual_scaling(self) -> None:
         """Correctly annualizes Sharpe ratio."""
         daily_returns = np.random.randn(252) * 0.01
         monthly_returns = np.random.randn(12) * 0.03
@@ -118,7 +118,7 @@ class TestCalculateSharpeRatio:
 class TestCalculateMaxDrawdown:
     """Tests for maximum drawdown calculation."""
 
-    def test_calculate_max_drawdown_typical(self):
+    def test_calculate_max_drawdown_typical(self) -> None:
         """Finds drawdown in volatile series."""
         equity_curve = np.array([100, 110, 105, 120, 100, 95, 110, 115])
 
@@ -129,7 +129,7 @@ class TestCalculateMaxDrawdown:
         assert peak_idx == 3
         assert trough_idx == 5
 
-    def test_calculate_max_drawdown_monotonic(self):
+    def test_calculate_max_drawdown_monotonic(self) -> None:
         """Returns zero for monotonic increase."""
         equity_curve = np.array([100, 110, 120, 130, 140, 150])
 
@@ -139,7 +139,7 @@ class TestCalculateMaxDrawdown:
         assert peak_idx == 0
         assert trough_idx == 0
 
-    def test_calculate_max_drawdown_all_decline(self):
+    def test_calculate_max_drawdown_all_decline(self) -> None:
         """Handles continuous decline."""
         equity_curve = np.array([100, 90, 80, 70, 60])
 
@@ -153,24 +153,24 @@ class TestCalculateMaxDrawdown:
 class TestApplySignalVectorized:
     """Tests for vectorized signal application."""
 
-    def test_apply_signal_vectorized_basic(self):
+    def test_apply_signal_vectorized_basic(self) -> None:
         """Converts signals to positions correctly."""
         signals = np.array([0, 1, 1, -1, -1, 0, 1, 0])
         prices = np.array([100, 105, 110, 108, 106, 105, 110, 115])
 
-        def simple_sizer(signal, price):
+        def simple_sizer(signal, price) -> None:
             return signal * 1.0  # Fixed size
 
         positions = apply_signal_vectorized(signals, prices, simple_sizer)
 
         np.testing.assert_array_equal(positions, signals.astype(float))
 
-    def test_apply_signal_vectorized_position_limits(self):
+    def test_apply_signal_vectorized_position_limits(self) -> None:
         """Respects maximum position constraints."""
         signals = np.array([2, 3, 1, -2, -3])  # Large signals
         prices = np.array([100, 105, 110, 108, 106])
 
-        def limited_sizer(signal, price):
+        def limited_sizer(signal, price) -> None:
             return np.clip(signal, -1, 1)  # Limit to ±1
 
         positions = apply_signal_vectorized(signals, prices, limited_sizer)
@@ -178,12 +178,12 @@ class TestApplySignalVectorized:
         assert np.all(np.abs(positions) <= 1)
         np.testing.assert_array_equal(positions, [1, 1, 1, -1, -1])
 
-    def test_apply_signal_vectorized_price_dependent(self):
+    def test_apply_signal_vectorized_price_dependent(self) -> None:
         """Position sizing depends on price."""
         signals = np.array([1, 1, 1])
         prices = np.array([100, 200, 50])
 
-        def inverse_price_sizer(signal, price):
+        def inverse_price_sizer(signal, price) -> None:
             return signal * (10000 / price)  # Fixed notional
 
         positions = apply_signal_vectorized(signals, prices, inverse_price_sizer)
@@ -194,7 +194,7 @@ class TestApplySignalVectorized:
 class TestCalculateMetrics:
     """Tests for comprehensive metrics calculation."""
 
-    def test_calculate_metrics_vectorized_basic(self):
+    def test_calculate_metrics_vectorized_basic(self) -> None:
         """Computes all metrics correctly."""
         returns = np.array([0.01, -0.005, 0.02, -0.01, 0.015, 0.005])
         equity = np.cumprod(1 + returns) * 100
@@ -207,7 +207,7 @@ class TestCalculateMetrics:
         assert metrics.max_drawdown <= 0
         assert 0 <= metrics.win_rate <= 1
 
-    def test_calculate_metrics_performance(self):
+    def test_calculate_metrics_performance(self) -> None:
         """1000x faster than loop implementation."""
         # Large dataset
         returns = np.random.randn(10000) * 0.01
@@ -228,7 +228,7 @@ class TestCalculateMetrics:
         # Should be much faster (allow 10x for safety on slow systems)
         assert vec_time < loop_time * 10
 
-    def test_calculate_metrics_edge_cases(self):
+    def test_calculate_metrics_edge_cases(self) -> None:
         """Handles edge cases gracefully."""
         # No returns
         empty_returns = np.array([])
@@ -245,7 +245,7 @@ class TestCalculateMetrics:
         metrics = calculate_metrics_vectorized(win_returns, win_equity)
         assert metrics.win_rate == 1.0
 
-    def test_calculate_metrics_sortino_ratio(self):
+    def test_calculate_metrics_sortino_ratio(self) -> None:
         """Calculates Sortino ratio correctly."""
         returns = np.array([0.01, -0.02, 0.03, -0.01, 0.02])
         equity = np.cumprod(1 + returns) * 100

@@ -14,7 +14,7 @@ sys.path.insert(0, str(project_root))
 
 
 @pytest.fixture(scope="session")
-def event_loop():
+def event_loop() -> None:
     """Create event loop for async tests."""
     policy = asyncio.get_event_loop_policy()
     loop = policy.new_event_loop()
@@ -23,7 +23,7 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-async def ensure_test_database():
+async def ensure_test_database() -> None:
     """Ensure test database exists."""
     admin_dsn = {
         "host": os.getenv("DB_HOST", "localhost"),
@@ -77,7 +77,7 @@ async def ensure_test_database():
 
 
 @pytest.fixture(scope="session", autouse=True)
-async def setup_test_environment(ensure_test_database):
+async def setup_test_environment(ensure_test_database) -> None:
     """Set up test environment before running tests."""
     # Ensure migrations are applied
     from app.engine.adapters.db.connection_pool import DBConfig, ConnectionPool
@@ -106,7 +106,7 @@ async def setup_test_environment(ensure_test_database):
         await pool.close()
 
 
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Configure pytest with custom markers."""
     config.addinivalue_line(
         "markers", "integration: mark test as an integration test requiring database"

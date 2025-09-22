@@ -10,7 +10,6 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 import enum as _enum
-from typing import Any, List
 import uuid
 
 from pydantic import BaseModel, Field, validator
@@ -668,7 +667,7 @@ def kline_to_candle(data: dict[str, Any], venue: str) -> Candle:
 
 
 def rest_kline_to_candle(
-    data: List[Any], symbol: str, timeframe: str, venue: str
+    data: list[Any], symbol: str, timeframe: str, venue: str
 ) -> Candle:
     """
     Convert Binance REST API kline array to Candle model.

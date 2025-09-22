@@ -6,7 +6,6 @@ trading during high-risk periods.
 """
 
 from decimal import Decimal
-from typing import Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ class NewsGuard:
         # Simplified implementation
         return True
 
-    def add_news_event(self, event: Dict[str, Any]) -> None:
+    def add_news_event(self, event: dict[str, Any]) -> None:
         """Add a news event to monitor"""
         pass
 
@@ -52,7 +51,7 @@ class RiskGuards:
         self.news_guard = NewsGuard()
         self.funding_guard = FundingRateGuard()
 
-    def is_safe_to_trade(self, symbol: str) -> Dict[str, bool]:
+    def is_safe_to_trade(self, symbol: str) -> dict[str, bool]:
         """Check all guards for trading safety"""
         return {
             "news_safe": self.news_guard.is_news_safe(symbol),
@@ -60,5 +59,5 @@ class RiskGuards:
             "overall_safe": True,  # Simplified
         }
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         return {"status": "healthy", "guards_active": True}

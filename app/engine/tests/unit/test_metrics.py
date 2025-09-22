@@ -24,7 +24,7 @@ from app.engine.core.metrics import (
 
 
 class TestCounter:
-    def test_counter_increment(self):
+    def test_counter_increment(self) -> None:
         counter = Counter("test_counter", "Test counter")
 
         counter.inc()
@@ -33,7 +33,7 @@ class TestCounter:
         counter.inc(5)
         assert counter.get() == 6.0
 
-    def test_counter_with_labels(self):
+    def test_counter_with_labels(self) -> None:
         counter = Counter("requests_total", "Total requests")
 
         counter.inc(1, {"method": "GET", "status": "200"})
@@ -44,13 +44,13 @@ class TestCounter:
         assert counter.get({"method": "POST", "status": "201"}) == 1.0
         assert counter.get({"method": "DELETE", "status": "404"}) == 0.0
 
-    def test_counter_cannot_decrease(self):
+    def test_counter_cannot_decrease(self) -> None:
         counter = Counter("test_counter", "Test counter")
 
         with pytest.raises(ValueError, match="Counter can only increase"):
             counter.inc(-1)
 
-    def test_counter_collect(self):
+    def test_counter_collect(self) -> None:
         counter = Counter("test_counter", "Test counter", "seconds")
         counter.inc(10, {"type": "a"})
         counter.inc(20, {"type": "b"})
@@ -63,7 +63,7 @@ class TestCounter:
 
 
 class TestGauge:
-    def test_gauge_operations(self):
+    def test_gauge_operations(self) -> None:
         gauge = Gauge("memory_usage", "Memory usage")
 
         gauge.set(100)
@@ -78,7 +78,7 @@ class TestGauge:
         gauge.set(200)
         assert gauge.get() == 200
 
-    def test_gauge_with_labels(self):
+    def test_gauge_with_labels(self) -> None:
         gauge = Gauge("active_connections", "Active connections")
 
         gauge.set(10, {"server": "web1"})
@@ -90,7 +90,7 @@ class TestGauge:
 
 
 class TestHistogram:
-    def test_histogram_observations(self):
+    def test_histogram_observations(self) -> None:
         histogram = Histogram(
             "request_duration", "Request duration", buckets=[0.1, 0.5, 1.0, 5.0]
         )
@@ -120,7 +120,7 @@ class TestHistogram:
         assert count_metric is not None
         assert count_metric.value == 5
 
-    def test_histogram_percentiles(self):
+    def test_histogram_percentiles(self) -> None:
         histogram = Histogram("test_hist", "Test histogram", buckets=[1, 2, 3, 4, 5])
 
         # Add values: 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5
@@ -134,7 +134,7 @@ class TestHistogram:
         # 100th percentile (all values) includes 4.5, should return bucket 5
         assert histogram.get_percentile(100) == 5
 
-    def test_histogram_with_labels(self):
+    def test_histogram_with_labels(self) -> None:
         histogram = Histogram("response_time", "Response time")
 
         histogram.observe(0.1, {"endpoint": "/api/users"})
@@ -147,7 +147,7 @@ class TestHistogram:
 
 
 class TestMetricsRegistry:
-    def test_register_and_get(self):
+    def test_register_and_get(self) -> None:
         registry = MetricsRegistry()
         counter = Counter("test", "Test")
 
@@ -155,7 +155,7 @@ class TestMetricsRegistry:
         assert registry.get("test") is counter
         assert registry.get("nonexistent") is None
 
-    def test_cannot_register_duplicate(self):
+    def test_cannot_register_duplicate(self) -> None:
         registry = MetricsRegistry()
         counter1 = Counter("test", "Test 1")
         counter2 = Counter("test", "Test 2")
@@ -165,7 +165,7 @@ class TestMetricsRegistry:
         with pytest.raises(ValueError, match="already registered"):
             registry.register(counter2)
 
-    def test_unregister(self):
+    def test_unregister(self) -> None:
         registry = MetricsRegistry()
         counter = Counter("test", "Test")
 
@@ -175,7 +175,7 @@ class TestMetricsRegistry:
         registry.unregister("test")
         assert registry.get("test") is None
 
-    def test_collect_all(self):
+    def test_collect_all(self) -> None:
         registry = MetricsRegistry()
 
         counter = Counter("counter", "Counter")
@@ -191,7 +191,7 @@ class TestMetricsRegistry:
 
 
 class TestPrometheusExporter:
-    def test_prometheus_format(self):
+    def test_prometheus_format(self) -> None:
         registry = MetricsRegistry()
         exporter = PrometheusExporter(registry)
 
@@ -213,7 +213,7 @@ class TestPrometheusExporter:
         assert "# TYPE temperature_celsius gauge" in output
         assert "temperature_celsius 23.5" in output
 
-    def test_label_escaping(self):
+    def test_label_escaping(self) -> None:
         registry = MetricsRegistry()
         exporter = PrometheusExporter(registry)
 
@@ -227,7 +227,7 @@ class TestPrometheusExporter:
 
 
 class TestMetricsCollector:
-    def test_create_metrics(self):
+    def test_create_metrics(self) -> None:
         collector = MetricsCollector()
 
         counter = collector.counter("test_counter", "Test counter")
@@ -242,7 +242,7 @@ class TestMetricsCollector:
         assert histogram is not None
         assert collector.registry.get("test_histogram") is histogram
 
-    def test_record_duration_context_manager(self):
+    def test_record_duration_context_manager(self) -> None:
         collector = MetricsCollector()
         histogram = collector.histogram("operation_duration", "Operation duration")
 
@@ -256,7 +256,7 @@ class TestMetricsCollector:
         assert count_metric is not None
         assert count_metric.value == 1
 
-    def test_export_prometheus(self):
+    def test_export_prometheus(self) -> None:
         collector = MetricsCollector()
 
         counter = collector.counter("events_processed", "Events processed")
@@ -265,7 +265,7 @@ class TestMetricsCollector:
         output = collector.export_prometheus()
         assert "events_processed 42" in output
 
-    def test_uptime(self):
+    def test_uptime(self) -> None:
         collector = MetricsCollector()
         time.sleep(0.01)
         uptime = collector.get_uptime()
@@ -274,10 +274,10 @@ class TestMetricsCollector:
 
 
 class TestThreadSafety:
-    def test_counter_thread_safety(self):
+    def test_counter_thread_safety(self) -> None:
         counter = Counter("concurrent_test", "Concurrent test")
 
-        def increment():
+        def increment() -> None:
             for _ in range(100):
                 counter.inc()
 
@@ -288,10 +288,10 @@ class TestThreadSafety:
 
         assert counter.get() == 1000
 
-    def test_gauge_thread_safety(self):
+    def test_gauge_thread_safety(self) -> None:
         gauge = Gauge("concurrent_gauge", "Concurrent gauge")
 
-        def modify():
+        def modify() -> None:
             for i in range(100):
                 if i % 2 == 0:
                     gauge.inc()
@@ -306,10 +306,10 @@ class TestThreadSafety:
         # Should end up at 0 since each thread does equal inc/dec
         assert gauge.get() == 0
 
-    def test_histogram_thread_safety(self):
+    def test_histogram_thread_safety(self) -> None:
         histogram = Histogram("concurrent_hist", "Concurrent histogram")
 
-        def observe():
+        def observe() -> None:
             for i in range(100):
                 histogram.observe(i)
 
@@ -326,24 +326,24 @@ class TestThreadSafety:
 
 
 class TestConvenienceFunctions:
-    def test_create_counter(self):
+    def test_create_counter(self) -> None:
         counter = create_counter("convenience_counter", "Test counter")
         counter.inc(5)
         assert counter.get() == 5
 
-    def test_create_gauge(self):
+    def test_create_gauge(self) -> None:
         gauge = create_gauge("convenience_gauge", "Test gauge")
         gauge.set(10)
         assert gauge.get() == 10
 
-    def test_create_histogram(self):
+    def test_create_histogram(self) -> None:
         histogram = create_histogram("convenience_histogram", "Test histogram")
         histogram.observe(1.5)
 
         metrics = histogram.collect()
         assert len(metrics) > 0
 
-    def test_record_duration_function(self):
+    def test_record_duration_function(self) -> None:
         histogram = create_histogram("timing_test", "Timing test")
 
         with record_duration(histogram, {"test": "true"}):

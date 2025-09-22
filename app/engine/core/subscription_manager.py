@@ -8,7 +8,6 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 from uuid import uuid4
 
 from app.engine.models import BaseEvent, EventType
@@ -96,7 +95,7 @@ class SubscriptionManager:
         Args:
             subscriber_id: Unique identifier for the subscriber
             handler: Function to handle events
-            event_types: List of event types to subscribe to (None for all)
+            event_types: list[Any] of event types to subscribe to (None for all)
             priority: Priority level (higher = processed first)
             max_retries: Maximum retry attempts on failure
 
@@ -209,7 +208,7 @@ class SubscriptionManager:
             event_type: The event type to get subscriptions for
 
         Returns:
-            List of active subscriptions sorted by priority (descending)
+            list[Any] of active subscriptions sorted by priority (descending)
         """
         async with self._lock:
             subscriptions = []

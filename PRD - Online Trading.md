@@ -1,4 +1,4 @@
-Got it. Here’s a concrete, production-grade architecture and tech-stack blueprint for **PRD v1.1 (Spot \+ Futures-ready)** that you can hand to engineering and start building tomorrow.
+**PRD v1.1 (Spot \+ Futures-ready) Online Trading Platform**
 
 # **1\) High-level architecture (three planes)**
 

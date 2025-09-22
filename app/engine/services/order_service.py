@@ -105,7 +105,7 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
             errors.append("Price required for limit orders")
         elif order.price > 0:
             # Check price precision
-            price_precision = filters.get("price_precision", 8)
+            price_precision = int(str(filters.get("price_precision", 8)))
             price_str = str(order.price)
             if "." in price_str:
                 decimals = len(price_str.split(".")[1])
@@ -169,10 +169,10 @@ def calculate_position_size(signal: TradingSignal, account: AccountInfo) -> Deci
 
     # Round to appropriate precision
     filters = SYMBOL_FILTERS.get(signal.symbol, {})
-    qty_step = filters.get("qty_step", Decimal("0.00001"))
+    qty_step = Decimal(str(filters.get("qty_step", Decimal("0.00001"))))
 
     # Round down to nearest step
-    if qty_step > 0:
+    if qty_step > Decimal("0"):
         final_size = (final_size // qty_step) * qty_step
 
     return final_size

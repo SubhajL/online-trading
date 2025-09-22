@@ -5,7 +5,6 @@ from datetime import datetime
 from enum import Enum
 import os
 import time
-from typing import Any
 
 import asyncpg
 import redis.asyncio as redis
@@ -50,7 +49,7 @@ class HealthConfig:
 class HealthChecker:
     """Manages health checks for all system components"""
 
-    def __init__(self, config: HealthConfig):
+    def __init__(self, config: HealthConfig) -> None:
         self.config = config
         self.components: dict[str, ComponentHealth] = {}
         self.failure_counts: dict[str, int] = {}

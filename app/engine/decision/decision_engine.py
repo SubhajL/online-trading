@@ -9,7 +9,6 @@ import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
 import logging
-from typing import Any
 
 from ..adapters import RouterHTTPClient
 from ..bus import get_event_bus
@@ -83,7 +82,7 @@ class DecisionEngine:
 
         logger.info("DecisionEngine initialized")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the decision engine"""
         if self._running:
             logger.warning("DecisionEngine is already running")
@@ -129,7 +128,7 @@ class DecisionEngine:
 
         logger.info("DecisionEngine started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the decision engine"""
         if not self._running:
             return
@@ -143,7 +142,7 @@ class DecisionEngine:
 
         logger.info("DecisionEngine stopped")
 
-    async def _handle_smc_signal(self, event: SMCSignalEvent):
+    async def _handle_smc_signal(self, event: SMCSignalEvent) -> None:
         """Handle SMC signal events"""
         try:
             signal = event.signal
@@ -167,7 +166,7 @@ class DecisionEngine:
         except Exception as e:
             logger.error(f"Error handling SMC signal: {e}")
 
-    async def _handle_retest_signal(self, event: RetestSignalEvent):
+    async def _handle_retest_signal(self, event: RetestSignalEvent) -> None:
         """Handle retest signal events"""
         try:
             signal = event.signal
@@ -188,7 +187,7 @@ class DecisionEngine:
         except Exception as e:
             logger.error(f"Error handling retest signal: {e}")
 
-    async def _handle_features_calculated(self, event: FeaturesCalculatedEvent):
+    async def _handle_features_calculated(self, event: FeaturesCalculatedEvent) -> None:
         """Handle features calculated events"""
         try:
             indicators = event.features
@@ -206,7 +205,7 @@ class DecisionEngine:
         except Exception as e:
             logger.error(f"Error handling features calculated: {e}")
 
-    async def _decision_processor(self):
+    async def _decision_processor(self) -> None:
         """Background task to process signals and generate decisions"""
         while self._running:
             try:
@@ -217,7 +216,7 @@ class DecisionEngine:
                 logger.error(f"Error in decision processor: {e}")
                 await asyncio.sleep(10)
 
-    async def _execution_processor(self):
+    async def _execution_processor(self) -> None:
         """Background task to execute approved decisions"""
         while self._running:
             try:
@@ -228,7 +227,7 @@ class DecisionEngine:
                 logger.error(f"Error in execution processor: {e}")
                 await asyncio.sleep(5)
 
-    async def _signal_cleanup(self):
+    async def _signal_cleanup(self) -> None:
         """Background task to clean up old signals"""
         while self._running:
             try:
@@ -262,7 +261,7 @@ class DecisionEngine:
                 logger.error(f"Error in signal cleanup: {e}")
                 await asyncio.sleep(60)
 
-    async def _process_pending_signals(self):
+    async def _process_pending_signals(self) -> None:
         """Process pending signals and generate decisions"""
         try:
             for symbol in list(self._pending_signals.keys()):
@@ -426,7 +425,7 @@ class DecisionEngine:
             logger.error(f"Error calculating risk-reward ratio: {e}")
             return None
 
-    async def _evaluate_and_queue_decision(self, decision: TradingDecision):
+    async def _evaluate_and_queue_decision(self, decision: TradingDecision) -> None:
         """Evaluate decision through risk management and queue for execution"""
         try:
             # Perform comprehensive risk check
@@ -474,7 +473,7 @@ class DecisionEngine:
         except Exception as e:
             logger.error(f"Error evaluating decision: {e}")
 
-    async def _process_execution_queue(self):
+    async def _process_execution_queue(self) -> None:
         """Process execution queue and send orders to router"""
         try:
             while self._execution_queue:
@@ -503,7 +502,7 @@ class DecisionEngine:
         except Exception as e:
             logger.error(f"Error processing execution queue: {e}")
 
-    async def _update_account_state(self):
+    async def _update_account_state(self) -> None:
         """Update account state from router"""
         try:
             # Get account balance
