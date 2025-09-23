@@ -493,3 +493,33 @@ class TechnicalIndicatorsCalculator:
             # Return indicators object with None values
 
         return indicators
+
+
+# Module-level functions for backwards compatibility and integration checks
+def calculate_ema(values: list[Decimal], period: int) -> list[Decimal | None]:
+    """Calculate Exponential Moving Average"""
+    return TechnicalIndicatorsCalculator.ema(values, period)
+
+
+def calculate_rsi(values: list[Decimal], period: int = 14) -> list[Decimal | None]:
+    """Calculate Relative Strength Index"""
+    return TechnicalIndicatorsCalculator.rsi(values, period)
+
+
+def calculate_macd(
+    values: list[Decimal],
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+) -> tuple[list[Decimal | None], list[Decimal | None], list[Decimal | None]]:
+    """Calculate MACD"""
+    return TechnicalIndicatorsCalculator.macd(values, fast_period, slow_period, signal_period)
+
+
+def calculate_bollinger_bands(
+    values: list[Decimal],
+    period: int = 20,
+    std_dev: float = 2.0,
+) -> tuple[list[Decimal | None], list[Decimal | None], list[Decimal | None]]:
+    """Calculate Bollinger Bands"""
+    return TechnicalIndicatorsCalculator.bollinger_bands(values, period, std_dev)

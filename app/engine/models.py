@@ -472,6 +472,13 @@ class FeaturesCalculatedEvent(BaseEvent):
     features: TechnicalIndicators
 
 
+class FeatureUpdateEvent(BaseEvent):
+    """Feature update event (alias for FeaturesCalculatedEvent for compatibility)"""
+
+    event_type: EventType = EventType.FEATURES_CALCULATED
+    features: TechnicalIndicators
+
+
 class SMCSignalEvent(BaseEvent):
     """SMC signal event"""
 
@@ -742,6 +749,7 @@ __all__ = [
     # Events
     "CandleUpdateEvent",
     "FeaturesCalculatedEvent",
+    "FeatureUpdateEvent",
     "SMCSignalEvent",
     "RetestSignalEvent",
     "TradingDecisionEvent",
