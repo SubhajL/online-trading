@@ -11,6 +11,7 @@ from datetime import datetime
 import logging
 
 from ..models import Candle, PivotPoint
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +339,7 @@ class PivotDetector:
             tolerance: Price tolerance for considering peaks equal (as percentage)
 
         Returns:
-            Tuple of (first_peak, second_peak) if double top detected
+            Tuple[Any, ...] of (first_peak, second_peak) if double top detected
         """
         highs = self.get_swing_highs(10)
         if len(highs) < 2:
@@ -368,7 +369,7 @@ class PivotDetector:
             tolerance: Price tolerance for considering troughs equal (as percentage)
 
         Returns:
-            Tuple of (first_trough, second_trough) if double bottom detected
+            Tuple[Any, ...] of (first_trough, second_trough) if double bottom detected
         """
         lows = self.get_swing_lows(10)
         if len(lows) < 2:
@@ -393,7 +394,7 @@ class PivotDetector:
         self._candle_buffer.clear()
         logger.info("Cleared pivot detector history")
 
-    def get_statistics(self) -> dict:
+    def get_statistics(self) -> dict[Any, Any]:
         """Get pivot detection statistics"""
         if not self._confirmed_pivots:
             return {

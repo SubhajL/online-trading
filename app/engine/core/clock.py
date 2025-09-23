@@ -2,11 +2,14 @@
 Clock abstraction for testable time-dependent code.
 """
 
+from typing import Any
+
 from abc import ABC, abstractmethod
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 
 class Clock(ABC):
@@ -58,7 +61,7 @@ class FakeClock(Clock):
         self._monotonic_start = 0.0
         self._monotonic_current = 0.0
         self._scheduled: list[ScheduledCallback] = []
-        self._sleepers: list[tuple[datetime, asyncio.Future]] = []
+        self._sleepers: list[tuple[datetime, asyncio.Future[Any]]] = []
 
     def now(self) -> datetime:
         """Get current fake time."""

@@ -39,7 +39,7 @@ class HealthCheck:
     name: str
     status: HealthStatus
     message: str | None = None
-    details: dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict[Any, Any])
     timestamp: float = field(default_factory=time.time)
 
 
@@ -79,7 +79,7 @@ class ObservabilityManager:
         enable_metrics: bool = True,
         enable_tracing: bool = True,
         enable_console_export: bool = False,
-    ):
+    ) -> None:
         self.service_name = service_name
         self.enable_metrics = enable_metrics
         self.enable_tracing = enable_tracing
@@ -113,7 +113,7 @@ class ObservabilityManager:
         self._shutdown = False
 
         # Performance tracking
-        self._operation_history: deque = deque(maxlen=1000)
+        self._operation_history: deque[Any] = deque(maxlen=1000)
         self._start_time = time.time()
 
         # Logger
@@ -219,7 +219,7 @@ class ObservabilityManager:
         operation_name: str,
         attributes: dict[str, Any] | None = None,
         record_metrics: bool = True,
-    ):
+    ) -> None:
         """
         Trace an async operation with metrics.
 
@@ -420,20 +420,20 @@ class EventBusHealthCheck:
                 return HealthCheck(
                     name="queue_health",
                     status=HealthStatus.UNHEALTHY,
-                    message=f"Queue critically full: {utilization:.1%}",
+                    message=f"Queue[Any] critically full: {utilization:.1%}",
                     details={"queue_size": queue_size, "max_size": max_queue_size},
                 )
             if utilization > 0.7:
                 return HealthCheck(
                     name="queue_health",
                     status=HealthStatus.DEGRADED,
-                    message=f"Queue filling up: {utilization:.1%}",
+                    message=f"Queue[Any] filling up: {utilization:.1%}",
                     details={"queue_size": queue_size, "max_size": max_queue_size},
                 )
             return HealthCheck(
                 name="queue_health",
                 status=HealthStatus.HEALTHY,
-                message=f"Queue healthy: {utilization:.1%}",
+                message=f"Queue[Any] healthy: {utilization:.1%}",
                 details={"queue_size": queue_size, "max_size": max_queue_size},
             )
 

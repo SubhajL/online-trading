@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Response, status
 
 from app.engine.monitoring.health import HealthChecker, ReadinessChecker

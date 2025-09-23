@@ -1,5 +1,6 @@
 import os
 from urllib.parse import urlparse, urlunparse
+from typing import Any
 
 
 def get_test_database_url() -> str:
@@ -42,7 +43,7 @@ class TestDatabase:
         os.environ["DATABASE_URL"] = self.database_url
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Restore original database environment"""
         if self._original_url:
             os.environ["DATABASE_URL"] = self._original_url

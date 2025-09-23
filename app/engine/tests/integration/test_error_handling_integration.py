@@ -98,7 +98,6 @@ class TestErrorHandlingIntegration:
 
         async def mock_handle_error(error) -> None:
             errors_handled.append(error)
-            return True
 
         # Patch the error handling to capture errors
         with patch(
@@ -273,7 +272,6 @@ class TestErrorHandlingIntegration:
         async def mock_handle_error(error) -> None:
             if hasattr(error, "context"):
                 captured_contexts.append(error.context)
-            return True
 
         with patch(
             "app.engine.core.error_handling.handle_error", side_effect=mock_handle_error

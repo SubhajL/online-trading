@@ -56,11 +56,11 @@ class EventBus:
         self._config = config
 
         # Event processing queue
-        self._event_queue: asyncio.Queue = asyncio.Queue(maxsize=config.max_queue_size)
+        self._event_queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=config.max_queue_size)
 
         # Worker management
         self._running = False
-        self._worker_tasks: list[asyncio.Task] = []
+        self._worker_tasks: list[asyncio.Task[Any]] = []
         self._lock = asyncio.Lock()
 
         logger.info(f"EventBus initialized with {config.num_workers} workers")
@@ -339,9 +339,8 @@ class EventBus:
     async def __aenter__(self) -> None:
         """Async context manager entry."""
         await self.start()
-        return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.stop()
 
@@ -365,10 +364,10 @@ _global_event_bus: EventBus | None = None
 
 def set_event_bus(bus: EventBus) -> None:
     """
-    Set the global event bus instance.
+    Set[Any] the global event bus instance.
 
     Args:
-        bus: The EventBus instance to set as global
+        bus: The EventBus instance to set[Any] as global
     """
     global _global_event_bus
     _global_event_bus = bus
@@ -382,10 +381,10 @@ def get_event_bus() -> EventBus:
         The global EventBus instance
 
     Raises:
-        RuntimeError: If no event bus has been set
+        RuntimeError: If no event bus has been set[Any]
     """
     if _global_event_bus is None:
-        raise RuntimeError("No event bus has been set. Call set_event_bus() first.")
+        raise RuntimeError("No event bus has been set[Any]. Call set_event_bus() first.")
     return _global_event_bus
 
 
@@ -401,7 +400,7 @@ async def publish_event(topic: str, data: dict[str, Any]) -> bool:
         True if published successfully
 
     Raises:
-        RuntimeError: If no event bus has been set
+        RuntimeError: If no event bus has been set[Any]
     """
     bus = get_event_bus()
     event = BaseEvent(

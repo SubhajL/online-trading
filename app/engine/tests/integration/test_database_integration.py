@@ -44,7 +44,6 @@ def get_test_db_config() -> DatabaseConfig:
 @pytest.fixture
 async def test_db_config() -> None:
     """Fixture for test database configuration."""
-    return get_test_db_config()
 
 
 @pytest.fixture
@@ -135,7 +134,6 @@ class TestConnectionPoolIntegration:
         async def use_connection(n: int) -> None:
             async with test_pool.get_postgres_connection() as conn:
                 result = await conn.fetchval("SELECT $1::int", n)
-                return result
 
         # Run multiple concurrent connections
         tasks = [use_connection(i) for i in range(10)]
@@ -361,7 +359,6 @@ class TestConcurrencyIntegration:
                 await tx.execute("INSERT INTO test_table (value) VALUES ($1)", value)
                 # Small delay to increase chance of overlap
                 await asyncio.sleep(0.01)
-                return value
 
         # Run concurrent transactions
         values = [f"concurrent_{i}" for i in range(10)]

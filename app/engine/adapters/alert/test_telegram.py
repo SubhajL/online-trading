@@ -5,24 +5,26 @@ from datetime import datetime
 from decimal import Decimal
 
 from telegram import TelegramAlertAdapter
+from typing import Any
+
 
 
 class TestTelegramAlertAdapter:
     @pytest.fixture
-    def mock_event_bus(self):
+    def mock_event_bus(self) -> Any:
         bus = Mock()
         bus.subscribe = AsyncMock()
         return bus
 
     @pytest.fixture
-    def mock_deduplicator(self):
+    def mock_deduplicator(self) -> Any:
         dedup = Mock()
         dedup.is_duplicate = Mock(return_value=False)
         dedup.add = Mock()
         return dedup
 
     @pytest.fixture
-    def mock_formatter(self):
+    def mock_formatter(self) -> Any:
         formatter = Mock()
         formatter.format_decision = Mock(return_value="Formatted decision")
         formatter.format_order_update = Mock(return_value="Formatted order")
@@ -30,7 +32,7 @@ class TestTelegramAlertAdapter:
         return formatter
 
     @pytest.fixture
-    def adapter(self, mock_event_bus, mock_deduplicator, mock_formatter):
+    def adapter(self, mock_event_bus: Any, mock_deduplicator: Any, mock_formatter: Any) -> Any:
         with patch("telegram.aiohttp.ClientSession"):
             adapter = TelegramAlertAdapter(
                 bot_token="test_token",
@@ -42,7 +44,7 @@ class TestTelegramAlertAdapter:
             return adapter
 
     @pytest.mark.asyncio
-    async def test_init_subscribes_to_events(self, mock_event_bus):
+    async def test_init_subscribes_to_events(self, mock_event_bus: Any) -> None:
         with patch("telegram.aiohttp.ClientSession"):
             adapter = TelegramAlertAdapter(
                 bot_token="test_token",
@@ -58,7 +60,7 @@ class TestTelegramAlertAdapter:
         assert calls[2][0][0] == "guard_alert.v1"
 
     @pytest.mark.asyncio
-    async def test_send_alert_success(self, adapter):
+    async def test_send_alert_success(self, adapter: Any) -> None:
         with patch.object(adapter.session, "post") as mock_post:
             mock_response = Mock()
             mock_response.status = 200
@@ -74,7 +76,7 @@ class TestTelegramAlertAdapter:
             )
 
     @pytest.mark.asyncio
-    async def test_send_alert_failure(self, adapter):
+    async def test_send_alert_failure(self, adapter: Any) -> None:
         with patch.object(adapter.session, "post") as mock_post:
             mock_response = Mock()
             mock_response.status = 400
@@ -86,7 +88,7 @@ class TestTelegramAlertAdapter:
             assert result is False
 
     @pytest.mark.asyncio
-    async def test_handle_decision_with_deduplication(self, adapter, mock_deduplicator):
+    async def test_handle_decision_with_deduplication(self, adapter: Any, mock_deduplicator: Any) -> None:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
@@ -108,7 +110,7 @@ class TestTelegramAlertAdapter:
             mock_deduplicator.add.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_handle_order_update(self, adapter, mock_formatter):
+    async def test_handle_order_update(self, adapter: Any, mock_formatter: Any) -> None:
         order = {"symbol": "BTCUSDT", "status": "filled"}
 
         with patch.object(adapter, "_send_alert") as mock_send:
@@ -118,7 +120,7 @@ class TestTelegramAlertAdapter:
             mock_send.assert_called_once_with("Formatted order")
 
     @pytest.mark.asyncio
-    async def test_handle_guard_alert(self, adapter, mock_formatter):
+    async def test_handle_guard_alert(self, adapter: Any, mock_formatter: Any) -> None:
         guard = {"type": "funding_rate", "symbol": "BTCUSDT"}
 
         with patch.object(adapter, "_send_alert") as mock_send:
@@ -128,7 +130,7 @@ class TestTelegramAlertAdapter:
             mock_send.assert_called_once_with("Formatted guard")
 
     @pytest.mark.asyncio
-    async def test_rate_limiting(self, adapter):
+    async def test_rate_limiting(self, adapter: Any) -> None:
         adapter.rate_limiter = Mock()
         adapter.rate_limiter.check_rate_limit = AsyncMock(side_effect=[True, False, True])
 
@@ -138,7 +140,7 @@ class TestTelegramAlertAdapter:
             assert mock_send.call_count == 0  # Rate limiter is checked in _send_alert
 
     @pytest.mark.asyncio
-    async def test_stop_closes_session(self, adapter):
+    async def test_stop_closes_session(self, adapter: Any) -> None:
         adapter.session = Mock()
         adapter.session.close = AsyncMock()
 

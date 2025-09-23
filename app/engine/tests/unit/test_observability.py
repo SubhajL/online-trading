@@ -89,7 +89,7 @@ class TestObservabilityManager:
         manager = ObservabilityManager()
 
         def test_check() -> None:
-            return HealthCheck("test", HealthStatus.HEALTHY)
+            return
 
         manager.register_health_check("test", test_check)
 
@@ -271,7 +271,6 @@ class TestObservabilityManager:
         def test_check() -> None:
             nonlocal check_called
             check_called = True
-            return HealthCheck("test", HealthStatus.HEALTHY)
 
         manager.register_health_check("test", test_check)
         manager.start_health_checks(interval=0.1)

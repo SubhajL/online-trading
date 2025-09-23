@@ -22,7 +22,6 @@ from app.engine.models import (
 @pytest.fixture
 def db_config() -> None:
     """Database configuration for testing."""
-    return DBConfig(
         host="localhost",
         port=5432,
         database="test_db",
@@ -38,7 +37,6 @@ def mock_connection() -> None:
     conn.execute = AsyncMock()
     conn.fetch = AsyncMock()
     conn.fetchval = AsyncMock()
-    return conn
 
 
 @pytest.fixture
@@ -51,13 +49,11 @@ def mock_pool(mock_connection) -> None:
         yield mock_connection
 
     pool.acquire = mock_acquire
-    return pool
 
 
 @pytest.fixture
 def sample_candle() -> None:
     """Sample candle for testing."""
-    return Candle(
         symbol="BTCUSDT",
         timeframe=TimeFrame.H1,
         open_time=datetime.utcnow(),

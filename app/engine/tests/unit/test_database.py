@@ -52,7 +52,7 @@ class TestDatabaseConfig:
 class TestConnectionPool:
     @pytest.fixture
     def pool_config(self) -> None:
-        return DatabaseConfig(
+        return
             postgres_url="postgresql://user:pass@localhost:5432/test",
             redis_url="redis://localhost:6379/1",
             pool_size=5,
@@ -245,7 +245,7 @@ class TestTransactionContext:
 class TestOptimisticLockMixin:
     @pytest.fixture
     def optimistic_lock_mixin(self) -> None:
-        return OptimisticLockMixin()
+        return
 
     @pytest.mark.asyncio
     async def test_update_with_version_success(self, optimistic_lock_mixin) -> None:
@@ -286,7 +286,7 @@ class TestOptimisticLockMixin:
 class TestDatabaseManager:
     @pytest.fixture
     def db_config(self) -> None:
-        return DatabaseConfig(
+        return
             postgres_url="postgresql://test:test@localhost:5432/test",
             redis_url="redis://localhost:6379/1",
             pool_size=5,
@@ -379,7 +379,7 @@ class TestDatabaseManager:
             # Simulate concurrent requests
             async def use_connection() -> None:
                 async with db_manager.get_connection() as conn:
-                    return conn
+                    return
 
             tasks = [use_connection() for _ in range(10)]
             results = await asyncio.gather(*tasks)
@@ -451,7 +451,6 @@ class TestDatabaseManagerConcurrency:
             async def use_connection() -> None:
                 async with db_manager.transaction() as tx:
                     await asyncio.sleep(0.01)  # Simulate work
-                    return tx
 
             tasks = [use_connection() for _ in range(3)]
             results = await asyncio.gather(*tasks)

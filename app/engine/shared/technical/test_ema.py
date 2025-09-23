@@ -4,26 +4,26 @@ import pytest
 from .ema import calculate_ema, calculate_ema_wilder
 
 
-def test_calculate_ema_insufficient_data():
+def test_calculate_ema_insufficient_data() -> None:
     values = np.array([1.0, 2.0, 3.0])
     result = calculate_ema(values, period=5)
     assert np.all(np.isnan(result))
     assert len(result) == len(values)
 
 
-def test_calculate_ema_negative_period():
+def test_calculate_ema_negative_period() -> None:
     values = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     with pytest.raises(ValueError, match="Period must be positive"):
         calculate_ema(values, period=-1)
 
 
-def test_calculate_ema_zero_period():
+def test_calculate_ema_zero_period() -> None:
     values = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     with pytest.raises(ValueError, match="Period must be positive"):
         calculate_ema(values, period=0)
 
 
-def test_calculate_ema_basic():
+def test_calculate_ema_basic() -> None:
     values = np.array([10.0, 12.0, 13.0, 11.0, 14.0, 15.0, 16.0, 14.0, 12.0, 11.0])
     result = calculate_ema(values, period=3)
 
@@ -41,7 +41,7 @@ def test_calculate_ema_basic():
     assert np.isclose(result[3], expected_ema4)
 
 
-def test_calculate_ema_with_nan_values():
+def test_calculate_ema_with_nan_values() -> None:
     values = np.array([10.0, 12.0, np.nan, 11.0, 14.0])
     result = calculate_ema(values, period=2)
 
@@ -52,7 +52,7 @@ def test_calculate_ema_with_nan_values():
     assert np.isnan(result[4])  # Continues to propagate
 
 
-def test_calculate_ema_wilder():
+def test_calculate_ema_wilder() -> None:
     values = np.array([10.0, 12.0, 13.0, 11.0, 14.0])
     period = 3
 
@@ -68,7 +68,7 @@ def test_calculate_ema_wilder():
     assert multiplier_wilder != multiplier_standard
 
 
-def test_calculate_ema_deterministic():
+def test_calculate_ema_deterministic() -> None:
     values = np.array([42.5, 43.0, 42.8, 43.2, 43.5, 44.0, 43.8])
     period = 3
 
@@ -79,7 +79,7 @@ def test_calculate_ema_deterministic():
     np.testing.assert_array_equal(result1, result2)
 
 
-def test_calculate_ema_preserves_single_value():
+def test_calculate_ema_preserves_single_value() -> None:
     # If all values are the same, EMA should converge to that value
     values = np.full(20, 100.0)
     result = calculate_ema(values, period=5)
@@ -89,7 +89,7 @@ def test_calculate_ema_preserves_single_value():
     assert np.all(np.isclose(non_nan_values, 100.0))
 
 
-def test_calculate_ema_large_period():
+def test_calculate_ema_large_period() -> None:
     values = np.random.randn(100) * 10 + 50
     result = calculate_ema(values, period=50)
 

@@ -4,7 +4,7 @@ import pytest
 from .vwap import calculate_vwap, calculate_vwma
 
 
-def test_calculate_vwap_mismatched_lengths():
+def test_calculate_vwap_mismatched_lengths() -> None:
     high = np.array([10.0, 11.0])
     low = np.array([9.0, 10.0])
     close = np.array([9.5, 10.5])
@@ -14,7 +14,7 @@ def test_calculate_vwap_mismatched_lengths():
         calculate_vwap(high, low, close, volume)
 
 
-def test_calculate_vwap_simple():
+def test_calculate_vwap_simple() -> None:
     # Simple case with known values
     high = np.array([101.0, 102.0, 103.0])
     low = np.array([99.0, 100.0, 101.0])
@@ -33,7 +33,7 @@ def test_calculate_vwap_simple():
     assert np.isclose(vwap[2], 101.5)
 
 
-def test_calculate_vwap_zero_volume():
+def test_calculate_vwap_zero_volume() -> None:
     high = np.array([101.0, 102.0, 103.0])
     low = np.array([99.0, 100.0, 101.0])
     close = np.array([100.0, 101.0, 102.0])
@@ -45,7 +45,7 @@ def test_calculate_vwap_zero_volume():
     assert np.all(np.isnan(vwap))
 
 
-def test_calculate_vwap_with_nan_values():
+def test_calculate_vwap_with_nan_values() -> None:
     high = np.array([101.0, np.nan, 103.0])
     low = np.array([99.0, 100.0, 101.0])
     close = np.array([100.0, 101.0, 102.0])
@@ -58,7 +58,7 @@ def test_calculate_vwap_with_nan_values():
     assert np.isnan(vwap[2])  # Affected by previous NaN
 
 
-def test_calculate_vwap_daily_reset_requires_timestamps():
+def test_calculate_vwap_daily_reset_requires_timestamps() -> None:
     high = np.array([101.0, 102.0])
     low = np.array([99.0, 100.0])
     close = np.array([100.0, 101.0])
@@ -68,7 +68,7 @@ def test_calculate_vwap_daily_reset_requires_timestamps():
         calculate_vwap(high, low, close, volume, reset_daily=True)
 
 
-def test_calculate_vwap_daily_reset():
+def test_calculate_vwap_daily_reset() -> None:
     # Two days of data
     high = np.array([101.0, 102.0, 103.0, 104.0])
     low = np.array([99.0, 100.0, 101.0, 102.0])
@@ -99,7 +99,7 @@ def test_calculate_vwap_daily_reset():
     assert np.isclose(vwap[3], 102.571428, rtol=1e-5)
 
 
-def test_calculate_vwma_insufficient_data():
+def test_calculate_vwma_insufficient_data() -> None:
     prices = np.array([100.0, 101.0])
     volume = np.array([100.0, 200.0])
 
@@ -107,7 +107,7 @@ def test_calculate_vwma_insufficient_data():
     assert np.all(np.isnan(result))
 
 
-def test_calculate_vwma_mismatched_lengths():
+def test_calculate_vwma_mismatched_lengths() -> None:
     prices = np.array([100.0, 101.0, 102.0])
     volume = np.array([100.0, 200.0])  # Different length
 
@@ -118,7 +118,7 @@ def test_calculate_vwma_mismatched_lengths():
         calculate_vwma(prices, volume)
 
 
-def test_calculate_vwma_negative_period():
+def test_calculate_vwma_negative_period() -> None:
     prices = np.array([100.0, 101.0, 102.0])
     volume = np.array([100.0, 200.0, 300.0])
 
@@ -126,7 +126,7 @@ def test_calculate_vwma_negative_period():
         calculate_vwma(prices, volume, period=-1)
 
 
-def test_calculate_vwma_simple():
+def test_calculate_vwma_simple() -> None:
     prices = np.array([100.0, 101.0, 102.0, 103.0, 104.0])
     volume = np.array([100.0, 200.0, 300.0, 400.0, 500.0])
 
@@ -145,7 +145,7 @@ def test_calculate_vwma_simple():
     assert np.isclose(vwma[3], 102.222222, rtol=1e-5)
 
 
-def test_calculate_vwma_zero_volume():
+def test_calculate_vwma_zero_volume() -> None:
     prices = np.array([100.0, 101.0, 102.0])
     volume = np.array([0.0, 0.0, 0.0])
 
@@ -155,7 +155,7 @@ def test_calculate_vwma_zero_volume():
     assert np.all(np.isnan(vwma))
 
 
-def test_calculate_vwma_equal_volume():
+def test_calculate_vwma_equal_volume() -> None:
     # When volume is constant, VWMA equals SMA
     prices = np.array([100.0, 102.0, 104.0, 106.0, 108.0])
     volume = np.full(5, 1000.0)  # Constant volume
@@ -170,7 +170,7 @@ def test_calculate_vwma_equal_volume():
     assert np.isclose(vwma[4], np.mean([104.0, 106.0, 108.0]))
 
 
-def test_calculate_vwma_high_volume_weight():
+def test_calculate_vwma_high_volume_weight() -> None:
     # High volume should have more weight
     prices = np.array([100.0, 110.0, 100.0])
     volume = np.array([100.0, 1000.0, 100.0])  # Middle has high volume
@@ -186,7 +186,7 @@ def test_calculate_vwma_high_volume_weight():
     assert vwma[2] > simple_avg
 
 
-def test_calculate_vwma_deterministic():
+def test_calculate_vwma_deterministic() -> None:
     prices = np.array([100, 102, 101, 103, 102, 104])
     volume = np.array([1000, 1200, 900, 1100, 1000, 1300])
 
@@ -197,7 +197,7 @@ def test_calculate_vwma_deterministic():
     np.testing.assert_array_equal(result1, result2)
 
 
-def test_calculate_vwma_with_nan_values():
+def test_calculate_vwma_with_nan_values() -> None:
     prices = np.array([100.0, 101.0, np.nan, 103.0, 104.0])
     volume = np.array([100.0, 200.0, 300.0, 400.0, 500.0])
 

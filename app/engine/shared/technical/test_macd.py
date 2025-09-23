@@ -4,7 +4,7 @@ import pytest
 from .macd import calculate_macd
 
 
-def test_calculate_macd_insufficient_data():
+def test_calculate_macd_insufficient_data() -> None:
     prices = np.array([100.0, 101.0, 102.0])
     macd, signal, hist = calculate_macd(prices)
 
@@ -14,7 +14,7 @@ def test_calculate_macd_insufficient_data():
     assert np.all(np.isnan(hist))
 
 
-def test_calculate_macd_negative_periods():
+def test_calculate_macd_negative_periods() -> None:
     prices = np.array([100.0] * 30)
 
     with pytest.raises(ValueError, match="All periods must be positive"):
@@ -27,7 +27,7 @@ def test_calculate_macd_negative_periods():
         calculate_macd(prices, fast=12, slow=26, signal=-9)
 
 
-def test_calculate_macd_invalid_period_order():
+def test_calculate_macd_invalid_period_order() -> None:
     prices = np.array([100.0] * 30)
 
     # Fast period must be less than slow period
@@ -38,7 +38,7 @@ def test_calculate_macd_invalid_period_order():
         calculate_macd(prices, fast=26, slow=26, signal=9)
 
 
-def test_calculate_macd_flat_prices():
+def test_calculate_macd_flat_prices() -> None:
     # Flat prices should result in zero MACD
     prices = np.full(50, 100.0)
     macd, signal, hist = calculate_macd(prices, fast=12, slow=26, signal=9)
@@ -54,7 +54,7 @@ def test_calculate_macd_flat_prices():
     assert np.all(np.abs(non_nan_signal) < 1e-10)
 
 
-def test_calculate_macd_rising_prices():
+def test_calculate_macd_rising_prices() -> None:
     # Steadily rising prices
     prices = np.linspace(100, 150, 50)
     macd, signal, hist = calculate_macd(prices, fast=12, slow=26, signal=9)
@@ -71,7 +71,7 @@ def test_calculate_macd_rising_prices():
         assert np.mean(later_hist) > 0
 
 
-def test_calculate_macd_falling_prices():
+def test_calculate_macd_falling_prices() -> None:
     # Steadily falling prices
     prices = np.linspace(150, 100, 50)
     macd, signal, hist = calculate_macd(prices, fast=12, slow=26, signal=9)
@@ -82,7 +82,7 @@ def test_calculate_macd_falling_prices():
     assert np.all(later_macd < 0)
 
 
-def test_calculate_macd_with_nan_values():
+def test_calculate_macd_with_nan_values() -> None:
     prices = np.array([100.0] * 30)
     prices[15] = np.nan
 
@@ -94,7 +94,7 @@ def test_calculate_macd_with_nan_values():
     assert np.all(np.isnan(macd[15:]))
 
 
-def test_calculate_macd_output_shapes():
+def test_calculate_macd_output_shapes() -> None:
     prices = np.random.randn(100) * 10 + 100
     macd, signal, hist = calculate_macd(prices)
 
@@ -104,7 +104,7 @@ def test_calculate_macd_output_shapes():
     assert hist.shape == prices.shape
 
 
-def test_calculate_macd_histogram_calculation():
+def test_calculate_macd_histogram_calculation() -> None:
     prices = np.random.randn(100) * 10 + 100
     macd, signal, hist = calculate_macd(prices)
 
@@ -116,7 +116,7 @@ def test_calculate_macd_histogram_calculation():
         np.testing.assert_allclose(hist[valid_mask], expected_hist, rtol=1e-10)
 
 
-def test_calculate_macd_deterministic():
+def test_calculate_macd_deterministic() -> None:
     prices = np.array([100, 102, 101, 103, 105, 104, 106, 108, 107, 109] * 5)
     fast, slow, signal_period = 5, 10, 3
 
@@ -128,7 +128,7 @@ def test_calculate_macd_deterministic():
         np.testing.assert_array_equal(arr1, arr2)
 
 
-def test_calculate_macd_custom_periods():
+def test_calculate_macd_custom_periods() -> None:
     prices = np.random.randn(100) * 10 + 100
 
     # Test with custom periods

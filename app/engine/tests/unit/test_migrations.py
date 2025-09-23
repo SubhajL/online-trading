@@ -26,7 +26,6 @@ def mock_connection() -> None:
         yield
 
     conn.transaction = mock_transaction
-    return conn
 
 
 @pytest.fixture
@@ -39,7 +38,6 @@ def mock_pool(mock_connection) -> None:
         yield mock_connection
 
     pool.acquire = mock_acquire
-    return pool
 
 
 @pytest.fixture
@@ -55,7 +53,7 @@ def migrations_dir(tmp_path) -> None:
     )
     (migrations / "000_migration_version.sql").write_text("-- Bootstrap migration")
 
-    return migrations
+    return
 
 
 class TestMigration:

@@ -4,6 +4,9 @@ Backtesting engine for strategy validation.
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
+
+
 
 import numpy as np
 import pandas as pd
@@ -40,9 +43,9 @@ class BacktestEngine:
         self.decision_engine = DecisionEngine()
 
         # Results storage
-        self.trades: list[dict] = []
+        self.trades: list[dict[Any, Any]] = []
         self.equity_curve: list[tuple[datetime, Decimal]] = []
-        self.positions: dict[str, dict] = {}
+        self.positions: dict[str, dict[Any, Any]] = {}
 
     async def run_backtest(
         self,
@@ -168,7 +171,7 @@ class BacktestEngine:
         candles: pd.DataFrame,
         symbol: str,
         timeframe: TimeFrame,
-    ) -> dict[int, dict]:
+    ) -> dict[int, dict[Any, Any]]:
         """
         Detect SMC patterns in historical data.
         """
@@ -224,7 +227,7 @@ class BacktestEngine:
                 return False
         return True
 
-    def _check_structure_break(self, df: pd.DataFrame, index: int) -> dict | None:
+    def _check_structure_break(self, df: pd.DataFrame, index: int) -> dict[Any, Any] | None:
         """
         Check for market structure break.
         """
@@ -283,7 +286,7 @@ class BacktestEngine:
     async def _make_decision(
         self,
         candle: pd.Series,
-        signal: dict,
+        signal: dict[Any, Any],
         indicators: TechnicalIndicators,
         balance: Decimal,
     ) -> TradingDecision | None:
@@ -327,7 +330,7 @@ class BacktestEngine:
         decision: TradingDecision,
         candle: pd.Series,
         balance: Decimal,
-    ) -> dict | None:
+    ) -> dict[Any, Any] | None:
         """
         Execute a trade in backtest.
         """
@@ -418,7 +421,7 @@ class BacktestEngine:
 
     def _close_position(
         self,
-        position: dict,
+        position: dict[Any, Any],
         exit_price: Decimal,
         balance: Decimal,
         exit_reason: str,

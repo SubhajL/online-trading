@@ -159,7 +159,7 @@ class TestApplySignalVectorized:
         prices = np.array([100, 105, 110, 108, 106, 105, 110, 115])
 
         def simple_sizer(signal, price) -> None:
-            return signal * 1.0  # Fixed size
+            return
 
         positions = apply_signal_vectorized(signals, prices, simple_sizer)
 
@@ -171,7 +171,7 @@ class TestApplySignalVectorized:
         prices = np.array([100, 105, 110, 108, 106])
 
         def limited_sizer(signal, price) -> None:
-            return np.clip(signal, -1, 1)  # Limit to ±1
+            return
 
         positions = apply_signal_vectorized(signals, prices, limited_sizer)
 
@@ -184,7 +184,7 @@ class TestApplySignalVectorized:
         prices = np.array([100, 200, 50])
 
         def inverse_price_sizer(signal, price) -> None:
-            return signal * (10000 / price)  # Fixed notional
+            return
 
         positions = apply_signal_vectorized(signals, prices, inverse_price_sizer)
 

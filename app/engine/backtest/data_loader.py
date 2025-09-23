@@ -13,6 +13,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import redis
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -168,13 +169,13 @@ def load_cached_features(cache_key: str) -> pd.DataFrame | None:
 
 def precompute_features_parallel(
     symbols: list[str],
-    feature_funcs: list[Callable],
+    feature_funcs: list[Callable[..., Any]],
     config: ChunkConfig | None = None,
 ) -> dict[str, pd.DataFrame]:
     """
     Computes features for multiple symbols in parallel.
     Uses process pool for CPU-bound feature engineering.
-    Returns dict of symbol -> features DataFrame.
+    Returns dict[Any, Any] of symbol -> features DataFrame.
     """
     if config is None:
         config = ChunkConfig()
@@ -206,7 +207,7 @@ def precompute_features_parallel(
 
 def _compute_features_for_symbol(
     symbol: str,
-    feature_funcs: list[Callable],
+    feature_funcs: list[Callable[..., Any]],
 ) -> pd.DataFrame:
     """
     Compute features for a single symbol.

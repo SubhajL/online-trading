@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 
 from app.engine.config import EventBusConfig
 from app.engine.models import BaseEvent, EventType
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ class InMemoryMetrics:
         self.events_published = 0
         self.events_processed = 0
         self.events_failed = 0
-        self.processing_times: deque = deque(maxlen=1000)
+        self.processing_times: deque[Any] = deque(maxlen=1000)
         self.error_counts: dict[str, int] = defaultdict(int)
 
     def record_event_published(self, event_type: str) -> None:
@@ -201,20 +202,20 @@ class EventBus:
         self._metrics_backend = metrics_backend or InMemoryMetrics()
 
         self._subscriptions: dict[EventType, list[EventSubscription]] = defaultdict(
-            list,
+            list[Any],
         )
         self._all_subscriptions: list[EventSubscription] = []
         self._subscription_map: dict[str, EventSubscription] = {}
 
-        self._event_queue: asyncio.PriorityQueue = asyncio.PriorityQueue(
+        self._event_queue: asyncio.PriorityQueue[Any] = asyncio.PriorityQueue(
             maxsize=config.max_queue_size,
         )
-        self._dead_letter_queue: asyncio.Queue = asyncio.Queue(
+        self._dead_letter_queue: asyncio.Queue[Any] = asyncio.Queue(
             maxsize=config.dead_letter_queue_size,
         )
 
         self._running = False
-        self._worker_tasks: list[asyncio.Task] = []
+        self._worker_tasks: list[asyncio.Task[Any]] = []
         self._lock = asyncio.Lock()
 
         logger.info(f"EventBus initialized with config: {config}")

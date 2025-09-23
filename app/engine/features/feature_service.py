@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Any
+
 """
 Feature Service
 
@@ -40,11 +43,11 @@ class FeatureService:
         buffer_size: int = 1000,
         ema_periods: list[int] = [9, 21, 50, 200],
         rsi_period: int = 14,
-        macd_params: tuple = (12, 26, 9),
+        macd_params: tuple[Any, ...] = (12, 26, 9),
         atr_period: int = 14,
         bb_period: int = 20,
         bb_std_dev: float = 2.0,
-    ):
+    ) -> None:
         self.buffer_size = buffer_size
         self.ema_periods = ema_periods
         self.rsi_period = rsi_period
@@ -60,7 +63,7 @@ class FeatureService:
 
         # Latest indicators: symbol -> timeframe -> TechnicalIndicators
         self._latest_indicators: dict[str, dict[TimeFrame, TechnicalIndicators]] = (
-            defaultdict(dict)
+            defaultdict(dict[Any, Any])
         )
 
         self._event_bus = get_event_bus()
@@ -139,7 +142,7 @@ class FeatureService:
         self,
         symbol: str,
         timeframe: TimeFrame,
-    ):
+    ) -> None:
         """Calculate indicators and publish features calculated event"""
         try:
             # Get candles from buffer
@@ -247,7 +250,7 @@ class FeatureService:
         symbol: str,
         timeframe: TimeFrame,
         candles: list[Candle],
-    ):
+    ) -> None:
         """
         Add multiple candles to the buffer (useful for historical data)
 
@@ -282,7 +285,7 @@ class FeatureService:
         except Exception as e:
             logger.error(f"Error adding bulk candles: {e}")
 
-    def get_buffer_info(self, symbol: str, timeframe: TimeFrame) -> dict:
+    def get_buffer_info(self, symbol: str, timeframe: TimeFrame) -> dict[Any, Any]:
         """Get information about the candle buffer for a symbol and timeframe"""
         buffer = self._candle_buffers[symbol][timeframe]
         return {
@@ -292,7 +295,7 @@ class FeatureService:
             "newest_candle": buffer[-1].open_time if buffer else None,
         }
 
-    def get_all_tracked_symbols_timeframes(self) -> list[tuple]:
+    def get_all_tracked_symbols_timeframes(self) -> list[tuple[Any, ...]]:
         """Get all symbol-timeframe combinations currently being tracked"""
         combinations = []
         for symbol in self._candle_buffers:
@@ -328,7 +331,7 @@ class FeatureService:
         self._latest_indicators.clear()
         logger.info("Cleared all buffers")
 
-    async def health_check(self) -> dict:
+    async def health_check(self) -> dict[Any, Any]:
         """Get health status of the feature service"""
         total_symbols = len(self._candle_buffers)
         total_timeframes = sum(

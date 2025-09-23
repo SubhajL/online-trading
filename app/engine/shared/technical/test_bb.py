@@ -4,7 +4,7 @@ import pytest
 from .bb import calculate_bollinger_bands, calculate_rolling_std, calculate_sma
 
 
-def test_calculate_bollinger_bands_insufficient_data():
+def test_calculate_bollinger_bands_insufficient_data() -> None:
     prices = np.array([100.0, 101.0, 102.0])
     upper, middle, lower = calculate_bollinger_bands(prices, period=5)
 
@@ -14,13 +14,13 @@ def test_calculate_bollinger_bands_insufficient_data():
     assert len(upper) == len(prices)
 
 
-def test_calculate_bollinger_bands_negative_period():
+def test_calculate_bollinger_bands_negative_period() -> None:
     prices = np.array([100.0] * 25)
     with pytest.raises(ValueError, match="Period must be positive"):
         calculate_bollinger_bands(prices, period=-1)
 
 
-def test_calculate_bollinger_bands_negative_std_dev():
+def test_calculate_bollinger_bands_negative_std_dev() -> None:
     prices = np.array([100.0] * 25)
     with pytest.raises(
         ValueError,
@@ -29,7 +29,7 @@ def test_calculate_bollinger_bands_negative_std_dev():
         calculate_bollinger_bands(prices, period=20, std_dev=-2.0)
 
 
-def test_calculate_bollinger_bands_flat_prices():
+def test_calculate_bollinger_bands_flat_prices() -> None:
     # Flat prices should have zero standard deviation
     prices = np.full(30, 100.0)
     upper, middle, lower = calculate_bollinger_bands(prices, period=20, std_dev=2.0)
@@ -41,7 +41,7 @@ def test_calculate_bollinger_bands_flat_prices():
     assert np.all(np.isclose(lower[valid_start:], 100.0))
 
 
-def test_calculate_bollinger_bands_symmetry():
+def test_calculate_bollinger_bands_symmetry() -> None:
     # Bands should be symmetric around the middle
     prices = np.random.randn(50) * 10 + 100
     upper, middle, lower = calculate_bollinger_bands(prices, period=20, std_dev=2.0)
@@ -54,7 +54,7 @@ def test_calculate_bollinger_bands_symmetry():
         np.testing.assert_allclose(upper_distance, lower_distance, rtol=1e-10)
 
 
-def test_calculate_bollinger_bands_with_zero_std_dev():
+def test_calculate_bollinger_bands_with_zero_std_dev() -> None:
     prices = np.random.randn(50) * 10 + 100
     upper, middle, lower = calculate_bollinger_bands(prices, period=20, std_dev=0.0)
 
@@ -65,7 +65,7 @@ def test_calculate_bollinger_bands_with_zero_std_dev():
         np.testing.assert_allclose(lower[valid_mask], middle[valid_mask], rtol=1e-10)
 
 
-def test_calculate_sma_basic():
+def test_calculate_sma_basic() -> None:
     values = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     result = calculate_sma(values, period=3)
 
@@ -76,7 +76,7 @@ def test_calculate_sma_basic():
     assert np.isclose(result[4], 4.0)  # (3+4+5)/3
 
 
-def test_calculate_sma_with_nan():
+def test_calculate_sma_with_nan() -> None:
     values = np.array([1.0, 2.0, np.nan, 4.0, 5.0])
     result = calculate_sma(values, period=3)
 
@@ -85,7 +85,7 @@ def test_calculate_sma_with_nan():
     assert np.isclose(result[4], 9.0 / 3)  # (nan+4+5)/3 with nancumsum
 
 
-def test_calculate_rolling_std_basic():
+def test_calculate_rolling_std_basic() -> None:
     # Constant values should have std=0
     values = np.full(10, 5.0)
     result = calculate_rolling_std(values, period=3)
@@ -94,7 +94,7 @@ def test_calculate_rolling_std_basic():
     assert np.all(np.isclose(valid_values, 0.0))
 
 
-def test_calculate_rolling_std_increasing():
+def test_calculate_rolling_std_increasing() -> None:
     values = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     result = calculate_rolling_std(values, period=3)
 
@@ -105,7 +105,7 @@ def test_calculate_rolling_std_increasing():
     assert np.isclose(result[3], np.std([2.0, 3.0, 4.0]))
 
 
-def test_calculate_bollinger_bands_squeeze():
+def test_calculate_bollinger_bands_squeeze() -> None:
     # Create data with decreasing volatility (squeeze)
     np.random.seed(42)
     trend = np.linspace(100, 110, 50)
@@ -127,7 +127,7 @@ def test_calculate_bollinger_bands_squeeze():
     assert second_half_width < first_half_width
 
 
-def test_calculate_bollinger_bands_expansion():
+def test_calculate_bollinger_bands_expansion() -> None:
     # Create data with increasing volatility (expansion)
     np.random.seed(42)
     trend = np.linspace(100, 110, 50)
@@ -149,7 +149,7 @@ def test_calculate_bollinger_bands_expansion():
     assert second_half_width > first_half_width
 
 
-def test_calculate_bollinger_bands_deterministic():
+def test_calculate_bollinger_bands_deterministic() -> None:
     prices = np.array([100, 102, 101, 103, 102, 104, 103, 105, 104, 106] * 3)
 
     # Run multiple times to ensure deterministic results
@@ -160,7 +160,7 @@ def test_calculate_bollinger_bands_deterministic():
         np.testing.assert_array_equal(arr1, arr2)
 
 
-def test_calculate_bollinger_bands_custom_parameters():
+def test_calculate_bollinger_bands_custom_parameters() -> None:
     prices = np.random.randn(50) * 10 + 100
 
     # Different parameters should give different results

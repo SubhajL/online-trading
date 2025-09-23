@@ -26,7 +26,6 @@ def mock_connection() -> None:
         yield
 
     conn.transaction = mock_transaction
-    return conn
 
 
 @pytest.fixture
@@ -39,7 +38,6 @@ def mock_pool(mock_connection) -> None:
         yield mock_connection
 
     pool.acquire = mock_acquire
-    return pool
 
 
 @pytest.fixture
@@ -74,7 +72,7 @@ ON DELETE SET NULL;
 """
     (migrations / "008_add_foreign_keys.sql").write_text(fk_content)
 
-    return migrations
+    return
 
 
 class TestForeignKeyMigration:

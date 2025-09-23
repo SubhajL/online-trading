@@ -5,6 +5,11 @@ Main FastAPI application for the trading engine with health endpoints,
 metrics, and service management.
 """
 
+from typing import Any
+from decimal import Decimal
+
+
+
 from contextlib import asynccontextmanager
 from datetime import datetime
 import logging
@@ -384,7 +389,7 @@ async def get_metrics() -> MetricsResponse:
 async def control_service(
     request: ServiceControlRequest,
     background_tasks: BackgroundTasks,
-):
+) -> dict[str, Any]:
     """Control individual services"""
     try:
         if request.service and request.service not in services:

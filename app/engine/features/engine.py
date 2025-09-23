@@ -53,12 +53,12 @@ class FeatureEngine:
         buffer_size: int = 500,
         ema_periods: list[int] = [20, 50, 200],
         rsi_period: int = 14,
-        macd_params: tuple = (12, 26, 9),
+        macd_params: tuple[Any, ...] = (12, 26, 9),
         atr_period: int = 14,
         bb_period: int = 20,
         bb_std_dev: float = 2.0,
         vwma_period: int = 20,
-    ):
+    ) -> None:
         self.db_adapter = db_adapter
         self.buffer_size = buffer_size
         self.ema_periods = sorted(ema_periods)  # Ensure sorted for efficiency
@@ -75,8 +75,8 @@ class FeatureEngine:
         )
 
         # Track processed timestamps to ensure idempotency
-        self._processed: dict[str, dict[TimeFrame, set]] = defaultdict(
-            lambda: defaultdict(set),
+        self._processed: dict[str, dict[TimeFrame, set[Any]]] = defaultdict(
+            lambda: defaultdict(set[Any]),
         )
 
         self._event_bus = get_event_bus()
@@ -92,7 +92,7 @@ class FeatureEngine:
             f"EMA periods={ema_periods}",
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the feature engine"""
         if self._running:
             logger.warning("FeatureEngine is already running")
@@ -110,7 +110,7 @@ class FeatureEngine:
 
         logger.info("FeatureEngine started and subscribed to candle updates")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the feature engine"""
         if not self._running:
             return
@@ -124,7 +124,7 @@ class FeatureEngine:
 
         logger.info("FeatureEngine stopped")
 
-    async def _handle_candle_event(self, event: BaseEvent):
+    async def _handle_candle_event(self, event: BaseEvent) -> None:
         """Handle candle update events"""
         try:
             if event.event_type != EventType.CANDLE_UPDATE:
@@ -137,7 +137,7 @@ class FeatureEngine:
         except Exception as e:
             logger.error(f"Error handling candle event: {e}", exc_info=True)
 
-    async def process_candle(self, candle: Candle):
+    async def process_candle(self, candle: Candle) -> None:
         """Process a single candle, calculate indicators, and publish results"""
         symbol = candle.symbol
         timeframe = candle.timeframe
@@ -311,7 +311,7 @@ class FeatureEngine:
             )
             return None
 
-    async def _write_to_database(self, indicators: TechnicalIndicators):
+    async def _write_to_database(self, indicators: TechnicalIndicators) -> None:
         """Write indicators to the database"""
         try:
             async with self.db_adapter.get_connection() as conn:
@@ -368,7 +368,7 @@ class FeatureEngine:
         except Exception as e:
             logger.error(f"Error writing indicators to database: {e}", exc_info=True)
 
-    async def _publish_features_event(self, indicators: TechnicalIndicators):
+    async def _publish_features_event(self, indicators: TechnicalIndicators) -> None:
         """Publish a features calculated event"""
         try:
             event = FeaturesCalculatedEvent(
@@ -391,14 +391,14 @@ class FeatureEngine:
         symbol: str,
         timeframe: TimeFrame,
         candles: list[Candle],
-    ):
+    ) -> None:
         """
         Process a batch of historical candles (e.g., from DB tail).
 
         Args:
             symbol: Trading symbol
             timeframe: Timeframe
-            candles: List of candles in chronological order
+            candles: List[Any] of candles in chronological order
         """
         try:
             # Sort to ensure chronological order

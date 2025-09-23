@@ -67,7 +67,7 @@ class TestHealthChecker:
         checker = HealthChecker(config)
 
         # Custom check that always returns healthy
-        async def custom_check() -> None:
+        async def custom_check() -> ComponentHealth:
             return ComponentHealth(
                 name="custom",
                 status=HealthStatus.HEALTHY,
@@ -97,7 +97,7 @@ class TestHealthChecker:
         # Check that fails
         fail_count = 0
 
-        async def failing_check() -> None:
+        async def failing_check() -> ComponentHealth:
             nonlocal fail_count
             fail_count += 1
             return ComponentHealth(
@@ -136,7 +136,7 @@ class TestHealthChecker:
         checker = HealthChecker(config)
 
         # Check that succeeds
-        async def recovering_check() -> None:
+        async def recovering_check() -> ComponentHealth:
             return ComponentHealth(
                 name="recovering",
                 status=HealthStatus.HEALTHY,
@@ -216,7 +216,7 @@ class TestHealthChecker:
 
         call_count = 0
 
-        async def counting_check() -> None:
+        async def counting_check() -> ComponentHealth:
             nonlocal call_count
             call_count += 1
             return ComponentHealth(
@@ -251,8 +251,8 @@ class TestReadinessChecker:
         """Test registering readiness checks"""
         checker = ReadinessChecker()
 
-        async def db_check() -> None:
-            return True
+        async def db_check() -> bool:
+            return
 
         checker.register_check("database", db_check, required=True)
 
@@ -264,8 +264,8 @@ class TestReadinessChecker:
         """Test when all readiness checks pass"""
         checker = ReadinessChecker()
 
-        async def passing_check() -> None:
-            return True
+        async def passing_check() -> bool:
+            return
 
         checker.register_check("service1", passing_check, required=True)
         checker.register_check("service2", passing_check, required=False)
@@ -281,11 +281,11 @@ class TestReadinessChecker:
         """Test when a required check fails"""
         checker = ReadinessChecker()
 
-        async def passing_check() -> None:
-            return True
+        async def passing_check() -> bool:
+            return
 
-        async def failing_check() -> None:
-            return False
+        async def failing_check() -> bool:
+            raise Exception("Check failed")
 
         checker.register_check("service1", failing_check, required=True)
         checker.register_check("service2", passing_check, required=False)
@@ -301,11 +301,11 @@ class TestReadinessChecker:
         """Test when only optional check fails"""
         checker = ReadinessChecker()
 
-        async def passing_check() -> None:
-            return True
+        async def passing_check() -> bool:
+            return
 
-        async def failing_check() -> None:
-            return False
+        async def failing_check() -> bool:
+            raise Exception("Check failed")
 
         checker.register_check("service1", passing_check, required=True)
         checker.register_check("service2", failing_check, required=False)

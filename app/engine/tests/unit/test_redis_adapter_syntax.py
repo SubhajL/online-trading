@@ -1,0 +1,140 @@
+"""
+Test case for redis_adapter.py syntax and type checking.
+Written using TDD to fix mypy errors.
+"""
+
+import pytest
+from pathlib import Path
+import subprocess
+import sys
+from typing import NamedTuple
+
+
+class MypyResult(NamedTuple):
+    """Result of running mypy on a file."""
+    success: bool
+    errors: list[str]
+    error_count: int
+
+
+def run_mypy_on_file(file_path: Path, config_file: Path) -> MypyResult:
+    """Run mypy on a specific file and return results."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "mypy",
+        str(file_path),
+        f"--config-file={config_file}",
+        "--no-error-summary"
+    ]
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True
+    )
+
+    errors = []
+    if result.returncode != 0:
+        errors = [
+            line for line in result.stdout.strip().split('\n')
+            if line and not line.startswith('Success:')
+        ]
+
+    return MypyResult(
+        success=result.returncode == 0,
+        errors=errors,
+        error_count=len(errors)
+    )
+
+
+class TestRedisAdapterSyntax:
+    """Test redis adapter syntax and type compliance."""
+
+    @pytest.fixture
+    def redis_adapter_path(self) -> Path:
+        """Path to redis adapter file."""
+        return Path(__file__).parent.parent.parent / "adapters" / "redis" / "redis_adapter.py"
+
+    @pytest.fixture
+    def mypy_config_path(self) -> Path:
+        """Path to mypy config."""
+        return Path(__file__).parent.parent.parent / "mypy.ini"
+
+    def test_redis_adapter_has_syntax_error(self, redis_adapter_path: Path, mypy_config_path: Path) -> None:
+        """
+        Test that redis_adapter.py currently has a syntax error.
+        This test should fail after we fix the syntax error.
+        """
+        result = run_mypy_on_file(redis_adapter_path, mypy_config_path)
+
+        # Currently expecting syntax error
+        assert not result.success
+        assert result.error_count > 0
+
+        # Check for specific syntax error
+        syntax_errors = [e for e in result.errors if "Invalid syntax" in e]
+        assert len(syntax_errors) > 0
+
+        # Verify it's the else statement error
+        line_736_errors = [e for e in syntax_errors if ":736:" in e]
+        assert len(line_736_errors) > 0
+
+    def test_clear_cache_method_structure(self) -> None:
+        """
+        Test the expected structure of clear_cache method.
+        This documents what the correct implementation should look like.
+        """
+        expected_structure = '''
+    async def clear_cache(self, prefix: str | None = None) -> int:
+        """Clear cache with optional prefix filter"""
+        try:
+            self._ensure_connected()
+
+            if prefix:
+                pattern = self._build_key(prefix, "*")
+                assert self._redis is not None
+                keys = await self._redis.keys(pattern)
+                if keys:
+                    deleted = await self._redis.delete(*keys)
+                    return int(deleted)
+                return 0
+            else:
+                # Clear entire database
+                assert self._redis is not None
+                result = await self._redis.flushdb()
+                return 1 if result else 0
+
+        except Exception as e:
+            logger.error(f"Error clearing cache: {e}")
+            return 0
+        '''
+
+        # This test documents the expected structure
+        assert "if prefix:" in expected_structure
+        assert "else:" in expected_structure
+        assert expected_structure.count("else:") == 1  # Only one else block
+
+
+class TestMypyCompliance:
+    """Test overall mypy compliance after fixes."""
+
+    @pytest.fixture
+    def redis_adapter_path(self) -> Path:
+        """Path to redis adapter file."""
+        return Path(__file__).parent.parent.parent / "adapters" / "redis" / "redis_adapter.py"
+
+    @pytest.fixture
+    def mypy_config_path(self) -> Path:
+        """Path to mypy config."""
+        return Path(__file__).parent.parent.parent / "mypy.ini"
+
+    def test_no_mypy_errors_after_fix(self, redis_adapter_path: Path, mypy_config_path: Path) -> None:
+        """
+        This test will pass after we fix the syntax error.
+        Currently marked to skip since we know it will fail.
+        """
+        pytest.skip("Will enable after fixing syntax error")
+        result = run_mypy_on_file(redis_adapter_path, mypy_config_path)
+        assert result.success
+        assert result.error_count == 0

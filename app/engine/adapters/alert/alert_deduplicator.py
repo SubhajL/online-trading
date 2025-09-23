@@ -19,7 +19,7 @@ class AlertDeduplicator:
         redis_db: int = 1,
         ttl_seconds: int = 60,
         key_prefix: str = "alert:dedup",
-    ):
+    ) -> None:
         self.ttl_seconds = ttl_seconds
         self.key_prefix = key_prefix
 
@@ -53,7 +53,7 @@ class AlertDeduplicator:
             # On error, allow alert to be sent
             return False
 
-    def add(self, key: str):
+    def add(self, key: str) -> None:
         """Mark an alert as sent."""
         if not self.redis_client:
             return
@@ -66,7 +66,7 @@ class AlertDeduplicator:
         except Exception as e:
             logger.error(f"Error adding dedup key: {e}")
 
-    def clear(self, key: str):
+    def clear(self, key: str) -> None:
         """Clear a deduplication key."""
         if not self.redis_client:
             return

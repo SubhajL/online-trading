@@ -1,3 +1,5 @@
+from typing import Any
+
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -8,6 +10,7 @@ import time
 
 import asyncpg
 import redis.asyncio as redis
+from typing import Any
 
 
 class HealthStatus(Enum):
@@ -22,7 +25,7 @@ class ComponentHealth:
     status: HealthStatus
     message: str = ""
     latency_ms: float | None = None
-    details: dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict[Any, Any])
     last_check: datetime = field(default_factory=datetime.now)
 
 
@@ -54,13 +57,13 @@ class HealthChecker:
         self.components: dict[str, ComponentHealth] = {}
         self.failure_counts: dict[str, int] = {}
         self.recovery_counts: dict[str, int] = {}
-        self._check_tasks: dict[str, asyncio.Task] = {}
-        self._custom_checks: dict[str, Callable] = {}
+        self._check_tasks: dict[str, asyncio.Task[Any]] = {}
+        self._custom_checks: dict[str, Callable[..., Any]] = {}
 
     def register_component(
         self,
         name: str,
-        check_func: Callable | None = None,
+        check_func: Callable[..., Any] | None = None,
     ) -> None:
         """Register a component for health monitoring"""
         self.components[name] = ComponentHealth(
@@ -176,7 +179,7 @@ class HealthChecker:
                 latency_ms=(time.time() - start_time) * 1000,
             )
 
-    async def check_event_bus(self, event_bus) -> ComponentHealth:
+    async def check_event_bus(self, event_bus: Any) -> ComponentHealth:
         """Check event bus health"""
         start_time = time.time()
 
@@ -341,14 +344,14 @@ class HealthChecker:
 class ReadinessChecker:
     """Checks if the application is ready to serve requests"""
 
-    def __init__(self):
-        self.checks: dict[str, Callable] = {}
+    def __init__(self) -> None:
+        self.checks: dict[str, Callable[..., Any]] = {}
         self.required_components: list[str] = []
 
     def register_check(
         self,
         name: str,
-        check_func: Callable,
+        check_func: Callable[..., Any],
         required: bool = True,
     ) -> None:
         """Register a readiness check"""

@@ -230,7 +230,6 @@ class TestEventBus:
             attempt_count += 1
             if attempt_count < 3:
                 raise ValueError("Retry me")
-            return "success"
 
         await event_bus.subscribe(
             "retry_sub",

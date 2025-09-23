@@ -2,6 +2,8 @@
 Base plugin interface for extending the trading engine.
 """
 
+from typing import Any
+
 from abc import ABC, abstractmethod
 from datetime import datetime
 

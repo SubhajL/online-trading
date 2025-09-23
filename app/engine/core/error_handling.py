@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 import logging
+from typing import Any, Callable
 from uuid import UUID, uuid4
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ class EventBusError(Exception):
         message: str,
         context: ErrorContext | None = None,
         cause: Exception | None = None,
-    ):
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.context = context or ErrorContext()
@@ -74,7 +75,7 @@ class EventBusError(Exception):
 class SubscriptionError(EventBusError):
     """Error related to subscription management."""
 
-    def __init__(self, message: str, subscription_id: str | None = None, **kwargs):
+    def __init__(self, message: str, subscription_id: str | None = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.SUBSCRIPTION
         if subscription_id:
@@ -85,7 +86,7 @@ class SubscriptionError(EventBusError):
 class ProcessingError(EventBusError):
     """Error during event processing."""
 
-    def __init__(self, message: str, event_id: UUID | None = None, **kwargs):
+    def __init__(self, message: str, event_id: UUID | None = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.PROCESSING
         if event_id:
@@ -96,7 +97,7 @@ class ProcessingError(EventBusError):
 class QueueError(EventBusError):
     """Error related to queue operations."""
 
-    def __init__(self, message: str, queue_size: int | None = None, **kwargs):
+    def __init__(self, message: str, queue_size: int | None = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.QUEUE
         if queue_size is not None:
@@ -107,7 +108,7 @@ class QueueError(EventBusError):
 class ConfigurationError(EventBusError):
     """Error in system configuration."""
 
-    def __init__(self, message: str, config_key: str | None = None, **kwargs):
+    def __init__(self, message: str, config_key: str | None = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CONFIGURATION
         context.severity = ErrorSeverity.HIGH
@@ -119,7 +120,7 @@ class ConfigurationError(EventBusError):
 class TimeoutError(EventBusError):
     """Error due to operation timeout."""
 
-    def __init__(self, message: str, timeout_seconds: float | None = None, **kwargs):
+    def __init__(self, message: str, timeout_seconds: float | None = None, **kwargs: Any) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.TIMEOUT
         if timeout_seconds:
@@ -286,7 +287,7 @@ class RetryableErrorHandler(ErrorHandler):
         base_delay: float = 1.0,
         max_delay: float = 60.0,
         backoff_factor: float = 2.0,
-    ):
+    ) -> None:
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
@@ -334,7 +335,7 @@ class RetryableErrorHandler(ErrorHandler):
 class CompositeErrorHandler(ErrorHandler):
     """Error handler that delegates to multiple handlers."""
 
-    def __init__(self, handlers: list[ErrorHandler]):
+    def __init__(self, handlers: list[ErrorHandler]) -> None:
         self.handlers = handlers
 
     async def handle_error(self, error: EventBusError) -> bool:
@@ -356,7 +357,7 @@ class CompositeErrorHandler(ErrorHandler):
 class ErrorManager:
     """Central error management system for EventBus."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._handlers: list[ErrorHandler] = []
         self._metrics_handler = MetricsErrorHandler()
         self._logging_handler = LoggingErrorHandler()
@@ -460,7 +461,7 @@ class error_boundary:
         category: ErrorCategory = ErrorCategory.PROCESSING,
         severity: ErrorSeverity = ErrorSeverity.MEDIUM,
         reraise: bool = True,
-    ):
+    ) -> None:
         self.component = component
         self.operation = operation
         self.category = category
@@ -477,9 +478,9 @@ class error_boundary:
 
             return async_wrapper
 
-        def sync_wrapper(*args, **kwargs):
+        def sync_wrapper(*args: Any, **kwargs: Any) -> None:
             with self:
-                return func(*args, **kwargs)
+                return
 
         return sync_wrapper
 

@@ -5,6 +5,8 @@ Database adapter for TimescaleDB that handles time-series data storage and retri
 for trading data including candles, indicators, signals, and trading events.
 """
 
+from typing import Any, AsyncIterator
+
 import asyncio
 import logging
 from datetime import datetime, timedelta
@@ -102,12 +104,12 @@ class TimescaleDBAdapter:
             logger.info("TimescaleDB adapter closed")
 
     @asynccontextmanager
-    async def get_connection(self) -> None:
+    async def get_connection(self) -> AsyncIterator[asyncpg.Connection]:
         """Get a database connection from the pool"""
         if not self._pool:
             raise RuntimeError("Database not initialized")
 
-        async with self._pool.acquire() as connection:
+        async with self._pool.acquire() as connection:  # connection: asyncpg.Connection
             yield connection
 
     # ============================================================================
@@ -605,7 +607,7 @@ class TimescaleDBAdapter:
         self,
         symbol: str | None = None,
         limit: int = 100,
-    ) -> list[dict]:
+    ) -> list[dict[Any, Any]]:
         """Get recent trading decisions"""
         try:
             async with self.get_connection() as conn:
@@ -755,8 +757,7 @@ class TimescaleDBAdapter:
     async def __aenter__(self) -> None:
         """Async context manager entry"""
         await self.initialize()
-        return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit"""
         await self.close()

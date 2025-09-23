@@ -23,7 +23,7 @@ class TelegramAlertAdapter:
         chat_id: str,
         event_bus: Any,
         rate_limit_per_minute: int = 30,
-    ):
+    ) -> None:
         self.bot_token = bot_token
         self.chat_id = chat_id
         self.event_bus = event_bus
@@ -37,7 +37,7 @@ class TelegramAlertAdapter:
         # Rate limiting
         self._message_times: list[datetime] = []
 
-    async def start(self):
+    async def start(self) -> None:
         """Initialize the adapter and subscribe to events."""
         self.session = aiohttp.ClientSession()
 
@@ -48,13 +48,13 @@ class TelegramAlertAdapter:
 
         logger.info("Telegram alert adapter started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Clean up resources."""
         if self.session:
             await self.session.close()
         logger.info("Telegram alert adapter stopped")
 
-    async def _handle_decision(self, event: Dict[str, Any]):
+    async def _handle_decision(self, event: Dict[str, Any]) -> None:
         """Handle trading decision events."""
         try:
             # Check for duplicate
@@ -73,7 +73,7 @@ class TelegramAlertAdapter:
         except Exception as e:
             logger.error(f"Error handling decision event: {e}", exc_info=True)
 
-    async def _handle_order_update(self, event: Dict[str, Any]):
+    async def _handle_order_update(self, event: Dict[str, Any]) -> None:
         """Handle order update events."""
         try:
             # Only alert on important status changes
@@ -87,7 +87,7 @@ class TelegramAlertAdapter:
         except Exception as e:
             logger.error(f"Error handling order update: {e}", exc_info=True)
 
-    async def _handle_guard_alert(self, event: Dict[str, Any]):
+    async def _handle_guard_alert(self, event: Dict[str, Any]) -> None:
         """Handle risk guard alerts."""
         try:
             message = self.formatter.format_guard_alert(event)

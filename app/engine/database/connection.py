@@ -1,3 +1,5 @@
+from typing import Any
+
 import os
 
 import asyncpg
@@ -71,7 +73,7 @@ class ConnectionManager:
             rows = await conn.fetch(query, *args)
             return list(rows)
 
-    async def fetchrow(self, query: str, *args) -> asyncpg.Record | None:
+    async def fetchrow(self, query: str, *args: Any) -> asyncpg.Record | None:
         """Fetch a single row from a query"""
         if not self.pool:
             await self.initialize()

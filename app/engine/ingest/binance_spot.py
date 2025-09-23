@@ -17,6 +17,7 @@ from websockets.exceptions import ConnectionClosed
 from ..adapters.db import TimescaleDBAdapter
 from ..bus import EventBus, publish_event
 from ..models import Candle, TimeFrame, kline_to_candle, rest_kline_to_candle
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -119,14 +120,14 @@ class BinanceSpotIngester:
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
 
-    async def _process_stream_data(self, data: dict) -> None:
+    async def _process_stream_data(self, data: dict[Any, Any]) -> None:
         """Process stream data based on event type."""
         event_type = data.get("e")
 
         if event_type == "kline":
             await self._on_kline_message(data)
 
-    async def _on_kline_message(self, data: dict) -> None:
+    async def _on_kline_message(self, data: dict[Any, Any]) -> None:
         """
         Process kline message, emit only when k.x == true (closed).
 
@@ -312,16 +313,16 @@ class BinanceSpotIngester:
                             await asyncio.sleep(delay)
 
                             if retry_count < 3:
-                                return await self._backfill_missing_candles(
+                                await self._backfill_missing_candles(
                                     symbol,
                                     timeframe,
                                     start_time,
                                     retry_count + 1,
                                 )
+                                return
                             logger.error(
                                 f"Max retries exceeded for {symbol} {timeframe}",
                             )
-                            return None
 
                         if response.status == 400:
                             # Check for time sync error
@@ -329,12 +330,13 @@ class BinanceSpotIngester:
                             if data.get("code") == -1021:
                                 await self._handle_time_sync_error(data.get("msg", ""))
                                 # Retry with adjusted parameters
-                                return await self._backfill_missing_candles(
+                                await self._backfill_missing_candles(
                                     symbol,
                                     timeframe,
                                     start_time,
                                     retry_count,
                                 )
+                                return
 
                         response.raise_for_status()
 
@@ -366,10 +368,8 @@ class BinanceSpotIngester:
 
                 except aiohttp.ClientError as e:
                     logger.error(f"HTTP error during backfill: {e}")
-                    return None
                 except Exception as e:
                     logger.error(f"Error during backfill: {e}")
-                    return None
 
     async def _handle_time_sync_error(self, error_msg: str) -> None:
         """

@@ -4,11 +4,13 @@ from datetime import datetime, timedelta
 import asyncio
 
 from alert_deduplicator import AlertDeduplicator
+from typing import Any
+
 
 
 class TestAlertDeduplicator:
     @pytest.fixture
-    def mock_redis(self):
+    def mock_redis(self) -> Any:
         redis = Mock()
         redis.get = Mock(return_value=None)
         redis.setex = Mock()
@@ -16,11 +18,11 @@ class TestAlertDeduplicator:
         return redis
 
     @pytest.fixture
-    def deduplicator(self, mock_redis):
+    def deduplicator(self, mock_redis: Any) -> Any:
         with patch("alert_deduplicator.redis.Redis", return_value=mock_redis):
             return AlertDeduplicator(ttl_seconds=60)
 
-    def test_is_duplicate_new_key(self, deduplicator, mock_redis):
+    def test_is_duplicate_new_key(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
         key = "test:key:123"
         mock_redis.get.return_value = None
 
@@ -29,7 +31,7 @@ class TestAlertDeduplicator:
         assert result is False
         mock_redis.get.assert_called_once_with(f"alert:dedup:{key}")
 
-    def test_is_duplicate_existing_key(self, deduplicator, mock_redis):
+    def test_is_duplicate_existing_key(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
         key = "test:key:123"
         mock_redis.get.return_value = b"1"
 
@@ -38,7 +40,7 @@ class TestAlertDeduplicator:
         assert result is True
         mock_redis.get.assert_called_once_with(f"alert:dedup:{key}")
 
-    def test_add_key(self, deduplicator, mock_redis):
+    def test_add_key(self, deduplicator: Any, mock_redis: Any) -> None:
         key = "test:key:123"
 
         deduplicator.add(key)
@@ -49,14 +51,14 @@ class TestAlertDeduplicator:
             "1",
         )
 
-    def test_clear_key(self, deduplicator, mock_redis):
+    def test_clear_key(self, deduplicator: Any, mock_redis: Any) -> None:
         key = "test:key:123"
 
         deduplicator.clear(key)
 
         mock_redis.delete.assert_called_once_with(f"alert:dedup:{key}")
 
-    def test_custom_ttl(self, mock_redis):
+    def test_custom_ttl(self, mock_redis: Any) -> None:
         with patch("alert_deduplicator.redis.Redis", return_value=mock_redis):
             dedup = AlertDeduplicator(ttl_seconds=300)
             dedup.add("key")
@@ -67,7 +69,7 @@ class TestAlertDeduplicator:
                 "1",
             )
 
-    def test_redis_connection_error(self, deduplicator, mock_redis):
+    def test_redis_connection_error(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
         mock_redis.get.side_effect = Exception("Redis connection error")
 
         # Should return False on error (allowing alert to be sent)
@@ -75,7 +77,7 @@ class TestAlertDeduplicator:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_async_compatibility(self, deduplicator):
+    async def test_async_compatibility(self, deduplicator: Any) -> None:
         # Test that methods can be used in async context
         result = await asyncio.to_thread(deduplicator.is_duplicate, "async_key")
         assert isinstance(result, bool)

@@ -117,9 +117,9 @@ class TestEnvironmentValidator:
 
         def is_even(value: str) -> bool:
             try:
-                return int(value) % 2 == 0
+                return
             except ValueError:
-                return False
+                return
 
         rule = ValidationRule(
             name="EVEN_NUMBER",

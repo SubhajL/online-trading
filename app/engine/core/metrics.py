@@ -4,6 +4,8 @@ Metrics collection framework for EventBus observability.
 Provides thread-safe metrics collection with Prometheus export support.
 """
 
+from typing import Any
+
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -33,7 +35,7 @@ class Metric:
     timestamp: float = field(default_factory=time.time)
     unit: str | None = None
 
-    def __hash__(self) -> None:
+    def __hash__(self) -> int:
         """Make metric hashable based on name and labels."""
         return hash((self.name, tuple(sorted(self.labels.items()))))
 
@@ -41,7 +43,7 @@ class Metric:
 class Counter:
     """A counter metric that can only increase."""
 
-    def __init__(self, name: str, description: str, unit: str | None = None):
+    def __init__(self, name: str, description: str, unit: str | None = None) -> None:
         self.name = name
         self.description = description
         self.unit = unit
@@ -85,7 +87,7 @@ class Counter:
 class Gauge:
     """A gauge metric that can go up or down."""
 
-    def __init__(self, name: str, description: str, unit: str | None = None):
+    def __init__(self, name: str, description: str, unit: str | None = None) -> None:
         self.name = name
         self.description = description
         self.unit = unit
@@ -144,7 +146,7 @@ class Histogram:
         description: str,
         buckets: list[float] | None = None,
         unit: str | None = None,
-    ):
+    ) -> None:
         self.name = name
         self.description = description
         self.unit = unit
@@ -257,7 +259,7 @@ class Histogram:
 class MetricsRegistry:
     """Global registry for all metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._metrics: dict[str, Any] = {}
         self._lock = threading.Lock()
 
@@ -390,7 +392,7 @@ class MetricsCollector:
         self,
         histogram: Histogram,
         labels: dict[str, str] | None = None,
-    ):
+    ) -> None:
         """Context manager to record operation duration."""
         start = time.time()
         try:
@@ -434,7 +436,7 @@ def create_histogram(
 
 
 @contextmanager
-def record_duration(histogram: Histogram, labels: dict[str, str] | None = None):
+def record_duration(histogram: Histogram, labels: dict[str, str] | None = None) -> None:
     """Record operation duration."""
     with metrics_collector.record_duration(histogram, labels):
         yield

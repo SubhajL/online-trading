@@ -3,10 +3,13 @@ Configuration management for production trading engine.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
+from typing import Any
+
 from dataclasses import dataclass, field
 import logging
 import os
 import threading
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +176,7 @@ def merge_config_sources(
     Handles nested dictionaries.
     """
 
-    def deep_merge(base: dict, override: dict) -> dict:
+    def deep_merge(base: dict[Any, Any], override: dict[Any, Any]) -> dict[Any, Any]:
         """Recursively merge dictionaries."""
         result = base.copy()
 

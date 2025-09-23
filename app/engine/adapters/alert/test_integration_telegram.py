@@ -9,21 +9,23 @@ from adapters.alert.telegram import TelegramAdapter
 from adapters.alert.alert_formatter import AlertFormatter
 from adapters.alert.alert_deduplicator import AlertDeduplicator
 from types_lib import OrderUpdate, Position, DecisionEvent
+from typing import Any
+
 
 
 class TestTelegramIntegration:
     """Integration tests for Telegram alert adapter"""
 
     @pytest.fixture
-    def formatter(self):
+    def formatter(self) -> Any:
         return AlertFormatter()
 
     @pytest.fixture
-    def deduplicator(self):
+    def deduplicator(self) -> Any:
         return AlertDeduplicator(window_seconds=60)
 
     @pytest.fixture
-    def telegram_adapter(self, formatter, deduplicator):
+    def telegram_adapter(self, formatter: Any, deduplicator: Any) -> Any:
         # Use test credentials if available, otherwise mock
         bot_token = os.getenv("TELEGRAM_TEST_BOT_TOKEN", "test-token")
         chat_id = os.getenv("TELEGRAM_TEST_CHAT_ID", "test-chat-id")
@@ -37,7 +39,7 @@ class TestTelegramIntegration:
         return adapter
 
     @pytest.mark.asyncio
-    async def test_send_order_filled_alert(self, telegram_adapter):
+    async def test_send_order_filled_alert(self, telegram_adapter: Any) -> None:
         """Test sending a real order filled alert through Telegram"""
         order = OrderUpdate(
             order_id="TEST-ORDER-001",
@@ -51,7 +53,8 @@ class TestTelegramIntegration:
         )
 
         with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 123}})
 
             await telegram_adapter.send_alert(order)
@@ -65,7 +68,7 @@ class TestTelegramIntegration:
             assert "0.001" in message
 
     @pytest.mark.asyncio
-    async def test_send_position_alert_with_pnl(self, telegram_adapter):
+    async def test_send_position_alert_with_pnl(self, telegram_adapter: Any) -> None:
         """Test sending position update with P&L calculation"""
         position = Position(
             symbol="ETHUSDT",
@@ -80,7 +83,8 @@ class TestTelegramIntegration:
         )
 
         with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 124}})
 
             await telegram_adapter.send_alert(position)
@@ -93,7 +97,7 @@ class TestTelegramIntegration:
             assert "P&L: +$150.00 (+4.00%)" in message
 
     @pytest.mark.asyncio
-    async def test_deduplication_prevents_spam(self, telegram_adapter):
+    async def test_deduplication_prevents_spam(self, telegram_adapter: Any) -> None:
         """Test that deduplication prevents sending duplicate alerts"""
         decision = DecisionEvent(
             symbol="BTCUSDT",
@@ -106,7 +110,8 @@ class TestTelegramIntegration:
         )
 
         with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 125}})
 
             # First alert should be sent
@@ -118,7 +123,7 @@ class TestTelegramIntegration:
             assert mock_send.call_count == 1  # Still only 1 call
 
     @pytest.mark.asyncio
-    async def test_retry_on_network_error(self, telegram_adapter):
+    async def test_retry_on_network_error(self, telegram_adapter: Any) -> None:
         """Test retry logic when Telegram API fails"""
         order = OrderUpdate(
             order_id="TEST-ORDER-002",
@@ -131,12 +136,11 @@ class TestTelegramIntegration:
         )
 
         call_count = 0
-        async def mock_send_with_retry(message):
+        async def mock_send_with_retry(message: Any) -> None:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
                 raise Exception("Network error")
-            return {"ok": True, "result": {"message_id": 126}}
 
         with patch.object(telegram_adapter, '_send_telegram_message', side_effect=mock_send_with_retry):
             with patch.object(telegram_adapter, 'retry_count', 3):
@@ -145,7 +149,7 @@ class TestTelegramIntegration:
                     assert call_count == 3  # Should retry until success
 
     @pytest.mark.asyncio
-    async def test_rate_limiting(self, telegram_adapter):
+    async def test_rate_limiting(self, telegram_adapter: Any) -> None:
         """Test that rate limiting prevents excessive API calls"""
         orders = [
             OrderUpdate(
@@ -161,7 +165,8 @@ class TestTelegramIntegration:
         ]
 
         with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 127}})
 
             # Set rate limit to 3 messages per second
@@ -180,7 +185,7 @@ class TestTelegramIntegration:
                 assert mock_send.call_count == 10
 
     @pytest.mark.asyncio
-    async def test_markdown_formatting_escape(self, telegram_adapter):
+    async def test_markdown_formatting_escape(self, telegram_adapter: Any) -> None:
         """Test that special markdown characters are properly escaped"""
         # Order with special characters in symbol
         order = OrderUpdate(
@@ -195,7 +200,8 @@ class TestTelegramIntegration:
         )
 
         with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 128}})
 
             await telegram_adapter.send_alert(order)
@@ -206,7 +212,7 @@ class TestTelegramIntegration:
             assert "BTC\\_USDT" in message or "BTC_USDT" in message  # Escaped or raw
 
     @pytest.mark.asyncio
-    async def test_batch_alerts_for_multiple_events(self, telegram_adapter):
+    async def test_batch_alerts_for_multiple_events(self, telegram_adapter: Any) -> None:
         """Test handling multiple alerts in quick succession"""
         events = [
             OrderUpdate(
@@ -242,7 +248,8 @@ class TestTelegramIntegration:
         ]
 
         with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 129}})
 
             # Send all events
@@ -259,7 +266,7 @@ class TestTelegramIntegration:
             assert any("📊 POSITION UPDATE" in msg for msg in messages)
 
     @pytest.mark.asyncio
-    async def test_error_alert_formatting(self, telegram_adapter):
+    async def test_error_alert_formatting(self, telegram_adapter: Any) -> None:
         """Test sending error alerts with proper formatting"""
         error_order = OrderUpdate(
             order_id="ERROR-ORDER",
@@ -273,7 +280,8 @@ class TestTelegramIntegration:
         )
 
         with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 130}})
 
             await telegram_adapter.send_alert(error_order)
@@ -285,7 +293,7 @@ class TestTelegramIntegration:
             assert "Insufficient balance" in message
 
     @pytest.mark.asyncio
-    async def test_connection_pool_handling(self, telegram_adapter):
+    async def test_connection_pool_handling(self, telegram_adapter: Any) -> None:
         """Test that HTTP connection pooling works correctly"""
         # Send multiple alerts to test connection reuse
         orders = [
@@ -302,7 +310,8 @@ class TestTelegramIntegration:
         ]
 
         with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 131}})
 
             # Send alerts sequentially

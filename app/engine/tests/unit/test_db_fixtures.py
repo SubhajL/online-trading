@@ -34,7 +34,6 @@ def mock_pool() -> None:
     pool.close = AsyncMock()
     conn.execute = AsyncMock()
     conn.fetchval = AsyncMock()
-    return pool, conn
 
 
 class TestDBFixtures:

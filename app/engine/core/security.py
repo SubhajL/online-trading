@@ -5,6 +5,8 @@ Provides secure handling of configuration, secrets management, and
 environment variable validation following security best practices.
 """
 
+from typing import Any
+
 from base64 import b64decode, b64encode
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -369,7 +371,7 @@ class EnvironmentValidator:
 class SecretManager:
     """Manages encryption and decryption of sensitive data."""
 
-    def __init__(self, master_key: str | None = None):
+    def __init__(self, master_key: str | None = None) -> None:
         """Initialize with master key or generate one."""
         if master_key:
             self.master_key = master_key.encode()
@@ -446,7 +448,7 @@ class SecureConfig:
         self,
         security_level: SecurityLevel = SecurityLevel.DEVELOPMENT,
         enable_encryption: bool = True,
-    ):
+    ) -> None:
         self.security_level = security_level
         self.validator = EnvironmentValidator(security_level)
         self.secret_manager = SecretManager() if enable_encryption else None
@@ -627,7 +629,7 @@ class SecurityGuard:
         violation_type: str,
         message: str,
         severity: str = "MEDIUM",
-    ):
+    ) -> None:
         """Log a security violation."""
         violation = {
             "timestamp": datetime.utcnow().isoformat(),

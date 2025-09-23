@@ -9,21 +9,23 @@ from adapters.alert.line import LineAdapter
 from adapters.alert.alert_formatter import AlertFormatter
 from adapters.alert.alert_deduplicator import AlertDeduplicator
 from types_lib import OrderUpdate, Position, DecisionEvent
+from typing import Any
+
 
 
 class TestLineIntegration:
     """Integration tests for LINE alert adapter"""
 
     @pytest.fixture
-    def formatter(self):
+    def formatter(self) -> Any:
         return AlertFormatter()
 
     @pytest.fixture
-    def deduplicator(self):
+    def deduplicator(self) -> Any:
         return AlertDeduplicator(window_seconds=60)
 
     @pytest.fixture
-    def line_adapter(self, formatter, deduplicator):
+    def line_adapter(self, formatter: Any, deduplicator: Any) -> Any:
         # Use test credentials if available, otherwise mock
         access_token = os.getenv("LINE_TEST_ACCESS_TOKEN", "test-token")
 
@@ -35,7 +37,7 @@ class TestLineIntegration:
         return adapter
 
     @pytest.mark.asyncio
-    async def test_send_order_filled_notification(self, line_adapter):
+    async def test_send_order_filled_notification(self, line_adapter: Any) -> None:
         """Test sending order filled notification through LINE Notify"""
         order = OrderUpdate(
             order_id="LINE-ORDER-001",
@@ -49,7 +51,8 @@ class TestLineIntegration:
         )
 
         with patch.object(line_adapter, '_send_line_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             await line_adapter.send_alert(order)
@@ -63,7 +66,7 @@ class TestLineIntegration:
             assert "0.002" in message
 
     @pytest.mark.asyncio
-    async def test_send_position_with_emoji(self, line_adapter):
+    async def test_send_position_with_emoji(self, line_adapter: Any) -> None:
         """Test LINE supports emoji in position alerts"""
         position = Position(
             symbol="SOLUSDT",
@@ -78,7 +81,8 @@ class TestLineIntegration:
         )
 
         with patch.object(line_adapter, '_send_line_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             await line_adapter.send_alert(position)
@@ -90,7 +94,7 @@ class TestLineIntegration:
             assert "+$500.00 (+10.00%)" in message
 
     @pytest.mark.asyncio
-    async def test_message_length_limit(self, line_adapter):
+    async def test_message_length_limit(self, line_adapter: Any) -> None:
         """Test LINE's 1000 character message limit is respected"""
         # Create a decision with very long reasoning
         decision = DecisionEvent(
@@ -105,7 +109,8 @@ class TestLineIntegration:
         )
 
         with patch.object(line_adapter, '_send_line_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             await line_adapter.send_alert(decision)
@@ -116,7 +121,7 @@ class TestLineIntegration:
             assert len(message) <= 1000
 
     @pytest.mark.asyncio
-    async def test_auth_header_format(self, line_adapter):
+    async def test_auth_header_format(self, line_adapter: Any) -> None:
         """Test LINE Notify authorization header format"""
         order = OrderUpdate(
             order_id="AUTH-TEST",
@@ -143,7 +148,7 @@ class TestLineIntegration:
             assert headers['Authorization'].startswith('Bearer ')
 
     @pytest.mark.asyncio
-    async def test_rate_limit_handling(self, line_adapter):
+    async def test_rate_limit_handling(self, line_adapter: Any) -> None:
         """Test handling LINE's rate limits (1000/hour)"""
         # Create multiple orders
         orders = [
@@ -169,11 +174,10 @@ class TestLineIntegration:
                 {"status": 200, "message": "ok"},
             ]
 
-            async def mock_send_with_rate_limit(message):
+            async def mock_send_with_rate_limit(message: Any) -> None:
                 response = responses.pop(0)
                 if response["status"] == 429:
                     raise Exception("Rate limit exceeded")
-                return response
 
             mock_send.side_effect = mock_send_with_rate_limit
 
@@ -190,7 +194,7 @@ class TestLineIntegration:
             assert results.count("success") >= 4  # At least 4 should succeed
 
     @pytest.mark.asyncio
-    async def test_sticker_support(self, line_adapter):
+    async def test_sticker_support(self, line_adapter: Any) -> None:
         """Test sending stickers with important alerts"""
         # Critical order rejection
         critical_order = OrderUpdate(
@@ -205,7 +209,8 @@ class TestLineIntegration:
         )
 
         with patch.object(line_adapter, '_send_line_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             await line_adapter.send_alert(critical_order)
@@ -218,7 +223,7 @@ class TestLineIntegration:
             assert "ACCOUNT_SUSPENDED" in message
 
     @pytest.mark.asyncio
-    async def test_image_chart_attachment(self, line_adapter):
+    async def test_image_chart_attachment(self, line_adapter: Any) -> None:
         """Test potential for sending chart images with signals"""
         decision = DecisionEvent(
             symbol="ETHUSDT",
@@ -233,7 +238,8 @@ class TestLineIntegration:
         )
 
         with patch.object(line_adapter, '_send_line_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             await line_adapter.send_alert(decision)
@@ -247,7 +253,7 @@ class TestLineIntegration:
                 assert "chart" in message.lower() or "https://" in message
 
     @pytest.mark.asyncio
-    async def test_connection_timeout_handling(self, line_adapter):
+    async def test_connection_timeout_handling(self, line_adapter: Any) -> None:
         """Test handling connection timeouts to LINE API"""
         order = OrderUpdate(
             order_id="TIMEOUT-001",
@@ -259,7 +265,7 @@ class TestLineIntegration:
             timestamp=datetime.now(timezone.utc)
         )
 
-        async def mock_timeout(*args, **kwargs):
+        async def mock_timeout(*args: Any, **kwargs: Any) -> None:
             await asyncio.sleep(0.1)
             raise asyncio.TimeoutError("Connection timeout")
 
@@ -272,7 +278,7 @@ class TestLineIntegration:
                     pass  # Expected
 
     @pytest.mark.asyncio
-    async def test_group_notification_support(self, line_adapter):
+    async def test_group_notification_support(self, line_adapter: Any) -> None:
         """Test sending to LINE groups vs individual users"""
         # LINE Notify can send to groups if token is from group
         position = Position(
@@ -288,7 +294,8 @@ class TestLineIntegration:
         )
 
         with patch.object(line_adapter, '_send_line_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             # If configured for group, same API works
@@ -298,7 +305,7 @@ class TestLineIntegration:
             # Group messages work the same way with LINE Notify
 
     @pytest.mark.asyncio
-    async def test_alert_priority_levels(self, line_adapter):
+    async def test_alert_priority_levels(self, line_adapter: Any) -> None:
         """Test different priority levels for alerts"""
         # High priority - large loss
         high_priority = Position(
@@ -327,7 +334,8 @@ class TestLineIntegration:
         )
 
         with patch.object(line_adapter, '_send_line_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             await line_adapter.send_alert(high_priority)
@@ -343,7 +351,7 @@ class TestLineIntegration:
             assert "-$5000.00" in high_msg or "-10.00%" in high_msg
 
     @pytest.mark.asyncio
-    async def test_batch_summary_alerts(self, line_adapter):
+    async def test_batch_summary_alerts(self, line_adapter: Any) -> None:
         """Test sending daily summary alerts"""
         # Simulate daily summary
         summary_data = {
@@ -355,7 +363,8 @@ class TestLineIntegration:
         }
 
         with patch.object(line_adapter, '_send_line_message') as mock_send:
-            mock_send.return_value = asyncio.create_future()
+            loop = asyncio.get_event_loop()
+            mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             # Format and send summary

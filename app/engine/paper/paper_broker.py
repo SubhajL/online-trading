@@ -5,6 +5,9 @@ Paper trading broker for simulation.
 from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
+from typing import Any
+
+
 
 from ..bus import EventBus
 from ..models import (
@@ -29,7 +32,7 @@ class PaperBroker:
         self,
         event_bus: EventBus,
         initial_balance: Decimal = Decimal(10000),
-    ):
+    ) -> None:
         self.event_bus = event_bus
         self.balance = initial_balance
         self.available_balance = initial_balance
@@ -192,7 +195,7 @@ class PaperBroker:
             return qty * (price - position.entry_price)
         return qty * (position.entry_price - price)
 
-    async def update_market_prices(self, prices: dict[str, Decimal]):
+    async def update_market_prices(self, prices: dict[str, Decimal]) -> None:
         """
         Update market prices and calculate unrealized P&L.
         """
@@ -203,7 +206,7 @@ class PaperBroker:
                 position.unrealized_pnl = self._calculate_pnl(position, price)
                 position.updated_at = datetime.utcnow()
 
-    def get_account_summary(self) -> dict:
+    def get_account_summary(self) -> dict[Any, Any]:
         """
         Get account summary including balance and positions.
         """

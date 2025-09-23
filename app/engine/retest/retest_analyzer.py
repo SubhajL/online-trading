@@ -9,6 +9,9 @@ from collections import deque
 from datetime import datetime
 from decimal import Decimal
 import logging
+from typing import Any
+
+
 
 from ..bus import get_event_bus
 from ..models import (
@@ -40,14 +43,14 @@ class RetestAnalyzer:
         retest_tolerance: float = 0.002,  # 0.2% tolerance
         min_volume_ratio: float = 1.2,
         min_time_between_tests: int = 300,  # 5 minutes
-    ):
+    ) -> None:
         self.retest_tolerance = retest_tolerance
         self.min_volume_ratio = min_volume_ratio
         self.min_time_between_tests = min_time_between_tests
 
         # Track levels and zones
-        self._key_levels: dict[str, list[dict]] = {}  # symbol -> levels
-        self._recent_candles: dict[str, deque] = {}  # symbol -> candles
+        self._key_levels: dict[str, list[dict[Any, Any]]] = {}  # symbol -> levels
+        self._recent_candles: dict[str, deque[Any]] = {}  # symbol -> candles
 
         # Event bus
         self._event_bus = get_event_bus()
@@ -130,7 +133,7 @@ class RetestAnalyzer:
 
     def _check_level_retest(
         self,
-        level: dict,
+        level: dict[Any, Any],
         current_candle: Candle,
         recent_candles: list[Candle],
     ) -> RetestSignal | None:
@@ -245,7 +248,7 @@ class RetestAnalyzer:
 
     def _calculate_success_probability(
         self,
-        level: dict,
+        level: dict[Any, Any],
         current_candle: Candle,
         recent_candles: list[Candle],
         level_type: str,
@@ -307,7 +310,7 @@ class RetestAnalyzer:
 
     def _get_confluence_factors(
         self,
-        level: dict,
+        level: dict[Any, Any],
         current_candle: Candle,
         recent_candles: list[Candle],
     ) -> list[str]:
@@ -374,7 +377,7 @@ class RetestAnalyzer:
         level_type: str,
         strength: int = 5,
         created_at: datetime | None = None,
-    ):
+    ) -> None:
         """Add a key level to track for retests"""
         try:
             if symbol not in self._key_levels:
@@ -422,7 +425,7 @@ class RetestAnalyzer:
         except Exception as e:
             logger.error(f"Error adding zone for retest: {e}")
 
-    def add_pivot_levels(self, pivots: list[PivotPoint]):
+    def add_pivot_levels(self, pivots: list[PivotPoint]) -> None:
         """Add pivot points as key levels to track"""
         try:
             for pivot in pivots:
@@ -439,7 +442,7 @@ class RetestAnalyzer:
         except Exception as e:
             logger.error(f"Error adding pivot levels: {e}")
 
-    async def health_check(self) -> dict:
+    async def health_check(self) -> dict[Any, Any]:
         """Health check for retest analyzer"""
         return {
             "running": self._running,

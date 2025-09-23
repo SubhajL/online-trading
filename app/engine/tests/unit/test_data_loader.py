@@ -185,7 +185,6 @@ class TestPrecomputeFeaturesParallel:
 
         def simple_feature(df) -> None:
             df["sma"] = df["close"].rolling(20).mean()
-            return df
 
         results = precompute_features_parallel(symbols, [simple_feature])
 
@@ -203,7 +202,6 @@ class TestPrecomputeFeaturesParallel:
 
             time.sleep(0.01)
             df["feature"] = df["close"] * 2
-            return df
 
         # Time parallel execution
         import time
@@ -224,7 +222,6 @@ class TestPrecomputeFeaturesParallel:
             if "BAD" in str(df.index.name):
                 raise ValueError("Simulated failure")
             df["feature"] = 1
-            return df
 
         results = precompute_features_parallel(symbols, [failing_feature])
 

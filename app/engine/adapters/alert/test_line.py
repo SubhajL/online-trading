@@ -5,24 +5,26 @@ from datetime import datetime
 from decimal import Decimal
 
 from line import LineAlertAdapter
+from typing import Any
+
 
 
 class TestLineAlertAdapter:
     @pytest.fixture
-    def mock_event_bus(self):
+    def mock_event_bus(self) -> Any:
         bus = Mock()
         bus.subscribe = AsyncMock()
         return bus
 
     @pytest.fixture
-    def mock_deduplicator(self):
+    def mock_deduplicator(self) -> Any:
         dedup = Mock()
         dedup.is_duplicate = Mock(return_value=False)
         dedup.add = Mock()
         return dedup
 
     @pytest.fixture
-    def mock_formatter(self):
+    def mock_formatter(self) -> Any:
         formatter = Mock()
         formatter.format_decision = Mock(return_value="Formatted decision")
         formatter.format_order_update = Mock(return_value="Formatted order")
@@ -30,7 +32,7 @@ class TestLineAlertAdapter:
         return formatter
 
     @pytest.fixture
-    def adapter(self, mock_event_bus, mock_deduplicator, mock_formatter):
+    def adapter(self, mock_event_bus: Any, mock_deduplicator: Any, mock_formatter: Any) -> Any:
         with patch("line.aiohttp.ClientSession"):
             adapter = LineAlertAdapter(
                 access_token="test_token",
@@ -42,7 +44,7 @@ class TestLineAlertAdapter:
             return adapter
 
     @pytest.mark.asyncio
-    async def test_init_subscribes_to_events(self, mock_event_bus):
+    async def test_init_subscribes_to_events(self, mock_event_bus: Any) -> None:
         with patch("line.aiohttp.ClientSession"):
             adapter = LineAlertAdapter(
                 access_token="test_token",
@@ -58,7 +60,7 @@ class TestLineAlertAdapter:
         assert calls[2][0][0] == "guard_alert.v1"
 
     @pytest.mark.asyncio
-    async def test_send_alert_success(self, adapter):
+    async def test_send_alert_success(self, adapter: Any) -> None:
         with patch.object(adapter.session, "post") as mock_post:
             mock_response = Mock()
             mock_response.status = 200
@@ -78,7 +80,7 @@ class TestLineAlertAdapter:
             )
 
     @pytest.mark.asyncio
-    async def test_send_alert_failure(self, adapter):
+    async def test_send_alert_failure(self, adapter: Any) -> None:
         with patch.object(adapter.session, "post") as mock_post:
             mock_response = Mock()
             mock_response.status = 400
@@ -90,7 +92,7 @@ class TestLineAlertAdapter:
             assert result is False
 
     @pytest.mark.asyncio
-    async def test_handle_decision_with_deduplication(self, adapter, mock_deduplicator):
+    async def test_handle_decision_with_deduplication(self, adapter: Any, mock_deduplicator: Any) -> None:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
@@ -112,7 +114,7 @@ class TestLineAlertAdapter:
             mock_deduplicator.add.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_handle_order_update(self, adapter, mock_formatter):
+    async def test_handle_order_update(self, adapter: Any, mock_formatter: Any) -> None:
         order = {"symbol": "BTCUSDT", "status": "filled"}
 
         with patch.object(adapter, "_send_alert") as mock_send:
@@ -122,7 +124,7 @@ class TestLineAlertAdapter:
             mock_send.assert_called_once_with("Formatted order")
 
     @pytest.mark.asyncio
-    async def test_handle_guard_alert(self, adapter, mock_formatter):
+    async def test_handle_guard_alert(self, adapter: Any, mock_formatter: Any) -> None:
         guard = {"type": "funding_rate", "symbol": "BTCUSDT"}
 
         with patch.object(adapter, "_send_alert") as mock_send:
@@ -132,7 +134,7 @@ class TestLineAlertAdapter:
             mock_send.assert_called_once_with("Formatted guard")
 
     @pytest.mark.asyncio
-    async def test_message_splitting(self, adapter):
+    async def test_message_splitting(self, adapter: Any) -> None:
         # LINE has 5000 char limit
         long_message = "A" * 6000
 
@@ -148,7 +150,7 @@ class TestLineAlertAdapter:
             assert mock_post.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_stop_closes_session(self, adapter):
+    async def test_stop_closes_session(self, adapter: Any) -> None:
         adapter.session = Mock()
         adapter.session.close = AsyncMock()
 

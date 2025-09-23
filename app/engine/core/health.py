@@ -9,7 +9,7 @@ from enum import Enum
 import json
 import logging
 import time
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 

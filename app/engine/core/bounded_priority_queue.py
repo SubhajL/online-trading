@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import heapq
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, Any
 
 from app.engine.core.clock import Clock, SystemClock
 
@@ -97,7 +97,7 @@ class BoundedPriorityQueue(Generic[T]):
 
             # Check capacity
             if len(self._heap) >= self._max_size:
-                raise QueueFullError(f"Queue at maximum capacity: {self._max_size}")
+                raise QueueFullError(f"Queue[Any] at maximum capacity: {self._max_size}")
 
             # Create queue item
             now = self._clock.now()

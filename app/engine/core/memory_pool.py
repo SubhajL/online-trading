@@ -9,6 +9,7 @@ import threading
 import time
 
 import numpy as np
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class PoolStats:
     allocations: int
     memory_bytes: int
     avg_hold_time: float
-    potential_leaks: list["PooledArray"] = field(default_factory=list)
+    potential_leaks: list["PooledArray"] = field(default_factory=list[Any])
 
 
 class PooledArray:
@@ -48,7 +49,7 @@ class PooledArray:
         return hash(tuple(self._array.shape)) + hash(self._array.dtype)
 
     @property
-    def shape(self) -> tuple:
+    def shape(self) -> tuple[Any, ...]:
         return self._array.shape
 
     @property
@@ -60,11 +61,11 @@ class PooledArray:
 class ArrayPool:
     """Pool of reusable numpy arrays."""
 
-    shape: tuple
+    shape: tuple[Any, ...]
     dtype: np.dtype
     capacity: int
-    free: list[np.ndarray] = field(default_factory=list)
-    used: set[PooledArray] = field(default_factory=set)
+    free: list[np.ndarray] = field(default_factory=list[Any])
+    used: set[PooledArray] = field(default_factory=set[Any])
     stats: "PoolStatsTracker" = field(init=False)
     lock: threading.Lock = field(default_factory=threading.Lock)
     max_hold_seconds: float = 300.0  # 5 minutes default
@@ -89,7 +90,7 @@ class PoolStatsTracker:
         return self.hits / total if total > 0 else 1.0
 
 
-def create_pool(shape: tuple, dtype: np.dtype, capacity: int) -> ArrayPool:
+def create_pool(shape: tuple[Any, ...], dtype: np.dtype, capacity: int) -> ArrayPool:
     """
     Creates a pool of preallocated numpy arrays with specified shape and dtype.
     Maintains free/used lists for O(1) acquisition.

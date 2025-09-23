@@ -216,7 +216,7 @@ class TestEventProcessor:
 
         # Non-async handler
         def sync_handler(event: BaseEvent) -> None:
-            return "sync_result"
+            return
 
         subscription = EventSubscription(
             subscription_id="sync",
@@ -387,7 +387,7 @@ class TestEventProcessor:
         event = TestEvent(test_data="test")
 
         async def handler(event: BaseEvent) -> None:
-            return "handler_result"
+            return
 
         subscription = EventSubscription(
             subscription_id="test",

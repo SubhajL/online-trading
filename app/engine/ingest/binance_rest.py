@@ -72,9 +72,8 @@ class BinanceRestClient:
     async def __aenter__(self) -> None:
         """Async context manager entry"""
         await self.start()
-        return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit"""
         await self.stop()
 

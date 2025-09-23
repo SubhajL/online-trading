@@ -12,7 +12,7 @@ from app.engine.adapters.db.connection_pool import ConnectionPool, DBConfig
 
 @pytest.fixture
 def db_config() -> None:
-    return DBConfig(
+    return
         host="localhost",
         port=5432,
         database="test_db",
@@ -31,7 +31,7 @@ class TestConnectionPool:
         mock_pool = AsyncMock(spec=Pool)
 
         async def async_create_pool(*args, **kwargs) -> None:
-            return mock_pool
+            return
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool) as mock_create:
             pool = ConnectionPool(db_config)
@@ -64,7 +64,6 @@ class TestConnectionPool:
 
             if async_side_effect.call_count < 3:
                 raise Exception("Connection failed")
-            return mock_pool
 
         with patch("asyncpg.create_pool", side_effect=async_side_effect) as mock_create:
             pool = ConnectionPool(db_config)
@@ -98,7 +97,7 @@ class TestConnectionPool:
         mock_pool.release = AsyncMock()
 
         async def async_create_pool(*args, **kwargs) -> None:
-            return mock_pool
+            return
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
             pool = ConnectionPool(db_config)
@@ -131,7 +130,7 @@ class TestConnectionPool:
         mock_conn.fetchval = AsyncMock(return_value=1)
 
         async def async_create_pool(*args, **kwargs) -> None:
-            return mock_pool
+            return
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
             pool = ConnectionPool(db_config)
@@ -149,7 +148,7 @@ class TestConnectionPool:
         mock_pool.acquire.side_effect = Exception("Pool is closed")
 
         async def async_create_pool(*args, **kwargs) -> None:
-            return mock_pool
+            return
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
             pool = ConnectionPool(db_config)
@@ -165,7 +164,7 @@ class TestConnectionPool:
         mock_pool = AsyncMock(spec=Pool)
 
         async def async_create_pool(*args, **kwargs) -> None:
-            return mock_pool
+            return
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
             pool = ConnectionPool(db_config)
@@ -185,7 +184,7 @@ class TestConnectionPool:
         mock_pool.release = AsyncMock()
 
         async def async_create_pool(*args, **kwargs) -> None:
-            return mock_pool
+            return
 
         with patch("asyncpg.create_pool", side_effect=async_create_pool):
             pool = ConnectionPool(db_config)

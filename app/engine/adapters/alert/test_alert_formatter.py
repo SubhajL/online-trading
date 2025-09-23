@@ -5,10 +5,10 @@ from alert_formatter import AlertFormatter
 
 
 class TestAlertFormatter:
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.formatter = AlertFormatter()
 
-    def test_format_decision_alert_long_position(self):
+    def test_format_decision_alert_long_position(self) -> None:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
@@ -32,7 +32,7 @@ class TestAlertFormatter:
         assert "• Bullish structure break" in result
         assert "• Strong demand zone" in result
 
-    def test_format_decision_alert_short_position(self):
+    def test_format_decision_alert_short_position(self) -> None:
         decision = {
             "symbol": "ETHUSDT",
             "side": "short",
@@ -53,7 +53,7 @@ class TestAlertFormatter:
         assert "TP: $2,300.00 (-8.00%)" in result
         assert "Size: 1.5 ETH" in result
 
-    def test_format_order_update_filled(self):
+    def test_format_order_update_filled(self) -> None:
         order_update = {
             "symbol": "BTCUSDT",
             "side": "buy",
@@ -69,7 +69,7 @@ class TestAlertFormatter:
         assert "BTCUSDT" in result
         assert "Buy 0.025 @ $42,100.00" in result
 
-    def test_format_order_update_cancelled(self):
+    def test_format_order_update_cancelled(self) -> None:
         order_update = {
             "symbol": "ETHUSDT",
             "side": "sell",
@@ -86,7 +86,7 @@ class TestAlertFormatter:
         assert "Sell 1.5" in result
         assert "Reason: Insufficient balance" in result
 
-    def test_format_alert_guard_triggered(self):
+    def test_format_alert_guard_triggered(self) -> None:
         guard_alert = {
             "type": "funding_rate",
             "symbol": "BTCUSDT",
@@ -103,7 +103,7 @@ class TestAlertFormatter:
         assert "Threshold: 1.00%" in result
         assert "Action: Trading disabled" in result
 
-    def test_format_with_empty_reasons(self):
+    def test_format_with_empty_reasons(self) -> None:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
@@ -120,12 +120,12 @@ class TestAlertFormatter:
 
         assert "Reasons:" not in result
 
-    def test_calculate_percentage_change(self):
+    def test_calculate_percentage_change(self) -> None:
         assert self.formatter._calculate_pct_change(100, 110) == 10.0
         assert self.formatter._calculate_pct_change(100, 90) == -10.0
         assert self.formatter._calculate_pct_change(100, 100) == 0.0
 
-    def test_format_currency_with_different_scales(self):
+    def test_format_currency_with_different_scales(self) -> None:
         assert self.formatter._format_currency(42000) == "$42,000.00"
         assert self.formatter._format_currency(0.00012345) == "$0.000123"
         assert self.formatter._format_currency(1234567.89) == "$1,234,567.89"

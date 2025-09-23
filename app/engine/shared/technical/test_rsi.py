@@ -4,26 +4,26 @@ import pytest
 from .rsi import calculate_rsi
 
 
-def test_calculate_rsi_insufficient_data():
+def test_calculate_rsi_insufficient_data() -> None:
     prices = np.array([100.0, 101.0, 102.0])
     result = calculate_rsi(prices, period=14)
     assert np.all(np.isnan(result))
     assert len(result) == len(prices)
 
 
-def test_calculate_rsi_negative_period():
+def test_calculate_rsi_negative_period() -> None:
     prices = np.array([100.0, 101.0, 102.0, 103.0])
     with pytest.raises(ValueError, match="Period must be positive"):
         calculate_rsi(prices, period=-1)
 
 
-def test_calculate_rsi_zero_period():
+def test_calculate_rsi_zero_period() -> None:
     prices = np.array([100.0, 101.0, 102.0, 103.0])
     with pytest.raises(ValueError, match="Period must be positive"):
         calculate_rsi(prices, period=0)
 
 
-def test_calculate_rsi_all_gains():
+def test_calculate_rsi_all_gains() -> None:
     # Prices only going up - RSI should approach 100
     prices = np.array([100.0, 101.0, 102.0, 103.0, 104.0, 105.0])
     result = calculate_rsi(prices, period=3)
@@ -36,7 +36,7 @@ def test_calculate_rsi_all_gains():
     assert np.all(non_nan_values > 70)  # Overbought territory
 
 
-def test_calculate_rsi_all_losses():
+def test_calculate_rsi_all_losses() -> None:
     # Prices only going down - RSI should approach 0
     prices = np.array([105.0, 104.0, 103.0, 102.0, 101.0, 100.0])
     result = calculate_rsi(prices, period=3)
@@ -49,7 +49,7 @@ def test_calculate_rsi_all_losses():
     assert np.all(non_nan_values < 30)  # Oversold territory
 
 
-def test_calculate_rsi_no_change():
+def test_calculate_rsi_no_change() -> None:
     # Flat prices - RSI should be around 50
     prices = np.full(20, 100.0)
     result = calculate_rsi(prices, period=14)
@@ -59,7 +59,7 @@ def test_calculate_rsi_no_change():
     assert np.sum(~np.isnan(result)) == 0 or np.all(np.isnan(result[14:]))
 
 
-def test_calculate_rsi_alternating():
+def test_calculate_rsi_alternating() -> None:
     # Alternating up/down pattern
     prices = np.array([100.0, 101.0, 100.0, 101.0, 100.0, 101.0, 100.0, 101.0])
     result = calculate_rsi(prices, period=3)
@@ -72,7 +72,7 @@ def test_calculate_rsi_alternating():
         assert np.mean(non_nan_values) < 60
 
 
-def test_calculate_rsi_with_nan_values():
+def test_calculate_rsi_with_nan_values() -> None:
     prices = np.array([100.0, 101.0, np.nan, 103.0, 104.0])
     result = calculate_rsi(prices, period=2)
 
@@ -82,7 +82,7 @@ def test_calculate_rsi_with_nan_values():
     assert np.isnan(result[4])  # Continues to propagate
 
 
-def test_calculate_rsi_known_values():
+def test_calculate_rsi_known_values() -> None:
     # Test with known RSI calculation
     # Example: if we have 14 days of gains at +1 and 0 losses
     # Average gain = 1, Average loss = 0, RS = inf, RSI = 100
@@ -93,7 +93,7 @@ def test_calculate_rsi_known_values():
     assert np.isclose(result[14], 100.0, rtol=1e-5)
 
 
-def test_calculate_rsi_bounds():
+def test_calculate_rsi_bounds() -> None:
     # RSI should always be between 0 and 100
     prices = np.random.randn(100) * 10 + 50
     result = calculate_rsi(prices, period=14)
@@ -103,7 +103,7 @@ def test_calculate_rsi_bounds():
     assert np.all(non_nan_values <= 100.0)
 
 
-def test_calculate_rsi_deterministic():
+def test_calculate_rsi_deterministic() -> None:
     prices = np.array([44.0, 44.25, 44.5, 43.75, 44.75, 45.0, 45.5, 45.0])
     period = 3
 

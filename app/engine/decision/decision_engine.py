@@ -5,6 +5,8 @@ Main decision-making component that evaluates signals, applies risk management,
 and generates trading decisions based on multiple inputs and filters.
 """
 
+from typing import Any
+
 import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -46,7 +48,7 @@ class DecisionEngine:
         self,
         risk_manager: RiskManager,
         router_client: RouterHTTPClient,
-        config: dict = None,
+        config: dict[Any, Any] = None,
     ):
         self.risk_manager = risk_manager
         self.router_client = router_client

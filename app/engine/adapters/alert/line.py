@@ -26,7 +26,7 @@ class LineAlertAdapter:
         user_id: str,  # LINE user ID to send messages to
         event_bus: Any,
         rate_limit_per_minute: int = 60,
-    ):
+    ) -> None:
         self.access_token = access_token
         self.user_id = user_id
         self.event_bus = event_bus
@@ -40,7 +40,7 @@ class LineAlertAdapter:
         # Rate limiting
         self._message_times: List[datetime] = []
 
-    async def start(self):
+    async def start(self) -> None:
         """Initialize the adapter and subscribe to events."""
         self.session = aiohttp.ClientSession()
 
@@ -51,13 +51,13 @@ class LineAlertAdapter:
 
         logger.info("LINE alert adapter started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Clean up resources."""
         if self.session:
             await self.session.close()
         logger.info("LINE alert adapter stopped")
 
-    async def _handle_decision(self, event: Dict[str, Any]):
+    async def _handle_decision(self, event: Dict[str, Any]) -> None:
         """Handle trading decision events."""
         try:
             # Check for duplicate
@@ -76,7 +76,7 @@ class LineAlertAdapter:
         except Exception as e:
             logger.error(f"Error handling decision event: {e}", exc_info=True)
 
-    async def _handle_order_update(self, event: Dict[str, Any]):
+    async def _handle_order_update(self, event: Dict[str, Any]) -> None:
         """Handle order update events."""
         try:
             # Only alert on important status changes
@@ -90,7 +90,7 @@ class LineAlertAdapter:
         except Exception as e:
             logger.error(f"Error handling order update: {e}", exc_info=True)
 
-    async def _handle_guard_alert(self, event: Dict[str, Any]):
+    async def _handle_guard_alert(self, event: Dict[str, Any]) -> None:
         """Handle risk guard alerts."""
         try:
             message = self.formatter.format_guard_alert(event)

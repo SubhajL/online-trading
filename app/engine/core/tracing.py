@@ -4,6 +4,8 @@ Distributed tracing framework with OpenTelemetry support.
 Provides request tracing, span management, and context propagation.
 """
 
+from typing import Any
+
 import asyncio
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
@@ -84,7 +86,7 @@ class Span:
         attributes: dict[str, Any] | None = None,
         links: list[Link] | None = None,
         start_time: float | None = None,
-    ):
+    ) -> None:
         self.name = name
         self.context = context
         self.kind = kind
@@ -180,7 +182,7 @@ class Span:
 class Tracer:
     """Creates and manages spans."""
 
-    def __init__(self, name: str, resource: dict[str, Any] | None = None):
+    def __init__(self, name: str, resource: dict[str, Any] | None = None) -> None:
         self.name = name
         self.resource = resource or {}
         self._current_span: threading.local = threading.local()
@@ -234,7 +236,7 @@ class Tracer:
         kind: SpanKind = SpanKind.INTERNAL,
         attributes: dict[str, Any] | None = None,
         links: list[Link] | None = None,
-    ):
+    ) -> None:
         """Start a span and set it as current."""
         parent = self.get_current_span()
         span = self.start_span(name, kind, parent, attributes, links)
@@ -255,7 +257,7 @@ class Tracer:
         kind: SpanKind = SpanKind.INTERNAL,
         attributes: dict[str, Any] | None = None,
         links: list[Link] | None = None,
-    ):
+    ) -> None:
         """Async version of start_as_current_span."""
         parent = self.get_current_span()
         span = self.start_span(name, kind, parent, attributes, links)
@@ -315,7 +317,7 @@ class Tracer:
 class TracerProvider:
     """Manages tracers and span processors."""
 
-    def __init__(self, resource: dict[str, Any] | None = None):
+    def __init__(self, resource: dict[str, Any] | None = None) -> None:
         self.resource = resource or self._default_resource()
         self._tracers: dict[str, Tracer] = {}
         self._processors: list[SpanProcessor] = []
@@ -380,7 +382,7 @@ class BatchSpanProcessor(SpanProcessor):
         exporter: SpanProcessor,
         max_batch_size: int = 512,
         schedule_delay_millis: int = 5000,
-    ):
+    ) -> None:
         self.exporter = exporter
         self.max_batch_size = max_batch_size
         self.schedule_delay_millis = schedule_delay_millis
@@ -490,7 +492,7 @@ def get_tracer(name: str, version: str | None = None) -> Tracer:
 
 
 # Convenience decorators
-def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL):
+def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL) -> Any:
     """Decorator to trace a function."""
 
     def decorator(func: T) -> T:

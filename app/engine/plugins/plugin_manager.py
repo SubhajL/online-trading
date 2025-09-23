@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Any
+
 """
 Plugin manager for loading and managing trading engine plugins.
 """
@@ -24,7 +27,7 @@ class PluginManager:
         self.plugins: dict[str, BasePlugin] = {}
         self.event_routing: dict[str, list[BasePlugin]] = {}
 
-    async def load_plugins(self, plugin_dir: Path | None = None):
+    async def load_plugins(self, plugin_dir: Path | None = None) -> None:
         """
         Discover and load plugins from directory.
         """
@@ -58,8 +61,8 @@ class PluginManager:
     async def register_plugin(
         self,
         plugin_class: type[BasePlugin],
-        config: dict | None = None,
-    ):
+        config: dict[Any, Any] | None = None,
+    ) -> None:
         """
         Register a plugin instance.
         """

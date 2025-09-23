@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 import asyncpg
 import redis.asyncio as redis
+from typing import Any
 
 
 # Custom Exceptions
@@ -207,7 +208,7 @@ class TransactionContext:
         except Exception as e:
             raise TransactionError(f"Failed to start transaction: {e}")
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: str, exc_tb: Any) -> None:
         """Commit or rollback transaction."""
         if not self.transaction:
             return
@@ -225,7 +226,7 @@ class TransactionContext:
         finally:
             self.transaction = None
 
-    async def execute(self, query: str, *args) -> str:
+    async def execute(self, query: str, *args: Any) -> str:
         """Execute query within transaction."""
         if not self.transaction:
             raise TransactionError("No active transaction")
@@ -236,7 +237,7 @@ class TransactionContext:
             self.logger.error(f"Query execution failed: {e}")
             raise
 
-    async def fetch(self, query: str, *args) -> list:
+    async def fetch(self, query: str, *args: Any) -> list[Any]:
         """Fetch query results within transaction."""
         if not self.transaction:
             raise TransactionError("No active transaction")
@@ -247,7 +248,7 @@ class TransactionContext:
             self.logger.error(f"Query fetch failed: {e}")
             raise
 
-    async def fetchrow(self, query: str, *args) -> asyncpg.Record | None:
+    async def fetchrow(self, query: str, *args: Any) -> asyncpg.Record | None:
         """Fetch single row within transaction."""
         if not self.transaction:
             raise TransactionError("No active transaction")
@@ -266,7 +267,7 @@ class OptimisticLockMixin:
         self,
         connection: asyncpg.Connection,
         query: str,
-        *args,
+        *args: Any,
     ) -> bool:
         """
         Execute update with version check for optimistic locking.
@@ -308,7 +309,7 @@ class OptimisticLockMixin:
         connection: asyncpg.Connection,
         table: str,
         where_clause: str,
-        *args,
+        *args: Any,
     ) -> int:
         """
         Increment version field and return new version.
@@ -432,7 +433,7 @@ class DatabaseManager:
     async def execute_with_retry(
         self,
         query: str,
-        *args,
+        *args: Any,
         max_retries: int = None,
     ) -> str:
         """

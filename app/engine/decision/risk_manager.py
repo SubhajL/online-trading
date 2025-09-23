@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Any
+
 """
 Risk Manager
 
@@ -39,7 +42,7 @@ class RiskCheckResult:
         risk_level: RiskLevel,
         checks: dict[str, bool],
         reasons: list[str],
-    ):
+    ) -> None:
         self.approved = approved
         self.risk_level = risk_level
         self.checks = checks
@@ -66,7 +69,7 @@ class RiskManager:
         # Track positions and P&L
         self._positions: dict[str, Position] = {}
         self._daily_pnl: dict[str, Decimal] = {}  # date -> pnl
-        self._trade_history: list[dict] = []
+        self._trade_history: list[dict[Any, Any]] = []
 
         # Risk metrics
         self._max_drawdown = Decimal(0)
@@ -215,7 +218,7 @@ class RiskManager:
                 and decision.symbol not in self.risk_params.allowed_symbols
             ):
                 checks["symbol_allowed"] = False
-                reasons.append(f"Symbol {decision.symbol} not in allowed list")
+                reasons.append(f"Symbol {decision.symbol} not in allowed list[Any]")
                 risk_level = max(risk_level, RiskLevel.MEDIUM)
             else:
                 checks["symbol_allowed"] = True
@@ -320,7 +323,7 @@ class RiskManager:
         except Exception as e:
             logger.error(f"Error updating position: {e}")
 
-    def add_trade_result(self, symbol: str, pnl: Decimal, trade_data: dict):
+    def add_trade_result(self, symbol: str, pnl: Decimal, trade_data: dict[Any, Any]) -> None:
         """Add completed trade result for analysis"""
         try:
             trade_record = {
@@ -491,7 +494,7 @@ class RiskManager:
             logger.error(f"Error calculating volatility: {e}")
             return Decimal(0)
 
-    def get_risk_metrics(self) -> dict:
+    def get_risk_metrics(self) -> dict[Any, Any]:
         """Get current risk metrics and statistics"""
         try:
             today = datetime.utcnow().date().isoformat()

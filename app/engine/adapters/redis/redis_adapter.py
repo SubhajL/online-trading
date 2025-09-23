@@ -5,6 +5,8 @@ Redis adapter for caching, session management, and real-time data storage.
 Provides high-performance caching for trading data and coordination between services.
 """
 
+from typing import Any
+
 from datetime import datetime
 from decimal import Decimal
 import json
@@ -102,7 +104,8 @@ class RedisAdapter:
             )
 
             # Test connection
-            await self._redis.ping()
+            _result = self._redis.ping()
+            await _result if hasattr(_result, '__await__') else _result
 
             self._initialized = True
             logger.info("Redis adapter initialized successfully")
@@ -118,7 +121,8 @@ class RedisAdapter:
             self._pubsub = None
 
         if self._redis:
-            await self._redis.close()
+            _result2 = self._redis.close()
+            await _result2 if hasattr(_result2, '__await__') else _result2
             self._redis = None
 
         self._initialized = False
@@ -172,10 +176,12 @@ class RedisAdapter:
 
             if expire:
                 assert self._redis is not None
-                result = await self._redis.setex(redis_key, expire, serialized_value)
+                _result3 = self._redis.setex(redis_key, expire, serialized_value)
+                result = await _result3 if hasattr(_result3, '__await__') else _result3
             else:
                 assert self._redis is not None
-                result = await self._redis.set(redis_key, serialized_value)
+                _result4 = self._redis.set(redis_key, serialized_value)
+                result = await _result4 if hasattr(_result4, '__await__') else _result4
 
             return bool(result)
 
@@ -190,7 +196,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
-            value = await self._redis.get(redis_key)
+            _result5 = self._redis.get(redis_key)
+            value = await _result5 if hasattr(_result5, '__await__') else _result5
 
             if value is None:
                 return None
@@ -210,7 +217,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
-            result = await self._redis.delete(redis_key)
+            _result6 = self._redis.delete(redis_key)
+            result = await _result6 if hasattr(_result6, '__await__') else _result6
             return bool(result)
 
         except Exception as e:
@@ -224,7 +232,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
-            result = await self._redis.exists(redis_key)
+            _result7 = self._redis.exists(redis_key)
+            result = await _result7 if hasattr(_result7, '__await__') else _result7
             return bool(result)
 
         except Exception as e:
@@ -238,7 +247,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
-            result = await self._redis.expire(redis_key, seconds)
+            _result8 = self._redis.expire(redis_key, seconds)
+            result = await _result8 if hasattr(_result8, '__await__') else _result8
             return bool(result)
 
         except Exception as e:
@@ -263,7 +273,8 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, hash_key)
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
-            result = await self._redis.hset(redis_key, field, serialized_value)
+            _result9 = self._redis.hset(redis_key, field, serialized_value)
+            result = await _result9 if hasattr(_result9, '__await__') else _result9
             return bool(result)
 
         except Exception as e:
@@ -282,7 +293,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            value = await self._redis.hget(redis_key, field)
+            _result10 = self._redis.hget(redis_key, field)
+            value = await _result10 if hasattr(_result10, '__await__') else _result10
 
             if value is None:
                 return None
@@ -302,7 +314,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            result = await self._redis.hgetall(redis_key)
+            _result11 = self._redis.hgetall(redis_key)
+            result = await _result11 if hasattr(_result11, '__await__') else _result11
 
             if not result:
                 return {}
@@ -327,7 +340,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            result = await self._redis.hdel(redis_key, field)
+            _result12 = self._redis.hdel(redis_key, field)
+            result = await _result12 if hasattr(_result12, '__await__') else _result12
             return bool(result)
 
         except Exception as e:
@@ -346,7 +360,8 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, list_key)
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
-            result = await self._redis.lpush(redis_key, serialized_value)
+            _result13 = self._redis.lpush(redis_key, serialized_value)
+            result = await _result13 if hasattr(_result13, '__await__') else _result13
             return int(result)
 
         except Exception as e:
@@ -361,7 +376,8 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, list_key)
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
-            result = await self._redis.rpush(redis_key, serialized_value)
+            _result14 = self._redis.rpush(redis_key, serialized_value)
+            result = await _result14 if hasattr(_result14, '__await__') else _result14
             return int(result)
 
         except Exception as e:
@@ -375,7 +391,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
-            value = await self._redis.lpop(redis_key)
+            _result15 = self._redis.lpop(redis_key)
+            value = await _result15 if hasattr(_result15, '__await__') else _result15
 
             if value is None:
                 return None
@@ -401,7 +418,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
-            values = await self._redis.lrange(redis_key, start, end)
+            _result16 = self._redis.lrange(redis_key, start, end)
+            values = await _result16 if hasattr(_result16, '__await__') else _result16
 
             result: list[Any] = []
             for value in values:
@@ -427,7 +445,8 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
-            result = await self._redis.ltrim(redis_key, start, end)
+            _result17 = self._redis.ltrim(redis_key, start, end)
+            result = await _result17 if hasattr(_result17, '__await__') else _result17
             return bool(result)
 
         except Exception as e:
@@ -587,7 +606,8 @@ class RedisAdapter:
         try:
             serialized_message = self._serialize_value(message)
             assert self._redis is not None
-            result = await self._redis.publish(channel, serialized_message)
+            _result18 = self._redis.publish(channel, serialized_message)
+            result = await _result18 if hasattr(_result18, '__await__') else _result18
             return int(result)
 
         except Exception as e:
@@ -607,7 +627,6 @@ class RedisAdapter:
 
         except Exception as e:
             logger.error(f"Error subscribing to channels {channels}: {e}")
-            return None
 
     async def unsubscribe(self, *channels: str) -> None:
         """Unsubscribe from channels"""
@@ -628,7 +647,8 @@ class RedisAdapter:
         try:
             redis_keys = [self._build_key(prefix, key) for key in keys]
             assert self._redis is not None
-            values = await self._redis.mget(*redis_keys)
+            _result19 = self._redis.mget(*redis_keys)
+            values = await _result19 if hasattr(_result19, '__await__') else _result19
 
             result: list[Any] = []
             for value in values:
@@ -659,7 +679,8 @@ class RedisAdapter:
                 redis_pairs[redis_key] = self._serialize_value(value)
 
             assert self._redis is not None
-            result = await self._redis.mset(redis_pairs)
+            _result20 = self._redis.mset(redis_pairs)
+            result = await _result20 if hasattr(_result20, '__await__') else _result20
             return bool(result)
 
         except Exception as e:
@@ -677,14 +698,17 @@ class RedisAdapter:
 
             # Test ping
             assert self._redis is not None
-            ping_result = await self._redis.ping()
+            _result21 = self._redis.ping()
+            ping_result = await _result21 if hasattr(_result21, '__await__') else _result21
 
             # Get Redis info
-            info = await self._redis.info()
+            _result22 = self._redis.info()
+            info = await _result22 if hasattr(_result22, '__await__') else _result22
 
             # Get database size
             assert self._redis is not None
-            dbsize = await self._redis.dbsize()
+            _result23 = self._redis.dbsize()
+            dbsize = await _result23 if hasattr(_result23, '__await__') else _result23
 
             return {
                 "status": "healthy" if ping_result else "unhealthy",
@@ -710,7 +734,8 @@ class RedisAdapter:
         try:
             self._ensure_connected()
             assert self._redis is not None
-            keys = await self._redis.keys(pattern)
+            _result24 = self._redis.keys(pattern)
+            keys = await _result24 if hasattr(_result24, '__await__') else _result24
             return len(keys)
 
         except Exception as e:
@@ -725,18 +750,18 @@ class RedisAdapter:
             if prefix:
                 pattern = self._build_key(prefix, "*")
                 assert self._redis is not None
-                keys = await self._redis.keys(pattern)
+                _result25 = self._redis.keys(pattern)
+                keys = await _result25 if hasattr(_result25, '__await__') else _result25
                 if keys:
-                    deleted = await self._redis.delete(*keys)
+                    _result26 = self._redis.delete(*keys)
+                    deleted = await _result26 if hasattr(_result26, '__await__') else _result26
                     return int(deleted)
                 return 0
-            # Clear entire database
-            result = await self._redis.flushdb()
-            return 1 if result else 0
             else:
                 # Clear entire database
                 assert self._redis is not None
-                result = await self._redis.flushdb()
+                _result27 = self._redis.flushdb()
+                result = await _result27 if hasattr(_result27, '__await__') else _result27
                 return 1 if result else 0
 
         except Exception as e:

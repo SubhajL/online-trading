@@ -11,6 +11,9 @@ from decimal import Decimal
 from collections import deque
 from decimal import Decimal
 import logging
+from typing import Any
+
+
 
 from ..bus import get_event_bus
 from ..models import (
@@ -48,7 +51,7 @@ class RegimeVolatilityAnalyzer:
         self.trend_threshold = trend_threshold
 
         # Store market data
-        self._candles: dict[str, deque] = {}  # symbol_timeframe -> candles
+        self._candles: dict[str, deque[Any]] = {}  # symbol_timeframe -> candles
         self._indicators: dict[str, TechnicalIndicators] = {}
 
         # Current regime state
@@ -292,7 +295,7 @@ class RegimeVolatilityAnalyzer:
         # Simplified implementation
         return False
 
-    async def health_check(self) -> dict:
+    async def health_check(self) -> dict[Any, Any]:
         """Health check for regime analyzer"""
         return {
             "running": self._running,

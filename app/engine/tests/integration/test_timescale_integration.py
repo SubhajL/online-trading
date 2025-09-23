@@ -33,7 +33,6 @@ def event_loop() -> None:
 @pytest.fixture(scope="session")
 async def test_db_config() -> None:
     """Test database configuration."""
-    return DBConfig(
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),
         database=os.getenv("TEST_DB_NAME", "test_trading_db"),
@@ -480,7 +479,6 @@ class TestConnectionPoolResilience:
                 taker_buy_base_volume=Decimal("5.0"),
                 taker_buy_quote_volume=Decimal("250000.0"),
             )
-            return await timescale.upsert_candle(candle)
 
         # Run multiple concurrent inserts
         results = await asyncio.gather(*[insert_candle(i) for i in range(10)])

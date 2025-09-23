@@ -374,7 +374,7 @@ class TestTraceDecorator:
     def test_sync_function_tracing(self) -> None:
         @trace(name="custom_operation")
         def test_function(x, y) -> None:
-            return x + y
+            return
 
         result = test_function(1, 2)
         assert result == 3
@@ -384,7 +384,6 @@ class TestTraceDecorator:
         @trace(kind=SpanKind.SERVER)
         async def async_function(x) -> None:
             await asyncio.sleep(0.01)
-            return x * 2
 
         result = await async_function(5)
         assert result == 10

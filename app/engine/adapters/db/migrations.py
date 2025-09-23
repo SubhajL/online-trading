@@ -12,6 +12,7 @@ from pathlib import Path
 from asyncpg import Connection
 
 from .connection_pool import ConnectionPool
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +198,7 @@ class MigrationRunner:
             target_version: Target version to migrate to. If None, apply all.
 
         Returns:
-            Tuple of (migrations_applied, final_version)
+            Tuple[Any, ...] of (migrations_applied, final_version)
         """
         current_version = await self.get_current_version()
         available_migrations = await self.get_available_migrations()
@@ -264,7 +265,7 @@ class MigrationRunner:
 
         return migrations_applied, final_version
 
-    async def check_migration_status(self) -> dict:
+    async def check_migration_status(self) -> dict[Any, Any]:
         """Get detailed migration status."""
         async with self.pool.acquire() as conn:
             current_version = await self.get_current_version()

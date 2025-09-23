@@ -7,6 +7,12 @@ for Smart Money Concepts analysis. Integrates with the event bus for real-time p
 
 from datetime import datetime, timedelta
 import logging
+from decimal import Decimal
+from typing import Any
+
+
+
+
 
 from ..bus import get_event_bus
 from ..models import (
@@ -40,10 +46,10 @@ class SMCService:
 
     def __init__(
         self,
-        pivot_config: dict = None,
-        zone_config: dict = None,
-        signal_config: dict = None,
-    ):
+        pivot_config: dict[Any, Any] = None,
+        zone_config: dict[Any, Any] = None,
+        signal_config: dict[Any, Any] = None,
+    ) -> None:
         """
         Initialize SMC service
 
@@ -240,7 +246,7 @@ class SMCService:
         timeframe: TimeFrame,
         current_candle: Candle,
         recent_candles: list[Candle],
-    ):
+    ) -> None:
         """Generate SMC signals based on current market conditions"""
         try:
             # Get nearby zones
@@ -596,7 +602,7 @@ class SMCService:
         """Get recent pivot points"""
         return self.pivot_detector.get_recent_pivots(count)
 
-    async def health_check(self) -> dict:
+    async def health_check(self) -> dict[Any, Any]:
         """Get health status of the SMC service"""
         pivot_stats = self.pivot_detector.get_statistics()
         zone_stats = self.zone_identifier.get_statistics()

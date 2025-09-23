@@ -14,6 +14,7 @@ from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
 from .binance_rest import BinanceRestClient
 from .binance_ws import BinanceWebSocketClient
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +33,13 @@ class IngestService:
 
     def __init__(
         self,
-        binance_config: dict,
+        binance_config: dict[Any, Any],
         symbols: list[str],
         timeframes: list[TimeFrame],
         backfill_days: int = 30,
         enable_realtime: bool = True,
         enable_backfill: bool = True,
-    ):
+    ) -> None:
         self.symbols = symbols
         self.timeframes = timeframes
         self.backfill_days = backfill_days
@@ -61,7 +62,7 @@ class IngestService:
 
         self._event_bus = get_event_bus()
         self._running = False
-        self._backfill_tasks: list[asyncio.Task] = []
+        self._backfill_tasks: list[asyncio.Task[Any]] = []
         self._latest_candles: dict[str, dict[TimeFrame, Candle]] = {}
         self._backfill_complete: set[str] = set()
 
@@ -275,7 +276,7 @@ class IngestService:
         """Get the latest candle for a symbol and timeframe"""
         return self._latest_candles.get(symbol, {}).get(timeframe)
 
-    async def get_gap_detection(self, symbol: str, timeframe: TimeFrame) -> list[dict]:
+    async def get_gap_detection(self, symbol: str, timeframe: TimeFrame) -> list[dict[Any, Any]]:
         """Detect gaps in historical data"""
         # This would implement gap detection logic
         # For now, return empty list
@@ -286,7 +287,7 @@ class IngestService:
 
         return gaps
 
-    async def fill_gaps(self, symbol: str, timeframe: TimeFrame, gaps: list[dict]):
+    async def fill_gaps(self, symbol: str, timeframe: TimeFrame, gaps: list[dict[Any, Any]]) -> None:
         """Fill detected gaps in historical data"""
         for gap in gaps:
             try:

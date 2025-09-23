@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Any
+
 """
 Zone Identifier
 
@@ -29,7 +32,7 @@ class ZoneIdentifier:
         max_zones_per_type: int = 10,
         zone_invalidation_touches: int = 3,
         order_block_min_body_ratio: float = 0.6,
-    ):
+    ) -> None:
         """
         Initialize zone identifier
 
@@ -510,7 +513,7 @@ class ZoneIdentifier:
         current_price: Decimal,
         symbol: str,
         timeframe: TimeFrame,
-    ):
+    ) -> None:
         """Update zone touch counts and invalidate if necessary"""
         try:
             for zone_type, zones in self._zones.items():
@@ -588,7 +591,7 @@ class ZoneIdentifier:
         self,
         symbol: str | None = None,
         timeframe: TimeFrame | None = None,
-    ):
+    ) -> None:
         """Clear zones for specific symbol/timeframe or all zones"""
         if symbol is None and timeframe is None:
             # Clear all zones
@@ -610,7 +613,7 @@ class ZoneIdentifier:
 
         logger.info(f"Cleared zones for {symbol or 'ALL'} {timeframe or 'ALL'}")
 
-    def get_statistics(self) -> dict:
+    def get_statistics(self) -> dict[Any, Any]:
         """Get zone identification statistics"""
         total_active = sum(len(zones) for zones in self._zones.values())
 

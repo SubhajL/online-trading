@@ -5,6 +5,8 @@ HTTP client for communicating with the router service for order execution,
 position management, and account operations.
 """
 
+from typing import Any
+
 import asyncio
 from datetime import datetime
 from decimal import Decimal
@@ -14,6 +16,7 @@ from urllib.parse import urljoin
 from aiohttp import ClientSession, ClientTimeout
 
 from ...models import TradingDecision
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +84,7 @@ class RouterHTTPClient:
     def _get_headers(self) -> dict[str, str]:
         """Get HTTP headers for requests"""
         headers = {
-            "Content-Type": "application/json",
+            "Content-Type[Any]": "application/json",
             "User-Agent": "TradingEngine/1.0",
         }
 
@@ -94,8 +97,8 @@ class RouterHTTPClient:
         self,
         method: str,
         endpoint: str,
-        data: dict | None = None,
-        params: dict | None = None,
+        data: dict[Any, Any] | None = None,
+        params: dict[Any, Any] | None = None,
     ) -> dict[str, Any]:
         """Make HTTP request with retry logic"""
         self._ensure_initialized()
@@ -466,8 +469,7 @@ class RouterHTTPClient:
     async def __aenter__(self) -> None:
         """Async context manager entry"""
         await self.initialize()
-        return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit"""
         await self.close()

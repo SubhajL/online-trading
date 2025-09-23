@@ -5,6 +5,8 @@ Risk guards that monitor news events and funding rates to prevent
 trading during high-risk periods.
 """
 
+from typing import Any
+
 from decimal import Decimal
 import logging
 

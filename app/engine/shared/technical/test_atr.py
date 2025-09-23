@@ -4,7 +4,7 @@ import pytest
 from .atr import calculate_atr, calculate_true_range
 
 
-def test_calculate_atr_insufficient_data():
+def test_calculate_atr_insufficient_data() -> None:
     high = np.array([10.0, 11.0, 12.0])
     low = np.array([9.0, 10.0, 11.0])
     close = np.array([9.5, 10.5, 11.5])
@@ -14,7 +14,7 @@ def test_calculate_atr_insufficient_data():
     assert len(result) == len(high)
 
 
-def test_calculate_atr_mismatched_lengths():
+def test_calculate_atr_mismatched_lengths() -> None:
     high = np.array([10.0, 11.0, 12.0])
     low = np.array([9.0, 10.0])  # Different length
     close = np.array([9.5, 10.5, 11.5])
@@ -23,7 +23,7 @@ def test_calculate_atr_mismatched_lengths():
         calculate_atr(high, low, close)
 
 
-def test_calculate_atr_negative_period():
+def test_calculate_atr_negative_period() -> None:
     high = np.array([10.0, 11.0, 12.0, 13.0])
     low = np.array([9.0, 10.0, 11.0, 12.0])
     close = np.array([9.5, 10.5, 11.5, 12.5])
@@ -32,7 +32,7 @@ def test_calculate_atr_negative_period():
         calculate_atr(high, low, close, period=-1)
 
 
-def test_calculate_atr_zero_volatility():
+def test_calculate_atr_zero_volatility() -> None:
     # No price movement - ATR should be 0 after initial value
     high = np.full(20, 100.0)
     low = np.full(20, 100.0)
@@ -45,7 +45,7 @@ def test_calculate_atr_zero_volatility():
     assert np.all(np.isclose(non_nan_values, 0.0))
 
 
-def test_calculate_atr_simple_volatility():
+def test_calculate_atr_simple_volatility() -> None:
     # Consistent 1-point range
     high = np.array([101, 102, 103, 104, 105, 106, 107, 108])
     low = np.array([100, 101, 102, 103, 104, 105, 106, 107])
@@ -59,7 +59,7 @@ def test_calculate_atr_simple_volatility():
     assert np.isclose(result[3], 1.0, atol=0.1)
 
 
-def test_calculate_true_range_first_candle():
+def test_calculate_true_range_first_candle() -> None:
     high = np.array([110.0])
     low = np.array([100.0])
     close = np.array([105.0])
@@ -68,7 +68,7 @@ def test_calculate_true_range_first_candle():
     assert tr[0] == 10.0  # high - low
 
 
-def test_calculate_true_range_gap_up():
+def test_calculate_true_range_gap_up() -> None:
     # Gap up scenario: previous close below current range
     high = np.array([100, 110])
     low = np.array([95, 108])
@@ -80,7 +80,7 @@ def test_calculate_true_range_gap_up():
     assert tr[1] == 12.0
 
 
-def test_calculate_true_range_gap_down():
+def test_calculate_true_range_gap_down() -> None:
     # Gap down scenario: previous close above current range
     high = np.array([110, 95])
     low = np.array([105, 90])
@@ -92,7 +92,7 @@ def test_calculate_true_range_gap_down():
     assert tr[1] == 18.0
 
 
-def test_calculate_atr_with_nan_values():
+def test_calculate_atr_with_nan_values() -> None:
     high = np.array([100, 101, np.nan, 103, 104])
     low = np.array([99, 100, 101, 102, 103])
     close = np.array([99.5, 100.5, 101.5, 102.5, 103.5])
@@ -104,7 +104,7 @@ def test_calculate_atr_with_nan_values():
     assert np.isnan(result[3])  # Affected by previous TR with NaN
 
 
-def test_calculate_atr_increasing_volatility():
+def test_calculate_atr_increasing_volatility() -> None:
     # Increasing range over time
     high = np.array([101, 102, 104, 107, 111, 116, 122, 129])
     low = np.array([100, 100, 100, 100, 100, 100, 100, 100])
@@ -119,7 +119,7 @@ def test_calculate_atr_increasing_volatility():
         assert valid_atr[-1] > valid_atr[0]
 
 
-def test_calculate_atr_deterministic():
+def test_calculate_atr_deterministic() -> None:
     high = np.array([102, 103, 101, 104, 106, 105, 107, 108])
     low = np.array([100, 101, 99, 102, 104, 103, 105, 106])
     close = np.array([101, 102, 100, 103, 105, 104, 106, 107])
@@ -131,7 +131,7 @@ def test_calculate_atr_deterministic():
     np.testing.assert_array_equal(result1, result2)
 
 
-def test_calculate_true_range_empty_arrays():
+def test_calculate_true_range_empty_arrays() -> None:
     high = np.array([])
     low = np.array([])
     close = np.array([])
