@@ -7,17 +7,72 @@ type MarketDataEvent = {
   error?: string
 }
 
+type IndicatorData = {
+  time: number
+  value: number
+}
+
+type SmcEvent = {
+  time: number
+  type: 'CHOCH' | 'BOS' | 'HH' | 'HL' | 'LH' | 'LL'
+  price: number
+}
+
+type Zone = {
+  id: string
+  type: 'ORDER_BLOCK' | 'FVG'
+  startTime: number
+  endTime: number
+  highPrice: number
+  lowPrice: number
+}
+
+type Indicators = {
+  EMA: IndicatorData[]
+  SMA: IndicatorData[]
+  RSI: IndicatorData[]
+  MACD: IndicatorData[]
+  BB: IndicatorData[]
+  VOLUME: IndicatorData[]
+}
+
 type UseMarketDataReturn = {
   candles: Candle[]
+  indicators: Indicators
+  smcEvents: SmcEvent[]
+  zones: Zone[]
   loading: boolean
   error: string | null
+  setTimeframe: (timeframe: Timeframe) => void
+  setSymbol: (symbol: Symbol) => void
 }
 
 export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDataReturn {
   const { service, connected } = useWebSocket()
+  const [currentSymbol, setCurrentSymbol] = useState<Symbol>(symbol)
+  const [currentTimeframe, setCurrentTimeframe] = useState<Timeframe>(timeframe)
   const [candles, setCandles] = useState<Candle[]>([])
+  const [indicators, setIndicators] = useState<Indicators>({
+    EMA: [],
+    SMA: [],
+    RSI: [],
+    MACD: [],
+    BB: [],
+    VOLUME: [],
+  })
+  const [smcEvents, setSmcEvents] = useState<SmcEvent[]>([])
+  const [zones, setZones] = useState<Zone[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Update internal state when props change
+  useEffect(() => {
+    setCurrentSymbol(symbol)
+  }, [symbol])
+
+  useEffect(() => {
+    setCurrentTimeframe(timeframe)
+  }, [timeframe])
 
   useEffect(() => {
     if (!connected) {
@@ -27,16 +82,29 @@ export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDa
     setLoading(true)
     setError(null)
     setCandles([])
+    setIndicators({
+      EMA: [],
+      SMA: [],
+      RSI: [],
+      MACD: [],
+      BB: [],
+      VOLUME: [],
+    })
+    setSmcEvents([])
+    setZones([])
 
-    // Subscribe to market data
-    service.emit('subscribe', {
-      channel: 'candles',
-      params: { symbol, timeframe },
+    // Subscribe to all market data channels
+    const channels = ['candles', 'indicators', 'smc_events', 'zones']
+    channels.forEach(channel => {
+      service.emit('subscribe', {
+        channel,
+        params: { symbol: currentSymbol, timeframe: currentTimeframe },
+      })
     })
 
     // Listen for candle updates
-    const unsubscribe = service.subscribe<MarketDataEvent>(
-      `candles:${symbol}:${timeframe}`,
+    const unsubscribeCandles = service.subscribe<MarketDataEvent>(
+      `candles:${currentSymbol}:${currentTimeframe}`,
       data => {
         if (data.error) {
           setError(data.error)
@@ -51,19 +119,89 @@ export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDa
       },
     )
 
+    // Listen for indicator updates
+    const unsubscribeIndicators = service.subscribe<any>(
+      `indicators:${currentSymbol}:${currentTimeframe}`,
+      data => {
+        if (data.error) {
+          setError(data.error)
+          setLoading(false)
+          return
+        }
+
+        if (data.type && data.time && data.value !== undefined) {
+          setIndicators(prev => ({
+            ...prev,
+            [data.type]: [...(prev[data.type as keyof Indicators] || []), { time: data.time, value: data.value }],
+          }))
+          setLoading(false)
+        }
+      },
+    )
+
+    // Listen for SMC events
+    const unsubscribeSmcEvents = service.subscribe<SmcEvent>(
+      `smc_events:${currentSymbol}:${currentTimeframe}`,
+      data => {
+        if ('error' in data) {
+          setError((data as any).error)
+          setLoading(false)
+          return
+        }
+
+        setSmcEvents(prev => [...prev, data])
+        setLoading(false)
+      },
+    )
+
+    // Listen for zone updates
+    const unsubscribeZones = service.subscribe<{ zones?: Zone[]; error?: string }>(
+      `zones:${currentSymbol}:${currentTimeframe}`,
+      data => {
+        if (data.error) {
+          setError(data.error)
+          setLoading(false)
+          return
+        }
+
+        if (data.zones) {
+          setZones(data.zones)
+          setLoading(false)
+        }
+      },
+    )
+
     // Cleanup
     return () => {
-      service.emit('unsubscribe', {
-        channel: 'candles',
-        params: { symbol, timeframe },
+      channels.forEach(channel => {
+        service.emit('unsubscribe', {
+          channel,
+          params: { symbol: currentSymbol, timeframe: currentTimeframe },
+        })
       })
-      unsubscribe()
+      unsubscribeCandles()
+      unsubscribeIndicators()
+      unsubscribeSmcEvents()
+      unsubscribeZones()
     }
-  }, [symbol, timeframe, service, connected])
+  }, [currentSymbol, currentTimeframe, service, connected])
+
+  const setTimeframe = (tf: Timeframe) => {
+    setCurrentTimeframe(tf)
+  }
+
+  const setSymbol = (sym: Symbol) => {
+    setCurrentSymbol(sym)
+  }
 
   return {
     candles,
+    indicators,
+    smcEvents,
+    zones,
     loading,
     error,
+    setTimeframe,
+    setSymbol,
   }
 }
