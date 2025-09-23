@@ -175,6 +175,7 @@ class Candle(BaseModel):
     trades: int
     taker_buy_base_volume: Decimal
     taker_buy_quote_volume: Decimal
+    bar_index: int | None = None  # Bar index within the sequence (optional for backward compatibility)
 
     @validator(
         "open_price",
