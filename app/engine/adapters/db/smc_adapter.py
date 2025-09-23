@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from ...database import KyselyDatabase, Transaction
-from ...types import Pivot, SMCEvent, Zone
+from ...smc_types import Pivot, SMCEvent, Zone
 
 logger = logging.getLogger(__name__)
 

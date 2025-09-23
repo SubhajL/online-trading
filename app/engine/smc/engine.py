@@ -7,7 +7,7 @@ from typing import Any
 
 from ..bus import get_event_bus
 from ..models import BaseEvent, Candle, CandleUpdateEvent, EventType, TimeFrame
-from ..types import StructureState, StructureTracker, Zone
+from ..smc_types import StructureState, StructureTracker, Zone
 from .events import create_smc_event, create_zone_event, publish_events
 from .pivots import PivotMethod, detect_n_bar_pivots, detect_zigzag_pivots
 from .structure import detect_bos, detect_choch, get_key_levels, update_structure_state

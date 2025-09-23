@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from ..models import Candle
-from ..types import Pivot, PivotMethod, SwingType
+from ..smc_types import Pivot, PivotMethod, SwingType
 
 
 def detect_n_bar_pivots(candles: list[Candle], n: int = 3) -> list[Pivot]:

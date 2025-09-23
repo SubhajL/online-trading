@@ -5,7 +5,7 @@ from typing import Any
 
 from ..bus import get_event_bus
 from ..models import BaseEvent, EventType
-from ..types import SMCEvent, StructureState, Zone
+from ..smc_types import SMCEvent, StructureState, Zone
 
 
 def create_smc_event(

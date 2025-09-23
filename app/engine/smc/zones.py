@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from ..models import Candle, TimeFrame
-from ..types import SMCEvent, SMCEventKind, Zone, ZoneSide
+from ..smc_types import SMCEvent, SMCEventKind, Zone, ZoneSide
 
 
 def detect_fair_value_gap(

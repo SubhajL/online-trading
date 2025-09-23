@@ -12,7 +12,7 @@ from app.engine.smc.structure import (
     get_key_levels,
     update_structure_state,
 )
-from app.engine.types import Pivot, StructureState, StructureTracker, SMCEventKind
+from app.engine.smc_types import Pivot, StructureState, StructureTracker, SMCEventKind
 
 
 def create_pivot(price: Decimal, is_high: bool, bar_index: int) -> Pivot:

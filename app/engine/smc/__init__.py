@@ -21,6 +21,19 @@ from .pivots import (
 from .structure import detect_bos, detect_choch, get_key_levels, update_structure_state
 from .zones import detect_fair_value_gap, detect_order_block, expire_old_zones, zone_to_dict
 
+# Import types for easier access
+from ..smc_types import (
+    PivotMethod,
+    StructureState,
+    SMCEventKind,
+    SwingType,
+    ZoneSide,
+    Pivot,
+    SMCEvent,
+    Zone,
+    StructureTracker,
+)
+
 # Legacy imports (kept for backwards compatibility)
 from .pivot_detector import PivotDetector
 from .smc_service import SMCService

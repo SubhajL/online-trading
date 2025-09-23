@@ -17,7 +17,7 @@ from app.engine.smc.pivots import (
     detect_n_bar_pivots,
     detect_zigzag_pivots,
 )
-from app.engine.types import Pivot, SwingType
+from app.engine.smc_types import Pivot, SwingType
 
 
 def create_candle(

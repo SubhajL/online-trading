@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from ..smc.pivots import classify_pivot_relationship
-from ..types import (
+from ..smc_types import (
     Pivot,
     SMCEvent,
     SMCEventKind,

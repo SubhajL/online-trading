@@ -15,7 +15,7 @@ from app.engine.smc.structure import (
     get_key_levels,
     update_structure_state,
 )
-from app.engine.types import (
+from app.engine.smc_types import (
     Pivot,
     SMCEventKind,
     StructureState,

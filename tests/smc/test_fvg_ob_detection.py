@@ -13,7 +13,7 @@ from app.engine.smc.zones import (
     expire_old_zones,
     zone_to_dict,
 )
-from app.engine.types import SMCEvent, SMCEventKind, Zone, ZoneSide
+from app.engine.smc_types import SMCEvent, SMCEventKind, Zone, ZoneSide
 
 
 def create_candle(
