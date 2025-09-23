@@ -1,4 +1,5 @@
-import { test, expect } from '../fixtures'
+import { test } from '../fixtures'
+import { expect } from '@playwright/test'
 
 test.describe('Trading Flow', () => {
   test.beforeEach(async ({ tradingPage }) => {
@@ -23,10 +24,10 @@ test.describe('Trading Flow', () => {
     await tradingPage.waitForOrderExecution()
 
     // Verify order appears in history
-    const orders = await tradingPage.orderHistory.orders.all()
-    expect(orders.length).toBeGreaterThan(0)
+    const orderCount = await tradingPage.orderHistory.orders.count()
+    expect(orderCount).toBeGreaterThan(0)
 
-    const latestOrder = orders[0]
+    const latestOrder = tradingPage.orderHistory.orders.nth(0)
     await expect(latestOrder).toHaveText(/BTCUSDT/)
     await expect(latestOrder).toHaveText(/BUY/)
     await expect(latestOrder).toHaveText(/MARKET/)

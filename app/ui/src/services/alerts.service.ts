@@ -1,5 +1,5 @@
-import { apiClient } from './api.client'
-import { websocketService } from './websocket.service'
+import { apiClient } from './api'
+import { websocketService } from './websocket'
 import type { Alert, AlertId, AlertFilters, AlertStats } from '@/types/alerts'
 
 export type AlertsResponse = {
@@ -26,23 +26,19 @@ class AlertsService {
       ...filters,
     }
 
-    const response = await apiClient.get<AlertsResponse>('/api/alerts', { params })
-    return response.data
+    return await apiClient.get<AlertsResponse>('/api/alerts', { params })
   }
 
   async getAlert(id: AlertId): Promise<Alert> {
-    const response = await apiClient.get<Alert>(`/api/alerts/${id}`)
-    return response.data
+    return await apiClient.get<Alert>(`/api/alerts/${id}`)
   }
 
   async markAsRead(id: AlertId): Promise<Alert> {
-    const response = await apiClient.put<Alert>(`/api/alerts/${id}/read`)
-    return response.data
+    return await apiClient.put<Alert>(`/api/alerts/${id}/read`)
   }
 
   async markAllAsRead(): Promise<{ updated: number }> {
-    const response = await apiClient.put<{ updated: number }>('/api/alerts/read-all')
-    return response.data
+    return await apiClient.put<{ updated: number }>('/api/alerts/read-all')
   }
 
   async deleteAlert(id: AlertId): Promise<void> {
@@ -50,29 +46,27 @@ class AlertsService {
   }
 
   async getStats(): Promise<AlertStats> {
-    const response = await apiClient.get<AlertStats>('/api/alerts/stats')
-    return response.data
+    return await apiClient.get<AlertStats>('/api/alerts/stats')
   }
 
   async getUnreadCount(): Promise<number> {
     const response = await apiClient.get<{ count: number }>('/api/alerts/unread-count')
-    return response.data.count
+    return response.count
   }
 
   subscribeToAlerts(callback: (alert: Alert) => void): () => void {
-    websocketService.emit('alerts:subscribe')
-    return websocketService.on('alert.new', callback)
+    websocketService.emit('alerts:subscribe', {})
+    return websocketService.subscribe('alert.new', callback)
   }
 
   unsubscribeFromAlerts(): void {
-    websocketService.emit('alerts:unsubscribe')
+    websocketService.emit('alerts:unsubscribe', {})
   }
 
   async searchAlerts(query: string, limit = 50): Promise<AlertSearchResponse> {
-    const response = await apiClient.get<AlertSearchResponse>('/api/alerts/search', {
+    return await apiClient.get<AlertSearchResponse>('/api/alerts/search', {
       params: { q: query, limit },
     })
-    return response.data
   }
 
   async exportAlerts(
@@ -84,11 +78,9 @@ class AlertsService {
       ...filters,
     }
 
-    const response = await apiClient.get<Blob>('/api/alerts/export', {
-      params,
-      responseType: 'blob',
-    })
-    return response.data
+    // Note: responseType is not supported in current apiClient
+    // This would need special handling for blob responses
+    return await apiClient.get<Blob>('/api/alerts/export', { params })
   }
 }
 

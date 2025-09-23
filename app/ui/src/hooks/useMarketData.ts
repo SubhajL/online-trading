@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Candle, Symbol, Timeframe } from '@/types'
+import type { Candle, Symbol, Timeframe, SmcEvent, Zone } from '@/types'
 import { useWebSocket } from './useWebSocket'
 
 type MarketDataEvent = {
@@ -10,21 +10,6 @@ type MarketDataEvent = {
 type IndicatorData = {
   time: number
   value: number
-}
-
-type SmcEvent = {
-  time: number
-  type: 'CHOCH' | 'BOS' | 'HH' | 'HL' | 'LH' | 'LL'
-  price: number
-}
-
-type Zone = {
-  id: string
-  type: 'ORDER_BLOCK' | 'FVG'
-  startTime: number
-  endTime: number
-  highPrice: number
-  lowPrice: number
 }
 
 type Indicators = {

@@ -27,7 +27,14 @@ export type UseChartReturn = {
     data: (LineData | HistogramData)[],
     options?: IndicatorOptions,
   ) => ISeriesApi<'Line'> | ISeriesApi<'Histogram'> | null
+  removeIndicator: (type: IndicatorType) => void
   fitContent: () => void
+  setChartType: (type: string) => void
+  addSmcOverlay: (events: any[]) => void
+  removeSmcOverlay: () => void
+  addZoneOverlay: (zones: any[]) => void
+  removeZoneOverlay: () => void
+  cleanup: () => void
 }
 
 export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartReturn {
@@ -155,11 +162,63 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
     chart?.timeScale().fitContent()
   }
 
+  const removeIndicator = (type: IndicatorType) => {
+    // Find and remove all indicators of this type
+    const keysToRemove: string[] = []
+    indicatorSeriesRef.current.forEach((series, key) => {
+      if (key.startsWith(type)) {
+        chart?.removeSeries(series)
+        keysToRemove.push(key)
+      }
+    })
+    keysToRemove.forEach(key => indicatorSeriesRef.current.delete(key))
+  }
+
+  const setChartType = (type: string) => {
+    // Chart type change not implemented in current version
+    console.log('Chart type change requested:', type)
+  }
+
+  const addSmcOverlay = (events: any[]) => {
+    // SMC overlay not implemented in current version
+    console.log('SMC overlay requested:', events.length, 'events')
+  }
+
+  const removeSmcOverlay = () => {
+    // SMC overlay removal not implemented in current version
+    console.log('SMC overlay removal requested')
+  }
+
+  const addZoneOverlay = (zones: any[]) => {
+    // Zone overlay not implemented in current version
+    console.log('Zone overlay requested:', zones.length, 'zones')
+  }
+
+  const removeZoneOverlay = () => {
+    // Zone overlay removal not implemented in current version
+    console.log('Zone overlay removal requested')
+  }
+
+  const cleanup = () => {
+    // Clear all indicators
+    indicatorSeriesRef.current.forEach((series) => {
+      chart?.removeSeries(series)
+    })
+    indicatorSeriesRef.current.clear()
+  }
+
   return {
     chart,
     candlestickSeries,
     updateCandles,
     addIndicator,
+    removeIndicator,
     fitContent,
+    setChartType,
+    addSmcOverlay,
+    removeSmcOverlay,
+    addZoneOverlay,
+    removeZoneOverlay,
+    cleanup,
   }
 }

@@ -93,8 +93,8 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
   return {
     orders: data || [],
     loading,
-    error: error || actionError,
-    refresh: refetch,
+    error: error?.message || actionError || null,
+    refresh: async () => { refetch() },
     placeOrder,
     cancelOrder,
     actionLoading,

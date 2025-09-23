@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import React from 'react'
 import { TradingProvider, useTradingContext } from './TradingContext'
+import { createMockBalance } from '@/test-utils/mocks'
 import type { Order, Position, Balance, OrderId } from '@/types'
 
 describe('TradingContext', () => {
@@ -134,12 +135,12 @@ describe('TradingContext', () => {
     const { result } = renderHook(() => useTradingContext(), { wrapper })
 
     const newBalances: Balance[] = [
-      {
+      createMockBalance({
         asset: 'USDT',
         free: 10000,
         locked: 500,
         venue: 'SPOT',
-      },
+      }),
     ]
 
     act(() => {

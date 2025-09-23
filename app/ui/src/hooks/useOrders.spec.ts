@@ -330,8 +330,8 @@ describe('useOrders', () => {
       const secondPageOrders = [...result.current.orders]
 
       // Verify pagination worked by checking IDs don't overlap
-      const firstPageIds = firstPageOrders.map(o => o.id)
-      const secondPageIds = secondPageOrders.map(o => o.id)
+      const firstPageIds = firstPageOrders.map(o => o.orderId)
+      const secondPageIds = secondPageOrders.map(o => o.orderId)
 
       secondPageIds.forEach(id => {
         expect(firstPageIds).not.toContain(id)

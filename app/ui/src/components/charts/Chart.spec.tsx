@@ -42,6 +42,8 @@ describe('Chart', () => {
   ]
 
   const mockUseChart = {
+    chart: null,
+    candlestickSeries: null,
     updateCandles: vi.fn(),
     addIndicator: vi.fn(),
     removeIndicator: vi.fn(),

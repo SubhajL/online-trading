@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AlertsHistory } from './AlertsHistory'
+import { createMockAlert } from '@/test-utils/mocks'
 import type { Alert } from '@/types'
 
 // Mock the alerts service
@@ -266,9 +267,10 @@ describe('AlertsHistory', () => {
 
   describe('pagination', () => {
     it('should show pagination controls', async () => {
-      const mockManyAlerts = Array.from({ length: 25 }, (_, i) => ({
-        ...mockAlerts[0],
+      const mockManyAlerts = Array.from({ length: 25 }, (_, i) => createMockAlert({
         id: `alert-${i + 1}`,
+        symbol: 'BTCUSDT',
+        venue: 'SPOT',
       }))
 
       vi.mocked(alertsService.getAlerts).mockResolvedValue({ alerts: mockManyAlerts })
@@ -281,10 +283,11 @@ describe('AlertsHistory', () => {
     })
 
     it('should navigate between pages', async () => {
-      const mockManyAlerts = Array.from({ length: 25 }, (_, i) => ({
-        ...mockAlerts[0],
+      const mockManyAlerts = Array.from({ length: 25 }, (_, i) => createMockAlert({
         id: `alert-${i + 1}`,
         title: `Alert ${i + 1}`,
+        symbol: 'BTCUSDT',
+        venue: 'SPOT',
       }))
 
       vi.mocked(alertsService.getAlerts).mockResolvedValue({ alerts: mockManyAlerts })

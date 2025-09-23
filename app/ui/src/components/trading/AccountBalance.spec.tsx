@@ -1,28 +1,29 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
 import { AccountBalance } from './AccountBalance'
+import { createMockBalance } from '@/test-utils/mocks'
 import type { Balance } from '@/types'
 
 describe('AccountBalance', () => {
   const mockBalances: Balance[] = [
-    {
+    createMockBalance({
       asset: 'USDT',
       free: 10000,
       locked: 500,
       venue: 'SPOT',
-    },
-    {
+    }),
+    createMockBalance({
       asset: 'BTC',
       free: 0.5,
       locked: 0.1,
       venue: 'SPOT',
-    },
-    {
+    }),
+    createMockBalance({
       asset: 'USDT',
       free: 5000,
       locked: 1000,
       venue: 'USD_M',
-    },
+    }),
   ]
 
   it('renders account balance', () => {
@@ -56,12 +57,12 @@ describe('AccountBalance', () => {
   })
 
   it('calculates total correctly', () => {
-    const balance: Balance = {
+    const balance: Balance = createMockBalance({
       asset: 'USDT',
       free: 1000.5,
       locked: 500.25,
       venue: 'SPOT',
-    }
+    })
     render(<AccountBalance balances={[balance]} />)
 
     expect(screen.getByText('1,000.5')).toBeInTheDocument() // free
@@ -92,12 +93,12 @@ describe('AccountBalance', () => {
   })
 
   it('formats decimal numbers correctly', () => {
-    const btcBalance: Balance = {
+    const btcBalance: Balance = createMockBalance({
       asset: 'BTC',
       free: 0.12345678,
       locked: 0.00123456,
       venue: 'SPOT',
-    }
+    })
     render(<AccountBalance balances={[btcBalance]} />)
 
     expect(screen.getByText('0.12345678')).toBeInTheDocument()
@@ -122,25 +123,25 @@ describe('AccountBalance', () => {
   })
 
   it('handles zero balances', () => {
-    const zeroBalance: Balance = {
+    const zeroBalance: Balance = createMockBalance({
       asset: 'ETH',
       free: 0,
       locked: 0,
       venue: 'SPOT',
-    }
+    })
     render(<AccountBalance balances={[zeroBalance]} />)
 
     expect(screen.getAllByText('0')).toHaveLength(3) // free, locked, total
   })
 
   it('displays USD equivalent when provided', () => {
-    const balanceWithUsd: Balance = {
+    const balanceWithUsd: Balance = createMockBalance({
       asset: 'BTC',
       free: 1,
       locked: 0,
       venue: 'SPOT',
       usdValue: 42000,
-    }
+    })
     render(<AccountBalance balances={[balanceWithUsd]} />)
 
     // USD value appears in both the row and total
@@ -150,20 +151,20 @@ describe('AccountBalance', () => {
 
   it('shows total USD value', () => {
     const balancesWithUsd: Balance[] = [
-      {
+      createMockBalance({
         asset: 'BTC',
         free: 1,
         locked: 0,
         venue: 'SPOT',
         usdValue: 42000,
-      },
-      {
+      }),
+      createMockBalance({
         asset: 'USDT',
         free: 1000,
         locked: 0,
         venue: 'SPOT',
         usdValue: 1000,
-      },
+      }),
     ]
     render(<AccountBalance balances={balancesWithUsd} />)
 

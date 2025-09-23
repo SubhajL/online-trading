@@ -19,6 +19,7 @@ type DashboardProps = {
   autoTradingEnabled?: boolean
   onSubmitOrder?: (order: OrderFormValues) => void
   onToggleAutoTrading?: (enabled: boolean) => void
+  onCancelOrder?: (order: Order) => void
   className?: string
 }
 
@@ -31,6 +32,7 @@ export function Dashboard({
   autoTradingEnabled = false,
   onSubmitOrder,
   onToggleAutoTrading,
+  onCancelOrder = () => {},
   className = '',
 }: DashboardProps) {
   // Calculate metrics
@@ -211,7 +213,7 @@ export function Dashboard({
         </div>
 
         <div className="history-container">
-          <OrderHistory orders={orders} loading={loading} />
+          <OrderHistory orders={orders} loading={loading} onCancel={onCancelOrder} />
         </div>
       </div>
     </div>
