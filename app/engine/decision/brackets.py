@@ -25,7 +25,9 @@ class ATRTrailParams(TypedDict):
 
 
 def calculate_risk_reward_levels(
-    entry_price: Decimal, stop_loss: Decimal, is_long: bool,
+    entry_price: Decimal,
+    stop_loss: Decimal,
+    is_long: bool,
 ) -> RRLevels:
     """Calculate TP levels at 1.5R, 2R, 3R
 
@@ -55,7 +57,8 @@ def calculate_risk_reward_levels(
 
 
 def split_position_for_targets(
-    total_size: Decimal, step_size: Decimal | None = None,
+    total_size: Decimal,
+    step_size: Decimal | None = None,
 ) -> TPSplits:
     """Split position into 40%/30%/30% for TP1/TP2/TP3
 
@@ -174,7 +177,10 @@ def create_bracket_orders(
 
 
 def calculate_breakeven_adjustment(
-    entry_price: Decimal, position_size: Decimal, is_long: bool, fee_rate: Decimal,
+    entry_price: Decimal,
+    position_size: Decimal,
+    is_long: bool,
+    fee_rate: Decimal,
 ) -> Decimal:
     """Calculate BE level after TP1 hit including fees
 

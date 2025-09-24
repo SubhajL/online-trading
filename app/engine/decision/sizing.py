@@ -71,7 +71,8 @@ def apply_leverage_constraints(
 
 
 def check_concurrent_positions(
-    current_positions: list[str], max_concurrent: int,
+    current_positions: list[str],
+    max_concurrent: int,
 ) -> bool:
     """Check if new position is allowed based on concurrent limits
 

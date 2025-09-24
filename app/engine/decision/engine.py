@@ -119,7 +119,9 @@ def apply_trading_guards(
 
 
 def evaluate_current_positions(
-    current_positions: list[dict], new_signal: dict, max_concurrent: int,
+    current_positions: list[dict],
+    new_signal: dict,
+    max_concurrent: int,
 ) -> bool | dict:
     """Check existing positions to avoid overexposure
 
