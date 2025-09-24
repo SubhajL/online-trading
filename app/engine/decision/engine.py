@@ -1,6 +1,6 @@
 """Decision engine with signal fusion and guards integration"""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime  # type: ignore[attr-defined]
 from decimal import Decimal
 import uuid
 
