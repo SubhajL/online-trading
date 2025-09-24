@@ -276,6 +276,51 @@ decision:
   use_reduce_only_tp: true
   use_stop_market_sl: true
 
+  # Risk Management
+  risk_per_trade: 0.005  # 0.5% per trade
+  max_daily_drawdown: 0.03  # 3% daily DD limit
+  max_concurrent_positions: 3
+
+  # Position Sizing
+  use_fixed_fractional: true
+  min_position_value: 10.0  # Minimum $10 position
+
+  # Bracket Orders
+  bracket_orders:
+    # Take Profit Ladder
+    tp1_rr_ratio: 1.5  # 1.5R
+    tp2_rr_ratio: 2.0  # 2R
+    tp3_rr_ratio: 3.0  # 3R
+
+    # Position splits for TPs
+    tp1_size_pct: 0.4  # 40%
+    tp2_size_pct: 0.3  # 30%
+    tp3_size_pct: 0.3  # 30%
+
+    # Breakeven management
+    move_to_breakeven_after_tp1: true
+    breakeven_offset_pct: 0.001  # 0.1% to cover fees
+
+    # Trailing stop (optional)
+    enable_atr_trail: false
+    atr_trail_multiplier: 2.0
+    atr_trail_activation: "TP2"  # Activate after TP2 hit
+
+  # Trading Guards
+  guards:
+    # News filter
+    block_news_events: true
+    news_buffer_minutes: 60
+
+    # Funding filter (futures)
+    block_funding_window: true
+    funding_buffer_minutes: 30
+    max_funding_rate: 0.01  # 1%
+
+    # Volatility filter
+    block_high_volatility: true
+    volatility_multiplier: 3.0
+
 # Paper Trading Configuration
 paper_trading:
   enabled: true
