@@ -14,7 +14,6 @@ import logging
 from typing import Any
 
 
-
 import numpy as np
 
 from ..models import Candle, TechnicalIndicators
@@ -513,7 +512,9 @@ def calculate_macd(
     signal_period: int = 9,
 ) -> tuple[list[Decimal | None], list[Decimal | None], list[Decimal | None]]:
     """Calculate MACD"""
-    return TechnicalIndicatorsCalculator.macd(values, fast_period, slow_period, signal_period)
+    return TechnicalIndicatorsCalculator.macd(
+        values, fast_period, slow_period, signal_period
+    )
 
 
 def calculate_bollinger_bands(
