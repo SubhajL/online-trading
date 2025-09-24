@@ -33,8 +33,8 @@ from ..models import (
 logger = logging.getLogger(__name__)
 
 # Type aliases
-ZoneId = NewType('ZoneId', str)
-SignalId = NewType('SignalId', str)
+ZoneId = NewType("ZoneId", str)
+SignalId = NewType("SignalId", str)
 
 
 async def analyze_retest(
@@ -58,8 +58,13 @@ async def analyze_retest(
 
     # Find recent BOS events (within 8 bars)
     bar_duration_minutes = {
-        "1m": 1, "5m": 5, "15m": 15, "30m": 30,
-        "1h": 60, "4h": 240, "1d": 1440,
+        "1m": 1,
+        "5m": 5,
+        "15m": 15,
+        "30m": 30,
+        "1h": 60,
+        "4h": 240,
+        "1d": 1440,
     }.get(timeframe, 5)
 
     max_time_diff = bar_duration_minutes * 8 * 60  # 8 bars in seconds
@@ -253,7 +258,7 @@ class RetestEngine:
             subscriber_id="retest_engine_candles",
             handler=self._process_candle_event,
             event_types=[EventType.CANDLE_UPDATE],
-            priority=5
+            priority=5,
         )
         self._subscription_ids.append(sub_id)
 
@@ -261,7 +266,7 @@ class RetestEngine:
             subscriber_id="retest_engine_features",
             handler=self._process_features_event,
             event_types=[EventType.FEATURES_CALCULATED],
-            priority=5
+            priority=5,
         )
         self._subscription_ids.append(sub_id)
 
@@ -269,7 +274,7 @@ class RetestEngine:
             subscriber_id="retest_engine_smc",
             handler=self._process_smc_event,
             event_types=[EventType.SMC_SIGNAL],
-            priority=5
+            priority=5,
         )
         self._subscription_ids.append(sub_id)
 
@@ -327,26 +332,34 @@ class RetestEngine:
                 if key not in self._bos_events:
                     self._bos_events[key] = deque(maxlen=50)
 
-                self._bos_events[key].append({
-                    "timestamp": signal.timestamp,
-                    "type": "BULLISH_BOS" if signal.direction == "BUY" else "BEARISH_BOS",
-                    "level": signal.entry_price,
-                    "strength": signal.confidence * 10,  # Convert to 1-10 scale
-                })
+                self._bos_events[key].append(
+                    {
+                        "timestamp": signal.timestamp,
+                        "type": (
+                            "BULLISH_BOS"
+                            if signal.direction == "BUY"
+                            else "BEARISH_BOS"
+                        ),
+                        "level": signal.entry_price,
+                        "strength": signal.confidence * 10,  # Convert to 1-10 scale
+                    }
+                )
 
             # Store zones
             if signal.zone:
                 if key not in self._zones:
                     self._zones[key] = []
 
-                self._zones[key].append({
-                    "zone_id": str(signal.zone.zone_id),
-                    "zone_type": signal.zone.zone_type.value,
-                    "top_price": signal.zone.top_price,
-                    "bottom_price": signal.zone.bottom_price,
-                    "created_at": signal.zone.created_at,
-                    "strength": signal.zone.strength,
-                })
+                self._zones[key].append(
+                    {
+                        "zone_id": str(signal.zone.zone_id),
+                        "zone_type": signal.zone.zone_type.value,
+                        "top_price": signal.zone.top_price,
+                        "bottom_price": signal.zone.bottom_price,
+                        "created_at": signal.zone.created_at,
+                        "strength": signal.zone.strength,
+                    }
+                )
 
         except Exception as e:
             logger.error(f"Error processing SMC event: {e}", exc_info=True)
@@ -376,7 +389,7 @@ class RetestEngine:
                 "macd_hist": features.macd_histogram or Decimal("0"),
                 "macd_hist_prev": Decimal("0"),  # Would need to track previous
                 "rsi": features.rsi_14 or Decimal("50"),
-            }
+            },
         )
 
         if signal_data:
@@ -415,7 +428,9 @@ class RetestEngine:
             )
 
             await self.event_bus.publish(event, priority=8)
-            logger.info(f"Published retest signal for {signal.symbol} at {signal.level_price}")
+            logger.info(
+                f"Published retest signal for {signal.symbol} at {signal.level_price}"
+            )
 
         except Exception as e:
             logger.error(f"Error emitting signal: {e}", exc_info=True)

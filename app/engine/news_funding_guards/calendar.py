@@ -62,22 +62,22 @@ def parse_csv_events(file_path: Path) -> list[EconomicEvent]:
         return events
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 # Expected columns: event_type, timestamp, impact, currency
                 event = EconomicEvent(
-                    event_type=row['event_type'],
-                    timestamp=datetime.fromisoformat(row['timestamp']),
-                    impact=row['impact'],
-                    currency=row['currency']
+                    event_type=row["event_type"],
+                    timestamp=datetime.fromisoformat(row["timestamp"]),
+                    impact=row["impact"],
+                    currency=row["currency"],
                 )
 
                 # Optional: override blackout windows
-                if 'blackout_before' in row:
-                    event.blackout_minutes_before = int(row['blackout_before'])
-                if 'blackout_after' in row:
-                    event.blackout_minutes_after = int(row['blackout_after'])
+                if "blackout_before" in row:
+                    event.blackout_minutes_before = int(row["blackout_before"])
+                if "blackout_after" in row:
+                    event.blackout_minutes_after = int(row["blackout_after"])
 
                 events.append(event)
 
@@ -135,19 +135,16 @@ class CalendarManager:
         try:
             if self.source_type == "csv":
                 self._events = await load_calendar_events(
-                    self.csv_path,
-                    source_type="csv"
+                    self.csv_path, source_type="csv"
                 )
             elif self.source_type == "google_sheets":
                 self._events = await load_calendar_events(
-                    self.google_sheets_id,
-                    source_type="google_sheets"
+                    self.google_sheets_id, source_type="google_sheets"
                 )
 
             # Filter for tracked event types
             self._events = [
-                e for e in self._events
-                if e.event_type in self.tracked_events
+                e for e in self._events if e.event_type in self.tracked_events
             ]
 
             # Filter for high impact
@@ -169,7 +166,9 @@ class CalendarManager:
             await self.load_events()
             return
 
-        age_hours = (datetime.now(timezone.utc) - self._last_loaded).total_seconds() / 3600
+        age_hours = (
+            datetime.now(timezone.utc) - self._last_loaded
+        ).total_seconds() / 3600
         if age_hours > max_age_hours:
             await self.load_events()
 
@@ -182,7 +181,8 @@ class CalendarManager:
         cutoff_time = current_time + timedelta(hours=hours_ahead)
 
         upcoming = [
-            event for event in self._events
+            event
+            for event in self._events
             if current_time <= event.timestamp <= cutoff_time
         ]
 

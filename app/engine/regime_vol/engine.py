@@ -53,18 +53,24 @@ def classify_regime(
     shock_thresh = config["shock_thresholds"]
 
     # Check for SHOCK first (highest priority)
-    if (atr_percentile >= shock_thresh["atr_percentile_min"] and
-        bb_width_percentile >= shock_thresh["bb_width_min"]):
+    if (
+        atr_percentile >= shock_thresh["atr_percentile_min"]
+        and bb_width_percentile >= shock_thresh["bb_width_min"]
+    ):
         return MarketRegime.SHOCK
 
     # Check for TREND
-    if (adx_percentile >= trend_thresh["adx_min"] and
-        bb_width_percentile <= trend_thresh["bb_width_max"]):
+    if (
+        adx_percentile >= trend_thresh["adx_min"]
+        and bb_width_percentile <= trend_thresh["bb_width_max"]
+    ):
         return MarketRegime.TREND
 
     # Check for RANGE
-    if (adx_percentile <= range_thresh["adx_max"] and
-        atr_percentile <= range_thresh["atr_percentile_max"]):
+    if (
+        adx_percentile <= range_thresh["adx_max"]
+        and atr_percentile <= range_thresh["atr_percentile_max"]
+    ):
         return MarketRegime.RANGE
 
     # Default to RANGE for ambiguous cases
@@ -83,9 +89,14 @@ def calculate_volatility_metrics(
     atr_values = calculate_atr_series(candles, 14)
     if atr_values:
         # Calculate percentile based on historical distribution
-        atr_normalized = [float(atr / candles[i]["close"]) for i, atr in enumerate(atr_values[-lookback_period:])]
+        atr_normalized = [
+            float(atr / candles[i]["close"])
+            for i, atr in enumerate(atr_values[-lookback_period:])
+        ]
         current_atr_norm = atr_normalized[-1] if atr_normalized else 0
-        atr_percentile = Decimal(str(calculate_percentile(atr_normalized, current_atr_norm)))
+        atr_percentile = Decimal(
+            str(calculate_percentile(atr_normalized, current_atr_norm))
+        )
     else:
         atr_percentile = Decimal("50")
 
@@ -94,7 +105,9 @@ def calculate_volatility_metrics(
     if bb_width_values:
         bb_width_normalized = [float(w) for w in bb_width_values[-lookback_period:]]
         current_bb_width = bb_width_normalized[-1] if bb_width_normalized else 0
-        bb_width_percentile = Decimal(str(calculate_percentile(bb_width_normalized, current_bb_width)))
+        bb_width_percentile = Decimal(
+            str(calculate_percentile(bb_width_normalized, current_bb_width))
+        )
     else:
         bb_width_percentile = Decimal("50")
 
@@ -125,13 +138,9 @@ def calculate_atr_series(candles: list[Any], period: int = 14) -> list[Decimal]:
     for i in range(1, len(candles)):
         high = candles[i]["high"]
         low = candles[i]["low"]
-        prev_close = candles[i-1]["close"]
+        prev_close = candles[i - 1]["close"]
 
-        tr = max(
-            high - low,
-            abs(high - prev_close),
-            abs(low - prev_close)
-        )
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
         tr_values.append(tr)
 
         if len(tr_values) >= period:
@@ -150,7 +159,7 @@ def calculate_bb_width_series(candles: list[Any], period: int = 20) -> list[Deci
     closes = [c["close"] for c in candles]
 
     for i in range(period - 1, len(candles)):
-        window = closes[i - period + 1:i + 1]
+        window = closes[i - period + 1 : i + 1]
         mean = sum(window) / len(window)
         variance = sum((x - mean) ** 2 for x in window) / len(window)
         std_dev = variance ** Decimal("0.5")
@@ -169,11 +178,14 @@ def calculate_adx_series(candles: list[Any], period: int = 14) -> list[Decimal]:
 
     # Simplified ADX based on price volatility
     for i in range(period, len(candles)):
-        window = candles[i - period + 1:i + 1]
+        window = candles[i - period + 1 : i + 1]
         price_changes = []
 
         for j in range(1, len(window)):
-            change = abs(window[j]["close"] - window[j-1]["close"]) / window[j-1]["close"]
+            change = (
+                abs(window[j]["close"] - window[j - 1]["close"])
+                / window[j - 1]["close"]
+            )
             price_changes.append(float(change))
 
         if price_changes:
@@ -202,18 +214,24 @@ def determine_regime(
 ) -> MarketRegime:
     """Logic to map percentiles to regime."""
     # Check SHOCK conditions first
-    if (metrics["atr_percentile"] >= thresholds["shock"]["atr_min"] and
-        metrics["bb_width_percentile"] >= thresholds["shock"]["bb_width_min"]):
+    if (
+        metrics["atr_percentile"] >= thresholds["shock"]["atr_min"]
+        and metrics["bb_width_percentile"] >= thresholds["shock"]["bb_width_min"]
+    ):
         return MarketRegime.SHOCK
 
     # Check TREND conditions
-    if (metrics["adx_percentile"] >= thresholds["trend"]["adx_min"] and
-        metrics["bb_width_percentile"] <= thresholds["trend"]["bb_width_max"]):
+    if (
+        metrics["adx_percentile"] >= thresholds["trend"]["adx_min"]
+        and metrics["bb_width_percentile"] <= thresholds["trend"]["bb_width_max"]
+    ):
         return MarketRegime.TREND
 
     # Check RANGE conditions
-    if (metrics["adx_percentile"] <= thresholds["range"]["adx_max"] and
-        metrics["atr_percentile"] <= thresholds["range"]["atr_max"]):
+    if (
+        metrics["adx_percentile"] <= thresholds["range"]["adx_max"]
+        and metrics["atr_percentile"] <= thresholds["range"]["atr_max"]
+    ):
         return MarketRegime.RANGE
 
     # Default to RANGE
@@ -240,8 +258,8 @@ async def emit_regime_event(
                     "atr_percentile": str(metrics["atr_percentile"]),
                     "bb_width_percentile": str(metrics["bb_width_percentile"]),
                     "adx_percentile": str(metrics["adx_percentile"]),
-                }
-            }
+                },
+            },
         )
 
         await event_bus.publish(event, priority=7)
@@ -289,7 +307,7 @@ class RegimeVolEngine:
             subscriber_id="regime_engine_features",
             handler=self._process_features_event,
             event_types=[EventType.FEATURES_CALCULATED],
-            priority=4
+            priority=4,
         )
         self._subscription_ids.append(sub_id)
 
@@ -327,8 +345,7 @@ class RegimeVolEngine:
 
             # Calculate percentiles
             metrics = await self._calculate_percentiles(
-                features.symbol,
-                features.timeframe.value
+                features.symbol, features.timeframe.value
             )
 
             # Classify regime
@@ -336,7 +353,7 @@ class RegimeVolEngine:
                 atr_percentile=metrics["atr_percentile"],
                 bb_width_percentile=metrics["bb_width_percentile"],
                 adx_percentile=metrics["adx_percentile"],
-                config=self.config
+                config=self.config,
             )
 
             # Cache regime
@@ -353,7 +370,7 @@ class RegimeVolEngine:
                 timeframe=features.timeframe.value,
                 regime=regime,
                 metrics=metrics,
-                event_bus=self.event_bus
+                event_bus=self.event_bus,
             )
 
         except Exception as e:
@@ -388,8 +405,7 @@ class RegimeVolEngine:
         ]
 
         return calculate_volatility_metrics(
-            candles=candle_dicts,
-            lookback_period=self.lookback_periods
+            candles=candle_dicts, lookback_period=self.lookback_periods
         )
 
     def get_current_regime(self, symbol: str, timeframe: str) -> MarketRegime | None:

@@ -137,7 +137,10 @@ class FundingMonitor:
             # Check funding rate threshold
             if not is_funding_safe(funding_data, position_side, self.max_payment_rate):
                 payment_rate = funding_data.get_predicted_payment_rate(position_side)
-                return (False, f"Predicted funding payment too high: {payment_rate:.4%}")
+                return (
+                    False,
+                    f"Predicted funding payment too high: {payment_rate:.4%}",
+                )
 
             # Check if too close to funding time
             hours_until = calculate_hours_until_funding(funding_data.next_funding_time)
@@ -195,16 +198,24 @@ class FundingMonitor:
             funding_data = await self.get_current_funding(symbol)
 
             if funding_data:
-                hours_until = calculate_hours_until_funding(funding_data.next_funding_time)
+                hours_until = calculate_hours_until_funding(
+                    funding_data.next_funding_time
+                )
 
                 results[symbol] = {
                     "current_rate": float(funding_data.current_rate),
                     "predicted_rate": float(funding_data.predicted_rate),
                     "next_funding_time": funding_data.next_funding_time.isoformat(),
                     "hours_until_funding": hours_until,
-                    "long_payment": float(funding_data.get_predicted_payment_rate("LONG")),
-                    "short_payment": float(funding_data.get_predicted_payment_rate("SHORT")),
-                    "near_funding": should_block_near_funding(hours_until, self.blackout_hours_before),
+                    "long_payment": float(
+                        funding_data.get_predicted_payment_rate("LONG")
+                    ),
+                    "short_payment": float(
+                        funding_data.get_predicted_payment_rate("SHORT")
+                    ),
+                    "near_funding": should_block_near_funding(
+                        hours_until, self.blackout_hours_before
+                    ),
                 }
             else:
                 results[symbol] = {"error": "No funding data available"}
