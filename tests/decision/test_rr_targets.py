@@ -120,7 +120,7 @@ def test_create_bracket_orders_for_futures_short():
 
     # Futures TPs should have reduceOnly
     for tp in orders['take_profits']:
-        assert tp['reduceOnly'] is True
+        assert tp['reduceOnly'] == "true"  # API expects string
 
 
 def test_calculate_breakeven_includes_fees():
