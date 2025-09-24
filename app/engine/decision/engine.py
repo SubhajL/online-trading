@@ -1,9 +1,9 @@
 """Decision engine with signal fusion and guards integration"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-import uuid
 from typing import Any
+import uuid
 
 from .brackets import calculate_risk_reward_levels
 from .sizing import (
@@ -19,7 +19,7 @@ HIGH_CONFIDENCE_THRESHOLD = Decimal("0.8")  # High confidence threshold
 
 
 def fuse_signals(
-    signals_raw: list[dict[str, Any]], regime: dict[str, Any]
+    signals_raw: list[dict[str, Any]], regime: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Combine signals with regime context and confidence scoring
 
@@ -86,7 +86,7 @@ def apply_trading_guards(
     Returns:
         Filtered signals or dict with blocked_reasons if all blocked
     """
-    current_time = datetime.now(timezone.utc)
+    current_time = datetime.now(UTC)
     filtered = []
     blocked_reasons = []
 
