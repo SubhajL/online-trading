@@ -12,7 +12,6 @@ import logging
 from typing import Any
 
 
-
 from ..bus import get_event_bus
 from ..models import (
     BaseEvent,

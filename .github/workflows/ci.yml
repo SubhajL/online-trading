@@ -574,9 +574,34 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Run retest and guards tests
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('app/engine/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
         run: |
-          python -m pytest tests/retest tests/guards -q || echo "Tests pending implementation"
+          python -m pip install --upgrade pip
+          pip install -r app/engine/requirements.txt
+          pip install -r app/engine/requirements-dev.txt
+
+      - name: Run retest tests
+        run: |
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
+          python -m pytest tests/retest -v --no-cov
+
+      - name: Run regime volatility tests
+        run: |
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
+          python -m pytest tests/regime_vol -v --no-cov
+
+      - name: Run news and funding guards tests
+        run: |
+          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
+          python -m pytest tests/news_funding_guards -v --no-cov
 
   # Wave C: Decision engine tests
   decision-tests:
