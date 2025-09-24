@@ -574,9 +574,22 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Run retest and guards tests
+      - name: Install test dependencies
         run: |
-          python -m pytest tests/retest tests/guards -q || echo "Tests pending implementation"
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov pytest-asyncio
+
+      - name: Run retest tests
+        run: |
+          python -m pytest tests/retest -v --no-cov
+
+      - name: Run regime volatility tests
+        run: |
+          python -m pytest tests/regime_vol -v --no-cov
+
+      - name: Run news and funding guards tests
+        run: |
+          python -m pytest tests/news_funding_guards -v --no-cov
 
   # Wave C: Decision engine tests
   decision-tests:

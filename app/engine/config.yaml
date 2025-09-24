@@ -187,6 +187,16 @@ retest:
     - rsi_bounce
   min_risk_reward_ratio: 1.5
 
+  # RSI bounds for bounce confirmation
+  rsi_bounce_range_long: [40, 55]
+  rsi_bounce_range_short: [45, 60]
+
+  # Stop loss buffer
+  sl_buffer_atr: 0.5
+
+  # Take profit levels (R-multiples)
+  tp_levels: [1.5, 2.0, 3.0]
+
 # Regime and Volatility Configuration
 regime:
   # ADX settings
@@ -201,6 +211,19 @@ regime:
   # Regime classification
   regime_lookback_bars: 50
 
+  # Regime thresholds
+  trend_thresholds:
+    adx_min: 70
+    bb_width_max: 30
+
+  range_thresholds:
+    adx_max: 30
+    atr_percentile_max: 40
+
+  shock_thresholds:
+    atr_percentile_min: 80
+    bb_width_min: 70
+
 # News and Funding Guards Configuration
 guards:
   # News events
@@ -209,10 +232,24 @@ guards:
   news_block_minutes_after: 30
   high_impact_only: true
 
+  # Calendar settings
+  calendar:
+    source_type: csv
+    csv_path: ${NEWS_CALENDAR_CSV:-./data/economic_calendar.csv}
+    google_sheets_id: ${NEWS_CALENDAR_SHEET_ID:-}
+    reload_interval_hours: 24
+    tracked_events: ["CPI", "NFP", "FOMC", "ECB", "BOE"]
+
   # Funding rates (for futures)
   funding_check_enabled: true
   max_funding_rate: 0.001 # 0.1%
   funding_block_minutes_before: 10
+
+  # Funding settings
+  funding:
+    max_payment_rate: 0.0005  # 0.05% threshold
+    blackout_hours_before_funding: 0.5
+    cache_ttl_seconds: 300
 
   # Volatility guards
   volatility_spike_threshold: 3.0 # 3x average
