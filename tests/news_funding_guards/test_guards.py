@@ -3,10 +3,11 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import pytest
+import asyncio
 
 from app.engine.news_funding_guards.calendar import EconomicEvent
 from app.engine.news_funding_guards.funding import FundingRateData, is_funding_safe
-from app.engine.news_funding_guards.guard_api import check_all_guards, GuardStatus
+from app.engine.news_funding_guards.guard_api import check_all_guards
 
 
 def test_news_window_blocking():
@@ -99,7 +100,8 @@ def test_negative_funding_rates():
     ) is True
 
 
-def test_combined_guards():
+@pytest.mark.asyncio
+async def test_combined_guards():
     """Test combined news and funding guard decisions."""
     # Mock calendar manager
     class MockCalendarManager:
@@ -120,7 +122,7 @@ def test_combined_guards():
             return (False, "Funding rate too high")
 
     # Both guards safe
-    status, reason = check_all_guards(
+    status, reason = await check_all_guards(
         symbol="BTCUSDT",
         position_side="LONG",
         calendar_manager=MockCalendarManager(in_blackout=False),
@@ -129,7 +131,7 @@ def test_combined_guards():
     assert status == "SAFE"
 
     # News blackout active
-    status, reason = check_all_guards(
+    status, reason = await check_all_guards(
         symbol="BTCUSDT",
         position_side="LONG",
         calendar_manager=MockCalendarManager(in_blackout=True),
@@ -139,7 +141,7 @@ def test_combined_guards():
     assert "news" in reason.lower()
 
     # Funding rate too high
-    status, reason = check_all_guards(
+    status, reason = await check_all_guards(
         symbol="BTCUSDT",
         position_side="LONG",
         calendar_manager=MockCalendarManager(in_blackout=False),

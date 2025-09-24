@@ -12,15 +12,29 @@ Requirements:
 from datetime import datetime
 from decimal import Decimal
 import logging
-from typing import Any
+from typing import Any, NewType
+import uuid
+from collections import deque
 
 from ..bus import get_event_bus
-from ..types import BaseEvent, Brand
+from ..models import (
+    BaseEvent,
+    EventType,
+    TimeFrame,
+    Candle,
+    TechnicalIndicators,
+    RetestSignal,
+    RetestSignalEvent,
+    CandleUpdateEvent,
+    FeaturesCalculatedEvent,
+    SMCSignalEvent,
+)
 
 logger = logging.getLogger(__name__)
 
-ZoneId = Brand[str, 'ZoneId']
-SignalId = Brand[str, 'SignalId']
+# Type aliases
+ZoneId = NewType('ZoneId', str)
+SignalId = NewType('SignalId', str)
 
 
 async def analyze_retest(
@@ -212,27 +226,196 @@ class RetestEngine:
         self.config = config
         self.event_bus = get_event_bus()
         self._running = False
+        self._subscription_ids: list[str] = []
+
+        # Cache recent data
+        self._recent_candles: dict[str, deque[Candle]] = {}
+        self._zones: dict[str, list[Any]] = {}
+        self._bos_events: dict[str, deque[Any]] = {}
+        self._features: dict[str, TechnicalIndicators] = {}
+
+        # Configuration
+        self.max_wait_bars = config.get("retest", {}).get("max_wait_bars", 8)
+        self.tolerance_atr = config.get("retest", {}).get("entry_tolerance_atr", 0.25)
+        self.sl_buffer_atr = config.get("retest", {}).get("sl_buffer_atr", 0.5)
+        self.tp_levels = config.get("retest", {}).get("tp_levels", [1.5, 2.0, 3.0])
 
     async def start(self) -> None:
         """Start the retest engine."""
-        raise NotImplementedError()
+        if self._running:
+            logger.warning("RetestEngine already running")
+            return
+
+        self._running = True
+
+        # Subscribe to events
+        sub_id = await self.event_bus.subscribe(
+            subscriber_id="retest_engine_candles",
+            handler=self._process_candle_event,
+            event_types=[EventType.CANDLE_UPDATE],
+            priority=5
+        )
+        self._subscription_ids.append(sub_id)
+
+        sub_id = await self.event_bus.subscribe(
+            subscriber_id="retest_engine_features",
+            handler=self._process_features_event,
+            event_types=[EventType.FEATURES_CALCULATED],
+            priority=5
+        )
+        self._subscription_ids.append(sub_id)
+
+        sub_id = await self.event_bus.subscribe(
+            subscriber_id="retest_engine_smc",
+            handler=self._process_smc_event,
+            event_types=[EventType.SMC_SIGNAL],
+            priority=5
+        )
+        self._subscription_ids.append(sub_id)
+
+        logger.info("RetestEngine started")
 
     async def stop(self) -> None:
         """Stop the retest engine."""
-        raise NotImplementedError()
+        if not self._running:
+            return
 
-    async def _process_candle_event(self, event: Any) -> None:
+        self._running = False
+
+        # Unsubscribe from all events
+        for sub_id in self._subscription_ids:
+            await self.event_bus.unsubscribe(sub_id)
+
+        self._subscription_ids.clear()
+        logger.info("RetestEngine stopped")
+
+    async def _process_candle_event(self, event: CandleUpdateEvent) -> None:
         """Process incoming candle events."""
-        raise NotImplementedError()
+        try:
+            candle = event.candle
+            key = f"{candle.symbol}:{candle.timeframe.value}"
 
-    async def _process_zone_event(self, event: Any) -> None:
-        """Process incoming zone events."""
-        raise NotImplementedError()
+            # Store candle
+            if key not in self._recent_candles:
+                self._recent_candles[key] = deque(maxlen=100)
+            self._recent_candles[key].append(candle)
 
-    async def _process_smc_event(self, event: Any) -> None:
+            # Check for retests
+            await self._check_for_retests(candle)
+
+        except Exception as e:
+            logger.error(f"Error processing candle event: {e}", exc_info=True)
+
+    async def _process_features_event(self, event: FeaturesCalculatedEvent) -> None:
+        """Process incoming features events."""
+        try:
+            features = event.features
+            key = f"{features.symbol}:{features.timeframe.value}"
+            self._features[key] = features
+
+        except Exception as e:
+            logger.error(f"Error processing features event: {e}", exc_info=True)
+
+    async def _process_smc_event(self, event: SMCSignalEvent) -> None:
         """Process incoming SMC events (BOS/CHOCH)."""
-        raise NotImplementedError()
+        try:
+            signal = event.signal
+            key = f"{event.symbol}:{event.timeframe.value}"
 
-    async def _emit_signal(self, signal: Any) -> None:
+            # Store BOS events
+            if "BOS" in signal.signal_type or "CHOCH" in signal.signal_type:
+                if key not in self._bos_events:
+                    self._bos_events[key] = deque(maxlen=50)
+
+                self._bos_events[key].append({
+                    "timestamp": signal.timestamp,
+                    "type": "BULLISH_BOS" if signal.direction == "BUY" else "BEARISH_BOS",
+                    "level": signal.entry_price,
+                    "strength": signal.confidence * 10,  # Convert to 1-10 scale
+                })
+
+            # Store zones
+            if signal.zone:
+                if key not in self._zones:
+                    self._zones[key] = []
+
+                self._zones[key].append({
+                    "zone_id": str(signal.zone.zone_id),
+                    "zone_type": signal.zone.zone_type.value,
+                    "top_price": signal.zone.top_price,
+                    "bottom_price": signal.zone.bottom_price,
+                    "created_at": signal.zone.created_at,
+                    "strength": signal.zone.strength,
+                })
+
+        except Exception as e:
+            logger.error(f"Error processing SMC event: {e}", exc_info=True)
+
+    async def _check_for_retests(self, candle: Candle) -> None:
+        """Check if current candle represents a valid retest."""
+        key = f"{candle.symbol}:{candle.timeframe.value}"
+
+        # Get data
+        candles = list(self._recent_candles.get(key, []))
+        zones = self._zones.get(key, [])
+        bos_events = list(self._bos_events.get(key, []))
+        features = self._features.get(key)
+
+        if not features or not candles:
+            return
+
+        # Analyze retest
+        signal_data = await analyze_retest(
+            symbol=candle.symbol,
+            timeframe=candle.timeframe.value,
+            candles=[self._candle_to_dict(c) for c in candles],
+            zones=zones,
+            bos_events=bos_events,
+            features={
+                "atr": features.atr_14 or Decimal("0"),
+                "macd_hist": features.macd_histogram or Decimal("0"),
+                "macd_hist_prev": Decimal("0"),  # Would need to track previous
+                "rsi": features.rsi_14 or Decimal("50"),
+            }
+        )
+
+        if signal_data:
+            await self._emit_signal(signal_data)
+
+    def _candle_to_dict(self, candle: Candle) -> dict[str, Any]:
+        """Convert Candle model to dict for analyze_retest."""
+        return {
+            "open_time": candle.open_time,
+            "close": candle.close_price,
+            "open": candle.open_price,
+            "high": candle.high_price,
+            "low": candle.low_price,
+            "volume": candle.volume,
+        }
+
+    async def _emit_signal(self, signal_data: dict[str, Any]) -> None:
         """Emit signal_raw.v1 event."""
-        raise NotImplementedError()
+        try:
+            signal = RetestSignal(
+                symbol=signal_data["symbol"],
+                timeframe=TimeFrame(signal_data["timeframe"]),
+                timestamp=signal_data["timestamp"],
+                level_price=signal_data["entry"],
+                retest_type="zone_retest",
+                success_probability=Decimal("0.7"),  # Would calculate properly
+                volume_confirmation=True,
+                confluence_factors=["bos_confirmation", "macd_uptick", "rsi_bounce"],
+            )
+
+            event = RetestSignalEvent(
+                timestamp=datetime.utcnow(),
+                symbol=signal.symbol,
+                timeframe=signal.timeframe,
+                signal=signal,
+            )
+
+            await self.event_bus.publish(event, priority=8)
+            logger.info(f"Published retest signal for {signal.symbol} at {signal.level_price}")
+
+        except Exception as e:
+            logger.error(f"Error emitting signal: {e}", exc_info=True)

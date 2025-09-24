@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 import pytest
+import asyncio
 
 from app.engine.retest.engine import (
     analyze_retest,
@@ -118,7 +119,8 @@ def test_entry_level_generation():
     assert levels["tp3"] == levels["entry"] + (risk * Decimal("3"))
 
 
-def test_retest_within_8_bars():
+@pytest.mark.asyncio
+async def test_retest_within_8_bars():
     """Ensure retests are only valid within 8 bars of BOS."""
     bos_events = [
         {
@@ -154,7 +156,7 @@ def test_retest_within_8_bars():
         }
     ]
 
-    result = analyze_retest(
+    result = await analyze_retest(
         symbol="BTCUSDT",
         timeframe="5m",
         candles=recent_candles,
@@ -177,7 +179,7 @@ def test_retest_within_8_bars():
         }
     ]
 
-    result = analyze_retest(
+    result = await analyze_retest(
         symbol="BTCUSDT",
         timeframe="5m",
         candles=old_candles,
