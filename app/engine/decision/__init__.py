@@ -1,11 +1,20 @@
 """
 Decision Engine Module
 
-Provides the main trading decision engine with risk management,
-signal processing, and order execution coordination.
+Provides trading decision engine with risk management,
+signal fusion, and bracket order construction.
 """
 
-from .decision_engine import DecisionEngine
-from .risk_manager import RiskCheckResult, RiskLevel, RiskManager
+from .engine import fuse_signals, apply_trading_guards, generate_decision
+from .sizing import calculate_position_size, check_concurrent_positions
+from .brackets import create_bracket_orders, calculate_risk_reward_levels
 
-__all__ = ["DecisionEngine", "RiskCheckResult", "RiskLevel", "RiskManager"]
+__all__ = [
+    "fuse_signals",
+    "apply_trading_guards",
+    "generate_decision",
+    "calculate_position_size",
+    "check_concurrent_positions",
+    "create_bracket_orders",
+    "calculate_risk_reward_levels",
+]
