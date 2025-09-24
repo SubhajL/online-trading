@@ -1,0 +1,29 @@
+# Code Owners for trading platform
+
+# Global owners
+* @SubhajL
+
+# Engine components
+/app/engine/ @SubhajL
+/app/engine/decision/ @SubhajL
+/app/engine/smc/ @SubhajL
+/app/engine/features/ @SubhajL
+/app/engine/retest/ @SubhajL
+/app/engine/regime_vol/ @SubhajL
+/app/engine/news_funding_guards/ @SubhajL
+
+# Router service
+/app/router/ @SubhajL
+
+# Frontend components
+/app/ui/ @SubhajL
+/app/bff/ @SubhajL
+
+# Infrastructure and configs
+/infra/ @SubhajL
+/.github/ @SubhajL
+/docker-compose.yml @SubhajL
+
+# Documentation
+*.md @SubhajL
+/docs/ @SubhajL
