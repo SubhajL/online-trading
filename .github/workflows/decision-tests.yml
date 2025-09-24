@@ -52,7 +52,7 @@ jobs:
 
     - name: Type check
       run: |
-        mypy decision/ --ignore-missing-imports
+        mypy decision/ --ignore-missing-imports --no-namespace-packages
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
