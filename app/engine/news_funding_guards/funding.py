@@ -78,8 +78,12 @@ def is_funding_safe(
     """Check if predicted funding payment is within acceptable threshold."""
     payment_rate = funding_data.get_predicted_payment_rate(position_side)
 
+    # If we're receiving funding (negative payment), it's always safe
+    if payment_rate < 0:
+        return True
+
     # Check if we would pay more than threshold
-    return abs(payment_rate) <= max_payment_rate
+    return payment_rate <= max_payment_rate
 
 
 def calculate_hours_until_funding(funding_time: datetime) -> float:
