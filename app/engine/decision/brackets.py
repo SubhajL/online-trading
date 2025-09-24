@@ -165,7 +165,7 @@ def create_bracket_orders(  # noqa: PLR0913
         }
 
         if is_futures:
-            tp_order["reduceOnly"] = True
+            tp_order["reduceOnly"] = "true"  # API expects string
 
         take_profits.append(tp_order)
 

@@ -1,6 +1,6 @@
 """Decision engine with signal fusion and guards integration"""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import uuid
 
@@ -83,7 +83,7 @@ def apply_trading_guards(
     Returns:
         Filtered signals or dict with blocked_reasons if all blocked
     """
-    current_time = datetime.now(UTC)
+    current_time = datetime.now(timezone.utc)
     filtered = []
     blocked_reasons = []
 
