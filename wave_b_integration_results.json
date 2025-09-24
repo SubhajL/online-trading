@@ -1,0 +1,35 @@
+{
+  "ingestor": {
+    "file_ingest_service.py": true,
+    "file_binance_ws.py": true,
+    "file_binance_rest.py": true,
+    "file_binance_spot.py": true,
+    "file_binance_usdm.py": true,
+    "main_integration": true,
+    "publishes_events": true
+  },
+  "features": {
+    "file_feature_service.py": true,
+    "file_engine.py": true,
+    "file_indicators.py": true,
+    "subscribes_to_candles": true,
+    "has_indicators": true
+  },
+  "ui_bff": {
+    "bff_file_main.ts": true,
+    "bff_file_app.module.ts": true,
+    "bff_file_trading.controller.ts": true,
+    "bff_file_trading.service.ts": true,
+    "ui_file_useMarketData.ts": true,
+    "ui_file_useOrders.ts": true,
+    "ui_file_api.client.ts": true,
+    "ui_file_websocket.service.ts": true
+  },
+  "integration": {
+    "event_bus_ready": true,
+    "models_defined": true,
+    "config_exists": true,
+    "test_test_event_bus_integration.py": true,
+    "test_test_database_integration.py": true
+  }
+}
