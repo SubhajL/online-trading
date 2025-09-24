@@ -1,7 +1,7 @@
 """Bracket order construction module"""
 
 from decimal import Decimal
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from .sizing import round_to_exchange_precision
 
@@ -95,7 +95,7 @@ def create_bracket_orders(  # noqa: PLR0913
     stop_loss: Decimal,
     position_size: Decimal,
     is_futures: bool,
-) -> dict:
+) -> dict[str, Any]:
     """Generate entry order + SL + multi-TP ladder
 
     Args:

@@ -1,8 +1,9 @@
 """Decision engine with signal fusion and guards integration"""
 
-from datetime import UTC, datetime  # type: ignore[attr-defined]
+from datetime import datetime, timezone
 from decimal import Decimal
 import uuid
+from typing import Any
 
 from .brackets import calculate_risk_reward_levels
 from .sizing import (
@@ -17,7 +18,7 @@ HIGH_FUNDING_RATE_THRESHOLD = Decimal("0.01")  # 1% funding rate threshold
 HIGH_CONFIDENCE_THRESHOLD = Decimal("0.8")  # High confidence threshold
 
 
-def fuse_signals(signals_raw: list[dict], regime: dict) -> list[dict]:
+def fuse_signals(signals_raw: list[dict[str, Any]], regime: dict[str, Any]) -> list[dict[str, Any]]:
     """Combine signals with regime context and confidence scoring
 
     Args:
@@ -65,12 +66,12 @@ def fuse_signals(signals_raw: list[dict], regime: dict) -> list[dict]:
 
 
 def apply_trading_guards(
-    signals: list[dict],
-    news_events: list[dict],
-    funding_windows: list[dict],
+    signals: list[dict[str, Any]],
+    news_events: list[dict[str, Any]],
+    funding_windows: list[dict[str, Any]],
     news_buffer_minutes: int = 60,
     funding_buffer_minutes: int = 30,
-) -> list[dict] | dict:
+) -> list[dict[str, Any]] | dict[str, Any]:
     """Filter signals based on news events, funding windows, volatility
 
     Args:
@@ -83,7 +84,7 @@ def apply_trading_guards(
     Returns:
         Filtered signals or dict with blocked_reasons if all blocked
     """
-    current_time = datetime.now(UTC)
+    current_time = datetime.now(timezone.utc)
     filtered = []
     blocked_reasons = []
 
@@ -126,10 +127,10 @@ def apply_trading_guards(
 
 
 def evaluate_current_positions(
-    current_positions: list[dict],
-    new_signal: dict,
+    current_positions: list[dict[str, Any]],
+    new_signal: dict[str, Any],
     max_concurrent: int,
-) -> bool | dict:
+) -> bool | dict[str, Any]:
     """Check existing positions to avoid overexposure
 
     Args:
@@ -153,14 +154,14 @@ def evaluate_current_positions(
 
 
 def generate_decision(  # noqa: PLR0913
-    signal: dict,
+    signal: dict[str, Any],
     account_balance: Decimal,
     risk_percentage: Decimal,
     symbol: str,
     is_futures: bool,
     daily_pnl_history: list[Decimal] | None = None,
     max_daily_drawdown: Decimal | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Create final decision with full context and risk metadata
 
     Args:
@@ -253,7 +254,7 @@ def generate_decision(  # noqa: PLR0913
     }
 
 
-def format_decision_reasons(reasons_data: dict) -> list[str]:
+def format_decision_reasons(reasons_data: dict[str, Any]) -> list[str]:
     """Build human-readable reasons array explaining the decision
 
     Args:
@@ -302,7 +303,7 @@ def format_decision_reasons(reasons_data: dict) -> list[str]:
     return reasons
 
 
-def _build_reasons(signal: dict) -> list[str]:
+def _build_reasons(signal: dict[str, Any]) -> list[str]:
     """Internal helper to build reasons from signal data"""
     reasons_data = {
         "signal_source": signal.get("source", "unknown"),
