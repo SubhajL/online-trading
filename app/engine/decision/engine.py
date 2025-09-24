@@ -18,7 +18,9 @@ HIGH_FUNDING_RATE_THRESHOLD = Decimal("0.01")  # 1% funding rate threshold
 HIGH_CONFIDENCE_THRESHOLD = Decimal("0.8")  # High confidence threshold
 
 
-def fuse_signals(signals_raw: list[dict[str, Any]], regime: dict[str, Any]) -> list[dict[str, Any]]:
+def fuse_signals(
+    signals_raw: list[dict[str, Any]], regime: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Combine signals with regime context and confidence scoring
 
     Args:
