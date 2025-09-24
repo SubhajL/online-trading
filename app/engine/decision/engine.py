@@ -11,6 +11,11 @@ from .sizing import (
     calculate_position_size,
 )
 
+# Constants to avoid magic numbers
+MIN_CONFIDENCE_MISALIGNED = Decimal("0.7")  # Minimum confidence for misaligned signals
+HIGH_FUNDING_RATE_THRESHOLD = Decimal("0.01")  # 1% funding rate threshold
+HIGH_CONFIDENCE_THRESHOLD = Decimal("0.8")  # High confidence threshold
+
 
 def fuse_signals(signals_raw: list[dict], regime: dict) -> list[dict]:
     """Combine signals with regime context and confidence scoring
@@ -37,7 +42,8 @@ def fuse_signals(signals_raw: list[dict], regime: dict) -> list[dict]:
         )
 
         # Skip signals that strongly contradict regime
-        if not regime_aligned and signal["confidence"] < 0.7:
+        signal_confidence = Decimal(str(signal["confidence"]))
+        if not regime_aligned and signal_confidence < MIN_CONFIDENCE_MISALIGNED:
             continue
 
         # Create fused signal with regime info
@@ -100,9 +106,10 @@ def apply_trading_guards(
                 funding_time = funding["funding_time"]
                 time_to_funding = (funding_time - current_time).total_seconds() / 60
 
+                predicted_rate = abs(Decimal(str(funding.get("predicted_rate", 0))))
                 if (
                     0 <= time_to_funding <= funding_buffer_minutes
-                    and abs(funding.get("predicted_rate", 0)) > 0.01
+                    and predicted_rate > HIGH_FUNDING_RATE_THRESHOLD
                 ):  # High funding
                     blocked = True
                     blocked_reasons.append("funding_window")
@@ -145,7 +152,7 @@ def evaluate_current_positions(
     return True
 
 
-def generate_decision(
+def generate_decision(  # noqa: PLR0913
     signal: dict,
     account_balance: Decimal,
     risk_percentage: Decimal,
@@ -305,7 +312,7 @@ def _build_reasons(signal: dict) -> list[str]:
     }
 
     # Add confidence factors based on signal metadata
-    if signal.get("confidence", 0) > 0.8:
+    if Decimal(str(signal.get("confidence", 0))) > HIGH_CONFIDENCE_THRESHOLD:
         reasons_data["confidence_factors"].append("strong_volume")
 
     return format_decision_reasons(reasons_data)
