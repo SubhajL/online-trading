@@ -1,0 +1,13 @@
+# Requirements for economic calendar scripts
+# Install with: pip install -r scripts/requirements_calendar.txt
+
+# Core requirements for V2 script with free sources
+requests>=2.31.0          # For API calls and web requests
+python-dateutil>=2.8.2    # For flexible date parsing
+beautifulsoup4>=4.12.0    # For web scraping (ForexFactory)
+lxml>=4.9.0              # For XML parsing (FXStreet RSS)
+
+# Optional for enhanced functionality
+# pandas>=2.0.0          # For advanced data manipulation
+# schedule>=1.2.0        # For in-process scheduling
+# redis>=4.5.0           # For caching scraped data
