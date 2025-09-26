@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Daily Trading Report - {date}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { background: #2E86C1; color: white; padding: 20px; }
+        .metric { background: #f0f0f0; padding: 15px; margin: 10px 0; }
+        .positive { color: green; }
+        .negative { color: red; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Daily Trading Report</h1>
+        <h2>Date: {date}</h2>
+    </div>
+
+    <div class="metric">
+        <h3>Account Summary</h3>
+        <p>Starting Balance: {start_balance} THB</p>
+        <p>Ending Balance: {end_balance} THB</p>
+        <p>Daily P&L: <span class="{pnl_class}">{daily_pnl} THB ({pnl_pct}%)</span></p>
+    </div>
+
+    <div class="metric">
+        <h3>Trading Activity</h3>
+        <p>Signals Generated: {signal_count}</p>
+        <p>Orders Executed: {order_count}</p>
+        <p>Win Rate: {win_rate}%</p>
+        <p>Average Win: {avg_win} THB</p>
+        <p>Average Loss: {avg_loss} THB</p>
+    </div>
+
+    <h3>Trade Details</h3>
+    <table>
+        <tr>
+            <th>Time</th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>P&L</th>
+            <th>Result</th>
+        </tr>
+        {trade_rows}
+    </table>
+
+    <div class="metric">
+        <h3>System Performance</h3>
+        <p>Uptime: {uptime}%</p>
+        <p>Failed Orders: {failed_orders}</p>
+        <p>Average Latency: {avg_latency}ms</p>
+    </div>
+</body>
+</html>

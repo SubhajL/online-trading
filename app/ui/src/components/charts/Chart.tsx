@@ -13,6 +13,9 @@ type ChartProps = {
   activeIndicators?: IndicatorType[]
   showSmcOverlays?: boolean
   showZoneOverlays?: boolean
+  markers?: Array<{ time: number | UTCTimestamp; type: 'BUY' | 'SELL' }>
+  levels?: { entry?: number; stopLoss?: number; takeProfit?: number }
+  onReady?: () => void
   className?: string
 }
 
@@ -25,6 +28,9 @@ export function Chart({
   activeIndicators = [],
   showSmcOverlays = false,
   showZoneOverlays = false,
+  markers,
+  levels,
+  onReady,
   className = '',
 }: ChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -46,6 +52,9 @@ export function Chart({
     removeSmcOverlay,
     addZoneOverlay,
     removeZoneOverlay,
+    addMarkers,
+    addPriceLevels,
+    removePriceLevels,
     cleanup,
   } = useChart(containerRef)
 
@@ -104,6 +113,29 @@ export function Chart({
     }
   }, [showZones, zones, addZoneOverlay, removeZoneOverlay])
 
+  // Add markers
+  useEffect(() => {
+    if (markers && markers.length > 0) {
+      addMarkers(markers)
+    }
+  }, [markers, addMarkers])
+
+  // Add price levels
+  useEffect(() => {
+    if (levels) {
+      addPriceLevels(levels)
+    } else {
+      removePriceLevels()
+    }
+  }, [levels, addPriceLevels, removePriceLevels])
+
+  // Call onReady when chart is loaded
+  useEffect(() => {
+    if (candles.length > 0 && onReady) {
+      onReady()
+    }
+  }, [candles, onReady])
+
   // Cleanup on unmount
   useEffect(() => {
     return cleanup
@@ -126,6 +158,18 @@ export function Chart({
     } else {
       setEnabledIndicators(prev => [...prev, indicator])
     }
+  }
+
+  const getIndicatorColor = (indicator: IndicatorType): string => {
+    const colors: Record<IndicatorType, string> = {
+      EMA: '#FF6B6B',
+      SMA: '#4ECDC4',
+      RSI: '#45B7D1',
+      VOLUME: '#96CEB4',
+      MACD: '#F7B731',
+      BB: '#5F27CD',
+    }
+    return colors[indicator] || '#999999'
   }
 
   const toggleFullscreen = () => {

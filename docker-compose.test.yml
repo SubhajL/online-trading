@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # Test PostgreSQL with TimescaleDB
+  test-postgres:
+    image: timescale/timescaledb:2.11-pg15
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: trading_test
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    volumes:
+      - test-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Test Redis
+  test-redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Mock Binance WebSocket server
+  mock-binance-ws:
+    build:
+      context: ./tests/mocks
+      dockerfile: Dockerfile.mock-ws
+    ports:
+      - "8080:8080"
+    environment:
+      MOCK_LATENCY_MS: 10
+      MOCK_ERROR_RATE: 0.001
+
+  # Mock Binance REST API
+  mock-binance-rest:
+    build:
+      context: ./tests/mocks
+      dockerfile: Dockerfile.mock-rest
+    ports:
+      - "8081:8081"
+    environment:
+      MOCK_LATENCY_MS: 50
+      MOCK_ERROR_RATE: 0.001
+
+  # Test monitoring stack
+  test-prometheus:
+    image: prom/prometheus:v2.45.0
+    volumes:
+      - ./tests/config/prometheus-test.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9091:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=1d'
+
+volumes:
+  test-postgres-data:
+  test-redis-data:

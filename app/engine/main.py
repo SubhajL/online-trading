@@ -24,8 +24,7 @@ import uvicorn
 
 from .adapters import RedisAdapter, RouterHTTPClient, TimescaleDBAdapter
 from .bus import EventBus, set_event_bus
-from .decision.decision_engine import DecisionEngine
-from .decision.risk_manager import RiskManager
+from .decision.service import DecisionEngine, RiskManager
 from .features.feature_service import FeatureService
 from .ingest.ingest_service import IngestService
 from .models import (

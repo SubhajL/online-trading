@@ -81,7 +81,7 @@ export class OrderEntity {
   @Column('uuid', { nullable: true })
   decisionId: string | null;
 
-  @Column({ nullable: true })
+  @Column('varchar', { nullable: true })
   exchangeOrderId: string | null;
 
   @Column('timestamptz', { nullable: true })
@@ -90,7 +90,7 @@ export class OrderEntity {
   @Column('decimal', { precision: 18, scale: 8, default: 0 })
   commission: number;
 
-  @Column({ nullable: true })
+  @Column('varchar', { nullable: true })
   commissionAsset: string | null;
 
   @Column({ default: false })
@@ -108,12 +108,12 @@ export class OrderEntity {
   @Column('decimal', { precision: 5, scale: 2, nullable: true })
   callbackRate: number | null;
 
-  @Column({ nullable: true })
+  @Column('varchar', { nullable: true })
   workingType: WorkingType | null;
 
   @Column({ default: false })
   priceProtect: boolean;
 
-  @Column({ nullable: true })
+  @Column('varchar', { nullable: true })
   rejectReason: string | null;
 }

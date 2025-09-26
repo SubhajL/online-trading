@@ -17,6 +17,7 @@ from ..models import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,
+    EventType,
     FeaturesCalculatedEvent,
     TechnicalIndicators,
     TimeFrame,
@@ -91,7 +92,7 @@ class FeatureService:
         self._subscription_id = await self._event_bus.subscribe(
             subscriber_id="feature_service",
             handler=self._handle_candle_update,
-            event_types=[BaseEvent.EventType.CANDLE_UPDATE],
+            event_types=[EventType.CANDLE_UPDATE],
             priority=5,  # High priority for real-time processing
         )
 

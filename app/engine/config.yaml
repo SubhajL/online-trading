@@ -7,11 +7,11 @@ log_level: INFO
 
 # Database Configuration
 database:
-  host: ${DB_HOST:-localhost}
-  port: ${DB_PORT:-5432}
-  database: ${DB_NAME:-trading_platform}
-  username: ${DB_USER:-postgres}
-  password: ${DB_PASSWORD:-postgres}
+  host: ${POSTGRES_HOST:-localhost}
+  port: ${POSTGRES_PORT:-5432}
+  database: ${POSTGRES_DB:-trading_platform}
+  username: ${POSTGRES_USER:-postgres}
+  password: ${POSTGRES_PASSWORD:-postgres}
   pool_size: 10
   max_overflow: 20
   pool_timeout: 30
@@ -27,7 +27,7 @@ redis:
 # Binance Configuration
 binance:
   api_key: ${BINANCE_API_KEY:-}
-  api_secret: ${BINANCE_API_SECRET:-}
+  api_secret: ${BINANCE_SECRET_KEY:-}
   testnet: ${BINANCE_TESTNET:-true}
   base_url: ${BINANCE_BASE_URL:-https://testnet.binance.vision}
   ws_base_url: ${BINANCE_WS_URL:-wss://testnet.binance.vision}

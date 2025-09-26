@@ -1,0 +1,1 @@
+"""Preflight check system for validating environment before service start."""

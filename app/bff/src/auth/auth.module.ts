@@ -12,6 +12,7 @@ import { WsJwtGuard } from './guards/ws-jwt.guard';
 
 @Module({
   imports: [
+    ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -9,7 +9,8 @@ process.env.POSTGRES_PORT = '5432';
 process.env.POSTGRES_USER = 'trading_user';
 process.env.POSTGRES_PASSWORD = 'your_secure_password_here';
 process.env.POSTGRES_DB = 'trading_platform';
-process.env.DATABASE_URL = 'postgresql://trading_user:your_secure_password_here@localhost:5432/trading_platform';
+process.env.DATABASE_URL =
+  'postgresql://trading_user:your_secure_password_here@localhost:5432/trading_platform';
 
 // Set Redis configuration
 process.env.REDIS_HOST = 'localhost';

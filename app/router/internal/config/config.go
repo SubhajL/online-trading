@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 // Config holds all configuration for the router service
@@ -97,6 +99,9 @@ type SecurityConfig struct {
 
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
+	// Load .env file if it exists
+	godotenv.Load("../../.env")
+
 	config := &Config{
 		Server: ServerConfig{
 			Port:            getEnvAsInt("PORT", getEnvAsInt("SERVER_PORT", 8080)),
@@ -177,11 +182,12 @@ func Load() (*Config, error) {
 func (c *Config) Validate() error {
 	// Check Spot API credentials if spot trading is enabled
 	if c.Binance.IsSpotEnabled() {
-		if c.Binance.SpotAPIKey == "" {
-			return fmt.Errorf("BINANCE_SPOT_API_KEY is required for spot trading")
+		// The loading code already falls back to BINANCE_API_KEY, so check that too
+		if c.Binance.SpotAPIKey == "" && c.Binance.APIKey == "" {
+			return fmt.Errorf("BINANCE_SPOT_API_KEY or BINANCE_API_KEY is required for spot trading")
 		}
-		if c.Binance.SpotSecretKey == "" {
-			return fmt.Errorf("BINANCE_SPOT_SECRET_KEY is required for spot trading")
+		if c.Binance.SpotSecretKey == "" && c.Binance.SecretKey == "" {
+			return fmt.Errorf("BINANCE_SPOT_SECRET_KEY or BINANCE_SECRET_KEY is required for spot trading")
 		}
 	}
 

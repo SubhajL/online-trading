@@ -326,4 +326,82 @@ describe('AlertsPopup', () => {
       expect(alertsService.markAsRead).toHaveBeenCalledWith(['alert-1', 'alert-2'])
     })
   })
+
+  describe('snapshot images', () => {
+    it('should display snapshot image when available', async () => {
+      const alertsWithImage: Alert[] = [
+        {
+          id: 'alert-4',
+          symbol: 'BTCUSDT',
+          venue: 'SPOT',
+          type: 'smc_event',
+          title: 'Trading Signal',
+          message: 'Long entry signal detected',
+          severity: 'high',
+          createdAt: new Date().toISOString(),
+          read: false,
+          imageUrl: '/snapshots/signal-123.png',
+          signalId: 'signal-123',
+        },
+      ]
+
+      vi.mocked(alertsService.getAlerts).mockResolvedValue({ alerts: alertsWithImage })
+
+      render(<AlertsPopup isOpen={true} onClose={mockOnClose} />)
+
+      await waitFor(() => {
+        const image = screen.getByAltText('Trading Signal snapshot')
+        expect(image).toBeInTheDocument()
+        expect(image).toHaveAttribute('src', '/snapshots/signal-123.png')
+      })
+    })
+
+    it('should open image in new tab when clicked', async () => {
+      const alertsWithImage: Alert[] = [
+        {
+          id: 'alert-4',
+          symbol: 'BTCUSDT',
+          venue: 'SPOT',
+          type: 'smc_event',
+          title: 'Trading Signal',
+          message: 'Long entry signal detected',
+          severity: 'high',
+          createdAt: new Date().toISOString(),
+          read: false,
+          imageUrl: '/snapshots/signal-123.png',
+          signalId: 'signal-123',
+        },
+      ]
+
+      vi.mocked(alertsService.getAlerts).mockResolvedValue({ alerts: alertsWithImage })
+      const mockOpen = vi.fn()
+      window.open = mockOpen
+
+      const user = userEvent.setup()
+      render(<AlertsPopup isOpen={true} onClose={mockOnClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByAltText('Trading Signal snapshot')).toBeInTheDocument()
+      })
+
+      const image = screen.getByAltText('Trading Signal snapshot')
+      await user.click(image)
+
+      expect(mockOpen).toHaveBeenCalledWith('/snapshots/signal-123.png', '_blank')
+    })
+
+    it('should not display image section when no imageUrl', async () => {
+      vi.mocked(alertsService.getAlerts).mockResolvedValue({ alerts: mockAlerts })
+
+      render(<AlertsPopup isOpen={true} onClose={mockOnClose} />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Bullish Change of Character')).toBeInTheDocument()
+      })
+
+      // No images should be in the document
+      const images = screen.queryAllByRole('img')
+      expect(images).toHaveLength(0)
+    })
+  })
 })

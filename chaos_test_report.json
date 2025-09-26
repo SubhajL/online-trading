@@ -1,0 +1,88 @@
+{
+  "timestamp": "2025-09-26T09:14:10.324455",
+  "summary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "success_rate": 100.0
+  },
+  "scenarios": [
+    {
+      "scenario": "Network Partition",
+      "duration": 8,
+      "impact": {
+        "orders_queued": 14,
+        "health_checks_failed": 3,
+        "alerts_triggered": true
+      },
+      "recovery": {
+        "orders_delivered": 14,
+        "duplicates": 0,
+        "time_to_recover": 5.2
+      },
+      "resilient": true
+    },
+    {
+      "scenario": "Database Slowdown",
+      "duration": 8,
+      "impact": {
+        "query_timeouts": 15,
+        "circuit_breaker_trips": 3,
+        "cache_hit_rate": 0.9,
+        "p95_latency_ms": 2500
+      },
+      "recovery": {
+        "circuit_breaker_closed": true,
+        "p95_latency_ms": 45,
+        "data_consistency": "verified"
+      },
+      "resilient": true
+    },
+    {
+      "scenario": "WebSocket Disconnect",
+      "duration": 8,
+      "impact": {
+        "connection_lost": true,
+        "missed_candles": 2,
+        "data_gap_seconds": 30
+      },
+      "recovery": {
+        "reconnected": true,
+        "gap_filled": true,
+        "candles_recovered": 2,
+        "duplicates_prevented": true
+      },
+      "resilient": true
+    },
+    {
+      "scenario": "Memory Pressure",
+      "duration": 8,
+      "impact": {
+        "memory_percent": 90,
+        "gc_runs": 5,
+        "cache_evictions": 1000
+      },
+      "recovery": {
+        "memory_recovered_mb": 267,
+        "final_memory_percent": 75,
+        "performance_impact": "minimal"
+      },
+      "resilient": true
+    },
+    {
+      "scenario": "Router Timeout",
+      "duration": 8,
+      "impact": {
+        "initial_timeout": true,
+        "retry_count": 2,
+        "delay_ms": 3000
+      },
+      "recovery": {
+        "order_placed": true,
+        "idempotency_verified": true,
+        "position_correct": true
+      },
+      "resilient": true
+    }
+  ]
+}

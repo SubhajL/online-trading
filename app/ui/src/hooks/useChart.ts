@@ -34,6 +34,9 @@ export type UseChartReturn = {
   removeSmcOverlay: () => void
   addZoneOverlay: (zones: any[]) => void
   removeZoneOverlay: () => void
+  addMarkers: (markers: Array<{ time: number | any; type: 'BUY' | 'SELL' }>) => void
+  addPriceLevels: (levels: { entry?: number; stopLoss?: number; takeProfit?: number }) => void
+  removePriceLevels: () => void
   cleanup: () => void
 }
 
@@ -43,6 +46,7 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
   const indicatorSeriesRef = useRef<Map<string, ISeriesApi<'Line'> | ISeriesApi<'Histogram'>>>(
     new Map(),
   )
+  const priceLinesRef = useRef<Map<string, any>>(new Map())
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -199,12 +203,84 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
     console.log('Zone overlay removal requested')
   }
 
+  const addMarkers = (markers: Array<{ time: number | any; type: 'BUY' | 'SELL' }>) => {
+    if (!candlestickSeries || !markers || markers.length === 0) return
+
+    const seriesMarkers = markers.map(marker => ({
+      time: marker.time,
+      position: marker.type === 'BUY' ? 'belowBar' as const : 'aboveBar' as const,
+      shape: marker.type === 'BUY' ? 'arrowUp' as const : 'arrowDown' as const,
+      color: marker.type === 'BUY' ? '#26a69a' : '#ef5350',
+      size: 2,
+    }))
+
+    candlestickSeries.setMarkers(seriesMarkers)
+  }
+
+  const addPriceLevels = (levels: { entry?: number; stopLoss?: number; takeProfit?: number }) => {
+    if (!candlestickSeries) return
+
+    // Remove existing price lines
+    removePriceLevels()
+
+    // Add entry line
+    if (levels.entry) {
+      const entryLine = candlestickSeries.createPriceLine({
+        price: levels.entry,
+        color: '#2196f3',
+        lineWidth: 2,
+        lineStyle: 0,
+        axisLabelVisible: true,
+        title: 'Entry',
+      })
+      priceLinesRef.current.set('entry', entryLine)
+    }
+
+    // Add stop loss line
+    if (levels.stopLoss) {
+      const slLine = candlestickSeries.createPriceLine({
+        price: levels.stopLoss,
+        color: '#ef5350',
+        lineWidth: 2,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: 'SL',
+      })
+      priceLinesRef.current.set('stopLoss', slLine)
+    }
+
+    // Add take profit line
+    if (levels.takeProfit) {
+      const tpLine = candlestickSeries.createPriceLine({
+        price: levels.takeProfit,
+        color: '#26a69a',
+        lineWidth: 2,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: 'TP',
+      })
+      priceLinesRef.current.set('takeProfit', tpLine)
+    }
+  }
+
+  const removePriceLevels = () => {
+    if (!candlestickSeries) return
+
+    priceLinesRef.current.forEach(priceLine => {
+      candlestickSeries.removePriceLine(priceLine)
+    })
+    priceLinesRef.current.clear()
+  }
+
   const cleanup = () => {
     // Clear all indicators
     indicatorSeriesRef.current.forEach((series) => {
       chart?.removeSeries(series)
     })
     indicatorSeriesRef.current.clear()
+
+    // Clear price lines
+    removePriceLevels()
   }
 
   return {
@@ -219,6 +295,9 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
     removeSmcOverlay,
     addZoneOverlay,
     removeZoneOverlay,
+    addMarkers,
+    addPriceLevels,
+    removePriceLevels,
     cleanup,
   }
 }

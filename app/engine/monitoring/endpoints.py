@@ -73,45 +73,43 @@ def create_metrics_endpoints() -> APIRouter:
     @router.get("/")
     async def prometheus_metrics() -> Response:
         """Prometheus metrics endpoint"""
-        # This would be implemented with actual Prometheus client
-        # For now, return basic metrics format
-        metrics = []
+        try:
+            from app.engine.monitoring.metrics import get_metrics, get_metrics_content_type
 
-        # Example metrics
-        metrics.append("# HELP python_info Python platform information")
-        metrics.append("# TYPE python_info gauge")
-        metrics.append('python_info{implementation="CPython",version="3.9"} 1')
+            # Get metrics from our Prometheus registry
+            metrics_data = get_metrics()
 
-        metrics.append(
-            "# HELP process_virtual_memory_bytes Virtual memory size in bytes",
-        )
-        metrics.append("# TYPE process_virtual_memory_bytes gauge")
+            return Response(
+                content=metrics_data,
+                media_type=get_metrics_content_type(),
+            )
+        except ImportError:
+            # Fallback if metrics module not available
+            metrics = []
 
-        # Add actual process metrics
-        import os
+            # Example metrics
+            metrics.append("# HELP python_info Python platform information")
+            metrics.append("# TYPE python_info gauge")
+            metrics.append('python_info{implementation="CPython",version="3.11"} 1')
 
-        import psutil
+            # Add actual process metrics
+            import os
+            import psutil
 
-        process = psutil.Process(os.getpid())
-        memory_info = process.memory_info()
+            process = psutil.Process(os.getpid())
+            memory_info = process.memory_info()
 
-        metrics.append(f"process_virtual_memory_bytes {memory_info.vms}")
-        metrics.append(f"process_resident_memory_bytes {memory_info.rss}")
+            metrics.append(
+                "# HELP process_virtual_memory_bytes Virtual memory size in bytes",
+            )
+            metrics.append("# TYPE process_virtual_memory_bytes gauge")
+            metrics.append(f"process_virtual_memory_bytes {memory_info.vms}")
+            metrics.append(f"process_resident_memory_bytes {memory_info.rss}")
 
-        # CPU usage
-        cpu_percent = process.cpu_percent(interval=0.1)
-        metrics.append(
-            "# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds",
-        )
-        metrics.append("# TYPE process_cpu_seconds_total counter")
-        metrics.append(
-            f"process_cpu_seconds_total {process.cpu_times().user + process.cpu_times().system}",
-        )
-
-        return Response(
-            content="\n".join(metrics) + "\n",
-            media_type="text/plain; version=0.0.4",
-        )
+            return Response(
+                content="\n".join(metrics) + "\n",
+                media_type="text/plain; version=0.0.4",
+            )
 
     return router
 

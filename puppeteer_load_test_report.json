@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-09-26T09:08:28.919137",
+  "browser_pool_performance": {
+    "single_snapshot": "< 2000ms",
+    "concurrent_3x": "< 3000ms mean",
+    "concurrent_5x": "< 5000ms p95",
+    "sustained_30x": "> 90% success rate",
+    "pool_saturation": "Graceful degradation",
+    "error_recovery": "Automatic recovery"
+  },
+  "recommendations": {
+    "pool_size": "3-5 browsers for production",
+    "timeout": "5s per snapshot",
+    "retry": "Implement retry with backoff",
+    "monitoring": "Track pool utilization"
+  }
+}

@@ -176,4 +176,6 @@ export type Alert = {
   severity: AlertSeverity
   createdAt: string
   read: boolean
+  imageUrl?: string
+  signalId?: string
 }

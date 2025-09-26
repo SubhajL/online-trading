@@ -11,6 +11,7 @@ export type Alert = {
   title: string
   message: string
   data?: any
+  imageUrl?: string
   read: boolean
   createdAt: string
   updatedAt?: string

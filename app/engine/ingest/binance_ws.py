@@ -303,6 +303,10 @@ class BinanceWebSocketClient:
         try:
             kline_data = data["k"]
 
+            # Only process closed candles (k.x == true)
+            if not kline_data.get("x", False):
+                return
+
             # Parse candle data
             candle = Candle(
                 symbol=kline_data["s"],
@@ -331,7 +335,7 @@ class BinanceWebSocketClient:
             await self._event_bus.publish(event)
 
             logger.debug(
-                f"Published candle update for {candle.symbol} {candle.timeframe}",
+                f"Published CLOSED candle update for {candle.symbol} {candle.timeframe}",
             )
 
         except Exception as e:

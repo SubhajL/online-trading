@@ -219,6 +219,63 @@ test-coverage: ## Generate test coverage reports
 	@cd $(UI_DIR) && pnpm run test:coverage
 
 # ==================================================================================
+# Progressive Testing
+# ==================================================================================
+
+.PHONY: test-preflight
+test-preflight: ## Run preflight checks before tests
+	@echo "$(BLUE)🚀 Running preflight checks...$(RESET)"
+	@cd $(ENGINE_DIR) && \
+		source .venv/bin/activate && \
+		python -m app.engine.preflight.run_checks
+
+.PHONY: test-progressive
+test-progressive: ## Run progressive tests (all levels 0-4)
+	@echo "$(BLUE)📈 Running progressive tests...$(RESET)"
+	@cd $(ENGINE_DIR) && \
+		source .venv/bin/activate && \
+		python -m app.engine.tests.test_runner
+
+.PHONY: test-unit
+test-unit: ## Run unit tests only (levels 0-1)
+	@echo "$(BLUE)🧪 Running unit tests (levels 0-1)...$(RESET)"
+	@cd $(ENGINE_DIR) && \
+		source .venv/bin/activate && \
+		python -m app.engine.tests.test_runner --start 0 --end 1
+
+.PHONY: test-integration
+test-integration: ## Run integration tests (levels 2-3)
+	@echo "$(BLUE)🔗 Running integration tests (levels 2-3)...$(RESET)"
+	@cd $(ENGINE_DIR) && \
+		source .venv/bin/activate && \
+		python -m app.engine.tests.test_runner --start 2 --end 3
+
+.PHONY: test-e2e
+test-e2e: ## Run end-to-end tests (level 4)
+	@echo "$(BLUE)🌐 Running end-to-end tests (level 4)...$(RESET)"
+	@cd $(ENGINE_DIR) && \
+		source .venv/bin/activate && \
+		python -m app.engine.tests.test_runner --level 4
+
+.PHONY: test-level
+test-level: ## Run specific test level (use LEVEL=0-4)
+	@if [ -z "$(LEVEL)" ]; then \
+		echo "$(RED)❌ Please specify LEVEL (0-4). Example: make test-level LEVEL=1$(RESET)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)🎯 Running level $(LEVEL) tests...$(RESET)"
+	@cd $(ENGINE_DIR) && \
+		source .venv/bin/activate && \
+		python -m app.engine.tests.test_runner --level $(LEVEL) --verbose
+
+.PHONY: test-show-levels
+test-show-levels: ## Show test distribution across levels
+	@echo "$(BLUE)📊 Test level distribution...$(RESET)"
+	@cd $(ENGINE_DIR) && \
+		source .venv/bin/activate && \
+		python -m app.engine.tests.test_runner --show-distribution
+
+# ==================================================================================
 # Code Quality
 # ==================================================================================
 

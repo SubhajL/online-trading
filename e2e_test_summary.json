@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-09-26T09:19:18.510214",
+  "test_scenarios": {
+    "complete_flow": {
+      "description": "Full trading flow from candle to order",
+      "checkpoints": 9,
+      "expected_latency": "< 700-900ms total"
+    },
+    "no_signal_flow": {
+      "description": "Flow terminates when no signal conditions",
+      "checkpoints": 4,
+      "expected_behavior": "Graceful termination"
+    },
+    "risk_rejection_flow": {
+      "description": "Flow terminates on risk rejection",
+      "checkpoints": 6,
+      "expected_behavior": "No order placed"
+    }
+  },
+  "performance_targets": {
+    "candle_to_signal": "\u2264 500ms P95",
+    "signal_to_order": "\u2264 300ms P95",
+    "total_flow": "\u2264 900ms P95"
+  },
+  "integration_points": {
+    "websocket": "Binance candle stream",
+    "features": "Technical indicator calculation",
+    "smc": "Market structure analysis",
+    "retest": "Zone retest detection",
+    "decision": "Risk management checks",
+    "router": "Order execution",
+    "snapshot": "Chart generation",
+    "delivery": "Alert channels"
+  }
+}

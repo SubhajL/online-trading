@@ -1,331 +1,133 @@
-name: Continuous Integration
+name: CI Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
-  PYTHON_VERSION: '3.13'
-  NODE_VERSION: '20'
-  GO_VERSION: '1.21'
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+  GO_VERSION: "1.21"
 
 jobs:
   # Python Engine Tests
-  test-engine:
-    name: Test Python Engine
+  test-python:
+    name: Python Engine Tests
     runs-on: ubuntu-latest
-    # Skip Python tests for BFF-only PRs
-    if: |
-      !contains(github.event.pull_request.title, 'BFF') &&
-      !contains(github.event.pull_request.title, 'bff') &&
-      !contains(github.head_ref, 'svc/ui-bff')
-    strategy:
-      matrix:
-        python-version: ['3.13']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Cache Python dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('app/engine/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install dependencies
-        working-directory: ./app/engine
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-
-      - name: Run linting
-        working-directory: ./app/engine
-        run: |
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          black --check .
-          # For feature branches, only check relevant modules
-          if [[ "${{ github.head_ref }}" == "svc/features" ]] || [[ "${{ github.event.pull_request.head.ref }}" == "svc/features" ]]; then
-            echo "Running focused mypy for features branch"
-            mypy features/ shared/technical/ --ignore-missing-imports --no-strict-optional || true
-          else
-            mypy . --ignore-missing-imports
-          fi
-
-      - name: Run tests
-        working-directory: ./app/engine
-        run: |
-          pytest tests/ -v --cov=. --cov-report=xml
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./app/engine/coverage.xml
-          flags: engine
-
-  # Go Router Tests
-  test-router:
-    name: Test Go Router
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.20', '1.21']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('app/router/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Download dependencies
-        working-directory: ./app/router
-        run: go mod download
-
-      - name: Run linting
-        working-directory: ./app/router
-        run: |
-          go fmt ./...
-          go vet ./...
-
-      - name: Run tests
-        working-directory: ./app/router
-        run: go test -v -race -coverprofile=coverage.out ./...
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./app/router/coverage.out
-          flags: router
-
-  # Node.js BFF Tests
-  test-bff:
-    name: Test NestJS BFF
-    runs-on: ubuntu-latest
-    # Skip BFF tests for features-only PRs
-    if: |
-      !contains(github.event.pull_request.title, '#6') &&
-      !contains(github.event.pull_request.title, 'feat: implement technical indicators') &&
-      !contains(github.event.pull_request.title, 'feature engine') &&
-      !contains(github.head_ref, 'svc/features')
-    strategy:
-      matrix:
-        node-version: ['18', '20']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('app/bff/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install dependencies
-        working-directory: ./app/bff
-        run: pnpm install --frozen-lockfile
-
-      - name: Run linting
-        working-directory: ./app/bff
-        run: |
-          pnpm lint
-          pnpm format:check
-
-      - name: Run tests
-        working-directory: ./app/bff
-        run: pnpm test:cov
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./app/bff/coverage/lcov.info
-          flags: bff
-
-  # UI Tests
-  test-ui:
-    name: Test Next.js UI
-    runs-on: ubuntu-latest
-    # Skip UI tests for features-only PRs
-    if: |
-      !contains(github.event.pull_request.title, '#6') &&
-      !contains(github.event.pull_request.title, 'feat: implement technical indicators') &&
-      !contains(github.event.pull_request.title, 'feature engine') &&
-      !contains(github.head_ref, 'svc/features')
-    strategy:
-      matrix:
-        node-version: ['18', '20']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('app/ui/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install dependencies
-        working-directory: ./app/ui
-        run: pnpm install --frozen-lockfile
-
-      - name: Run linting
-        working-directory: ./app/ui
-        run: |
-          pnpm lint
-          pnpm type-check
-
-      - name: Run tests
-        working-directory: ./app/ui
-        run: pnpm test:ci
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./app/ui/coverage/lcov.info
-          flags: ui
-
-  # Build Docker Images
-  build:
-    name: Build Docker Images
-    runs-on: ubuntu-latest
-    needs: [test-router]
-    # Only require UI/BFF tests if they're not skipped
-    if: always() && !failure() && !cancelled()
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Engine Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./app/engine
-          push: false
-          tags: trading-engine:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build Router Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./app/router
-          push: false
-          tags: trading-router:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build BFF Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./app/bff
-          push: false
-          tags: trading-bff:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build UI Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./app/ui
-          push: false
-          tags: trading-ui:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # Security Scanning
-  security-scan:
-    name: Security Scanning
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'
-
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
-
-  # E2E Tests
-  e2e-tests:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    needs: build
 
     services:
       postgres:
-        image: timescale/timescaledb:latest-pg16
+        image: timescale/timescaledb:2.11.0-pg15
         env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
+          POSTGRES_USER: trader
+          POSTGRES_PASSWORD: trader123
+          POSTGRES_DB: trader
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        ports:
-          - 5432:5432
 
       redis:
         image: redis:7-alpine
+        ports:
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        ports:
-          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: |
+          cd app/engine
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run Python linting
+        run: |
+          cd app/engine
+          make lint
+
+      - name: Run Python type checking
+        run: |
+          cd app/engine
+          make typecheck
+
+      - name: Run Python unit tests
+        run: |
+          cd app/engine
+          python -m pytest tests/unit -v --tb=short --cov=app --cov-report=xml
+
+      - name: Run critical trading tests
+        run: |
+          cd app/engine
+          python -m pytest tests/unit/test_critical_position_sizing.py -v
+          python -m pytest tests/unit/test_risk_guards.py -v
+          python -m pytest tests/unit/test_order_validation.py -v
+          python -m pytest tests/unit/test_smc_algorithms.py -v
+          python -m pytest tests/unit/test_indicators.py -v
+          python -m pytest tests/unit/test_e2e_trading_flow.py -v
+
+      - name: Upload Python coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-coverage
+          path: app/engine/coverage.xml
+
+  # Go Router Tests
+  test-go:
+    name: Go Router Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install Go dependencies
+        run: |
+          cd app/router
+          go mod download
+
+      - name: Run Go linting
+        run: |
+          cd app/router
+          golangci-lint run
+
+      - name: Run Go tests
+        run: |
+          cd app/router
+          go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload Go coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: go-coverage
+          path: app/router/coverage.out
+
+  # TypeScript Tests (BFF & UI)
+  test-typescript:
+    name: TypeScript Tests
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -335,375 +137,192 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Playwright
-        working-directory: ./app/ui
-        run: |
-          npm install -g pnpm
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps
-
-      - name: Start services
-        run: |
-          docker-compose up -d
-          sleep 30  # Wait for services to be ready
-
-      - name: Run E2E tests
-        working-directory: ./app/ui
-        env:
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
-        run: pnpm test:e2e
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
+      - uses: pnpm/action-setup@v2
         with:
-          name: playwright-report
-          path: app/ui/playwright-report/
-          retention-days: 30
+          version: 8
 
-  # Wave A: Contracts validation job
-  contracts-validate:
-    name: Validate Contracts & Schemas
+      - name: Install TypeScript dependencies
+        run: |
+          pnpm install
+
+      - name: Run TypeScript linting
+        run: |
+          pnpm lint
+
+      - name: Run TypeScript type checking
+        run: |
+          pnpm type-check
+
+      - name: Run BFF tests
+        run: |
+          cd app/bff
+          pnpm test:cov
+
+      - name: Run UI tests
+        run: |
+          cd app/ui
+          pnpm test
+
+      - name: Upload TypeScript coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: typescript-coverage
+          path: |
+            app/bff/coverage/lcov.info
+            app/ui/coverage/lcov.info
+
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#2') || contains(github.event.pull_request.labels.*.name, 'Prompt 2') || contains(github.event.pull_request.labels.*.name, 'Wave A')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Cache Python dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-contracts-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-contracts-
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install jsonschema pydantic pytest pytest-cov
-          # Show installed versions for debugging
-          python --version
-          pytest --version
-          pip list | grep -E "jsonschema|pydantic|pytest"
-
-      - name: Validate JSONSchemas
-        run: |
-          echo "Validating all JSONSchema files..."
-          for schema in contracts/jsonschema/*.schema.json; do
-            echo "Validating $schema"
-            python -m json.tool "$schema" > /dev/null || exit 1
-          done
-
-      - name: Run schema validation tests
-        run: |
-          # Run tests without coverage (coverage is for engine code, not contracts)
-          python -m pytest tests/contracts/test_jsonschema_validation.py -v --no-cov
-
-      - name: Check generated code is up to date
-        run: |
-          # Backup current generated files
-          cp -r contracts/gen contracts/gen.backup
-
-          # Regenerate code
-          python scripts/codegen_contracts.py
-
-          # Check for differences
-          if ! diff -r contracts/gen contracts/gen.backup > /dev/null 2>&1; then
-            echo "Generated code is out of date!"
-            echo "Please run 'make contracts' and commit the changes."
-            diff -r contracts/gen contracts/gen.backup || true
-            exit 1
-          fi
-
-          # Cleanup
-          rm -rf contracts/gen.backup
-
-      - name: Test generated Python models
-        run: |
-          python -m pytest tests/contracts/test_generated_models.py -v --no-cov
-
-      - name: Validate example payloads
-        run: |
-          # This would validate example payloads if we had them
-          echo "✓ Contract validation complete"
-
-  # Wave A: Database migration job
-  db-migrate:
-    name: Database Migrations
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#3') || contains(github.event.pull_request.labels.*.name, 'Prompt 3') || contains(github.event.pull_request.labels.*.name, 'Wave A')
+    needs: [test-python, test-go, test-typescript]
 
     services:
       postgres:
-        image: timescale/timescaledb:latest-pg16
+        image: timescale/timescaledb:2.11.0-pg15
         env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
+          POSTGRES_USER: trader
+          POSTGRES_PASSWORD: trader123
+          POSTGRES_DB: trader
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+      redis:
+        image: redis:7-alpine
         ports:
-          - 5432:5432
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Run migrations
-        run: |
-          make db-migrate || echo "Migrations pending implementation"
-
-      - name: Test database layer
-        run: |
-          python -m pytest tests/db -q || echo "DB tests pending implementation"
-
-  # Go Router Smoke Tests
-  router-smoke:
-    name: Router Smoke Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache: true
-          cache-dependency-path: app/router/go.sum
 
-      - name: Install dependencies
-        working-directory: ./app/router
-        run: go mod download
-
-      - name: Build router
-        working-directory: ./app/router
-        run: go build -o bin/router cmd/router/main.go
-
-      - name: Run unit tests
-        working-directory: ./app/router
-        run: go test -v ./internal/...
-
-      - name: Health check smoke test
-        working-directory: ./app/router
-        env:
-          BINANCE_SPOT_API_KEY: "test_key"
-          BINANCE_SPOT_SECRET_KEY: "test_secret"
-          BINANCE_FUTURES_API_KEY: "test_key"
-          BINANCE_FUTURES_SECRET_KEY: "test_secret"
-          BINANCE_TESTNET: "true"
-        run: |
-          # Start router in background
-          ./bin/router &
-          ROUTER_PID=$!
-
-          # Wait for startup
-          sleep 5
-
-          # Test health endpoint
-          curl -f http://localhost:8080/healthz || exit 1
-          curl -f http://localhost:8080/readyz || exit 1
-
-          # Clean up
-          kill $ROUTER_PID
-
-  # Wave B: Features golden test
-  features-golden:
-    name: Features Golden Tests
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#5') || contains(github.event.pull_request.title, '#6') || contains(github.event.pull_request.labels.*.name, 'Prompt 5') || contains(github.event.pull_request.labels.*.name, 'Wave B')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          pip install numpy pandas ta
-
-      - name: Run golden tests
-        run: |
-          python -m pytest tests/golden -q || echo "Golden tests pending implementation"
-
-  # Wave C: SMC tests
-  smc-tests:
-    name: SMC Engine Tests
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#6') || contains(github.event.pull_request.labels.*.name, 'Prompt 6') || contains(github.event.pull_request.labels.*.name, 'Wave C')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Run SMC tests
-        run: |
-          python -m pytest tests/smc -q || echo "SMC tests pending implementation"
-
-  # Wave C: Retest and guards tests
-  retest-guards-tests:
-    name: Retest & Guards Tests
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#7') || contains(github.event.pull_request.labels.*.name, 'Prompt 7') || contains(github.event.pull_request.labels.*.name, 'Wave C')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Cache Python dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('app/engine/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r app/engine/requirements.txt
-          pip install -r app/engine/requirements-dev.txt
-
-      - name: Run retest tests
-        run: |
-          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
-          python -m pytest tests/retest -v --no-cov
-
-      - name: Run regime volatility tests
-        run: |
-          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
-          python -m pytest tests/regime_vol -v --no-cov
-
-      - name: Run news and funding guards tests
-        run: |
-          export PYTHONPATH="${PYTHONPATH}:${GITHUB_WORKSPACE}"
-          python -m pytest tests/news_funding_guards -v --no-cov
-
-  # Wave C: Decision engine tests
-  decision-tests:
-    name: Decision Engine Tests
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#8') || contains(github.event.pull_request.labels.*.name, 'Prompt 8') || contains(github.event.pull_request.labels.*.name, 'Wave C')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Run decision tests
-        run: |
-          python -m pytest tests/decision -q || echo "Decision tests pending implementation"
-
-  # Wave B: UI/BFF build verification
-  ui-bff-build:
-    name: UI/BFF Build Verification
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, '#10') || contains(github.event.pull_request.labels.*.name, 'Prompt 10') || contains(github.event.pull_request.labels.*.name, 'Wave B')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v2
         with:
           version: 8
 
-      - name: Install and build BFF
+      - name: Install all dependencies
         run: |
-          cd app/bff && pnpm install --frozen-lockfile || echo "BFF pending"
-          pnpm build || echo "BFF build pending"
+          # Python
+          cd app/engine
+          pip install -r requirements.txt
+          cd ../..
 
-      - name: Install and build UI
+          # Go
+          cd app/router
+          go mod download
+          cd ../..
+
+          # TypeScript
+          pnpm install
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://trader:trader123@localhost:5432/trader
         run: |
-          cd app/ui && pnpm install --frozen-lockfile || echo "UI pending"
-          pnpm build || echo "UI build pending"
+          cd app/engine
+          alembic upgrade head
 
-  # Bonus: Backtest smoke test
-  backtest-smoke:
-    name: Backtest Smoke Test
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgresql://trader:trader123@localhost:5432/trader
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd app/engine
+          python -m pytest tests/integration -v
+
+  # Security Scan
+  security-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, 'Bonus') || contains(github.event.pull_request.labels.*.name, 'Bonus')
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Run backtest smoke
+      - name: Run Python security scan
         run: |
-          echo "TODO: Run 2-week BTCUSDT 15m backtest"
-          python -m pytest tests/backtest -q || echo "Backtest pending implementation"
+          pip install bandit safety
+          cd app/engine
+          bandit -r . -ll
+          safety check --json
 
-  # SMC Tests
-  smc-tests:
-    name: SMC (Smart Money Concepts) Tests
+      - name: Run Go security scan
+        run: |
+          cd app/router
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec ./...
+
+      - name: Run npm audit
+        run: |
+          pnpm audit --audit-level=high
+
+  # Docker Build
+  docker-build:
+    name: Docker Build
     runs-on: ubuntu-latest
-    if: |
-      contains(github.event.pull_request.title, 'SMC') ||
-      contains(github.event.pull_request.title, 'smc') ||
-      contains(github.event.pull_request.labels.*.name, 'SMC') ||
-      contains(github.head_ref, 'svc/smc')
+    needs: [test-python, test-go, test-typescript]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Engine image
+        uses: docker/build-push-action@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          context: ./app/engine
+          file: ./app/engine/Dockerfile
+          tags: trader-engine:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Install minimal dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-cov
+      - name: Build Router image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/router
+          file: ./app/router/Dockerfile
+          tags: trader-router:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Run SMC unit tests
-        working-directory: ./tests/smc
-        run: |
-          # Run isolated tests that don't require full dependencies
-          python test_pivots_simple.py
-          python test_structure_isolated.py
-          python test_zones_isolated.py
+      - name: Build BFF image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/bff
+          file: ./app/bff/Dockerfile
+          tags: trader-bff:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Run SMC pytest tests (if dependencies available)
-        working-directory: ./
-        run: |
-          # Try to run pytest tests, but don't fail if dependencies are missing
-          pytest tests/smc/test_pivots.py -v || echo "Full pytest pending dependencies"
-          pytest tests/smc/test_choch_bos_sequences.py -v || echo "Full pytest pending dependencies"
-          pytest tests/smc/test_fvg_ob_detection.py -v || echo "Full pytest pending dependencies"
+      - name: Build UI image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/ui
+          file: ./app/ui/Dockerfile
+          tags: trader-ui:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

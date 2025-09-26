@@ -28,6 +28,17 @@ class ComponentHealth:
     details: dict[str, Any] = field(default_factory=dict[Any, Any])
     last_check: datetime = field(default_factory=datetime.now)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "name": self.name,
+            "status": self.status.value,
+            "message": self.message,
+            "latency_ms": self.latency_ms,
+            "details": self.details,
+            "last_check": self.last_check.isoformat()
+        }
+
 
 @dataclass
 class HealthConfig:
@@ -105,6 +116,23 @@ class HealthChecker:
 
                 latency_ms = (time.time() - start_time) * 1000
 
+                # Record latency in Prometheus metrics
+                try:
+                    from app.engine.monitoring.metrics import (
+                        observe_histogram, db_query_duration,
+                        record_health_check_duration, update_health_check_status
+                    )
+                    # Record both database query and health check metrics
+                    observe_histogram(
+                        db_query_duration,
+                        latency_ms / 1000,  # Convert to seconds
+                        {"operation": "health_check", "table": "system"}
+                    )
+                    record_health_check_duration("database", latency_ms / 1000)
+                    update_health_check_status("database", "healthy")
+                except ImportError:
+                    pass
+
                 return ComponentHealth(
                     name="database",
                     status=HealthStatus.HEALTHY,
@@ -116,18 +144,32 @@ class HealthChecker:
                 await conn.close()
 
         except TimeoutError:
+            latency_ms = (time.time() - start_time) * 1000
+            try:
+                from app.engine.monitoring.metrics import record_health_check_duration, update_health_check_status
+                record_health_check_duration("database", latency_ms / 1000)
+                update_health_check_status("database", "unhealthy")
+            except ImportError:
+                pass
             return ComponentHealth(
                 name="database",
                 status=HealthStatus.UNHEALTHY,
                 message="Database connection timeout",
-                latency_ms=(time.time() - start_time) * 1000,
+                latency_ms=latency_ms,
             )
         except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            try:
+                from app.engine.monitoring.metrics import record_health_check_duration, update_health_check_status
+                record_health_check_duration("database", latency_ms / 1000)
+                update_health_check_status("database", "unhealthy")
+            except ImportError:
+                pass
             return ComponentHealth(
                 name="database",
                 status=HealthStatus.UNHEALTHY,
                 message=f"Database error: {e!s}",
-                latency_ms=(time.time() - start_time) * 1000,
+                latency_ms=latency_ms,
             )
 
     async def check_redis(self, redis_url: str) -> ComponentHealth:
@@ -154,6 +196,14 @@ class HealthChecker:
 
                 latency_ms = (time.time() - start_time) * 1000
 
+                # Record metrics
+                try:
+                    from app.engine.monitoring.metrics import record_health_check_duration, update_health_check_status
+                    record_health_check_duration("redis", latency_ms / 1000)
+                    update_health_check_status("redis", "healthy")
+                except ImportError:
+                    pass
+
                 return ComponentHealth(
                     name="redis",
                     status=HealthStatus.HEALTHY,
@@ -165,18 +215,32 @@ class HealthChecker:
                 await client.aclose()
 
         except TimeoutError:
+            latency_ms = (time.time() - start_time) * 1000
+            try:
+                from app.engine.monitoring.metrics import record_health_check_duration, update_health_check_status
+                record_health_check_duration("redis", latency_ms / 1000)
+                update_health_check_status("redis", "unhealthy")
+            except ImportError:
+                pass
             return ComponentHealth(
                 name="redis",
                 status=HealthStatus.UNHEALTHY,
                 message="Redis connection timeout",
-                latency_ms=(time.time() - start_time) * 1000,
+                latency_ms=latency_ms,
             )
         except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            try:
+                from app.engine.monitoring.metrics import record_health_check_duration, update_health_check_status
+                record_health_check_duration("redis", latency_ms / 1000)
+                update_health_check_status("redis", "unhealthy")
+            except ImportError:
+                pass
             return ComponentHealth(
                 name="redis",
                 status=HealthStatus.UNHEALTHY,
                 message=f"Redis error: {e!s}",
-                latency_ms=(time.time() - start_time) * 1000,
+                latency_ms=latency_ms,
             )
 
     async def check_event_bus(self, event_bus: Any) -> ComponentHealth:
@@ -186,10 +250,18 @@ class HealthChecker:
         try:
             # Check if event bus is running
             if not hasattr(event_bus, "is_running") or not event_bus.is_running():
+                latency_ms = (time.time() - start_time) * 1000
+                try:
+                    from app.engine.monitoring.metrics import record_health_check_duration, update_health_check_status
+                    record_health_check_duration("event_bus", latency_ms / 1000)
+                    update_health_check_status("event_bus", "unhealthy")
+                except ImportError:
+                    pass
                 return ComponentHealth(
                     name="event_bus",
                     status=HealthStatus.UNHEALTHY,
                     message="Event bus is not running",
+                    latency_ms=latency_ms,
                 )
 
             details = {}
@@ -204,6 +276,14 @@ class HealthChecker:
 
             latency_ms = (time.time() - start_time) * 1000
 
+            # Record metrics
+            try:
+                from app.engine.monitoring.metrics import record_health_check_duration, update_health_check_status
+                record_health_check_duration("event_bus", latency_ms / 1000)
+                update_health_check_status("event_bus", "healthy")
+            except ImportError:
+                pass
+
             return ComponentHealth(
                 name="event_bus",
                 status=HealthStatus.HEALTHY,
@@ -213,11 +293,18 @@ class HealthChecker:
             )
 
         except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            try:
+                from app.engine.monitoring.metrics import record_health_check_duration, update_health_check_status
+                record_health_check_duration("event_bus", latency_ms / 1000)
+                update_health_check_status("event_bus", "unhealthy")
+            except ImportError:
+                pass
             return ComponentHealth(
                 name="event_bus",
                 status=HealthStatus.UNHEALTHY,
                 message=f"Event bus error: {e!s}",
-                latency_ms=(time.time() - start_time) * 1000,
+                latency_ms=latency_ms,
             )
 
     async def _run_check(self, name: str) -> None:

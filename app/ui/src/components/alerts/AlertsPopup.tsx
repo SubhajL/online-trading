@@ -218,6 +218,21 @@ export function AlertsPopup({ isOpen, onClose }: AlertsPopupProps) {
                         <div className="flex-1">
                           <h3 className="text-sm font-medium text-white truncate">{alert.title}</h3>
                           <p className="text-xs text-gray-400 mt-1">{alert.message}</p>
+
+                          {/* Snapshot Image */}
+                          {alert.imageUrl && (
+                            <div className="mt-2">
+                              <img
+                                src={alert.imageUrl}
+                                alt={`${alert.title} snapshot`}
+                                className="w-full rounded border border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  window.open(alert.imageUrl, '_blank')
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
 
                         {/* Severity badge */}
