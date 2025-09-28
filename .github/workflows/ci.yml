@@ -84,7 +84,7 @@ jobs:
           python -m pytest tests/unit/test_e2e_trading_flow.py -v
 
       - name: Upload Python coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-coverage
           path: app/engine/coverage.xml
@@ -119,7 +119,7 @@ jobs:
           go test -v -race -coverprofile=coverage.out ./...
 
       - name: Upload Go coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: go-coverage
           path: app/router/coverage.out
@@ -164,7 +164,7 @@ jobs:
           pnpm test
 
       - name: Upload TypeScript coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: typescript-coverage
           path: |
