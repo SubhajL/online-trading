@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { AlertSnapshot } from '../database/entities/alert-snapshot.entity';
 import { AlertSnapshotDto } from '../alerts/dto/alert-snapshot.dto';
 import { v4 as uuidv4 } from 'uuid';
