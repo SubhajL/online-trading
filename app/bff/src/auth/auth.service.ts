@@ -17,13 +17,13 @@ export class AuthService {
     {
       id: 'user-123',
       username: 'testuser',
-      password: '$2b$10$hashedpassword',
+      password: '$2b$10$hjaXxPY0IqoLT5lGy89RhOk7UMQIwdUuEFz3Ip9o/nbYovGc8bIaa', // password: admin123
       roles: ['operator'],
     },
     {
       id: 'user-456',
       username: 'admin',
-      password: '$2b$10$KIKhxW5lMQPC1svPLAcrZeP/oLhV5Dw7F8PTVm08r6oNSJzJl8jGe', // password: admin123
+      password: '$2b$10$hjaXxPY0IqoLT5lGy89RhOk7UMQIwdUuEFz3Ip9o/nbYovGc8bIaa', // password: admin123
       roles: ['admin', 'operator'],
     },
   ];

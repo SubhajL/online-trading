@@ -67,7 +67,15 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-your_secure_password_here}@postgres:5432/${POSTGRES_DB:-trading_platform}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-trading_platform}
+      - DB_USER=${POSTGRES_USER:-trading_user}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-your_secure_password_here}
       - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
       - ENGINE_PORT=${ENGINE_PORT:-8000}
       - ENVIRONMENT=development
       - DEBUG=true
@@ -107,13 +115,13 @@ services:
     container_name: trading-router-dev
     restart: unless-stopped
     environment:
-      - PORT=${ROUTER_PORT:-8080}
+      - PORT=8080
       - ENGINE_URL=http://engine:8000
       - REDIS_URL=redis://redis:6379/0
-      - BINANCE_API_KEY=${BINANCE_API_KEY}
-      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
-      - BINANCE_FUTURES_API_KEY=${BINANCE_FUTURES_API_KEY}
-      - BINANCE_FUTURES_API_SECRET=${BINANCE_FUTURES_API_SECRET}
+      - BINANCE_SPOT_API_KEY=${BINANCE_SPOT_API_KEY:-dev-spot-api-key}
+      - BINANCE_SPOT_SECRET_KEY=${BINANCE_SPOT_SECRET_KEY:-dev-spot-secret-key}
+      - BINANCE_FUTURES_API_KEY=${BINANCE_FUTURES_API_KEY:-dev-futures-api-key}
+      - BINANCE_FUTURES_SECRET_KEY=${BINANCE_FUTURES_SECRET_KEY:-dev-futures-secret-key}
       - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
       - ENVIRONMENT=development
       - DEBUG=true
@@ -122,6 +130,7 @@ services:
       - "${ROUTER_PORT:-8080}:8080"
     volumes:
       - ./app/router:/app
+    working_dir: /app
     depends_on:
       engine:
         condition: service_healthy
@@ -129,8 +138,9 @@ services:
         condition: service_started
     networks:
       - trading-network
+    command: go run ./cmd/router/main.go
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/healthz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -143,9 +153,12 @@ services:
     container_name: trading-bff-dev
     restart: unless-stopped
     environment:
-      - PORT=${BFF_PORT:-3001}
+      - PORT=3001
       - NODE_ENV=development
       - ENGINE_PUBSUB_URL=redis://redis:6379
+      - ENGINE_HOST=redis
+      - ENGINE_PORT=6379
+      - ENGINE_TYPE=redis
       - ROUTER_BASE_URL=http://router:8080
       - ROUTER_API_KEY=${ROUTER_API_KEY}
       - REDIS_HOST=redis
@@ -171,12 +184,12 @@ services:
         condition: service_healthy
     networks:
       - trading-network
-    command: pnpm run start:dev
+    command: sh -c "CI=true pnpm install --no-frozen-lockfile && pnpm run start:dev"
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "node -e \"fetch('http://localhost:3001/api/health',{cache:'no-store'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+          "node -e \"fetch('http://localhost:3001/api/health/liveness',{cache:'no-store'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
         ]
       interval: 10s
       timeout: 5s

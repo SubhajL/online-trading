@@ -7,6 +7,7 @@ import {
   HealthIndicatorResult,
 } from '@nestjs/terminus';
 import { ConfigService } from '@nestjs/config';
+import { Public } from '../auth/decorators/public.decorator';
 import { EngineClientService } from '../engine-client/engine-client.service';
 
 interface LivenessResponse {
@@ -26,6 +27,7 @@ export class HealthController {
     private readonly engineClient: EngineClientService,
   ) {}
 
+  @Public()
   @Get()
   @HealthCheck()
   check(): Promise<HealthCheckResult> {
@@ -36,6 +38,7 @@ export class HealthController {
     ]);
   }
 
+  @Public()
   @Get('liveness')
   async liveness(): Promise<LivenessResponse> {
     return {
@@ -45,6 +48,7 @@ export class HealthController {
     };
   }
 
+  @Public()
   @Get('readiness')
   @HealthCheck()
   readiness(): Promise<HealthCheckResult> {
