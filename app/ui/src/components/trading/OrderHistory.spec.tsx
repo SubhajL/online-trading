@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { OrderHistory } from './OrderHistory'
 import type { Order, OrderId, Symbol } from '@/types'
@@ -156,7 +156,10 @@ describe('OrderHistory', () => {
       render(<OrderHistory orders={statusOrders} onCancel={mockOnCancel} />)
 
       expect(screen.getByText('NEW')).toHaveClass('bg-blue-500/10', 'text-blue-500')
-      expect(screen.getByText('PARTIALLY_FILLED')).toHaveClass('bg-yellow-500/10', 'text-yellow-500')
+      expect(screen.getByText('PARTIALLY_FILLED')).toHaveClass(
+        'bg-yellow-500/10',
+        'text-yellow-500',
+      )
       expect(screen.getByText('REJECTED')).toHaveClass('bg-red-500/10', 'text-red-500')
       expect(screen.getByText('EXPIRED')).toHaveClass('bg-gray-500/10', 'text-gray-500')
     })

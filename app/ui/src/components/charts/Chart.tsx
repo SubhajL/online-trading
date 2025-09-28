@@ -58,10 +58,8 @@ export function Chart({
     cleanup,
   } = useChart(containerRef)
 
-  const { candles, indicators, smcEvents, zones, loading, error, setTimeframe, setSymbol } = useMarketData(
-    symbol as Symbol,
-    selectedTimeframe
-  )
+  const { candles, indicators, smcEvents, zones, loading, error, setTimeframe, setSymbol } =
+    useMarketData(symbol as Symbol, selectedTimeframe)
 
   // Update symbol when prop changes
   useEffect(() => {
@@ -210,7 +208,7 @@ export function Chart({
           <select
             data-testid="chart-type-selector"
             value={chartType}
-            onChange={(e) => handleChartTypeChange(e.target.value as ChartType)}
+            onChange={e => handleChartTypeChange(e.target.value as ChartType)}
             className="bg-gray-800 text-white text-sm px-3 py-1 rounded border border-gray-700"
           >
             {CHART_TYPES.map(type => (
@@ -234,9 +232,7 @@ export function Chart({
             data-testid="smc-overlay-toggle"
             onClick={() => setShowSmc(!showSmc)}
             className={`px-3 py-1 text-sm rounded transition-colors ${
-              showSmc
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              showSmc ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
             }`}
           >
             SMC
@@ -247,9 +243,7 @@ export function Chart({
             data-testid="zone-overlay-toggle"
             onClick={() => setShowZones(!showZones)}
             className={`px-3 py-1 text-sm rounded transition-colors ${
-              showZones
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              showZones ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
             }`}
           >
             Zones
@@ -263,7 +257,12 @@ export function Chart({
             title="Fit content"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0 0l-5-5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0 0l-5-5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+              />
             </svg>
           </button>
 
@@ -275,9 +274,19 @@ export function Chart({
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {isFullscreen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l4 4m12-4h-4m4 0v4m0 0l-4-4M4 16v4m0 0h4m-4 0l4-4m12 4l-4-4m4 4v-4m0 4h-4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 8V4m0 0h4M4 4l4 4m12-4h-4m4 0v4m0 0l-4-4M4 16v4m0 0h4m-4 0l4-4m12 4l-4-4m4 4v-4m0 4h-4"
+                />
               )}
             </svg>
           </button>
@@ -319,16 +328,4 @@ export function Chart({
       )}
     </div>
   )
-}
-
-function getIndicatorColor(indicator: IndicatorType): string {
-  const colors: Record<IndicatorType, string> = {
-    EMA: '#3B82F6',
-    SMA: '#10B981',
-    RSI: '#F59E0B',
-    MACD: '#8B5CF6',
-    BB: '#EC4899',
-    VOLUME: '#6B7280',
-  }
-  return colors[indicator] || '#6B7280'
 }

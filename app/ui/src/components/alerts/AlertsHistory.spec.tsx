@@ -267,11 +267,13 @@ describe('AlertsHistory', () => {
 
   describe('pagination', () => {
     it('should show pagination controls', async () => {
-      const mockManyAlerts = Array.from({ length: 25 }, (_, i) => createMockAlert({
-        id: `alert-${i + 1}`,
-        symbol: 'BTCUSDT',
-        venue: 'SPOT',
-      }))
+      const mockManyAlerts = Array.from({ length: 25 }, (_, i) =>
+        createMockAlert({
+          id: `alert-${i + 1}`,
+          symbol: 'BTCUSDT',
+          venue: 'SPOT',
+        }),
+      )
 
       vi.mocked(alertsService.getAlerts).mockResolvedValue({ alerts: mockManyAlerts })
 
@@ -283,12 +285,14 @@ describe('AlertsHistory', () => {
     })
 
     it('should navigate between pages', async () => {
-      const mockManyAlerts = Array.from({ length: 25 }, (_, i) => createMockAlert({
-        id: `alert-${i + 1}`,
-        title: `Alert ${i + 1}`,
-        symbol: 'BTCUSDT',
-        venue: 'SPOT',
-      }))
+      const mockManyAlerts = Array.from({ length: 25 }, (_, i) =>
+        createMockAlert({
+          id: `alert-${i + 1}`,
+          title: `Alert ${i + 1}`,
+          symbol: 'BTCUSDT',
+          venue: 'SPOT',
+        }),
+      )
 
       vi.mocked(alertsService.getAlerts).mockResolvedValue({ alerts: mockManyAlerts })
 

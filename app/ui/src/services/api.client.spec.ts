@@ -205,12 +205,12 @@ describe('ApiClient', () => {
       controller.abort() // Pre-abort the signal
 
       vi.mocked(fetch).mockRejectedValueOnce(
-        new DOMException('The operation was aborted.', 'AbortError')
+        new DOMException('The operation was aborted.', 'AbortError'),
       )
 
-      await expect(
-        client.request('/test', { signal: controller.signal })
-      ).rejects.toThrow('The operation was aborted.')
+      await expect(client.request('/test', { signal: controller.signal })).rejects.toThrow(
+        'The operation was aborted.',
+      )
     })
 
     it('passes custom signal through to fetch', async () => {
@@ -236,12 +236,12 @@ describe('ApiClient', () => {
 
     it('does not retry on abort error', async () => {
       vi.mocked(fetch).mockRejectedValue(
-        new DOMException('The operation was aborted.', 'AbortError')
+        new DOMException('The operation was aborted.', 'AbortError'),
       )
 
-      await expect(
-        client.request('/test', { retries: 3 })
-      ).rejects.toThrow('The operation was aborted.')
+      await expect(client.request('/test', { retries: 3 })).rejects.toThrow(
+        'The operation was aborted.',
+      )
 
       // Should only be called once, not retried
       expect(fetch).toHaveBeenCalledTimes(1)

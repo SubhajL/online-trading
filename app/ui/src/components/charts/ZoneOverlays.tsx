@@ -47,9 +47,10 @@ function createZoneOverlay(zone: Zone): HTMLDivElement {
   // Style the zone rectangle
   overlay.style.width = '100%'
   overlay.style.height = `${height}px` // This would be calculated based on chart scale
-  overlay.style.backgroundColor = zone.type === 'supply'
-    ? `rgba(239, 68, 68, ${opacity})` // red-500
-    : `rgba(34, 197, 94, ${opacity})` // green-500
+  overlay.style.backgroundColor =
+    zone.type === 'supply'
+      ? `rgba(239, 68, 68, ${opacity})` // red-500
+      : `rgba(34, 197, 94, ${opacity})` // green-500
   overlay.style.border = `1px solid ${zone.type === 'supply' ? 'rgb(239, 68, 68)' : 'rgb(34, 197, 94)'}`
 
   // Create label
@@ -64,9 +65,7 @@ function createZoneOverlay(zone: Zone): HTMLDivElement {
   if (zone.touches > 0) {
     const badge = document.createElement('span')
     badge.className = `px-1 py-0.5 text-xs rounded-full ${
-      zone.type === 'supply'
-        ? 'bg-red-100 text-red-700'
-        : 'bg-green-100 text-green-700'
+      zone.type === 'supply' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
     }`
     badge.textContent = `${zone.touches}x`
     label.appendChild(text)
@@ -91,7 +90,7 @@ function createZoneOverlay(zone: Zone): HTMLDivElement {
 
 function getZoneOpacity(strength: number, touches: number): number {
   // Base opacity on strength
-  const baseOpacity = Math.min(0.1 + (strength * 0.08), 0.5)
+  const baseOpacity = Math.min(0.1 + strength * 0.08, 0.5)
 
   // Reduce opacity based on touches (zones get weaker with more touches)
   const touchPenalty = touches * 0.05

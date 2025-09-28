@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, act, waitFor } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import { useApiCache, _testOnlyExports } from './useApiCache'
 
 describe('useApiCache', () => {
@@ -240,7 +240,8 @@ describe('useApiCache', () => {
 
   describe('options', () => {
     it('respects custom TTL', async () => {
-      const mockFetcher = vi.fn()
+      const mockFetcher = vi
+        .fn()
         .mockResolvedValueOnce({ data: 'first' })
         .mockResolvedValueOnce({ data: 'second' })
       const cacheKey = 'test-key-ttl'
@@ -295,15 +296,14 @@ describe('useApiCache', () => {
     })
 
     it('disables cache when TTL is 0', async () => {
-      const mockFetcher = vi.fn()
+      const mockFetcher = vi
+        .fn()
         .mockResolvedValueOnce({ data: 'first' })
         .mockResolvedValueOnce({ data: 'second' })
       const cacheKey = 'test-key-no-cache'
 
       // First mount
-      const { result, unmount } = renderHook(() =>
-        useApiCache(cacheKey, mockFetcher, { ttl: 0 })
-      )
+      const { result, unmount } = renderHook(() => useApiCache(cacheKey, mockFetcher, { ttl: 0 }))
 
       expect(result.current.loading).toBe(true)
 
@@ -317,9 +317,7 @@ describe('useApiCache', () => {
       unmount()
 
       // Second mount should refetch immediately
-      const { result: result2 } = renderHook(() =>
-        useApiCache(cacheKey, mockFetcher, { ttl: 0 })
-      )
+      const { result: result2 } = renderHook(() => useApiCache(cacheKey, mockFetcher, { ttl: 0 }))
 
       expect(result2.current.loading).toBe(true)
       expect(mockFetcher).toHaveBeenCalledTimes(2)
