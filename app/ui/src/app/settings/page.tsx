@@ -6,7 +6,9 @@ import { useState } from 'react'
 
 export default function SettingsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activeTab, setActiveTab] = useState<'general' | 'trading' | 'notifications' | 'api'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'trading' | 'notifications' | 'api'>(
+    'general',
+  )
 
   // Mock settings data
   const [settings, setSettings] = useState({
@@ -37,7 +39,7 @@ export default function SettingsPage() {
     },
   })
 
-  const handleSettingChange = (category: string, key: string, value: any) => {
+  const handleSettingChange = (category: string, key: string, value: string | number | boolean) => {
     setSettings(prev => ({
       ...prev,
       [category]: {
@@ -94,7 +96,7 @@ export default function SettingsPage() {
                       <label>Theme</label>
                       <select
                         value={settings.general.theme}
-                        onChange={(e) => handleSettingChange('general', 'theme', e.target.value)}
+                        onChange={e => handleSettingChange('general', 'theme', e.target.value)}
                       >
                         <option value="dark">Dark</option>
                         <option value="light">Light</option>
@@ -104,7 +106,7 @@ export default function SettingsPage() {
                       <label>Timezone</label>
                       <select
                         value={settings.general.timezone}
-                        onChange={(e) => handleSettingChange('general', 'timezone', e.target.value)}
+                        onChange={e => handleSettingChange('general', 'timezone', e.target.value)}
                       >
                         <option value="UTC">UTC</option>
                         <option value="America/New_York">Eastern Time</option>
@@ -118,7 +120,7 @@ export default function SettingsPage() {
                       <label>Language</label>
                       <select
                         value={settings.general.language}
-                        onChange={(e) => handleSettingChange('general', 'language', e.target.value)}
+                        onChange={e => handleSettingChange('general', 'language', e.target.value)}
                       >
                         <option value="en">English</option>
                         <option value="es">Spanish</option>
@@ -138,7 +140,9 @@ export default function SettingsPage() {
                       <label>Default Venue</label>
                       <select
                         value={settings.trading.defaultVenue}
-                        onChange={(e) => handleSettingChange('trading', 'defaultVenue', e.target.value)}
+                        onChange={e =>
+                          handleSettingChange('trading', 'defaultVenue', e.target.value)
+                        }
                       >
                         <option value="SPOT">Spot</option>
                         <option value="FUTURES">Futures</option>
@@ -151,7 +155,13 @@ export default function SettingsPage() {
                         min="1"
                         max="125"
                         value={settings.trading.defaultLeverage}
-                        onChange={(e) => handleSettingChange('trading', 'defaultLeverage', parseInt(e.target.value))}
+                        onChange={e =>
+                          handleSettingChange(
+                            'trading',
+                            'defaultLeverage',
+                            parseInt(e.target.value),
+                          )
+                        }
                       />
                     </div>
                     <div className="setting-item">
@@ -159,7 +169,9 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={settings.trading.confirmOrders}
-                          onChange={(e) => handleSettingChange('trading', 'confirmOrders', e.target.checked)}
+                          onChange={e =>
+                            handleSettingChange('trading', 'confirmOrders', e.target.checked)
+                          }
                         />
                         Confirm orders before submission
                       </label>
@@ -169,7 +181,13 @@ export default function SettingsPage() {
                       <input
                         type="number"
                         value={settings.trading.maxPositionSize}
-                        onChange={(e) => handleSettingChange('trading', 'maxPositionSize', parseInt(e.target.value))}
+                        onChange={e =>
+                          handleSettingChange(
+                            'trading',
+                            'maxPositionSize',
+                            parseInt(e.target.value),
+                          )
+                        }
                       />
                     </div>
                     <div className="setting-item">
@@ -178,7 +196,13 @@ export default function SettingsPage() {
                         type="number"
                         step="0.1"
                         value={settings.trading.defaultStopLoss}
-                        onChange={(e) => handleSettingChange('trading', 'defaultStopLoss', parseFloat(e.target.value))}
+                        onChange={e =>
+                          handleSettingChange(
+                            'trading',
+                            'defaultStopLoss',
+                            parseFloat(e.target.value),
+                          )
+                        }
                       />
                     </div>
                     <div className="setting-item">
@@ -187,7 +211,13 @@ export default function SettingsPage() {
                         type="number"
                         step="0.1"
                         value={settings.trading.defaultTakeProfit}
-                        onChange={(e) => handleSettingChange('trading', 'defaultTakeProfit', parseFloat(e.target.value))}
+                        onChange={e =>
+                          handleSettingChange(
+                            'trading',
+                            'defaultTakeProfit',
+                            parseFloat(e.target.value),
+                          )
+                        }
                       />
                     </div>
                   </div>
@@ -201,7 +231,9 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={settings.notifications.emailAlerts}
-                          onChange={(e) => handleSettingChange('notifications', 'emailAlerts', e.target.checked)}
+                          onChange={e =>
+                            handleSettingChange('notifications', 'emailAlerts', e.target.checked)
+                          }
                         />
                         Email Alerts
                       </label>
@@ -211,7 +243,13 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={settings.notifications.pushNotifications}
-                          onChange={(e) => handleSettingChange('notifications', 'pushNotifications', e.target.checked)}
+                          onChange={e =>
+                            handleSettingChange(
+                              'notifications',
+                              'pushNotifications',
+                              e.target.checked,
+                            )
+                          }
                         />
                         Push Notifications
                       </label>
@@ -221,7 +259,13 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={settings.notifications.tradeExecutions}
-                          onChange={(e) => handleSettingChange('notifications', 'tradeExecutions', e.target.checked)}
+                          onChange={e =>
+                            handleSettingChange(
+                              'notifications',
+                              'tradeExecutions',
+                              e.target.checked,
+                            )
+                          }
                         />
                         Trade Execution Alerts
                       </label>
@@ -231,7 +275,9 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={settings.notifications.priceAlerts}
-                          onChange={(e) => handleSettingChange('notifications', 'priceAlerts', e.target.checked)}
+                          onChange={e =>
+                            handleSettingChange('notifications', 'priceAlerts', e.target.checked)
+                          }
                         />
                         Price Alerts
                       </label>
@@ -241,7 +287,9 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={settings.notifications.systemAlerts}
-                          onChange={(e) => handleSettingChange('notifications', 'systemAlerts', e.target.checked)}
+                          onChange={e =>
+                            handleSettingChange('notifications', 'systemAlerts', e.target.checked)
+                          }
                         />
                         System Alerts
                       </label>
@@ -255,13 +303,17 @@ export default function SettingsPage() {
                     <div className="api-status">
                       <div className="status-item">
                         <span>Spot Trading</span>
-                        <span className={`status ${settings.api.spotConnected ? 'connected' : 'disconnected'}`}>
+                        <span
+                          className={`status ${settings.api.spotConnected ? 'connected' : 'disconnected'}`}
+                        >
                           {settings.api.spotConnected ? 'Connected' : 'Disconnected'}
                         </span>
                       </div>
                       <div className="status-item">
                         <span>Futures Trading</span>
-                        <span className={`status ${settings.api.futuresConnected ? 'connected' : 'disconnected'}`}>
+                        <span
+                          className={`status ${settings.api.futuresConnected ? 'connected' : 'disconnected'}`}
+                        >
                           {settings.api.futuresConnected ? 'Connected' : 'Disconnected'}
                         </span>
                       </div>
@@ -271,7 +323,9 @@ export default function SettingsPage() {
                         <input
                           type="checkbox"
                           checked={settings.api.testnetMode}
-                          onChange={(e) => handleSettingChange('api', 'testnetMode', e.target.checked)}
+                          onChange={e =>
+                            handleSettingChange('api', 'testnetMode', e.target.checked)
+                          }
                         />
                         Testnet Mode
                       </label>
@@ -282,28 +336,44 @@ export default function SettingsPage() {
                       <div className="key-input-group">
                         <label>Spot API Key</label>
                         <input type="password" placeholder="Enter your Spot API key" disabled />
-                        <button className="update-btn" onClick={() => console.warn('TODO: Update Spot API key')}>
+                        <button
+                          className="update-btn"
+                          onClick={() => console.warn('TODO: Update Spot API key')}
+                        >
                           Update
                         </button>
                       </div>
                       <div className="key-input-group">
                         <label>Spot Secret Key</label>
                         <input type="password" placeholder="Enter your Spot secret key" disabled />
-                        <button className="update-btn" onClick={() => console.warn('TODO: Update Spot secret key')}>
+                        <button
+                          className="update-btn"
+                          onClick={() => console.warn('TODO: Update Spot secret key')}
+                        >
                           Update
                         </button>
                       </div>
                       <div className="key-input-group">
                         <label>Futures API Key</label>
                         <input type="password" placeholder="Enter your Futures API key" disabled />
-                        <button className="update-btn" onClick={() => console.warn('TODO: Update Futures API key')}>
+                        <button
+                          className="update-btn"
+                          onClick={() => console.warn('TODO: Update Futures API key')}
+                        >
                           Update
                         </button>
                       </div>
                       <div className="key-input-group">
                         <label>Futures Secret Key</label>
-                        <input type="password" placeholder="Enter your Futures secret key" disabled />
-                        <button className="update-btn" onClick={() => console.warn('TODO: Update Futures secret key')}>
+                        <input
+                          type="password"
+                          placeholder="Enter your Futures secret key"
+                          disabled
+                        />
+                        <button
+                          className="update-btn"
+                          onClick={() => console.warn('TODO: Update Futures secret key')}
+                        >
                           Update
                         </button>
                       </div>
@@ -313,7 +383,10 @@ export default function SettingsPage() {
               </div>
 
               <div className="settings-actions">
-                <button className="save-btn" onClick={() => console.warn('TODO: Save settings to BFF')}>
+                <button
+                  className="save-btn"
+                  onClick={() => console.warn('TODO: Save settings to BFF')}
+                >
                   Save Changes
                 </button>
                 <button className="cancel-btn" onClick={() => console.warn('TODO: Reset settings')}>
@@ -411,9 +484,9 @@ export default function SettingsPage() {
           gap: 0.5rem;
         }
 
-        .setting-item input[type="text"],
-        .setting-item input[type="number"],
-        .setting-item input[type="password"],
+        .setting-item input[type='text'],
+        .setting-item input[type='number'],
+        .setting-item input[type='password'],
         .setting-item select {
           padding: 0.5rem 0.75rem;
           background: #1a1d2a;
@@ -423,7 +496,7 @@ export default function SettingsPage() {
           min-width: 200px;
         }
 
-        .setting-item input[type="checkbox"] {
+        .setting-item input[type='checkbox'] {
           width: auto;
           margin: 0;
         }

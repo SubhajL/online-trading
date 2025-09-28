@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useOrders } from './useOrders'
 import { _testOnlyExports as cacheExports } from './useApiCache'
-import type { Order, OrderStatus, Venue } from '@/types'
 
 describe('useOrders', () => {
   beforeEach(() => {
@@ -79,11 +78,13 @@ describe('useOrders', () => {
     })
 
     it('fetches orders with multiple filters', async () => {
-      const { result } = renderHook(() => useOrders({
-        venue: 'SPOT' as Venue,
-        status: 'FILLED' as OrderStatus,
-        symbol: 'ETHUSDT'
-      }))
+      const { result } = renderHook(() =>
+        useOrders({
+          venue: 'SPOT' as Venue,
+          status: 'FILLED' as OrderStatus,
+          symbol: 'ETHUSDT',
+        }),
+      )
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false)
@@ -157,10 +158,9 @@ describe('useOrders', () => {
     })
 
     it('cancels previous request on filter change', async () => {
-      const { result, rerender } = renderHook(
-        ({ filters }) => useOrders(filters),
-        { initialProps: { filters: { venue: 'SPOT' as Venue } } }
-      )
+      const { result, rerender } = renderHook(({ filters }) => useOrders(filters), {
+        initialProps: { filters: { venue: 'SPOT' as Venue } },
+      })
 
       expect(result.current.loading).toBe(true)
 
@@ -233,8 +233,6 @@ describe('useOrders', () => {
         expect(result.current.loading).toBe(false)
       })
 
-      const initialLength = result.current.orders.length
-
       // Manual refresh
       await act(async () => {
         await result.current.refresh()
@@ -271,7 +269,7 @@ describe('useOrders', () => {
     it('accepts custom API client', async () => {
       // Create a custom client that points to a different endpoint
       const customClient = {
-        get: async (endpoint: string, options?: any) => {
+        get: async (endpoint: string, _options?: any) => {
           // Make a real request to a test endpoint
           const response = await fetch('http://localhost:8002/api/test' + endpoint, {
             method: 'GET',
@@ -280,14 +278,17 @@ describe('useOrders', () => {
             },
           })
           return response.json()
-        }
+        },
       }
 
       const { result } = renderHook(() => useOrders(undefined, customClient as any))
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      }, { timeout: 10000 })
+      await waitFor(
+        () => {
+          expect(result.current.loading).toBe(false)
+        },
+        { timeout: 10000 },
+      )
 
       // Should have attempted to fetch from the custom client
       expect(Array.isArray(result.current.orders)).toBe(true)
@@ -308,10 +309,9 @@ describe('useOrders', () => {
 
     it('fetches next page', async () => {
       // First page
-      const { result, rerender } = renderHook(
-        ({ filters }) => useOrders(filters),
-        { initialProps: { filters: { limit: 5, offset: 0 } } }
-      )
+      const { result, rerender } = renderHook(({ filters }) => useOrders(filters), {
+        initialProps: { filters: { limit: 5, offset: 0 } },
+      })
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false)

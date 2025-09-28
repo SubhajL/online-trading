@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { apiClient } from '@/services/api'
-import { ApiClient } from '@/services/api.client'
+import type { ApiClient } from '@/services/api.client'
 import type { Order, OrderStatus, Venue, OrderFormValues } from '@/types'
 import { useApiCache } from './useApiCache'
+import { websocketService } from '@/services/websocket'
 
 type OrderFilters = {
   venue?: Venue
@@ -26,6 +27,11 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
   const apiClientRef = useRef(client || apiClient)
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [wsOrders, setWsOrders] = useState<Map<string, Order>>(new Map())
+
+  // Determine if we should use WebSocket for this query
+  const isActiveOrdersQuery =
+    !filters?.status || filters.status === 'NEW' || filters.status === 'PARTIALLY_FILLED'
 
   const cacheKey = useMemo(() => {
     const parts = ['orders']
@@ -39,7 +45,7 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
 
   const fetcher = useMemo(
     () => async () => {
-      const params: any = {}
+      const params: OrderFilters = {}
       if (filters?.venue) params.venue = filters.venue
       if (filters?.status) params.status = filters.status
       if (filters?.symbol) params.symbol = filters.symbol
@@ -49,14 +55,83 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
       const data = await apiClientRef.current.get<{ orders: Order[] }>('/orders', { params })
       return data.orders
     },
-    [filters]
+    [filters],
   )
 
   const { data, loading, error, refetch } = useApiCache<Order[]>(
     cacheKey,
     fetcher,
-    { ttl: 10000 } // 10 seconds cache for orders
+    { ttl: 10000 }, // 10 seconds cache for orders
   )
+
+  // Subscribe to WebSocket order events for active orders
+  useEffect(() => {
+    if (!isActiveOrdersQuery) return
+
+    const unsubscribes: Array<() => void> = []
+
+    // Subscribe to order placed events
+    unsubscribes.push(
+      websocketService.subscribe('order.placed', (order: Order) => {
+        if (
+          (!filters?.venue || order.venue === filters.venue) &&
+          (!filters?.symbol || order.symbol === filters.symbol)
+        ) {
+          setWsOrders(prev => {
+            const updated = new Map(prev)
+            updated.set(order.orderId, order)
+            return updated
+          })
+        }
+      }),
+    )
+
+    // Subscribe to order updated events
+    unsubscribes.push(
+      websocketService.subscribe('order.updated', (order: Order) => {
+        setWsOrders(prev => {
+          const updated = new Map(prev)
+          if (prev.has(order.orderId)) {
+            updated.set(order.orderId, order)
+          }
+          return updated
+        })
+      }),
+    )
+
+    // Subscribe to order canceled events
+    unsubscribes.push(
+      websocketService.subscribe('order.canceled', (order: Order) => {
+        setWsOrders(prev => {
+          const updated = new Map(prev)
+          updated.delete(order.orderId)
+          return updated
+        })
+      }),
+    )
+
+    return () => {
+      unsubscribes.forEach(fn => fn())
+    }
+  }, [isActiveOrdersQuery, filters?.venue, filters?.symbol])
+
+  // Merge REST and WebSocket orders
+  const orders = useMemo(() => {
+    if (!isActiveOrdersQuery || !data) return data || []
+
+    // Create a map of REST orders
+    const orderMap = new Map<string, Order>()
+    data.forEach(order => {
+      orderMap.set(order.orderId, order)
+    })
+
+    // Override/add WebSocket orders
+    wsOrders.forEach((wsOrder, orderId) => {
+      orderMap.set(orderId, wsOrder)
+    })
+
+    return Array.from(orderMap.values())
+  }, [data, wsOrders, isActiveOrdersQuery])
 
   const placeOrder = async (order: OrderFormValues) => {
     try {
@@ -91,10 +166,12 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
   }
 
   return {
-    orders: data || [],
+    orders,
     loading,
     error: error?.message || actionError || null,
-    refresh: async () => { refetch() },
+    refresh: async () => {
+      await refetch()
+    },
     placeOrder,
     cancelOrder,
     actionLoading,

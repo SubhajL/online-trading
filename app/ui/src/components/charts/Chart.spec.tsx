@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Chart } from './Chart'
 import { useChart } from '@/hooks/useChart'
 import { useMarketData } from '@/hooks/useMarketData'
-import type { Candle, Timeframe, ChartType, IndicatorType, SmcEvent, Zone } from '@/types'
+import type { Candle, Timeframe, SmcEvent, Zone } from '@/types'
 
 vi.mock('@/hooks/useChart')
 vi.mock('@/hooks/useMarketData')
@@ -181,7 +181,7 @@ describe('Chart', () => {
       expect(mockUseChart.addIndicator).toHaveBeenCalledWith(
         'EMA',
         expect.any(Array),
-        expect.any(Object)
+        expect.any(Object),
       )
     })
 
@@ -219,15 +219,18 @@ describe('Chart', () => {
 
       expect(mockUseChart.addSmcOverlay).toHaveBeenCalledWith(mockSmcEvents)
 
-      const newEvents = [...mockSmcEvents, {
-        id: 'smc-2',
-        symbol: 'BTCUSDT',
-        type: 'BOS' as const,
-        direction: 'bearish' as const,
-        price: 45300,
-        timeframe: '15m',
-        timestamp: 1640995320,
-      }]
+      const newEvents = [
+        ...mockSmcEvents,
+        {
+          id: 'smc-2',
+          symbol: 'BTCUSDT',
+          type: 'BOS' as const,
+          direction: 'bearish' as const,
+          price: 45300,
+          timeframe: '15m',
+          timestamp: 1640995320,
+        },
+      ]
 
       vi.mocked(useMarketData).mockReturnValue({
         ...mockUseMarketData,

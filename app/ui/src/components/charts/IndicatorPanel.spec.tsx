@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IndicatorPanel } from './IndicatorPanel'
 import type { IndicatorType } from '@/types'
@@ -21,7 +21,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       expect(screen.getByTestId('indicator-panel')).toBeInTheDocument()
@@ -33,7 +33,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       allIndicators.forEach(indicator => {
@@ -47,7 +47,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       expect(screen.getByText(/Exponential Moving Average/)).toBeInTheDocument()
@@ -64,7 +64,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       expect(screen.getByText('Technical Indicators')).toBeInTheDocument()
@@ -76,7 +76,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       expect(screen.getByTestId('close-button')).toBeInTheDocument()
@@ -91,7 +91,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={activeIndicators}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       const emaCheckbox = screen.getByLabelText('EMA') as HTMLInputElement
@@ -109,7 +109,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       allIndicators.forEach(indicator => {
@@ -127,7 +127,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       const emaCheckbox = screen.getByLabelText('EMA')
@@ -143,7 +143,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       const closeButton = screen.getByTestId('close-button')
@@ -159,7 +159,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       await user.click(screen.getByLabelText('EMA'))
@@ -180,7 +180,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       const panel = screen.getByTestId('indicator-panel')
@@ -193,7 +193,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={['EMA']}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       const emaItem = screen.getByTestId('indicator-item-EMA')
@@ -211,7 +211,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       const panel = screen.getByTestId('indicator-panel')
@@ -225,7 +225,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       allIndicators.forEach(indicator => {
@@ -243,7 +243,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={allIndicators}
           onToggleIndicator={mockOnToggleIndicator}
           onClose={mockOnClose}
-        />
+        />,
       )
 
       allIndicators.forEach(indicator => {
@@ -259,7 +259,7 @@ describe('IndicatorPanel', () => {
           activeIndicators={[]}
           onToggleIndicator={undefined as any}
           onClose={undefined as any}
-        />
+        />,
       )
 
       expect(screen.getByTestId('indicator-panel')).toBeInTheDocument()

@@ -30,9 +30,12 @@ describe('useBalances', () => {
     expect(result.current.balances).toEqual([])
 
     // Wait for data to load
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    }, { timeout: 10000 })
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false)
+      },
+      { timeout: 10000 },
+    )
 
     // Verify we got real balance data
     expect(result.current.error).toBeNull()
@@ -60,9 +63,12 @@ describe('useBalances', () => {
   it('filters balances by venue', async () => {
     const { result } = renderHook(() => useBalances('SPOT', apiClient))
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    }, { timeout: 10000 })
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false)
+      },
+      { timeout: 10000 },
+    )
 
     expect(result.current.error).toBeNull()
 
@@ -76,9 +82,12 @@ describe('useBalances', () => {
     // First request
     const { result: result1 } = renderHook(() => useBalances(undefined, apiClient))
 
-    await waitFor(() => {
-      expect(result1.current.loading).toBe(false)
-    }, { timeout: 10000 })
+    await waitFor(
+      () => {
+        expect(result1.current.loading).toBe(false)
+      },
+      { timeout: 10000 },
+    )
 
     const firstCallBalances = result1.current.balances
 
@@ -94,11 +103,12 @@ describe('useBalances', () => {
     const { result } = renderHook(() => useBalances(undefined, apiClient))
 
     // Wait for initial load
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    }, { timeout: 10000 })
-
-    const initialBalances = result.current.balances
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false)
+      },
+      { timeout: 10000 },
+    )
 
     // Refetch
     act(() => {
@@ -109,9 +119,12 @@ describe('useBalances', () => {
     expect(result.current.loading).toBe(true)
 
     // Wait for refetch to complete
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    }, { timeout: 10000 })
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false)
+      },
+      { timeout: 10000 },
+    )
 
     // Should have balances (might be same as initial if no changes)
     expect(result.current.balances.length).toBeGreaterThan(0)
@@ -127,10 +140,13 @@ describe('useBalances', () => {
     expect(result2.current.loading).toBe(true)
 
     // Wait for both to complete
-    await waitFor(() => {
-      expect(result1.current.loading).toBe(false)
-      expect(result2.current.loading).toBe(false)
-    }, { timeout: 10000 })
+    await waitFor(
+      () => {
+        expect(result1.current.loading).toBe(false)
+        expect(result2.current.loading).toBe(false)
+      },
+      { timeout: 10000 },
+    )
 
     // Both should have the same data
     expect(result1.current.balances).toEqual(result2.current.balances)
@@ -151,9 +167,12 @@ describe('useBalances', () => {
     expect(result.current.loading).toBe(true)
 
     // Wait for error
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false)
-    }, { timeout: 5000 })
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false)
+      },
+      { timeout: 5000 },
+    )
 
     // Should have error
     expect(result.current.error).not.toBeNull()

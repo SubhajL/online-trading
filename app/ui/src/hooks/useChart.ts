@@ -8,7 +8,10 @@ import {
   CrosshairMode,
   type LineData,
   type HistogramData,
+  type IPriceLine,
+  type UTCTimestamp,
 } from 'lightweight-charts'
+import type { SmcEvent, Zone } from '@/types'
 
 type IndicatorType = 'EMA' | 'SMA' | 'RSI' | 'VOLUME' | 'MACD' | 'BB'
 
@@ -30,11 +33,11 @@ export type UseChartReturn = {
   removeIndicator: (type: IndicatorType) => void
   fitContent: () => void
   setChartType: (type: string) => void
-  addSmcOverlay: (events: any[]) => void
+  addSmcOverlay: (events: SmcEvent[]) => void
   removeSmcOverlay: () => void
-  addZoneOverlay: (zones: any[]) => void
+  addZoneOverlay: (zones: Zone[]) => void
   removeZoneOverlay: () => void
-  addMarkers: (markers: Array<{ time: number | any; type: 'BUY' | 'SELL' }>) => void
+  addMarkers: (markers: Array<{ time: number | string; type: 'BUY' | 'SELL' }>) => void
   addPriceLevels: (levels: { entry?: number; stopLoss?: number; takeProfit?: number }) => void
   removePriceLevels: () => void
   cleanup: () => void
@@ -46,7 +49,7 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
   const indicatorSeriesRef = useRef<Map<string, ISeriesApi<'Line'> | ISeriesApi<'Histogram'>>>(
     new Map(),
   )
-  const priceLinesRef = useRef<Map<string, any>>(new Map())
+  const priceLinesRef = useRef<Map<string, IPriceLine>>(new Map())
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -112,11 +115,14 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
 
     window.addEventListener('resize', handleResize)
 
+    // Store indicators ref for cleanup
+    const indicators = indicatorSeriesRef.current
+
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
       // Clear indicators before chart removal
-      indicatorSeriesRef.current.clear()
+      indicators.clear()
       chartInstance.remove()
       setChart(null)
       setCandlestickSeries(null)
@@ -180,36 +186,39 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
 
   const setChartType = (type: string) => {
     // Chart type change not implemented in current version
-    console.log('Chart type change requested:', type)
+    // TODO: Implement chart type switching
+    void type // Acknowledge parameter for future implementation
   }
 
-  const addSmcOverlay = (events: any[]) => {
+  const addSmcOverlay = (events: SmcEvent[]) => {
     // SMC overlay not implemented in current version
-    console.log('SMC overlay requested:', events.length, 'events')
+    // TODO: Implement SMC overlay rendering
+    void events // Acknowledge parameter for future implementation
   }
 
   const removeSmcOverlay = () => {
     // SMC overlay removal not implemented in current version
-    console.log('SMC overlay removal requested')
+    // TODO: Implement SMC overlay removal
   }
 
-  const addZoneOverlay = (zones: any[]) => {
+  const addZoneOverlay = (zones: Zone[]) => {
     // Zone overlay not implemented in current version
-    console.log('Zone overlay requested:', zones.length, 'zones')
+    // TODO: Implement zone overlay rendering
+    void zones // Acknowledge parameter for future implementation
   }
 
   const removeZoneOverlay = () => {
     // Zone overlay removal not implemented in current version
-    console.log('Zone overlay removal requested')
+    // TODO: Implement zone overlay removal
   }
 
-  const addMarkers = (markers: Array<{ time: number | any; type: 'BUY' | 'SELL' }>) => {
+  const addMarkers = (markers: Array<{ time: number | string; type: 'BUY' | 'SELL' }>) => {
     if (!candlestickSeries || !markers || markers.length === 0) return
 
     const seriesMarkers = markers.map(marker => ({
-      time: marker.time,
-      position: marker.type === 'BUY' ? 'belowBar' as const : 'aboveBar' as const,
-      shape: marker.type === 'BUY' ? 'arrowUp' as const : 'arrowDown' as const,
+      time: marker.time as UTCTimestamp,
+      position: marker.type === 'BUY' ? ('belowBar' as const) : ('aboveBar' as const),
+      shape: marker.type === 'BUY' ? ('arrowUp' as const) : ('arrowDown' as const),
       color: marker.type === 'BUY' ? '#26a69a' : '#ef5350',
       size: 2,
     }))
@@ -274,7 +283,7 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
 
   const cleanup = () => {
     // Clear all indicators
-    indicatorSeriesRef.current.forEach((series) => {
+    indicatorSeriesRef.current.forEach(series => {
       chart?.removeSeries(series)
     })
     indicatorSeriesRef.current.clear()

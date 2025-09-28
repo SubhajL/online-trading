@@ -1,4 +1,4 @@
-import type { Alert, Balance, Order, OrderId, Symbol, Venue } from '@/types'
+import type { Alert, Balance, Order, OrderId, Symbol } from '@/types'
 
 /**
  * Create a mock Balance object with all required fields

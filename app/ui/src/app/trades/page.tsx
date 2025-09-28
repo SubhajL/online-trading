@@ -2,103 +2,48 @@
 
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
-import { useState, useEffect } from 'react'
-import type { Order } from '@/types'
+import { useState, useMemo } from 'react'
+import { useOrders } from '@/hooks/useOrders'
 
 export default function TradesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'open' | 'filled' | 'canceled'>('all')
 
-  useEffect(() => {
-    // TODO: Fetch real trade data from BFF
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        await new Promise(resolve => setTimeout(resolve, 500))
+  // Use real API hook - fetch all orders without status filter
+  const { orders, loading, error, cancelOrder } = useOrders({})
 
-        // Mock data for now
-        setOrders([
-          {
-            orderId: 'ORD001',
-            symbol: 'BTCUSDT',
-            side: 'BUY',
-            type: 'MARKET',
-            quantity: 0.1,
-            status: 'FILLED',
-            venue: 'SPOT',
-            createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            executedQuantity: 0.1,
-            avgPrice: 40000,
-          },
-          {
-            orderId: 'ORD002',
-            symbol: 'ETHUSDT',
-            side: 'BUY',
-            type: 'LIMIT',
-            quantity: 1.5,
-            price: 2500,
-            status: 'FILLED',
-            venue: 'SPOT',
-            createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            executedQuantity: 1.5,
-            avgPrice: 2500,
-          },
-          {
-            orderId: 'ORD003',
-            symbol: 'BTCUSDT',
-            side: 'SELL',
-            type: 'LIMIT',
-            quantity: 0.05,
-            price: 42500,
-            status: 'NEW',
-            venue: 'SPOT',
-            createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-            executedQuantity: 0,
-          },
-          {
-            orderId: 'ORD004',
-            symbol: 'BTCUSDT',
-            side: 'BUY',
-            type: 'STOP_LOSS',
-            quantity: 0.1,
-            price: 38000,
-            stopPrice: 38500,
-            status: 'CANCELED',
-            venue: 'SPOT',
-            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-            executedQuantity: 0,
-          },
-        ])
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      if (filter === 'all') return true
+      if (filter === 'open') return order.status === 'NEW' || order.status === 'PARTIALLY_FILLED'
+      if (filter === 'filled') return order.status === 'FILLED'
+      if (filter === 'canceled')
+        return (
+          order.status === 'CANCELED' || order.status === 'REJECTED' || order.status === 'EXPIRED'
+        )
+      return true
+    })
+  }, [orders, filter])
 
-        setLoading(false)
-      } catch (error) {
-        console.error('Failed to load trades:', error)
-        setLoading(false)
-      }
+  const stats = useMemo(
+    () => ({
+      totalTrades: orders.length,
+      openOrders: orders.filter(o => o.status === 'NEW' || o.status === 'PARTIALLY_FILLED').length,
+      filledOrders: orders.filter(o => o.status === 'FILLED').length,
+      canceledOrders: orders.filter(
+        o => o.status === 'CANCELED' || o.status === 'REJECTED' || o.status === 'EXPIRED',
+      ).length,
+    }),
+    [orders],
+  )
+
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      await cancelOrder(orderId)
+      console.warn('Order canceled successfully:', orderId)
+    } catch (error) {
+      console.error('Failed to cancel order:', error)
     }
-
-    loadData()
-  }, [])
-
-  const filteredOrders = orders.filter(order => {
-    if (filter === 'all') return true
-    if (filter === 'open') return order.status === 'NEW' || order.status === 'PARTIALLY_FILLED'
-    if (filter === 'filled') return order.status === 'FILLED'
-    if (filter === 'canceled') return order.status === 'CANCELED' || order.status === 'REJECTED' || order.status === 'EXPIRED'
-    return true
-  })
-
-  const stats = {
-    totalTrades: orders.length,
-    openOrders: orders.filter(o => o.status === 'NEW' || o.status === 'PARTIALLY_FILLED').length,
-    filledOrders: orders.filter(o => o.status === 'FILLED').length,
-    canceledOrders: orders.filter(o => o.status === 'CANCELED' || o.status === 'REJECTED' || o.status === 'EXPIRED').length,
   }
 
   const formatDate = (dateString: string) => {
@@ -121,6 +66,12 @@ export default function TradesPage() {
         <main className="app-main">
           <div className="page-container">
             <h1 className="page-title">Active Trades</h1>
+
+            {error && (
+              <div className="error-message">
+                <p>Failed to load trades: {error}</p>
+              </div>
+            )}
 
             <div className="trades-summary">
               <div className="stat-card">
@@ -191,7 +142,7 @@ export default function TradesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.map((order) => (
+                    {filteredOrders.map(order => (
                       <tr key={order.orderId}>
                         <td>{formatDate(order.createdAt)}</td>
                         <td>{order.symbol}</td>
@@ -204,8 +155,7 @@ export default function TradesPage() {
                               ? `$${order.avgPrice.toFixed(2)}`
                               : order.price
                                 ? `$${order.price.toFixed(2)}`
-                                : '-'
-                          }
+                                : '-'}
                         </td>
                         <td>{order.quantity}</td>
                         <td>{order.executedQuantity || 0}</td>
@@ -218,7 +168,7 @@ export default function TradesPage() {
                           {(order.status === 'NEW' || order.status === 'PARTIALLY_FILLED') && (
                             <button
                               className="cancel-btn"
-                              onClick={() => console.warn('TODO: Cancel order', order.orderId)}
+                              onClick={() => handleCancelOrder(String(order.orderId))}
                             >
                               Cancel
                             </button>
@@ -354,8 +304,12 @@ export default function TradesPage() {
           color: #9ca3af;
         }
 
-        .buy { color: #10b981; }
-        .sell { color: #ef4444; }
+        .buy {
+          color: #10b981;
+        }
+        .sell {
+          color: #ef4444;
+        }
 
         .status {
           padding: 0.25rem 0.5rem;
@@ -400,6 +354,14 @@ export default function TradesPage() {
         .cancel-btn:hover {
           background: #ef4444;
           color: white;
+        }
+
+        .error-message {
+          background: #dc2626;
+          color: white;
+          padding: 1rem;
+          border-radius: 0.5rem;
+          margin-bottom: 2rem;
         }
       `}</style>
     </div>

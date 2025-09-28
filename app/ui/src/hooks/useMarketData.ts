@@ -21,6 +21,13 @@ type Indicators = {
   VOLUME: IndicatorData[]
 }
 
+type IndicatorEvent = {
+  type?: string
+  time?: number
+  value?: number
+  error?: string
+}
+
 type UseMarketDataReturn = {
   candles: Candle[]
   indicators: Indicators
@@ -105,7 +112,7 @@ export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDa
     )
 
     // Listen for indicator updates
-    const unsubscribeIndicators = service.subscribe<any>(
+    const unsubscribeIndicators = service.subscribe<IndicatorEvent>(
       `indicators:${currentSymbol}:${currentTimeframe}`,
       data => {
         if (data.error) {
@@ -117,7 +124,10 @@ export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDa
         if (data.type && data.time && data.value !== undefined) {
           setIndicators(prev => ({
             ...prev,
-            [data.type]: [...(prev[data.type as keyof Indicators] || []), { time: data.time, value: data.value }],
+            [data.type as string]: [
+              ...(prev[data.type as keyof Indicators] || []),
+              { time: data.time, value: data.value },
+            ],
           }))
           setLoading(false)
         }
@@ -129,7 +139,7 @@ export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDa
       `smc_events:${currentSymbol}:${currentTimeframe}`,
       data => {
         if ('error' in data) {
-          setError((data as any).error)
+          setError((data as { error: string }).error)
           setLoading(false)
           return
         }

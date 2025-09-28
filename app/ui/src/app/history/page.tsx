@@ -2,97 +2,33 @@
 
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
-import { useState, useEffect } from 'react'
-import type { Order } from '@/types'
+import { useState } from 'react'
+import { useOrderHistory } from '@/hooks/useOrderHistory'
 
 export default function HistoryPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dateRange, setDateRange] = useState('7d')
 
-  useEffect(() => {
-    // TODO: Fetch real historical data from BFF
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        await new Promise(resolve => setTimeout(resolve, 500))
-
-        // Mock historical data
-        const historicalOrders: Order[] = []
-        const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT']
-        const sides = ['BUY', 'SELL'] as const
-        const types = ['MARKET', 'LIMIT'] as const
-
-        // Generate 50 mock historical orders
-        for (let i = 0; i < 50; i++) {
-          const symbol = symbols[Math.floor(Math.random() * symbols.length)]
-          const side = sides[Math.floor(Math.random() * sides.length)]
-          const type = types[Math.floor(Math.random() * types.length)]
-          const quantity = Math.random() * 2 + 0.1
-          const price = symbol === 'BTCUSDT' ? 40000 + Math.random() * 5000
-            : symbol === 'ETHUSDT' ? 2500 + Math.random() * 500
-            : symbol === 'BNBUSDT' ? 300 + Math.random() * 100
-            : 1 + Math.random() * 0.5
-
-          historicalOrders.push({
-            orderId: `HIST${String(i + 1).padStart(3, '0')}`,
-            symbol,
-            side,
-            type,
-            quantity,
-            price,
-            status: 'FILLED',
-            venue: 'SPOT',
-            createdAt: new Date(Date.now() - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
-            executedQuantity: quantity,
-            avgPrice: price,
-          })
-        }
-
-        setOrders(historicalOrders)
-        setLoading(false)
-      } catch (error) {
-        console.error('Failed to load history:', error)
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [dateRange])
-
-  const filteredOrders = orders.filter(order => {
-    const orderDate = new Date(order.createdAt)
-    const now = new Date()
-    const daysDiff = (now.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24)
-
-    switch (dateRange) {
-      case '1d': return daysDiff <= 1
-      case '7d': return daysDiff <= 7
-      case '30d': return daysDiff <= 30
-      case '90d': return daysDiff <= 90
-      default: return true
-    }
+  // Use real API hook with historical orders
+  const { filteredOrders, loading, error, stats, dateRange, setDateRange } = useOrderHistory({
+    status: 'FILLED',
+    limit: 100,
   })
 
-  const calculateStats = () => {
-    const buyOrders = filteredOrders.filter(o => o.side === 'BUY')
-    const sellOrders = filteredOrders.filter(o => o.side === 'SELL')
-    const totalVolume = filteredOrders.reduce((sum, o) => {
-      const vol = (o.avgPrice || o.price || 0) * (o.executedQuantity || 0)
-      return sum + vol
-    }, 0)
-
-    return {
-      totalTrades: filteredOrders.length,
-      buyOrders: buyOrders.length,
-      sellOrders: sellOrders.length,
-      totalVolume,
-    }
-  }
-
-  const stats = calculateStats()
+  // Map dateRange values to match component's expected values
+  // const mapDateRange = (range: string) => {
+  //   switch (range) {
+  //     case '1d':
+  //       return '1d'
+  //     case '7d':
+  //       return '7d'
+  //     case '30d':
+  //       return '30d'
+  //     case '90d':
+  //       return '90d'
+  //     default:
+  //       return 'all'
+  //   }
+  // }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -122,6 +58,12 @@ export default function HistoryPage() {
           <div className="page-container">
             <h1 className="page-title">Trade History</h1>
 
+            {error && (
+              <div className="error-message">
+                <p>Failed to load trade history: {error}</p>
+              </div>
+            )}
+
             <div className="history-stats">
               <div className="stat-card">
                 <span className="stat-label">Total Trades</span>
@@ -137,7 +79,9 @@ export default function HistoryPage() {
               </div>
               <div className="stat-card">
                 <span className="stat-label">Total Volume</span>
-                <span className="stat-value">${stats.totalVolume.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                <span className="stat-value">
+                  ${stats.totalVolume.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </span>
               </div>
             </div>
 
@@ -162,10 +106,10 @@ export default function HistoryPage() {
                   30D
                 </button>
                 <button
-                  className={`range-btn ${dateRange === '90d' ? 'active' : ''}`}
-                  onClick={() => setDateRange('90d')}
+                  className={`range-btn ${dateRange === 'all' ? 'active' : ''}`}
+                  onClick={() => setDateRange('all')}
                 >
-                  90D
+                  All
                 </button>
               </div>
             </div>
@@ -191,7 +135,7 @@ export default function HistoryPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.map((order) => (
+                    {filteredOrders.map(order => (
                       <tr key={order.orderId}>
                         <td>{formatDate(order.createdAt)}</td>
                         <td>{formatTime(order.createdAt)}</td>
@@ -201,7 +145,10 @@ export default function HistoryPage() {
                         <td>${(order.avgPrice || order.price || 0).toFixed(2)}</td>
                         <td>{(order.executedQuantity || 0).toFixed(4)}</td>
                         <td>
-                          ${((order.avgPrice || order.price || 0) * (order.executedQuantity || 0)).toLocaleString('en-US', {
+                          $
+                          {(
+                            (order.avgPrice || order.price || 0) * (order.executedQuantity || 0)
+                          ).toLocaleString('en-US', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
@@ -342,8 +289,12 @@ export default function HistoryPage() {
           color: #9ca3af;
         }
 
-        .buy { color: #10b981; }
-        .sell { color: #ef4444; }
+        .buy {
+          color: #10b981;
+        }
+        .sell {
+          color: #ef4444;
+        }
 
         .status {
           padding: 0.25rem 0.5rem;
@@ -355,6 +306,14 @@ export default function HistoryPage() {
         .status-filled {
           background: #065f46;
           color: #34d399;
+        }
+
+        .error-message {
+          background: #dc2626;
+          color: white;
+          padding: 1rem;
+          border-radius: 0.5rem;
+          margin-bottom: 2rem;
         }
       `}</style>
     </div>

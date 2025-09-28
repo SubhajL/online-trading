@@ -1,5 +1,5 @@
 // Branded types for type safety
-type Brand<K, T> = K & { __brand: T }
+export type Brand<K, T> = K & { __brand: T }
 
 export type OrderId = Brand<string, 'OrderId'>
 export type Symbol = Brand<string, 'Symbol'>
@@ -55,6 +55,8 @@ export type Order = {
   updatedAt: string
   executedQuantity?: number
   avgPrice?: number
+  fee?: number
+  feeAsset?: string
 }
 
 export type Position = {
@@ -163,7 +165,12 @@ export type Zone = {
 }
 
 // Alert types
-export type AlertType = 'smc_event' | 'zone_retest' | 'order_filled' | 'position_update' | 'risk_limit'
+export type AlertType =
+  | 'smc_event'
+  | 'zone_retest'
+  | 'order_filled'
+  | 'position_update'
+  | 'risk_limit'
 export type AlertSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info'
 
 export type Alert = {

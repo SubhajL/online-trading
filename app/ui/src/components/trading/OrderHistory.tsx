@@ -56,10 +56,12 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
       })}`
     }
 
-    const priceStr = order.price ? `$${order.price.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}` : '-'
+    const priceStr = order.price
+      ? `$${order.price.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`
+      : '-'
 
     if (order.stopPrice) {
       return `${priceStr} (S: $${order.stopPrice.toLocaleString(undefined, {
@@ -97,13 +99,13 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
           type="text"
           placeholder="Filter by symbol..."
           value={symbolFilter}
-          onChange={(e) => setSymbolFilter(e.target.value)}
+          onChange={e => setSymbolFilter(e.target.value)}
           className="flex-1 px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         />
         <select
           data-testid="status-filter"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
+          onChange={e => setStatusFilter(e.target.value as OrderStatus | '')}
           className="px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         >
           <option value="">All Status</option>
@@ -118,9 +120,7 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
 
       {/* Orders table */}
       {sortedOrders.length === 0 ? (
-        <div className="text-center text-gray-500 py-8">
-          No orders yet
-        </div>
+        <div className="text-center text-gray-500 py-8">No orders yet</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -138,7 +138,7 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
               </tr>
             </thead>
             <tbody className="text-sm">
-              {sortedOrders.map((order) => (
+              {sortedOrders.map(order => (
                 <tr
                   key={order.orderId}
                   data-testid={`order-row-${order.orderId}`}
@@ -146,7 +146,9 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
                 >
                   <td className="py-2">{formatTime(order.createdAt)}</td>
                   <td className="py-2">{order.symbol}</td>
-                  <td className={`py-2 ${order.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}>
+                  <td
+                    className={`py-2 ${order.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}
+                  >
                     {order.side}
                   </td>
                   <td className="py-2">{order.type}</td>

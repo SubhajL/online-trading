@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ZoneOverlays } from './ZoneOverlays'
 import type { Zone } from '@/types'
@@ -42,7 +42,7 @@ describe('ZoneOverlays', () => {
   ]
 
   const createMockChartRef = () => ({
-    current: document.createElement('div')
+    current: document.createElement('div'),
   })
 
   describe('rendering', () => {
@@ -99,17 +99,19 @@ describe('ZoneOverlays', () => {
 
     it('should display zone type and strength', () => {
       const chartRef = createMockChartRef()
-      const zone: Zone[] = [{
-        id: 'test-1',
-        symbol: 'BTCUSDT',
-        type: 'supply',
-        priceFrom: 45000,
-        priceTo: 45100,
-        strength: 4,
-        touches: 0,
-        timeframe: '15m',
-        created: Date.now(),
-      }]
+      const zone: Zone[] = [
+        {
+          id: 'test-1',
+          symbol: 'BTCUSDT',
+          type: 'supply',
+          priceFrom: 45000,
+          priceTo: 45100,
+          strength: 4,
+          touches: 0,
+          timeframe: '15m',
+          created: Date.now(),
+        },
+      ]
       render(<ZoneOverlays zones={zone} chartRef={chartRef} />)
 
       expect(screen.getByText('Supply (S4)')).toBeInTheDocument()
@@ -117,17 +119,19 @@ describe('ZoneOverlays', () => {
 
     it('should display touch count badge when touches > 0', () => {
       const chartRef = createMockChartRef()
-      const zone: Zone[] = [{
-        id: 'test-2',
-        symbol: 'BTCUSDT',
-        type: 'demand',
-        priceFrom: 44800,
-        priceTo: 44900,
-        strength: 3,
-        touches: 2,
-        timeframe: '15m',
-        created: Date.now(),
-      }]
+      const zone: Zone[] = [
+        {
+          id: 'test-2',
+          symbol: 'BTCUSDT',
+          type: 'demand',
+          priceFrom: 44800,
+          priceTo: 44900,
+          strength: 3,
+          touches: 2,
+          timeframe: '15m',
+          created: Date.now(),
+        },
+      ]
       render(<ZoneOverlays zones={zone} chartRef={chartRef} />)
 
       expect(screen.getByText('2x')).toBeInTheDocument()
@@ -135,18 +139,20 @@ describe('ZoneOverlays', () => {
 
     it('should display last tested indicator', () => {
       const chartRef = createMockChartRef()
-      const zone: Zone[] = [{
-        id: 'test-3',
-        symbol: 'BTCUSDT',
-        type: 'supply',
-        priceFrom: 45000,
-        priceTo: 45100,
-        strength: 3,
-        touches: 1,
-        timeframe: '15m',
-        created: Date.now() - 3600000,
-        lastTested: Date.now(),
-      }]
+      const zone: Zone[] = [
+        {
+          id: 'test-3',
+          symbol: 'BTCUSDT',
+          type: 'supply',
+          priceFrom: 45000,
+          priceTo: 45100,
+          strength: 3,
+          touches: 1,
+          timeframe: '15m',
+          created: Date.now() - 3600000,
+          lastTested: Date.now(),
+        },
+      ]
       render(<ZoneOverlays zones={zone} chartRef={chartRef} />)
 
       expect(screen.getByText('✓')).toBeInTheDocument()
@@ -156,17 +162,19 @@ describe('ZoneOverlays', () => {
   describe('zone styling', () => {
     it('should apply red color for supply zones', () => {
       const chartRef = createMockChartRef()
-      const zone: Zone[] = [{
-        id: 'test-supply',
-        symbol: 'BTCUSDT',
-        type: 'supply',
-        priceFrom: 45000,
-        priceTo: 45100,
-        strength: 3,
-        touches: 0,
-        timeframe: '15m',
-        created: Date.now(),
-      }]
+      const zone: Zone[] = [
+        {
+          id: 'test-supply',
+          symbol: 'BTCUSDT',
+          type: 'supply',
+          priceFrom: 45000,
+          priceTo: 45100,
+          strength: 3,
+          touches: 0,
+          timeframe: '15m',
+          created: Date.now(),
+        },
+      ]
       render(<ZoneOverlays zones={zone} chartRef={chartRef} />)
 
       const label = screen.getByText('Supply (S3)')
@@ -175,17 +183,19 @@ describe('ZoneOverlays', () => {
 
     it('should apply green color for demand zones', () => {
       const chartRef = createMockChartRef()
-      const zone: Zone[] = [{
-        id: 'test-demand',
-        symbol: 'BTCUSDT',
-        type: 'demand',
-        priceFrom: 44800,
-        priceTo: 44900,
-        strength: 3,
-        touches: 0,
-        timeframe: '15m',
-        created: Date.now(),
-      }]
+      const zone: Zone[] = [
+        {
+          id: 'test-demand',
+          symbol: 'BTCUSDT',
+          type: 'demand',
+          priceFrom: 44800,
+          priceTo: 44900,
+          strength: 3,
+          touches: 0,
+          timeframe: '15m',
+          created: Date.now(),
+        },
+      ]
       render(<ZoneOverlays zones={zone} chartRef={chartRef} />)
 
       const label = screen.getByText('Demand (S3)')
@@ -231,17 +241,19 @@ describe('ZoneOverlays', () => {
   describe('data attributes', () => {
     it('should set zone data attributes', () => {
       const chartRef = createMockChartRef()
-      const zone: Zone[] = [{
-        id: 'unique-zone-id',
-        symbol: 'BTCUSDT',
-        type: 'supply',
-        priceFrom: 45000,
-        priceTo: 45100,
-        strength: 4,
-        touches: 1,
-        timeframe: '15m',
-        created: Date.now(),
-      }]
+      const zone: Zone[] = [
+        {
+          id: 'unique-zone-id',
+          symbol: 'BTCUSDT',
+          type: 'supply',
+          priceFrom: 45000,
+          priceTo: 45100,
+          strength: 4,
+          touches: 1,
+          timeframe: '15m',
+          created: Date.now(),
+        },
+      ]
       render(<ZoneOverlays zones={zone} chartRef={chartRef} />)
 
       const overlay = screen.getByTestId('zone-overlay-supply')

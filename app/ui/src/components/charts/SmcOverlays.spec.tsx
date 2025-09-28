@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { SmcOverlays } from './SmcOverlays'
 import type { SmcEvent } from '@/types'
@@ -44,7 +44,7 @@ describe('SmcOverlays', () => {
   ]
 
   const createMockChartRef = () => ({
-    current: document.createElement('div')
+    current: document.createElement('div'),
   })
 
   describe('rendering', () => {
@@ -125,15 +125,17 @@ describe('SmcOverlays', () => {
   describe('event styling', () => {
     it('should apply bullish CHOCH styling', () => {
       const chartRef = createMockChartRef()
-      const event: SmcEvent[] = [{
-        id: 'test-1',
-        symbol: 'BTCUSDT',
-        type: 'CHOCH',
-        direction: 'bullish',
-        price: 45000,
-        timeframe: '15m',
-        timestamp: Date.now(),
-      }]
+      const event: SmcEvent[] = [
+        {
+          id: 'test-1',
+          symbol: 'BTCUSDT',
+          type: 'CHOCH',
+          direction: 'bullish',
+          price: 45000,
+          timeframe: '15m',
+          timestamp: Date.now(),
+        },
+      ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
       const label = screen.getByText('↑ CHoCH')
@@ -142,15 +144,17 @@ describe('SmcOverlays', () => {
 
     it('should apply bearish BOS styling', () => {
       const chartRef = createMockChartRef()
-      const event: SmcEvent[] = [{
-        id: 'test-2',
-        symbol: 'BTCUSDT',
-        type: 'BOS',
-        direction: 'bearish',
-        price: 45000,
-        timeframe: '15m',
-        timestamp: Date.now(),
-      }]
+      const event: SmcEvent[] = [
+        {
+          id: 'test-2',
+          symbol: 'BTCUSDT',
+          type: 'BOS',
+          direction: 'bearish',
+          price: 45000,
+          timeframe: '15m',
+          timestamp: Date.now(),
+        },
+      ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
       const label = screen.getByText('↓ BoS')
@@ -159,15 +163,17 @@ describe('SmcOverlays', () => {
 
     it('should apply bullish ORDER_BLOCK styling', () => {
       const chartRef = createMockChartRef()
-      const event: SmcEvent[] = [{
-        id: 'test-3',
-        symbol: 'BTCUSDT',
-        type: 'ORDER_BLOCK',
-        direction: 'bullish',
-        price: 45000,
-        timeframe: '15m',
-        timestamp: Date.now(),
-      }]
+      const event: SmcEvent[] = [
+        {
+          id: 'test-3',
+          symbol: 'BTCUSDT',
+          type: 'ORDER_BLOCK',
+          direction: 'bullish',
+          price: 45000,
+          timeframe: '15m',
+          timestamp: Date.now(),
+        },
+      ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
       const label = screen.getByText('↑ OB')
@@ -176,15 +182,17 @@ describe('SmcOverlays', () => {
 
     it('should apply bearish FVG styling', () => {
       const chartRef = createMockChartRef()
-      const event: SmcEvent[] = [{
-        id: 'test-4',
-        symbol: 'BTCUSDT',
-        type: 'FVG',
-        direction: 'bearish',
-        price: 45000,
-        timeframe: '15m',
-        timestamp: Date.now(),
-      }]
+      const event: SmcEvent[] = [
+        {
+          id: 'test-4',
+          symbol: 'BTCUSDT',
+          type: 'FVG',
+          direction: 'bearish',
+          price: 45000,
+          timeframe: '15m',
+          timestamp: Date.now(),
+        },
+      ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
       const label = screen.getByText('↓ FVG')
@@ -195,15 +203,17 @@ describe('SmcOverlays', () => {
   describe('data attributes', () => {
     it('should set data-event-id attribute', () => {
       const chartRef = createMockChartRef()
-      const event: SmcEvent[] = [{
-        id: 'unique-event-id',
-        symbol: 'BTCUSDT',
-        type: 'CHOCH',
-        direction: 'bullish',
-        price: 45000,
-        timeframe: '15m',
-        timestamp: Date.now(),
-      }]
+      const event: SmcEvent[] = [
+        {
+          id: 'unique-event-id',
+          symbol: 'BTCUSDT',
+          type: 'CHOCH',
+          direction: 'bullish',
+          price: 45000,
+          timeframe: '15m',
+          timestamp: Date.now(),
+        },
+      ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
       const overlay = screen.getByTestId('smc-overlay-CHOCH')
