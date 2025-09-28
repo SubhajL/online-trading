@@ -2,64 +2,16 @@
 
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useAnalytics } from '@/hooks/useAnalytics'
+
+type TimeFrame = '24h' | '7d' | '30d' | '90d' | '1y' | 'all'
 
 export default function AnalyticsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [loading, setLoading] = useState(true)
-  const [timeframe, setTimeframe] = useState('7d')
+  const [timeframe, setTimeframe] = useState<TimeFrame>('7d')
 
-  useEffect(() => {
-    // TODO: Fetch real analytics data from BFF
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        await new Promise(resolve => setTimeout(resolve, 500))
-        setLoading(false)
-      } catch (error) {
-        console.error('Failed to load analytics:', error)
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [timeframe])
-
-  // Mock analytics data
-  const mockData = {
-    performance: {
-      totalReturn: 15.34,
-      winRate: 68.5,
-      profitFactor: 2.34,
-      sharpeRatio: 1.87,
-      maxDrawdown: -8.23,
-      avgWin: 245.67,
-      avgLoss: -123.45,
-      bestTrade: 1234.56,
-      worstTrade: -456.78,
-    },
-    tradingStats: {
-      totalTrades: 156,
-      winningTrades: 107,
-      losingTrades: 49,
-      avgHoldTime: '4h 23m',
-      totalVolume: 485000,
-      totalCommission: 485,
-    },
-    symbols: [
-      { symbol: 'BTCUSDT', trades: 45, pnl: 2345.67, winRate: 71.1 },
-      { symbol: 'ETHUSDT', trades: 38, pnl: 1234.56, winRate: 68.4 },
-      { symbol: 'BNBUSDT', trades: 29, pnl: 567.89, winRate: 65.5 },
-      { symbol: 'ADAUSDT', trades: 24, pnl: -234.56, winRate: 45.8 },
-      { symbol: 'SOLUSDT', trades: 20, pnl: 456.78, winRate: 75.0 },
-    ],
-    weeklyPnL: [
-      { week: 'Week 1', pnl: 1234 },
-      { week: 'Week 2', pnl: -567 },
-      { week: 'Week 3', pnl: 2345 },
-      { week: 'Week 4', pnl: 1890 },
-    ],
-  }
+  const { data, loading, error } = useAnalytics(timeframe)
 
   return (
     <div className="app-layout">
@@ -73,58 +25,67 @@ export default function AnalyticsPage() {
             <div className="analytics-header">
               <h1 className="page-title">Trading Analytics</h1>
               <div className="timeframe-selector">
-                {['24h', '7d', '30d', '90d', '1y', 'All'].map((tf) => (
+                {(['24h', '7d', '30d', '90d', '1y', 'all'] as TimeFrame[]).map(tf => (
                   <button
                     key={tf}
                     className={`timeframe-btn ${timeframe === tf ? 'active' : ''}`}
                     onClick={() => setTimeframe(tf)}
                   >
-                    {tf}
+                    {tf === 'all' ? 'All' : tf}
                   </button>
                 ))}
               </div>
             </div>
 
+            {error && (
+              <div className="error-message">
+                <p>Failed to load analytics: {error}</p>
+              </div>
+            )}
+
             {loading ? (
               <div className="loading-container">
                 <p>Loading analytics...</p>
               </div>
-            ) : (
+            ) : error ? null : (
               <>
                 <div className="performance-grid">
                   <div className="metric-card">
                     <h3>Total Return</h3>
-                    <p className={`metric-value ${mockData.performance.totalReturn >= 0 ? 'positive' : 'negative'}`}>
-                      {mockData.performance.totalReturn >= 0 ? '+' : ''}{mockData.performance.totalReturn}%
+                    <p
+                      className={`metric-value ${data.performance.totalReturn >= 0 ? 'positive' : 'negative'}`}
+                    >
+                      {data.performance.totalReturn >= 0 ? '+' : ''}
+                      {data.performance.totalReturn}%
                     </p>
                   </div>
                   <div className="metric-card">
                     <h3>Win Rate</h3>
-                    <p className="metric-value">{mockData.performance.winRate}%</p>
+                    <p className="metric-value">{data.performance.winRate}%</p>
                   </div>
                   <div className="metric-card">
                     <h3>Profit Factor</h3>
-                    <p className="metric-value">{mockData.performance.profitFactor}</p>
+                    <p className="metric-value">{data.performance.profitFactor}</p>
                   </div>
                   <div className="metric-card">
                     <h3>Sharpe Ratio</h3>
-                    <p className="metric-value">{mockData.performance.sharpeRatio}</p>
+                    <p className="metric-value">{data.performance.sharpeRatio}</p>
                   </div>
                   <div className="metric-card">
                     <h3>Max Drawdown</h3>
-                    <p className="metric-value negative">{mockData.performance.maxDrawdown}%</p>
+                    <p className="metric-value negative">{data.performance.maxDrawdown}%</p>
                   </div>
                   <div className="metric-card">
                     <h3>Avg Win</h3>
-                    <p className="metric-value positive">${mockData.performance.avgWin}</p>
+                    <p className="metric-value positive">${data.performance.avgWin}</p>
                   </div>
                   <div className="metric-card">
                     <h3>Avg Loss</h3>
-                    <p className="metric-value negative">${mockData.performance.avgLoss}</p>
+                    <p className="metric-value negative">${data.performance.avgLoss}</p>
                   </div>
                   <div className="metric-card">
                     <h3>Best Trade</h3>
-                    <p className="metric-value positive">${mockData.performance.bestTrade}</p>
+                    <p className="metric-value positive">${data.performance.bestTrade}</p>
                   </div>
                 </div>
 
@@ -134,27 +95,33 @@ export default function AnalyticsPage() {
                     <div className="stats-grid">
                       <div className="stat-item">
                         <span className="stat-label">Total Trades</span>
-                        <span className="stat-value">{mockData.tradingStats.totalTrades}</span>
+                        <span className="stat-value">{data.tradingStats.totalTrades}</span>
                       </div>
                       <div className="stat-item">
                         <span className="stat-label">Winning Trades</span>
-                        <span className="stat-value positive">{mockData.tradingStats.winningTrades}</span>
+                        <span className="stat-value positive">
+                          {data.tradingStats.winningTrades}
+                        </span>
                       </div>
                       <div className="stat-item">
                         <span className="stat-label">Losing Trades</span>
-                        <span className="stat-value negative">{mockData.tradingStats.losingTrades}</span>
+                        <span className="stat-value negative">
+                          {data.tradingStats.losingTrades}
+                        </span>
                       </div>
                       <div className="stat-item">
                         <span className="stat-label">Avg Hold Time</span>
-                        <span className="stat-value">{mockData.tradingStats.avgHoldTime}</span>
+                        <span className="stat-value">{data.tradingStats.avgHoldTime}</span>
                       </div>
                       <div className="stat-item">
                         <span className="stat-label">Total Volume</span>
-                        <span className="stat-value">${mockData.tradingStats.totalVolume.toLocaleString()}</span>
+                        <span className="stat-value">
+                          ${data.tradingStats.totalVolume.toLocaleString()}
+                        </span>
                       </div>
                       <div className="stat-item">
                         <span className="stat-label">Total Commission</span>
-                        <span className="stat-value">${mockData.tradingStats.totalCommission}</span>
+                        <span className="stat-value">${data.tradingStats.totalCommission}</span>
                       </div>
                     </div>
                   </section>
@@ -171,7 +138,7 @@ export default function AnalyticsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {mockData.symbols.map((sym) => (
+                        {data.symbols.map(sym => (
                           <tr key={sym.symbol}>
                             <td>{sym.symbol}</td>
                             <td>{sym.trades}</td>
@@ -191,7 +158,7 @@ export default function AnalyticsPage() {
                     <h2>Weekly P&L</h2>
                     <div className="chart-container">
                       <div className="simple-bar-chart">
-                        {mockData.weeklyPnL.map((week) => (
+                        {data.weeklyPnL.map(week => (
                           <div key={week.week} className="bar-wrapper">
                             <div
                               className={`bar ${week.pnl >= 0 ? 'positive' : 'negative'}`}
@@ -431,8 +398,12 @@ export default function AnalyticsPage() {
           top: 10px;
         }
 
-        .positive { color: #10b981; }
-        .negative { color: #ef4444; }
+        .positive {
+          color: #10b981;
+        }
+        .negative {
+          color: #ef4444;
+        }
       `}</style>
     </div>
   )

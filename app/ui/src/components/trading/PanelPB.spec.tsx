@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PanelPB } from './PanelPB'
 import { useBalances } from '@/hooks/useBalances'
 import { useOrders } from '@/hooks/useOrders'
-import type { Balance, OrderFormValues } from '@/types'
 
 vi.mock('@/hooks/useBalances')
 vi.mock('@/hooks/useOrders')
@@ -205,7 +204,7 @@ describe('PanelPB', () => {
       render(<PanelPB symbol="BTCUSDT" price={50000} />)
 
       await user.clear(screen.getByLabelText('Quantity'))
-      await user.type(screen.getByLabelText('Quantity'), '1')  // 1 BTC at $50,000 = $50,000 > $10,000 balance
+      await user.type(screen.getByLabelText('Quantity'), '1') // 1 BTC at $50,000 = $50,000 > $10,000 balance
       await user.click(screen.getByTestId('buy-button'))
 
       expect(screen.getByText(/Insufficient balance/)).toBeInTheDocument()

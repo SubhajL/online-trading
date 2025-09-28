@@ -1,90 +1,42 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
-import type { Position, Order, Balance, OrderFormValues, Symbol, OrderId } from '@/types'
+import { useBalances } from '@/hooks/useBalances'
+import { usePositions } from '@/hooks/usePositions'
+import { useOrders } from '@/hooks/useOrders'
+import type { OrderFormValues } from '@/types'
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [positions, setPositions] = useState<Position[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
-  const [balances, setBalances] = useState<Balance[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string>()
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false)
 
-  // Simulate loading data
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
+  // Use real API hooks
+  const { balances, loading: balancesLoading, error: balancesError } = useBalances()
+  const { positions, loading: positionsLoading, error: positionsError } = usePositions()
+  const {
+    orders,
+    loading: ordersLoading,
+    error: ordersError,
+    placeOrder,
+  } = useOrders({
+    status: 'NEW',
+    limit: 10,
+  })
 
-        // Simulate API calls
-        await new Promise(resolve => setTimeout(resolve, 1000))
+  // Combine loading and error states
+  const loading = balancesLoading || positionsLoading || ordersLoading
+  const error = balancesError || positionsError || ordersError
 
-        // Mock data
-        setPositions([
-          {
-            symbol: 'BTCUSDT' as Symbol,
-            side: 'BUY',
-            quantity: 0.1,
-            entryPrice: 40000,
-            markPrice: 42000,
-            pnl: 200,
-            pnlPercent: 5,
-            venue: 'SPOT',
-          },
-        ])
-
-        setOrders([
-          {
-            orderId: 'ORD001' as OrderId,
-            symbol: 'BTCUSDT' as Symbol,
-            side: 'BUY',
-            type: 'MARKET',
-            quantity: 0.1,
-            status: 'FILLED',
-            venue: 'SPOT',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            executedQuantity: 0.1,
-            avgPrice: 40000,
-          },
-        ])
-
-        setBalances([
-          {
-            asset: 'USDT',
-            free: 10000,
-            locked: 500,
-            total: 10500,
-            venue: 'SPOT',
-          },
-          {
-            asset: 'BTC',
-            free: 0.5,
-            locked: 0,
-            total: 0.5,
-            venue: 'SPOT',
-            usdValue: 21000,
-          },
-        ])
-
-        setLoading(false)
-      } catch {
-        setError('Failed to load data')
-        setLoading(false)
-      }
+  const handleSubmitOrder = async (order: OrderFormValues) => {
+    try {
+      await placeOrder(order)
+      console.warn('Order placed successfully:', order)
+    } catch (error) {
+      console.error('Failed to place order:', error)
     }
-
-    loadData()
-  }, [])
-
-  const handleSubmitOrder = (order: OrderFormValues) => {
-    console.warn('TODO: Implement order submission:', order)
-    // TODO: Implement order submission
   }
 
   const handleToggleAutoTrading = (enabled: boolean) => {
@@ -110,7 +62,7 @@ export default function Home() {
             orders={orders}
             balances={balances}
             loading={loading}
-            error={error}
+            error={error || undefined}
             autoTradingEnabled={autoTradingEnabled}
             onSubmitOrder={handleSubmitOrder}
             onToggleAutoTrading={handleToggleAutoTrading}

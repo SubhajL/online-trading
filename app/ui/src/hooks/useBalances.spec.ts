@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useBalances } from './useBalances'
 import { _testOnlyExports as cacheExports } from './useApiCache'
-import type { Balance } from '@/types'
 
 describe('useBalances', () => {
   beforeEach(() => {
@@ -86,8 +85,6 @@ describe('useBalances', () => {
         expect(result.current.loading).toBe(false)
       })
 
-      const initialBalances = [...result.current.balances]
-
       // Refresh
       await act(async () => {
         await result.current.refresh()
@@ -115,10 +112,9 @@ describe('useBalances', () => {
     })
 
     it('cancels previous request on venue change', async () => {
-      const { result, rerender } = renderHook(
-        ({ venue }) => useBalances(venue),
-        { initialProps: { venue: 'SPOT' as const } }
-      )
+      const { result, rerender } = renderHook(({ venue }) => useBalances(venue), {
+        initialProps: { venue: 'SPOT' as const },
+      })
 
       expect(result.current.loading).toBe(true)
 
@@ -191,8 +187,6 @@ describe('useBalances', () => {
         expect(result.current.loading).toBe(false)
       })
 
-      const initialLength = result.current.balances.length
-
       // Manual refresh
       await act(async () => {
         await result.current.refresh()
@@ -229,7 +223,7 @@ describe('useBalances', () => {
     it('accepts custom API client', async () => {
       // Create a custom client that points to a different endpoint
       const customClient = {
-        get: async (endpoint: string, options?: any) => {
+        get: async (endpoint: string, _options?: any) => {
           // Make a real request to a test endpoint
           const response = await fetch('http://localhost:8002/api/test' + endpoint, {
             method: 'GET',
@@ -238,14 +232,17 @@ describe('useBalances', () => {
             },
           })
           return response.json()
-        }
+        },
       }
 
       const { result } = renderHook(() => useBalances(undefined, customClient as any))
 
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      }, { timeout: 10000 })
+      await waitFor(
+        () => {
+          expect(result.current.loading).toBe(false)
+        },
+        { timeout: 10000 },
+      )
 
       // Should have attempted to fetch from the custom client
       expect(Array.isArray(result.current.balances)).toBe(true)

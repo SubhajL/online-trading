@@ -10,7 +10,7 @@ export type Alert = {
   priority: AlertPriority
   title: string
   message: string
-  data?: any
+  data?: unknown
   imageUrl?: string
   read: boolean
   createdAt: string

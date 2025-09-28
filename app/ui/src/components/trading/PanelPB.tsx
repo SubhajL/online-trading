@@ -95,7 +95,7 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
       })
       setQuantityStr('')
       setValidationError(null)
-    } catch (error) {
+    } catch {
       // Error is handled by the hook
     }
   }
@@ -135,17 +135,12 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
   const error = orderError || balancesError || validationError
 
   return (
-    <div
-      data-testid="trading-panel"
-      className="bg-gray-900 rounded-lg p-4 space-y-4"
-    >
+    <div data-testid="trading-panel" className="bg-gray-900 rounded-lg p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-white">{symbol}</h3>
         {price > 0 && (
-          <span className="text-sm text-gray-400">
-            Current: ${price.toLocaleString()}
-          </span>
+          <span className="text-sm text-gray-400">Current: ${price.toLocaleString()}</span>
         )}
       </div>
 
@@ -157,7 +152,7 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
         <select
           id="order-type"
           value={orderForm.type}
-          onChange={(e) => handleTypeChange(e.target.value as OrderType)}
+          onChange={e => handleTypeChange(e.target.value as OrderType)}
           disabled={isLoading}
           className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         >
@@ -178,7 +173,7 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
             id="order-price"
             type="number"
             value={orderForm.price || ''}
-            onChange={(e) => handlePriceChange(parseFloat(e.target.value) || 0)}
+            onChange={e => handlePriceChange(parseFloat(e.target.value) || 0)}
             disabled={isLoading}
             placeholder="0.00"
             step="0.01"
@@ -191,14 +186,17 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
       {/* Stop Price field (for stop orders) */}
       {(orderForm.type === 'STOP_MARKET' || orderForm.type === 'STOP_LIMIT') && (
         <div>
-          <label htmlFor="order-stop-price" className="block text-sm font-medium text-gray-300 mb-1">
+          <label
+            htmlFor="order-stop-price"
+            className="block text-sm font-medium text-gray-300 mb-1"
+          >
             Stop Price
           </label>
           <input
             id="order-stop-price"
             type="number"
             value={orderForm.stopPrice || ''}
-            onChange={(e) => handleStopPriceChange(parseFloat(e.target.value) || 0)}
+            onChange={e => handleStopPriceChange(parseFloat(e.target.value) || 0)}
             disabled={isLoading}
             placeholder="0.00"
             step="0.01"
@@ -218,7 +216,7 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
             id="order-quantity"
             type="number"
             value={quantityStr}
-            onChange={(e) => handleQuantityChange(e.target.value)}
+            onChange={e => handleQuantityChange(e.target.value)}
             disabled={isLoading}
             placeholder="0.0000"
             step="0.0001"
@@ -254,10 +252,13 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
       <div className="text-sm text-gray-400">
         <span>Available: </span>
         <span className="text-white">
-          {balances.find(b => b.asset === 'USDT')?.free.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          }) || '0.00'} USDT
+          {balances
+            .find(b => b.asset === 'USDT')
+            ?.free.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }) || '0.00'}{' '}
+          USDT
         </span>
       </div>
 

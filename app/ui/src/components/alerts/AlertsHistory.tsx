@@ -72,7 +72,16 @@ export function AlertsHistory() {
       setError(null)
 
       const dateRange = getDateRange(dateFilter)
-      const filters: any = {}
+      const filters: {
+        type?: string
+        severity?: string
+        read?: boolean
+        symbol?: string
+        venue?: string
+        limit?: number
+        startDate?: string
+        endDate?: string
+      } = {}
 
       if (dateRange.startDate) {
         filters.startDate = dateRange.startDate
@@ -85,7 +94,7 @@ export function AlertsHistory() {
       const { alerts } = await alertsService.getAlerts(filters)
       setAlerts(alerts)
       setCurrentPage(1)
-    } catch (err) {
+    } catch {
       setError('Failed to load alert history')
     } finally {
       setLoading(false)
@@ -225,7 +234,9 @@ export function AlertsHistory() {
                     </td>
                     <td className="py-3 px-4 font-medium">{alert.symbol}</td>
                     <td className="py-3 px-4 text-gray-400">
-                      {alert.type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      {alert.type
+                        .replace(/_/g, ' ')
+                        .replace(/\b\w/g, (l: string) => l.toUpperCase())}
                     </td>
                     <td className="py-3 px-4">{alert.title}</td>
                     <td className="py-3 px-4 text-gray-400">

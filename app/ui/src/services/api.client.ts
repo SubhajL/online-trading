@@ -98,6 +98,7 @@ export class ApiClient {
       if (retries > 0 && error instanceof Error && !isAbortError) {
         // Don't pass the signal on retry to avoid immediate abort
         const { signal, ...retryOptions } = options
+        void signal // Intentionally excluded from retry
         return this.request(endpoint, { ...retryOptions, retries: retries - 1 })
       }
 

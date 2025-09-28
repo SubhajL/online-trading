@@ -23,11 +23,7 @@ export function PositionDisplay({ position, compact = false, onClose }: Position
   const isProfit = position.pnl > 0
   const isBreakeven = position.pnl === 0
 
-  const pnlColorClass = isBreakeven
-    ? 'text-gray-400'
-    : isProfit
-    ? 'text-green-500'
-    : 'text-red-500'
+  const pnlColorClass = isBreakeven ? 'text-gray-400' : isProfit ? 'text-green-500' : 'text-red-500'
 
   const formatPrice = (price: number) => {
     return `$${price.toLocaleString(undefined, {
@@ -70,9 +66,7 @@ export function PositionDisplay({ position, compact = false, onClose }: Position
           <h3 className="text-lg font-semibold text-white">{position.symbol}</h3>
           <span
             className={`px-2 py-1 text-xs font-medium rounded ${
-              isLong
-                ? 'bg-green-500/10 text-green-500'
-                : 'bg-red-500/10 text-red-500'
+              isLong ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
             }`}
           >
             {isLong ? 'LONG' : 'SHORT'}
@@ -89,7 +83,12 @@ export function PositionDisplay({ position, compact = false, onClose }: Position
             title="Close position"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         )}
@@ -121,9 +120,7 @@ export function PositionDisplay({ position, compact = false, onClose }: Position
       <div className="flex items-center justify-between pt-2 border-t border-gray-800">
         <div>
           <span className="text-sm text-gray-400">PnL:</span>
-          <p className={`text-lg font-semibold ${pnlColorClass}`}>
-            {formatPnl(position.pnl)}
-          </p>
+          <p className={`text-lg font-semibold ${pnlColorClass}`}>{formatPnl(position.pnl)}</p>
         </div>
         <div className="text-right">
           <span className="text-sm text-gray-400">%:</span>

@@ -50,7 +50,7 @@ export function AlertsPopup({ isOpen, onClose }: AlertsPopupProps) {
       setError(null)
       const { alerts } = await alertsService.getAlerts()
       setAlerts(alerts)
-    } catch (err) {
+    } catch {
       setError('Failed to load alerts')
     } finally {
       setLoading(false)
@@ -61,8 +61,8 @@ export function AlertsPopup({ isOpen, onClose }: AlertsPopupProps) {
     try {
       await alertsService.markAsRead(alertId)
       setAlerts(alerts.map(a => (a.id === alertId ? { ...a, read: true } : a)))
-    } catch (err) {
-      console.error('Failed to mark alert as read:', err)
+    } catch {
+      console.error('Failed to mark alert as read')
     }
   }
 
@@ -70,8 +70,8 @@ export function AlertsPopup({ isOpen, onClose }: AlertsPopupProps) {
     try {
       await alertsService.dismissAlert(alertId)
       setAlerts(alerts.filter(a => a.id !== alertId))
-    } catch (err) {
-      console.error('Failed to dismiss alert:', err)
+    } catch {
+      console.error('Failed to dismiss alert')
     }
   }
 
@@ -82,8 +82,8 @@ export function AlertsPopup({ isOpen, onClose }: AlertsPopupProps) {
     try {
       await alertsService.markAsRead(unreadIds)
       setAlerts(alerts.map(a => ({ ...a, read: true })))
-    } catch (err) {
-      console.error('Failed to mark all as read:', err)
+    } catch {
+      console.error('Failed to mark all as read')
     }
   }
 
@@ -226,7 +226,7 @@ export function AlertsPopup({ isOpen, onClose }: AlertsPopupProps) {
                                 src={alert.imageUrl}
                                 alt={`${alert.title} snapshot`}
                                 className="w-full rounded border border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={(e) => {
+                                onClick={e => {
                                   e.stopPropagation()
                                   window.open(alert.imageUrl, '_blank')
                                 }}

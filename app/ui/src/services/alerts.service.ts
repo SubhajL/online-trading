@@ -15,11 +15,7 @@ export type AlertSearchResponse = {
 }
 
 class AlertsService {
-  async getAlerts(
-    page = 1,
-    limit = 20,
-    filters?: AlertFilters
-  ): Promise<AlertsResponse> {
+  async getAlerts(page = 1, limit = 20, filters?: AlertFilters): Promise<AlertsResponse> {
     const params = {
       page,
       limit,
@@ -69,10 +65,7 @@ class AlertsService {
     })
   }
 
-  async exportAlerts(
-    format: 'csv' | 'json',
-    filters?: AlertFilters
-  ): Promise<Blob> {
+  async exportAlerts(format: 'csv' | 'json', filters?: AlertFilters): Promise<Blob> {
     const params = {
       format,
       ...filters,

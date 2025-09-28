@@ -72,7 +72,7 @@ describe('useMarketData', () => {
 
     // Get the indicators subscription callback
     const indicatorsCallback = mockService.subscribe.mock.calls.find(
-      call => call[0] === `indicators:${symbol}:${timeframe}`
+      call => call[0] === `indicators:${symbol}:${timeframe}`,
     )?.[1]
 
     const indicatorData = {
@@ -96,7 +96,7 @@ describe('useMarketData', () => {
     const { result } = renderHook(() => useMarketData(symbol, timeframe))
 
     const smcCallback = mockService.subscribe.mock.calls.find(
-      call => call[0] === `smc_events:${symbol}:${timeframe}`
+      call => call[0] === `smc_events:${symbol}:${timeframe}`,
     )?.[1]
 
     const smcEvent = {
@@ -131,7 +131,7 @@ describe('useMarketData', () => {
     const { result } = renderHook(() => useMarketData(symbol, timeframe))
 
     const zonesCallback = mockService.subscribe.mock.calls.find(
-      call => call[0] === `zones:${symbol}:${timeframe}`
+      call => call[0] === `zones:${symbol}:${timeframe}`,
     )?.[1]
 
     const zones = [
@@ -222,7 +222,7 @@ describe('useMarketData', () => {
     const { result } = renderHook(() => useMarketData(symbol, timeframe))
 
     const indicatorsCallback = mockService.subscribe.mock.calls.find(
-      call => call[0] === `indicators:${symbol}:${timeframe}`
+      call => call[0] === `indicators:${symbol}:${timeframe}`,
     )?.[1]
 
     act(() => {
@@ -237,7 +237,7 @@ describe('useMarketData', () => {
     const { result } = renderHook(() => useMarketData(symbol, timeframe))
 
     const indicatorsCallback = mockService.subscribe.mock.calls.find(
-      call => call[0] === `indicators:${symbol}:${timeframe}`
+      call => call[0] === `indicators:${symbol}:${timeframe}`,
     )?.[1]
 
     const indicators = [
@@ -260,12 +260,12 @@ describe('useMarketData', () => {
   it('should clear all data when symbol or timeframe changes', () => {
     const { result, rerender } = renderHook(
       ({ symbol, timeframe }) => useMarketData(symbol, timeframe),
-      { initialProps: { symbol, timeframe } }
+      { initialProps: { symbol, timeframe } },
     )
 
     // Add some initial data
     const candlesCallback = mockService.subscribe.mock.calls.find(
-      call => call[0] === `candles:${symbol}:${timeframe}`
+      call => call[0] === `candles:${symbol}:${timeframe}`,
     )?.[1]
 
     act(() => {

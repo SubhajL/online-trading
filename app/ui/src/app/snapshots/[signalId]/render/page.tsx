@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Chart } from '@/components/charts/Chart'
 import { marketDataService } from '@/services/market-data'
-import type { Candle } from '@/types'
+import type { Candle, Timeframe } from '@/types'
 
 // Declare global for Puppeteer to detect readiness
 declare global {
@@ -13,13 +13,7 @@ declare global {
   }
 }
 
-interface SnapshotPageProps {
-  params: {
-    signalId: string
-  }
-}
-
-export default function SnapshotRenderPage({ params }: SnapshotPageProps) {
+export default function SnapshotRenderPage() {
   const searchParams = useSearchParams()
   const [candles, setCandles] = useState<Candle[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,15 +34,16 @@ export default function SnapshotRenderPage({ params }: SnapshotPageProps) {
   // Calculate time window for candle fetch
   const { startTime, endTime } = useMemo(() => {
     const signalDate = new Date(signalTime)
-    const candleDurationMs = {
-      '1m': 60 * 1000,
-      '5m': 5 * 60 * 1000,
-      '15m': 15 * 60 * 1000,
-      '30m': 30 * 60 * 1000,
-      '1h': 60 * 60 * 1000,
-      '4h': 4 * 60 * 60 * 1000,
-      '1d': 24 * 60 * 60 * 1000,
-    }[timeframe] || 15 * 60 * 1000
+    const candleDurationMs =
+      {
+        '1m': 60 * 1000,
+        '5m': 5 * 60 * 1000,
+        '15m': 15 * 60 * 1000,
+        '30m': 30 * 60 * 1000,
+        '1h': 60 * 60 * 1000,
+        '4h': 4 * 60 * 60 * 1000,
+        '1d': 24 * 60 * 60 * 1000,
+      }[timeframe] || 15 * 60 * 1000
 
     const start = new Date(signalDate.getTime() - preCandles * candleDurationMs)
     const end = new Date(signalDate.getTime() + postCandles * candleDurationMs)
@@ -65,9 +60,9 @@ export default function SnapshotRenderPage({ params }: SnapshotPageProps) {
       try {
         const data = await marketDataService.getHistoricalCandles(
           symbol,
-          timeframe as any,
+          timeframe,
           new Date(startTime),
-          new Date(endTime)
+          new Date(endTime),
         )
         setCandles(data)
       } catch (error) {
@@ -151,7 +146,14 @@ export default function SnapshotRenderPage({ params }: SnapshotPageProps) {
   if (loading) {
     return (
       <div style={containerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+          }}
+        >
           <div style={{ color: '#6b7280' }}>Loading chart data...</div>
         </div>
       </div>
@@ -163,7 +165,7 @@ export default function SnapshotRenderPage({ params }: SnapshotPageProps) {
       <div style={chartWrapperStyle}>
         <Chart
           symbol={symbol}
-          timeframe={timeframe as any}
+          timeframe={timeframe as Timeframe}
           markers={[signalMarker]}
           levels={{ entry, stopLoss, takeProfit }}
           showSmcOverlays
@@ -187,7 +189,13 @@ export default function SnapshotRenderPage({ params }: SnapshotPageProps) {
 
       {/* Signal info */}
       <div style={signalInfoStyle}>
-        <div style={{ marginBottom: '4px', fontWeight: '600', color: side === 'BUY' ? '#10b981' : '#ef4444' }}>
+        <div
+          style={{
+            marginBottom: '4px',
+            fontWeight: '600',
+            color: side === 'BUY' ? '#10b981' : '#ef4444',
+          }}
+        >
           {side} {symbol}
         </div>
         <div style={{ opacity: 0.8 }}>
