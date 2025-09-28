@@ -1,5 +1,5 @@
 # Docker Compose configuration for development environment
-version: '3.8'
+
 
 networks:
   trading-network:
@@ -14,13 +14,17 @@ services:
   # Database Services
   # ===========================
   postgres:
-    image: postgres:16-alpine
+    image: timescale/timescaledb:latest-pg16
     container_name: trading-postgres-dev
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=timescaledb
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-trading_platform}
       POSTGRES_USER: ${POSTGRES_USER:-trading_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_secure_password_here}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -39,7 +43,7 @@ services:
     image: redis:7-alpine
     container_name: trading-redis-dev
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: redis-server --appendonly yes
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -59,21 +63,21 @@ services:
     build:
       context: ./app/engine
       dockerfile: Dockerfile.dev
-      target: development
     container_name: trading-engine-dev
     restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-trading_platform}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-your_secure_password_here}@postgres:5432/${POSTGRES_DB:-trading_platform}
       - REDIS_URL=redis://redis:6379/0
       - ENGINE_PORT=${ENGINE_PORT:-8000}
       - ENVIRONMENT=development
       - DEBUG=true
       - LOG_LEVEL=debug
+      - PYTHONPATH=/workspace
     ports:
       - "${ENGINE_PORT:-8000}:8000"
+    working_dir: /workspace/app/engine
     volumes:
-      - ./app/engine:/app
-      - /app/.venv  # Exclude virtual environment from volume mount
+      - ./app:/workspace/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,13 +85,25 @@ services:
         condition: service_healthy
     networks:
       - trading-network
-    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    command:
+      - uvicorn
+      - app.engine.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+    healthcheck:
+      test: ["CMD-SHELL", "python -m app.engine.scripts.healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   router:
     build:
-      context: ./app/router
-      dockerfile: Dockerfile.dev
-      target: development
+      context: .
+      dockerfile: app/router/Dockerfile.dev
     container_name: trading-router-dev
     restart: unless-stopped
     environment:
@@ -107,60 +123,87 @@ services:
     volumes:
       - ./app/router:/app
     depends_on:
-      - engine
-      - redis
+      engine:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - trading-network
-    command: air # Hot reload for Go
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 
   bff:
     build:
-      context: ./app/bff
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: app/bff/Dockerfile.dev
     container_name: trading-bff-dev
     restart: unless-stopped
     environment:
-      - PORT=${BFF_PORT:-3000}
+      - PORT=${BFF_PORT:-3001}
       - NODE_ENV=development
       - ENGINE_PUBSUB_URL=redis://redis:6379
       - ROUTER_BASE_URL=http://router:8080
       - ROUTER_API_KEY=${ROUTER_API_KEY}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_USER=${POSTGRES_USER:-trading_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_secure_password_here}
+      - POSTGRES_DB=${POSTGRES_DB:-trading_platform}
     ports:
-      - "${BFF_PORT:-3000}:3000"
+      - "${BFF_PORT:-3001}:3001"
     volumes:
       - ./app/bff:/app
       - /app/node_modules  # Exclude node_modules from volume mount
     depends_on:
-      - engine
-      - router
-      - postgres
-      - redis
+      engine:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - trading-network
     command: pnpm run start:dev
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://localhost:3001/api/health',{cache:'no-store'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   ui:
     build:
-      context: ./app/ui
-      dockerfile: Dockerfile.dev
-      target: development
+      context: .
+      dockerfile: app/ui/Dockerfile.dev
     container_name: trading-ui-dev
     restart: unless-stopped
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:${BFF_PORT:-3000}/api
-      - NEXT_PUBLIC_WS_URL=ws://localhost:${BFF_PORT:-3000}
+      - NEXT_PUBLIC_API_URL=http://localhost:${BFF_PORT:-3001}/api
+      - NEXT_PUBLIC_WS_URL=ws://localhost:${BFF_PORT:-3001}
+      - NEXT_INTERNAL_API_URL=http://bff:3001/api
       - NODE_ENV=development
       - FAST_REFRESH=true
     ports:
-      - "${UI_PORT:-3001}:3001"
+      - "${UI_PORT:-3000}:3000"
     volumes:
       - ./app/ui:/app
       - /app/node_modules  # Exclude node_modules from volume mount
       - /app/.next  # Exclude .next from volume mount
     depends_on:
-      - bff
+      bff:
+        condition: service_healthy
     networks:
       - trading-network
     command: pnpm run dev
