@@ -74,7 +74,7 @@ func TestConfig_ValidateOptionalKeys(t *testing.T) {
 
 		_, err := Load()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "BINANCE_SPOT_API_KEY is required for spot trading")
+		assert.Contains(t, err.Error(), "BINANCE_SPOT_API_KEY or BINANCE_API_KEY is required for spot trading")
 	})
 
 	t.Run("validates error when futures keys missing for futures mode", func(t *testing.T) {
