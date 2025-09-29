@@ -5,10 +5,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
-from app.engine.adapters.alert.line import LineAdapter
+from app.engine.adapters.alert.line import LineAlertAdapter
 from app.engine.adapters.alert.alert_formatter import AlertFormatter
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
-from app.engine.models import OrderUpdate, Position, DecisionEvent
+from app.engine.models import Position, TradingDecisionEvent
+from app.engine.paper.broker import OrderUpdate
 from typing import Any
 
 
@@ -22,14 +23,14 @@ class TestLineIntegration:
 
     @pytest.fixture
     def deduplicator(self) -> Any:
-        return AlertDeduplicator(window_seconds=60)
+        return AlertDeduplicator(ttl_seconds=60)
 
     @pytest.fixture
     def line_adapter(self, formatter: Any, deduplicator: Any) -> Any:
         # Use test credentials if available, otherwise mock
         access_token = os.getenv("LINE_TEST_ACCESS_TOKEN", "test-token")
 
-        adapter = LineAdapter(
+        adapter = LineAlertAdapter(
             access_token=access_token,
             formatter=formatter,
             deduplicator=deduplicator
@@ -97,7 +98,7 @@ class TestLineIntegration:
     async def test_message_length_limit(self, line_adapter: Any) -> None:
         """Test LINE's 1000 character message limit is respected"""
         # Create a decision with very long reasoning
-        decision = DecisionEvent(
+        decision = TradingDecisionEvent(
             symbol="BTCUSDT",
             action="BUY",
             quantity=0.1,
@@ -225,7 +226,7 @@ class TestLineIntegration:
     @pytest.mark.asyncio
     async def test_image_chart_attachment(self, line_adapter: Any) -> None:
         """Test potential for sending chart images with signals"""
-        decision = DecisionEvent(
+        decision = TradingDecisionEvent(
             symbol="ETHUSDT",
             action="BUY",
             quantity=2.0,
