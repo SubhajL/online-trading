@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from adapters.alert.telegram import TelegramAdapter
-from adapters.alert.line import LineAdapter
-from adapters.alert.alert_formatter import AlertFormatter
-from adapters.alert.alert_deduplicator import AlertDeduplicator
-from types_lib import OrderUpdate, Position, DecisionEvent, SmcEvent
+from app.engine.adapters.alert.telegram import TelegramAdapter
+from app.engine.adapters.alert.line import LineAdapter
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
+from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
+from app.engine.models import OrderUpdate, Position, DecisionEvent, SmcEvent
 
 
 class TestAlertSystemIntegration:

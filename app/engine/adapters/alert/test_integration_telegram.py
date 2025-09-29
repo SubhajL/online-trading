@@ -5,10 +5,10 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
-from adapters.alert.telegram import TelegramAdapter
-from adapters.alert.alert_formatter import AlertFormatter
-from adapters.alert.alert_deduplicator import AlertDeduplicator
-from types_lib import OrderUpdate, Position, DecisionEvent
+from app.engine.adapters.alert.telegram import TelegramAdapter
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
+from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
+from app.engine.models import OrderUpdate, Position, DecisionEvent
 from typing import Any
 
 

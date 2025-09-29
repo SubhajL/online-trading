@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime
 from decimal import Decimal
 
-from telegram import TelegramAlertAdapter
+from app.engine.adapters.alert.telegram import TelegramAlertAdapter
 from typing import Any
 
 

@@ -1,7 +1,7 @@
 import pytest
 from decimal import Decimal
 from datetime import datetime
-from alert_formatter import AlertFormatter
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
 
 
 class TestAlertFormatter:

@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime
 from decimal import Decimal
 
-from line import LineAlertAdapter
+from app.engine.adapters.alert.line import LineAlertAdapter
 from typing import Any
 
 
