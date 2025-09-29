@@ -100,7 +100,7 @@ type SecurityConfig struct {
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	// Load .env file if it exists
-	godotenv.Load("../../.env")
+	_ = godotenv.Load("../../.env")
 
 	config := &Config{
 		Server: ServerConfig{

@@ -11,13 +11,13 @@ import (
 func TestConfig_ValidateOptionalKeys(t *testing.T) {
 	t.Run("validates spot-only configuration", func(t *testing.T) {
 		// Set up spot-only environment
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
-		os.Setenv("TRADING_MODE", "spot")
+		_ = os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		_ = os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		_ = os.Setenv("TRADING_MODE", "spot")
 		defer func() {
-			os.Unsetenv("BINANCE_SPOT_API_KEY")
-			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
-			os.Unsetenv("TRADING_MODE")
+			_ = os.Unsetenv("BINANCE_SPOT_API_KEY")
+			_ = os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
+			_ = os.Unsetenv("TRADING_MODE")
 		}()
 
 		config, err := Load()

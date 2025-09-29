@@ -75,7 +75,7 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	// For STOP_LOSS_LIMIT:
 	// - stopPrice is the trigger price
 	// - price is the limit price (slightly worse than stop to ensure fill)
-	slLimitPrice := req.StopLossPrice
+	var slLimitPrice decimal.Decimal
 	if req.Side == "BUY" {
 		// For long positions, SL sells below stop price
 		slLimitPrice = req.StopLossPrice.Mul(decimal.NewFromFloat(0.995))

@@ -164,7 +164,7 @@ func (h *HealthChecker) CheckRedisCache(ctx context.Context, client RedisClient)
 					parts := strings.Split(line, ":")
 					if len(parts) == 2 {
 						var memBytes int64
-						fmt.Sscanf(parts[1], "%d", &memBytes)
+						_, _ = fmt.Sscanf(parts[1], "%d", &memBytes)
 						status.Details["memory_used_mb"] = float64(memBytes) / (1024 * 1024)
 					}
 				}
@@ -299,7 +299,7 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // HandleDetailedStatus handles detailed health status endpoint
@@ -314,5 +314,5 @@ func (h *HealthHandler) HandleDetailedStatus(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(report)
+	_ = json.NewEncoder(w).Encode(report)
 }
