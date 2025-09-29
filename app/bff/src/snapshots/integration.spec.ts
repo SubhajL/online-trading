@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// Jest is globally available, no need to import describe, it, expect, beforeEach, afterEach
 import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule } from '@nestjs/config';
-import * as request from 'supertest';
+import request from 'supertest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,7 +12,7 @@ import { Repository } from 'typeorm';
 
 import { SnapshotsModule } from './snapshots.module';
 import { AlertsModule } from '../alerts/alerts.module';
-import { AlertSnapshot } from './entities/alert-snapshot.entity';
+import { AlertSnapshot } from '../database/entities/alert-snapshot.entity';
 import { Alert } from '../alerts/entities/alert.entity';
 
 describe('Snapshots Integration', () => {
@@ -232,7 +232,7 @@ describe('Snapshots Integration', () => {
     it('should handle snapshot generation errors gracefully', async () => {
       // Mock the snapshot generator to fail
       const snapshotGenerator = moduleRef.get('SnapshotGeneratorService');
-      vi.spyOn(snapshotGenerator, 'generateSnapshot').mockRejectedValue(
+      jest.spyOn(snapshotGenerator, 'generateSnapshot').mockRejectedValue(
         new Error('Puppeteer error'),
       );
 
