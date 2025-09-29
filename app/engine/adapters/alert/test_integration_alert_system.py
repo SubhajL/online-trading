@@ -6,11 +6,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from adapters.alert.telegram import TelegramAdapter
-from adapters.alert.line import LineAdapter
-from adapters.alert.alert_formatter import AlertFormatter
-from adapters.alert.alert_deduplicator import AlertDeduplicator
-from types_lib import OrderUpdate, Position, DecisionEvent, SmcEvent
+from app.engine.adapters.alert.telegram import TelegramAlertAdapter
+from app.engine.adapters.alert.line import LineAlertAdapter
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
+from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
+from app.engine.models import Position
+from app.engine.paper.broker import OrderUpdate
+from app.engine.models import TradingDecisionEvent as DecisionEvent
+from app.engine.smc_types import SMCEvent as SmcEvent
 
 
 class TestAlertSystemIntegration:
@@ -26,7 +29,7 @@ class TestAlertSystemIntegration:
 
     @pytest.fixture
     def telegram_adapter(self, formatter: Any, deduplicator: Any) -> Any:
-        return TelegramAdapter(
+        return TelegramAlertAdapter(
             bot_token="test-telegram-token",
             chat_id="test-chat-id",
             formatter=formatter,
@@ -35,7 +38,7 @@ class TestAlertSystemIntegration:
 
     @pytest.fixture
     def line_adapter(self, formatter: Any, deduplicator: Any) -> Any:
-        return LineAdapter(
+        return LineAlertAdapter(
             access_token="test-line-token",
             formatter=formatter,
             deduplicator=deduplicator

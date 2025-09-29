@@ -5,10 +5,12 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
-from adapters.alert.telegram import TelegramAdapter
-from adapters.alert.alert_formatter import AlertFormatter
-from adapters.alert.alert_deduplicator import AlertDeduplicator
-from types_lib import OrderUpdate, Position, DecisionEvent
+from app.engine.adapters.alert.telegram import TelegramAlertAdapter
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
+from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
+from app.engine.models import Position
+from app.engine.paper.broker import OrderUpdate
+from app.engine.models import TradingDecisionEvent as DecisionEvent
 from typing import Any
 
 
@@ -30,7 +32,7 @@ class TestTelegramIntegration:
         bot_token = os.getenv("TELEGRAM_TEST_BOT_TOKEN", "test-token")
         chat_id = os.getenv("TELEGRAM_TEST_CHAT_ID", "test-chat-id")
 
-        adapter = TelegramAdapter(
+        adapter = TelegramAlertAdapter(
             bot_token=bot_token,
             chat_id=chat_id,
             formatter=formatter,

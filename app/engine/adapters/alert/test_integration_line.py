@@ -5,10 +5,12 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
-from adapters.alert.line import LineAdapter
-from adapters.alert.alert_formatter import AlertFormatter
-from adapters.alert.alert_deduplicator import AlertDeduplicator
-from types_lib import OrderUpdate, Position, DecisionEvent
+from app.engine.adapters.alert.line import LineAlertAdapter
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
+from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
+from app.engine.models import Position
+from app.engine.paper.broker import OrderUpdate
+from app.engine.models import TradingDecisionEvent as DecisionEvent
 from typing import Any
 
 
@@ -29,7 +31,7 @@ class TestLineIntegration:
         # Use test credentials if available, otherwise mock
         access_token = os.getenv("LINE_TEST_ACCESS_TOKEN", "test-token")
 
-        adapter = LineAdapter(
+        adapter = LineAlertAdapter(
             access_token=access_token,
             formatter=formatter,
             deduplicator=deduplicator
