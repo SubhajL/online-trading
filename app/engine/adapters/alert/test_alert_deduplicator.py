@@ -2,82 +2,120 @@ import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime, timedelta
 import asyncio
+import redis
+import uuid
 
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
+from app.engine.adapters.alert.test_helpers import get_redis_client, is_ci, skip_if_no_service
 from typing import Any
 
 
 
 class TestAlertDeduplicator:
     @pytest.fixture
-    def mock_redis(self) -> Any:
-        redis = Mock()
-        redis.get = Mock(return_value=None)
-        redis.setex = Mock()
-        redis.delete = Mock()
-        return redis
+    def redis_client(self) -> Any:
+        """Get Redis client for testing."""
+        client = get_redis_client()
+        yield client
+        # Cleanup: Clear test keys
+        try:
+            keys = client.keys("alert:dedup:test:*")
+            if keys:
+                client.delete(*keys)
+        except Exception:
+            pass
 
     @pytest.fixture
-    def deduplicator(self, mock_redis: Any) -> Any:
-        with patch("app.engine.adapters.alert.alert_deduplicator.redis.Redis", return_value=mock_redis):
-            return AlertDeduplicator(ttl_seconds=60)
+    def deduplicator(self) -> Any:
+        """Create deduplicator with real or mock Redis."""
+        # Use real Redis (available in both local and CI)
+        return AlertDeduplicator(ttl_seconds=60)
 
-    def test_is_duplicate_new_key(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
-        key = "test:key:123"
-        mock_redis.get.return_value = None
+    def test_is_duplicate_new_key(self, deduplicator: Any) -> None:
+        """Test is_duplicate returns False for new keys."""
+        skip_if_no_service('redis')(lambda: None)()
+        # Use unique key for each test run
+        key = f"test:key:{uuid.uuid4().hex[:8]}"
 
         result = deduplicator.is_duplicate(key)
 
         assert result is False
-        mock_redis.get.assert_called_once_with(f"alert:dedup:{key}")
 
-    def test_is_duplicate_existing_key(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
-        key = "test:key:123"
-        mock_redis.get.return_value = b"1"
+    def test_is_duplicate_existing_key(self, deduplicator: Any) -> None:
+        """Test is_duplicate returns True for existing keys."""
+        skip_if_no_service('redis')(lambda: None)()
+        # Use unique key for each test run
+        key = f"test:key:{uuid.uuid4().hex[:8]}"
+
+        # Add key first
+        deduplicator.add(key)
 
         result = deduplicator.is_duplicate(key)
 
         assert result is True
-        mock_redis.get.assert_called_once_with(f"alert:dedup:{key}")
 
-    def test_add_key(self, deduplicator: Any, mock_redis: Any) -> None:
-        key = "test:key:123"
+    def test_add_key(self, deduplicator: Any) -> None:
+        """Test adding a key to deduplicator."""
+        skip_if_no_service('redis')(lambda: None)()
+        # Use unique key for each test run
+        key = f"test:key:{uuid.uuid4().hex[:8]}"
 
         deduplicator.add(key)
 
-        mock_redis.setex.assert_called_once_with(
-            f"alert:dedup:{key}",
-            60,  # ttl_seconds
-            "1",
-        )
+        # Verify the key was added
+        assert deduplicator.is_duplicate(key) is True
 
-    def test_clear_key(self, deduplicator: Any, mock_redis: Any) -> None:
-        key = "test:key:123"
+    def test_clear_key(self, deduplicator: Any) -> None:
+        """Test clearing a key from deduplicator."""
+        skip_if_no_service('redis')(lambda: None)()
+        # Use unique key for each test run
+        key = f"test:key:{uuid.uuid4().hex[:8]}"
 
+        # Add key first
+        deduplicator.add(key)
+        assert deduplicator.is_duplicate(key) is True
+
+        # Clear it
         deduplicator.clear(key)
 
-        mock_redis.delete.assert_called_once_with(f"alert:dedup:{key}")
+        # Verify it's gone
+        assert deduplicator.is_duplicate(key) is False
 
-    def test_custom_ttl(self, mock_redis: Any) -> None:
-        with patch("app.engine.adapters.alert.alert_deduplicator.redis.Redis", return_value=mock_redis):
-            dedup = AlertDeduplicator(ttl_seconds=300)
-            dedup.add("key")
+    def test_custom_ttl(self) -> None:
+        """Test custom TTL for deduplication."""
+        skip_if_no_service('redis')(lambda: None)()
+        # Test with 1 second TTL
+        dedup = AlertDeduplicator(ttl_seconds=1)
+        key = f"test:ttl:{uuid.uuid4().hex[:8]}"
 
-            mock_redis.setex.assert_called_with(
-                "alert:dedup:key",
-                300,
-                "1",
-            )
+        dedup.add(key)
+        assert dedup.is_duplicate(key) is True
 
-    def test_redis_connection_error(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
-        mock_redis.get.side_effect = Exception("Redis connection error")
+        # Wait for TTL to expire
+        import time
+        time.sleep(1.5)
 
-        # Should return False on error (allowing alert to be sent)
-        result = deduplicator.is_duplicate("key")
-        assert result is False
+        # Key should be gone
+        assert dedup.is_duplicate(key) is False
+
+    def test_redis_connection_error(self) -> None:
+        # Test with invalid Redis connection
+        with patch("app.engine.adapters.alert.alert_deduplicator.redis.Redis") as mock_redis_class:
+            mock_redis = Mock()
+            mock_redis.get.side_effect = Exception("Redis connection error")
+            mock_redis_class.return_value = mock_redis
+
+            dedup = AlertDeduplicator(ttl_seconds=60)
+
+            # Should return False on error (allowing alert to be sent)
+            result = dedup.is_duplicate("key")
+            assert result is False
 
     @pytest.mark.asyncio
     async def test_async_compatibility(self, deduplicator: Any) -> None:
+        """Test async compatibility."""
+        skip_if_no_service('redis')(lambda: None)()
         # Test that methods can be used in async context
-        result = await asyncio.to_thread(deduplicator.is_duplicate, "async_key")
+        key = f"test:async:{uuid.uuid4().hex[:8]}"
+        result = await asyncio.to_thread(deduplicator.is_duplicate, key)
         assert isinstance(result, bool)
