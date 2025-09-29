@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS positions (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     entry_order_id UUID,
     CONSTRAINT pk_positions PRIMARY KEY (position_id),
-    CONSTRAINT uq_positions_active UNIQUE (venue, symbol, is_active) WHERE is_active = TRUE,
     CONSTRAINT chk_pnl_calculation CHECK (
         unrealized_pnl = (current_price - entry_price) * size * CASE WHEN side = 'BUY' THEN 1 ELSE -1 END
     ),
@@ -54,6 +53,11 @@ SELECT create_hypertable(
     chunk_time_interval => INTERVAL '1 week',
     if_not_exists => TRUE
 );
+
+-- Create partial unique index for active positions
+CREATE UNIQUE INDEX IF NOT EXISTS uq_positions_active
+    ON positions (venue, symbol)
+    WHERE is_active = TRUE;
 
 -- Create indexes as specified in PRD
 CREATE INDEX IF NOT EXISTS idx_positions_symbol_opened
