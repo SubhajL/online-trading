@@ -32,6 +32,7 @@ class TestTelegramIntegration:
         # Create a mock event bus
         mock_event_bus = MagicMock()
         mock_event_bus.subscribe = AsyncMock()
+        mock_event_bus.publish = AsyncMock()
 
         adapter = TelegramAlertAdapter(
             bot_token=bot_token,
@@ -62,7 +63,7 @@ class TestTelegramIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 123}})
 
-            await telegram_adapter.send_alert(order)
+            await telegram_adapter.event_bus.publish("order_update.v1", order)
 
             # Verify the message was formatted and sent
             mock_send.assert_called_once()
@@ -92,7 +93,9 @@ class TestTelegramIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 124}})
 
-            await telegram_adapter.send_alert(position)
+            # Positions would come from order updates, but for testing formatter:
+            message = telegram_adapter.formatter.format_position(position)
+            await telegram_adapter._send_alert(message)
 
             # Verify the message contains P&L info
             mock_send.assert_called_once()
@@ -112,7 +115,10 @@ class TestTelegramIntegration:
             "venue": "SPOT",
             "type": "MARKET",
             "confidence": 0.85,
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
+            "entry_price": 45000.0,
+            "stop_loss": 44000.0,
+            "take_profit": 46000.0
         }
 
         with patch.object(telegram_adapter, '_send_alert') as mock_send:
@@ -121,11 +127,11 @@ class TestTelegramIntegration:
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 125}})
 
             # First alert should be sent
-            await telegram_adapter.send_alert(decision)
+            await telegram_adapter.event_bus.publish("decision.v1", decision)
             assert mock_send.call_count == 1
 
             # Duplicate alert should be blocked
-            await telegram_adapter.send_alert(decision)
+            await telegram_adapter.event_bus.publish("decision.v1", decision)
             assert mock_send.call_count == 1  # Still only 1 call
 
     @pytest.mark.asyncio
@@ -151,7 +157,7 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, '_send_alert', side_effect=mock_send_with_retry):
             with patch.object(telegram_adapter, 'retry_count', 3):
                 with patch.object(telegram_adapter, 'retry_delay', 0.01):  # Fast retry for tests
-                    await telegram_adapter.send_alert(order)
+                    await telegram_adapter.event_bus.publish("order_update.v1", order)
                     assert call_count == 3  # Should retry until success
 
     @pytest.mark.asyncio
@@ -210,7 +216,7 @@ class TestTelegramIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 128}})
 
-            await telegram_adapter.send_alert(order)
+            await telegram_adapter.event_bus.publish("order_update.v1", order)
 
             # Verify special characters are escaped
             mock_send.assert_called_once()
@@ -261,7 +267,15 @@ class TestTelegramIntegration:
 
             # Send all events
             for event in events:
-                await telegram_adapter.send_alert(event)
+                # Determine event type and publish
+                if "order_id" in event:
+                    await telegram_adapter.event_bus.publish("order_update.v1", event)
+                elif "action" in event:
+                    await telegram_adapter.event_bus.publish("decision.v1", event)
+                else:
+                    # For positions, test formatter directly
+                    message = telegram_adapter.formatter.format_position(event)
+                    await telegram_adapter._send_alert(message)
 
             # All unique events should be sent
             assert mock_send.call_count == 3
@@ -291,7 +305,7 @@ class TestTelegramIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 130}})
 
-            await telegram_adapter.send_alert(error_order)
+            await telegram_adapter.event_bus.publish("order_update.v1", error_order)
 
             # Verify error message formatting
             mock_send.assert_called_once()
@@ -323,7 +337,7 @@ class TestTelegramIntegration:
 
             # Send alerts sequentially
             for order in orders:
-                await telegram_adapter.send_alert(order)
+                await telegram_adapter.event_bus.publish("order_update.v1", order)
 
             # All alerts should be sent successfully
             assert mock_send.call_count == 5

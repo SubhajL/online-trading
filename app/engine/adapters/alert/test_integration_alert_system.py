@@ -29,6 +29,7 @@ class TestAlertSystemIntegration:
         # Create a mock event bus
         mock_event_bus = MagicMock()
         mock_event_bus.subscribe = AsyncMock()
+        mock_event_bus.publish = AsyncMock()
 
         adapter = TelegramAlertAdapter(
             bot_token="test-telegram-token",
@@ -45,6 +46,7 @@ class TestAlertSystemIntegration:
         # Create a mock event bus
         mock_event_bus = MagicMock()
         mock_event_bus.subscribe = AsyncMock()
+        mock_event_bus.publish = AsyncMock()
 
         adapter = LineAlertAdapter(
             access_token="test-line-token",
@@ -124,8 +126,11 @@ class TestAlertSystemIntegration:
             "venue": "SPOT",
             "type": "MARKET",
             "confidence": 0.85,
-            "timestamp": datetime.now(timezone.utc)
-        }
+            "timestamp": datetime.now(timezone.utc),
+                "entry_price": 45000.0,
+                "stop_loss": 44000.0,
+                "take_profit": 46000.0
+            }
 
         # 2. Order placed
         order_new = {
@@ -208,7 +213,7 @@ class TestAlertSystemIntegration:
                 mock_line.return_value = loop.create_future()
                 mock_line.return_value.set_result({"status": 200})
 
-                await alert_system.send_alert(order)
+                await alert_system.event_bus.publish("order_update.v1", order)
 
                 # Check sent_alerts for results
                 assert len(alert_system.sent_alerts) == 1
@@ -275,15 +280,15 @@ class TestAlertSystemIntegration:
         # Generate 50 similar orders in quick succession
         orders = []
         for i in range(50):
-            orders.append(OrderUpdate(
-                order_id=f"STORM-{i}",
-                symbol="BTCUSDT",
-                side="BUY",
-                status="NEW",
-                quantity=0.001,
-                venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
-            ))
+            orders.append({
+                "order_id": f"STORM-{i}",
+                "symbol": "BTCUSDT",
+                "side": "BUY",
+                "status": "NEW",
+                "quantity": 0.001,
+                "venue": "SPOT",
+                "timestamp": datetime.now(timezone.utc)
+            })
 
         sent_count = 0
         blocked_count = 0
@@ -299,7 +304,7 @@ class TestAlertSystemIntegration:
                 # Send all orders rapidly
                 for order in orders:
                     try:
-                        await alert_system.send_alert(order)
+                        await alert_system.event_bus.publish("order_update.v1", order)
                         sent_count += 1
                     except Exception:
                         blocked_count += 1
@@ -361,17 +366,17 @@ class TestAlertSystemIntegration:
     @pytest.mark.asyncio
     async def test_alert_recovery_after_downtime(self, alert_system: Any) -> None:
         """Test alert system recovers after platform downtime"""
-        order = OrderUpdate(
-            order_id="RECOVERY-001",
-            symbol="ETHUSDT",
-            side="BUY",
-            status="FILLED",
-            quantity=2.0,
-            executed_qty=2.0,
-            executed_price=2500.0,
-            venue="USD_M",
-            timestamp=datetime.now(timezone.utc)
-        )
+        order = {
+            "order_id": "RECOVERY-001",
+            "symbol": "ETHUSDT",
+            "side": "BUY",
+            "status": "FILLED",
+            "quantity": 2.0,
+            "executed_qty": 2.0,
+            "executed_price": 2500.0,
+            "venue": "USD_M",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
         call_count = 0
         async def mock_send_with_recovery(message: Any) -> None:
@@ -387,14 +392,14 @@ class TestAlertSystemIntegration:
                 mock_line.return_value.set_result({"status": 200})
 
                 # First attempt might fail
-                results1 = await alert_system.send_alert(order)
+                results1 = await alert_system.event_bus.publish("order_update.v1", order)
                 assert isinstance(results1[0], Exception)
 
                 # System should recover on retry
                 with patch.object(alert_system.adapters[0], 'retry_count', 3):
                     with patch.object(alert_system.adapters[0], 'retry_delay', 0.01):
                         # This attempt should eventually succeed
-                        results2 = await alert_system.send_alert(order)
+                        results2 = await alert_system.event_bus.publish("order_update.v1", order)
 
                         # LINE should work throughout
                         assert mock_line.call_count >= 1
@@ -407,17 +412,17 @@ class TestAlertSystemIntegration:
 
         # Morning trades
         for i in range(5):
-            daily_events.append(OrderUpdate(
-                order_id=f"MORNING-{i}",
-                symbol="BTCUSDT",
-                side="BUY" if i % 2 == 0 else "SELL",
-                status="FILLED",
-                quantity=0.01,
-                executed_qty=0.01,
-                executed_price=45000.0 + i * 100,
-                venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
-            ))
+            daily_events.append({
+                "order_id": f"MORNING-{i}",
+                "symbol": "BTCUSDT",
+                "side": "BUY" if i % 2 == 0 else "SELL",
+                "status": "FILLED",
+                "quantity": 0.01,
+                "executed_qty": 0.01,
+                "executed_price": 45000.0 + i * 100,
+                "venue": "SPOT",
+                "timestamp": datetime.now(timezone.utc)
+            })
 
         # Afternoon positions
         daily_events.append({

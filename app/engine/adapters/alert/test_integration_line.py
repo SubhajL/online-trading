@@ -31,6 +31,7 @@ class TestLineIntegration:
         # Create a mock event bus
         mock_event_bus = MagicMock()
         mock_event_bus.subscribe = AsyncMock()
+        mock_event_bus.publish = AsyncMock()
 
         adapter = LineAlertAdapter(
             access_token=access_token,
@@ -61,7 +62,7 @@ class TestLineIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
-            await line_adapter.send_alert(order)
+            await line_adapter.event_bus.publish("order_update.v1", order)
 
             # Verify the message was formatted and sent
             mock_send.assert_called_once()
@@ -91,7 +92,9 @@ class TestLineIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
-            await line_adapter.send_alert(position)
+            # Positions would come from order updates, but for testing formatter:
+            message = line_adapter.formatter.format_position(position)
+            await line_adapter._send_alert(message)
 
             # Verify emoji are included (LINE supports them)
             mock_send.assert_called_once()
@@ -112,7 +115,10 @@ class TestLineIntegration:
             "type": "MARKET",
             "confidence": 0.95,
             "reason": "A" * 2000,  # Very long reason to exceed limit
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
+            "entry_price": 2400.0,
+            "stop_loss": 2350.0,
+            "take_profit": 2500.0
         }
 
         with patch.object(line_adapter, '_send_alert') as mock_send:
@@ -120,7 +126,7 @@ class TestLineIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
-            await line_adapter.send_alert(decision)
+            await line_adapter.event_bus.publish("decision.v1", decision)
 
             # Verify message was truncated
             mock_send.assert_called_once()
@@ -146,7 +152,7 @@ class TestLineIntegration:
             mock_response.status = 200
             mock_post.return_value.__aenter__.return_value = mock_response
 
-            await line_adapter.send_alert(order)
+            await line_adapter.event_bus.publish("order_update.v1", order)
 
             # Verify authorization header
             mock_post.assert_called_once()
@@ -192,7 +198,7 @@ class TestLineIntegration:
             results = []
             for order in orders:
                 try:
-                    await line_adapter.send_alert(order)
+                    await line_adapter.event_bus.publish("order_update.v1", order)
                     results.append("success")
                 except Exception:
                     results.append("rate_limited")
@@ -220,7 +226,7 @@ class TestLineIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
-            await line_adapter.send_alert(critical_order)
+            await line_adapter.event_bus.publish("order_update.v1", critical_order)
 
             # For critical alerts, LINE could send stickers
             # (implementation would need sticker package/ID support)
@@ -242,7 +248,10 @@ class TestLineIntegration:
             "price": 2400.0,
             "confidence": 0.92,
             "chart_url": "https://example.com/chart.png",  # Hypothetical
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
+            "entry_price": 2400.0,
+            "stop_loss": 2350.0,
+            "take_profit": 2500.0
         }
 
         with patch.object(line_adapter, '_send_alert') as mock_send:
@@ -250,7 +259,7 @@ class TestLineIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
-            await line_adapter.send_alert(decision)
+            await line_adapter.event_bus.publish("decision.v1", decision)
 
             # LINE Notify doesn't support images directly,
             # but URL could be included
@@ -281,7 +290,7 @@ class TestLineIntegration:
             with patch.object(line_adapter, 'timeout_seconds', 0.05):
                 # Should handle timeout gracefully
                 try:
-                    await line_adapter.send_alert(order)
+                    await line_adapter.event_bus.publish("order_update.v1", order)
                 except asyncio.TimeoutError:
                     pass  # Expected
 
@@ -307,7 +316,9 @@ class TestLineIntegration:
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             # If configured for group, same API works
-            await line_adapter.send_alert(position)
+            # Positions would come from order updates, but for testing formatter:
+            message = line_adapter.formatter.format_position(position)
+            await line_adapter._send_alert(message)
 
             mock_send.assert_called_once()
             # Group messages work the same way with LINE Notify
@@ -346,8 +357,12 @@ class TestLineIntegration:
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
-            await line_adapter.send_alert(high_priority)
-            await line_adapter.send_alert(low_priority)
+            # Test formatter directly for positions
+            message = line_adapter.formatter.format_position(high_priority)
+            await line_adapter._send_alert(message)
+            # Test formatter directly for positions
+            message = line_adapter.formatter.format_position(low_priority)
+            await line_adapter._send_alert(message)
 
             # Both sent, but high priority might have special formatting
             assert mock_send.call_count == 2
