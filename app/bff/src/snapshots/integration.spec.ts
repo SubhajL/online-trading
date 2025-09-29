@@ -1,3 +1,4 @@
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bull';
@@ -94,11 +95,13 @@ describe('Snapshots Integration', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.init();
 
     signalsService = moduleRef.get<SignalsService>(SignalsService);
@@ -150,15 +153,17 @@ describe('Snapshots Integration', () => {
         data: payload,
         read: false,
       });
-      mockAlertRepository.find.mockResolvedValue([{
-        id: 'alert-123',
-        type: 'smc',
-        priority: 'high',
-        title: `Signal: ${payload.side} ${payload.symbol}`,
-        message: `Trading signal for ${payload.symbol}`,
-        data: payload,
-        read: false,
-      }]);
+      mockAlertRepository.find.mockResolvedValue([
+        {
+          id: 'alert-123',
+          type: 'smc',
+          priority: 'high',
+          title: `Signal: ${payload.side} ${payload.symbol}`,
+          message: `Trading signal for ${payload.symbol}`,
+          data: payload,
+          read: false,
+        },
+      ]);
 
       const response = await request(app.getHttpServer())
         .post('/api/signals/alert')
@@ -173,10 +178,13 @@ describe('Snapshots Integration', () => {
       });
 
       // Verify queue was called
-      expect(mockQueue.add).toHaveBeenCalledWith('process-signal', expect.objectContaining({
-        signalId,
-        symbol: 'BTCUSDT',
-      }));
+      expect(mockQueue.add).toHaveBeenCalledWith(
+        'process-signal',
+        expect.objectContaining({
+          signalId,
+          symbol: 'BTCUSDT',
+        }),
+      );
     });
 
     it('should reject unauthorized requests', async () => {
@@ -294,9 +302,9 @@ describe('Snapshots Integration', () => {
   describe('Snapshot Generation', () => {
     it('should handle snapshot generation errors gracefully', async () => {
       // Mock the snapshot generator to fail
-      jest.spyOn(snapshotGenerator, 'generateSnapshot').mockRejectedValue(
-        new Error('Puppeteer error'),
-      );
+      jest
+        .spyOn(snapshotGenerator, 'generateSnapshot')
+        .mockRejectedValue(new Error('Puppeteer error'));
 
       const signalId = `sig_${uuidv4().substring(0, 12)}`;
       const payload = {

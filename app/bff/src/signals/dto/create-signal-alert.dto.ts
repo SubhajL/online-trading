@@ -1,4 +1,5 @@
 import { IsString, IsNumber, IsEnum, IsArray, IsOptional, IsISO8601 } from 'class-validator';
+import { Venue } from '../../balances/dto/get-balances.dto';
 
 export class CreateSignalAlertDto {
   @IsString()
@@ -7,8 +8,8 @@ export class CreateSignalAlertDto {
   @IsString()
   symbol: string;
 
-  @IsEnum(['SPOT', 'USD_M'])
-  venue: 'SPOT' | 'USD_M';
+  @IsEnum(Venue)
+  venue: Venue;
 
   @IsEnum(['BUY', 'SELL'])
   side: 'BUY' | 'SELL';

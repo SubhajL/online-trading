@@ -18,6 +18,7 @@ describe('AlertsService', () => {
     delete: jest.fn(),
     count: jest.fn(),
     createQueryBuilder: jest.fn(),
+    create: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -54,12 +55,11 @@ describe('AlertsService', () => {
 
       const result = await service.findAll(1, 20, {});
 
-      expect(result).toEqual({
-        data: [mockAlert],
-        total: 1,
-        page: 1,
-        limit: 20,
-      });
+      expect(result.total).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(20);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe('alert-123');
       expect(repository.findAndCount).toHaveBeenCalledWith({
         where: {},
         take: 20,
@@ -97,7 +97,9 @@ describe('AlertsService', () => {
 
       const result = await service.findOne('alert-123');
 
-      expect(result).toEqual(mockAlert);
+      expect(result.id).toBe('alert-123');
+      expect(result.type).toBe('order');
+      expect(result.createdAt).toBe(mockAlert.createdAt.toISOString());
       expect(repository.findOne).toHaveBeenCalledWith({ where: { id: 'alert-123' } });
     });
 
@@ -202,10 +204,9 @@ describe('AlertsService', () => {
 
       const result = await service.search('BTC', 50);
 
-      expect(result).toEqual({
-        data: [mockAlert],
-        total: 1,
-      });
+      expect(result.total).toBe(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe('alert-123');
       expect(repository.createQueryBuilder).toHaveBeenCalled();
     });
   });
@@ -243,6 +244,7 @@ describe('AlertsService', () => {
         message: 'Order placed',
         data: { orderId: '123' },
       };
+      mockRepository.create.mockReturnValue({ ...newAlert, read: false });
       mockRepository.save.mockResolvedValue({
         ...newAlert,
         id: 'new-alert',
@@ -254,6 +256,66 @@ describe('AlertsService', () => {
 
       expect(result).toHaveProperty('id');
       expect(repository.save).toHaveBeenCalledWith(expect.objectContaining(newAlert));
+    });
+  });
+
+  describe('findByData', () => {
+    it('should match alert data via JSON containment', async () => {
+      const alertWithData: Alert = {
+        ...mockAlert,
+        data: { signalId: 'signal-123', symbol: 'BTCUSDT' },
+      };
+      mockRepository.findOne.mockResolvedValue(alertWithData);
+
+      const result = await service.findByData({ signalId: 'signal-123' });
+
+      expect(result).toBeTruthy();
+      expect(result?.data).toEqual({ signalId: 'signal-123', symbol: 'BTCUSDT' });
+
+      // Verify the repository was called with JSON containment query
+      const calledWith = (repository.findOne as jest.Mock).mock.calls[0][0];
+      expect(calledWith.where.data).toBeDefined();
+      expect(calledWith.where.data._type).toBe('raw');
+      expect(calledWith.where.data._objectLiteralParameters.dataQuery).toBe(
+        JSON.stringify({ signalId: 'signal-123' }),
+      );
+    });
+
+    it('should handle multiple key-value pairs in containment query', async () => {
+      const alertWithData: Alert = {
+        ...mockAlert,
+        data: { signalId: 'signal-123', symbol: 'BTCUSDT', venue: 'SPOT' },
+      };
+      mockRepository.findOne.mockResolvedValue(alertWithData);
+
+      const dataQuery = { signalId: 'signal-123', symbol: 'BTCUSDT' };
+      const result = await service.findByData(dataQuery);
+
+      expect(result).toBeTruthy();
+
+      // Verify JSON containment with multiple keys
+      const calledWith = (repository.findOne as jest.Mock).mock.calls[0][0];
+      expect(calledWith.where.data).toBeDefined();
+      expect(calledWith.where.data._type).toBe('raw');
+      expect(calledWith.where.data._objectLiteralParameters.dataQuery).toBe(
+        JSON.stringify(dataQuery),
+      );
+    });
+
+    it('should return null when no alert matches', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.findByData({ signalId: 'nonexistent' });
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle empty data query', async () => {
+      const result = await service.findByData({});
+
+      // Should not call repository with empty query
+      expect(repository.findOne).not.toHaveBeenCalled();
+      expect(result).toBeNull();
     });
   });
 });

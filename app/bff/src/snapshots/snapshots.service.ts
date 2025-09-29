@@ -68,6 +68,18 @@ export class SnapshotsService {
     return this.mapToDto(snapshot);
   }
 
+  async findBySignalId(signalId: string): Promise<AlertSnapshotDto | null> {
+    const snapshot = await this.snapshotRepository.findOne({
+      where: { signalId },
+    });
+
+    if (!snapshot) {
+      return null;
+    }
+
+    return this.mapToDto(snapshot);
+  }
+
   async deleteOldSnapshots(olderThanDays = 30): Promise<number> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);

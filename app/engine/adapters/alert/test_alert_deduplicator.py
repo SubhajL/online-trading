@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 from datetime import datetime, timedelta
 import asyncio
 
-from alert_deduplicator import AlertDeduplicator
+from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
 from typing import Any
 
 
@@ -19,7 +19,7 @@ class TestAlertDeduplicator:
 
     @pytest.fixture
     def deduplicator(self, mock_redis: Any) -> Any:
-        with patch("alert_deduplicator.redis.Redis", return_value=mock_redis):
+        with patch("app.engine.adapters.alert.alert_deduplicator.redis.Redis", return_value=mock_redis):
             return AlertDeduplicator(ttl_seconds=60)
 
     def test_is_duplicate_new_key(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
@@ -59,7 +59,7 @@ class TestAlertDeduplicator:
         mock_redis.delete.assert_called_once_with(f"alert:dedup:{key}")
 
     def test_custom_ttl(self, mock_redis: Any) -> None:
-        with patch("alert_deduplicator.redis.Redis", return_value=mock_redis):
+        with patch("app.engine.adapters.alert.alert_deduplicator.redis.Redis", return_value=mock_redis):
             dedup = AlertDeduplicator(ttl_seconds=300)
             dedup.add("key")
 

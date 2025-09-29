@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, Raw } from 'typeorm';
 import { Alert } from './entities/alert.entity';
 import {
   AlertFilters,
@@ -175,6 +175,24 @@ export class AlertsService {
     });
     const saved = await this.alertRepository.save(alert);
     return this.toDto(saved);
+  }
+
+  async findByData(dataQuery: Record<string, any>): Promise<AlertDto | null> {
+    // Return null if empty query
+    if (!dataQuery || Object.keys(dataQuery).length === 0) {
+      return null;
+    }
+
+    // Use JSONB containment operator @> for Postgres
+    const alert = await this.alertRepository.findOne({
+      where: {
+        data: Raw((alias) => `${alias} @> :dataQuery`, {
+          dataQuery: JSON.stringify(dataQuery),
+        }),
+      },
+    });
+
+    return alert ? this.toDto(alert) : null;
   }
 
   private exportToCsv(alerts: AlertDto[]): Buffer {

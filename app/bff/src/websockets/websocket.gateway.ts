@@ -15,7 +15,9 @@ import { Server, Socket } from 'socket.io';
     credentials: true,
   },
 })
-export class WebSocketHealthGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class WebSocketHealthGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   private readonly logger = new Logger(WebSocketHealthGateway.name);
 
   @WebSocketServer()
