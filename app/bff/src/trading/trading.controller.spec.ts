@@ -2,10 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TradingController } from './trading.controller';
 import { TradingService } from './trading.service';
 import { OrderRequest } from '../router-client/router-client.service';
+import { CommandBus } from '@nestjs/cqrs';
 
 describe('TradingController', () => {
   let controller: TradingController;
   let service: TradingService;
+  let commandBus: CommandBus;
 
   const mockTradingService = {
     placeOrder: jest.fn(),
@@ -15,6 +17,10 @@ describe('TradingController', () => {
     getActiveOrders: jest.fn(),
     setAutoTrading: jest.fn(),
     isAutoTradingEnabled: jest.fn(),
+  };
+
+  const mockCommandBus = {
+    execute: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -27,11 +33,16 @@ describe('TradingController', () => {
           provide: TradingService,
           useValue: mockTradingService,
         },
+        {
+          provide: CommandBus,
+          useValue: mockCommandBus,
+        },
       ],
     }).compile();
 
     controller = module.get<TradingController>(TradingController);
     service = module.get<TradingService>(TradingService);
+    commandBus = module.get<CommandBus>(CommandBus);
   });
 
   it('should be defined', () => {
@@ -57,12 +68,13 @@ describe('TradingController', () => {
         quantity: 0.01,
       };
 
-      mockTradingService.placeOrder.mockResolvedValue(orderResponse);
+      mockCommandBus.execute.mockResolvedValue(orderResponse);
 
-      const result = await controller.placeOrder(orderRequest);
+      const mockRequest = { user: { sub: 'user-123' } };
+      const result = await controller.placeOrder(mockRequest, orderRequest);
 
       expect(result).toEqual(orderResponse);
-      expect(service.placeOrder).toHaveBeenCalledWith(orderRequest);
+      expect(commandBus.execute).toHaveBeenCalledTimes(1);
     });
   });
 
