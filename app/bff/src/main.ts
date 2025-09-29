@@ -28,7 +28,7 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  const port = configService.get<number>('PORT') ?? 3001;
+  const port = configService.get<number>('port') ?? 3001;
   await app.listen(port);
 
   console.log(`🚀 BFF service is running on: http://localhost:${port}/api`);
