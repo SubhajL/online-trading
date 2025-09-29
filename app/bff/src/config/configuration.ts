@@ -41,7 +41,7 @@ export function loadConfiguration(): Configuration {
 
   const config: Configuration = {
     nodeEnv: process.env.NODE_ENV || 'development',
-    port: parseIntWithDefault(process.env.PORT, 3001),
+    port: parseIntWithDefault(process.env.BFF_PORT || process.env.PORT, 3001),
     engine: {
       host: process.env.ENGINE_HOST || 'localhost',
       port: parseIntWithDefault(process.env.ENGINE_PORT, 6379),
