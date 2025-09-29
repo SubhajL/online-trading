@@ -75,17 +75,18 @@ type ExchangeInfo struct {
 
 // Symbol represents trading symbol information
 type Symbol struct {
-	Symbol                 string   `json:"symbol"`
-	Status                 string   `json:"status"`
-	BaseAsset              string   `json:"baseAsset"`
-	BaseAssetPrecision     int      `json:"baseAssetPrecision"`
-	QuoteAsset             string   `json:"quoteAsset"`
-	QuoteAssetPrecision    int      `json:"quoteAssetPrecision"`
-	OrderTypes             []string `json:"orderTypes"`
-	IcebergAllowed         bool     `json:"icebergAllowed"`
-	OcoAllowed             bool     `json:"ocoAllowed"`
-	IsSpotTradingAllowed   bool     `json:"isSpotTradingAllowed"`
-	IsMarginTradingAllowed bool     `json:"isMarginTradingAllowed"`
+	Symbol                 string                   `json:"symbol"`
+	Status                 string                   `json:"status"`
+	BaseAsset              string                   `json:"baseAsset"`
+	BaseAssetPrecision     int                      `json:"baseAssetPrecision"`
+	QuoteAsset             string                   `json:"quoteAsset"`
+	QuoteAssetPrecision    int                      `json:"quoteAssetPrecision"`
+	OrderTypes             []string                 `json:"orderTypes"`
+	IcebergAllowed         bool                     `json:"icebergAllowed"`
+	OcoAllowed             bool                     `json:"ocoAllowed"`
+	IsSpotTradingAllowed   bool                     `json:"isSpotTradingAllowed"`
+	IsMarginTradingAllowed bool                     `json:"isMarginTradingAllowed"`
+	Filters                []map[string]interface{} `json:"filters"`
 }
 
 // OrderBook represents order book depth

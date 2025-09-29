@@ -200,17 +200,8 @@ func (e *ExchangeInfoCache) refreshCache(ctx context.Context) error {
 				IsFutures:           false,
 			}
 
-			// TODO: Parse filters when Symbol type includes them
-			// For now, set default values
-			info.MinPrice = decimal.RequireFromString("0.01")
-			info.MaxPrice = decimal.RequireFromString("1000000")
-			info.TickSize = decimal.RequireFromString("0.01")
-			info.MinQuantity = decimal.RequireFromString("0.001")
-			info.MaxQuantity = decimal.RequireFromString("10000")
-			info.StepSize = decimal.RequireFromString("0.001")
-			info.MinNotional = decimal.RequireFromString("10")
-			info.PricePrecision = 2
-			info.QuantityPrecision = 3
+			// Parse filters from the symbol
+			e.parseFilters(info, symbol.Filters)
 
 			newCache[symbol.Symbol] = info
 		}
@@ -231,12 +222,8 @@ func (e *ExchangeInfoCache) refreshCache(ctx context.Context) error {
 }
 
 // parseFilters extracts relevant filter values
-func (e *ExchangeInfoCache) parseFilters(info *SymbolInfo, filters []interface{}) {
-	for _, filterRaw := range filters {
-		filterMap, ok := filterRaw.(map[string]interface{})
-		if !ok {
-			continue
-		}
+func (e *ExchangeInfoCache) parseFilters(info *SymbolInfo, filters []map[string]interface{}) {
+	for _, filterMap := range filters {
 
 		filterType, _ := filterMap["filterType"].(string)
 
