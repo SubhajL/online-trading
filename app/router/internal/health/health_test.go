@@ -14,6 +14,14 @@ import (
 	"router/internal/health"
 )
 
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey string
+
+const (
+	binanceClientKey contextKey = "binanceClient"
+	redisClientKey   contextKey = "redisClient"
+)
+
 // Mock Binance client for testing
 type mockBinanceClient struct {
 	mock.Mock
@@ -231,8 +239,8 @@ func TestHealthEndpointHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Set dependencies in context
-	ctx := context.WithValue(req.Context(), "binanceClient", mockBinance)
-	ctx = context.WithValue(ctx, "redisClient", mockRedis)
+	ctx := context.WithValue(req.Context(), binanceClientKey, mockBinance)
+	ctx = context.WithValue(ctx, redisClientKey, mockRedis)
 	req = req.WithContext(ctx)
 
 	handler.HandleHealth(w, req)

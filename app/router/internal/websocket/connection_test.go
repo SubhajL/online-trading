@@ -386,7 +386,6 @@ func TestConnection_Reconnection(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
 			defer conn.Close()
 			// Always close immediately
-			return
 		})
 		defer server.Close()
 
@@ -418,7 +417,7 @@ func TestConnection_Reconnection(t *testing.T) {
 	t.Run("uses exponential backoff for reconnection", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
 			defer conn.Close()
-			return // Always fail immediately
+			// Always fail immediately
 		})
 		defer server.Close()
 
