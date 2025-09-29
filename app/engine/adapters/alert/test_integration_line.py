@@ -8,9 +8,6 @@ from datetime import datetime, timezone
 from app.engine.adapters.alert.line import LineAlertAdapter
 from app.engine.adapters.alert.alert_formatter import AlertFormatter
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
-from app.engine.models import Position
-from app.engine.paper.broker import OrderUpdate
-from app.engine.models import TradingDecisionEvent as DecisionEvent
 from typing import Any
 
 
@@ -24,35 +21,42 @@ class TestLineIntegration:
 
     @pytest.fixture
     def deduplicator(self) -> Any:
-        return AlertDeduplicator(window_seconds=60)
+        return AlertDeduplicator(ttl_seconds=60)
 
     @pytest.fixture
     def line_adapter(self, formatter: Any, deduplicator: Any) -> Any:
         # Use test credentials if available, otherwise mock
         access_token = os.getenv("LINE_TEST_ACCESS_TOKEN", "test-token")
 
+        # Create a mock event bus
+        mock_event_bus = MagicMock()
+        mock_event_bus.subscribe = AsyncMock()
+
         adapter = LineAlertAdapter(
             access_token=access_token,
-            formatter=formatter,
-            deduplicator=deduplicator
+            user_id="test-user",
+            event_bus=mock_event_bus
         )
+        # Replace the internal formatter and deduplicator for testing
+        adapter.formatter = formatter
+        adapter.deduplicator = deduplicator
         return adapter
 
     @pytest.mark.asyncio
     async def test_send_order_filled_notification(self, line_adapter: Any) -> None:
         """Test sending order filled notification through LINE Notify"""
-        order = OrderUpdate(
-            order_id="LINE-ORDER-001",
-            symbol="BTCUSDT",
-            side="SELL",
-            status="FILLED",
-            executed_qty=0.002,
-            executed_price=44800.0,
-            venue="USD_M",
-            timestamp=datetime.now(timezone.utc)
-        )
+        order = {
+            "order_id": "LINE-ORDER-001",
+            "symbol": "BTCUSDT",
+            "side": "SELL",
+            "status": "FILLED",
+            "executed_qty": 0.002,
+            "executed_price": 44800.0,
+            "venue": "USD_M",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -70,19 +74,19 @@ class TestLineIntegration:
     @pytest.mark.asyncio
     async def test_send_position_with_emoji(self, line_adapter: Any) -> None:
         """Test LINE supports emoji in position alerts"""
-        position = Position(
-            symbol="SOLUSDT",
-            side="LONG",
-            quantity=50.0,
-            entry_price=100.0,
-            current_price=110.0,
-            venue="USD_M",
-            pnl=500.0,
-            pnl_percent=10.0,
-            timestamp=datetime.now(timezone.utc)
-        )
+        position = {
+            "symbol": "SOLUSDT",
+            "side": "LONG",
+            "quantity": 50.0,
+            "entry_price": 100.0,
+            "current_price": 110.0,
+            "venue": "USD_M",
+            "pnl": 500.0,
+            "pnl_percent": 10.0,
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -99,18 +103,19 @@ class TestLineIntegration:
     async def test_message_length_limit(self, line_adapter: Any) -> None:
         """Test LINE's 1000 character message limit is respected"""
         # Create a decision with very long reasoning
-        decision = DecisionEvent(
-            symbol="BTCUSDT",
-            action="BUY",
-            quantity=0.1,
-            venue="SPOT",
-            type="MARKET",
-            confidence=0.95,
-            reason="A" * 2000,  # Very long reason to exceed limit
-            timestamp=datetime.now(timezone.utc)
-        )
+        decision = {
+            "symbol": "BTCUSDT",
+            "action": "BUY",
+            "side": "BUY",
+            "quantity": 0.1,
+            "venue": "SPOT",
+            "type": "MARKET",
+            "confidence": 0.95,
+            "reason": "A" * 2000,  # Very long reason to exceed limit
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -125,15 +130,15 @@ class TestLineIntegration:
     @pytest.mark.asyncio
     async def test_auth_header_format(self, line_adapter: Any) -> None:
         """Test LINE Notify authorization header format"""
-        order = OrderUpdate(
-            order_id="AUTH-TEST",
-            symbol="ETHUSDT",
-            side="BUY",
-            status="NEW",
-            quantity=1.0,
-            venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
-        )
+        order = {
+            "order_id": "AUTH-TEST",
+            "symbol": "ETHUSDT",
+            "side": "BUY",
+            "status": "NEW",
+            "quantity": 1.0,
+            "venue": "SPOT",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
         with patch('aiohttp.ClientSession.post') as mock_post:
             mock_response = AsyncMock()
@@ -154,19 +159,19 @@ class TestLineIntegration:
         """Test handling LINE's rate limits (1000/hour)"""
         # Create multiple orders
         orders = [
-            OrderUpdate(
-                order_id=f"RATE-{i}",
-                symbol="BTCUSDT",
-                side="BUY" if i % 2 == 0 else "SELL",
-                status="NEW",
-                quantity=0.001,
-                venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
-            )
+            {
+                    "order_id": f"RATE-{i}",
+                "symbol": "BTCUSDT",
+                "side": "BUY" if i % 2 == 0 else "SELL",
+                "status": "NEW",
+                "quantity": 0.001,
+                "venue": "SPOT",
+                "timestamp": datetime.now(timezone.utc)
+        }
             for i in range(5)
         ]
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             # Simulate rate limit response on 3rd request
             responses = [
                 {"status": 200, "message": "ok"},
@@ -199,18 +204,18 @@ class TestLineIntegration:
     async def test_sticker_support(self, line_adapter: Any) -> None:
         """Test sending stickers with important alerts"""
         # Critical order rejection
-        critical_order = OrderUpdate(
-            order_id="CRITICAL-001",
-            symbol="BTCUSDT",
-            side="BUY",
-            status="REJECTED",
-            quantity=1.0,
-            venue="USD_M",
-            error="ACCOUNT_SUSPENDED",
-            timestamp=datetime.now(timezone.utc)
-        )
+        critical_order = {
+            "order_id": "CRITICAL-001",
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "status": "REJECTED",
+            "quantity": 1.0,
+            "venue": "USD_M",
+            "error": "ACCOUNT_SUSPENDED",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -227,19 +232,20 @@ class TestLineIntegration:
     @pytest.mark.asyncio
     async def test_image_chart_attachment(self, line_adapter: Any) -> None:
         """Test potential for sending chart images with signals"""
-        decision = DecisionEvent(
-            symbol="ETHUSDT",
-            action="BUY",
-            quantity=2.0,
-            venue="SPOT",
-            type="LIMIT",
-            price=2400.0,
-            confidence=0.92,
-            chart_url="https://example.com/chart.png",  # Hypothetical
-            timestamp=datetime.now(timezone.utc)
-        )
+        decision = {
+            "symbol": "ETHUSDT",
+            "action": "BUY",
+            "side": "BUY",
+            "quantity": 2.0,
+            "venue": "SPOT",
+            "type": "LIMIT",
+            "price": 2400.0,
+            "confidence": 0.92,
+            "chart_url": "https://example.com/chart.png",  # Hypothetical
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -257,21 +263,21 @@ class TestLineIntegration:
     @pytest.mark.asyncio
     async def test_connection_timeout_handling(self, line_adapter: Any) -> None:
         """Test handling connection timeouts to LINE API"""
-        order = OrderUpdate(
-            order_id="TIMEOUT-001",
-            symbol="BTCUSDT",
-            side="BUY",
-            status="NEW",
-            quantity=0.001,
-            venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
-        )
+        order = {
+            "order_id": "TIMEOUT-001",
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "status": "NEW",
+            "quantity": 0.001,
+            "venue": "SPOT",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
         async def mock_timeout(*args: Any, **kwargs: Any) -> None:
             await asyncio.sleep(0.1)
             raise asyncio.TimeoutError("Connection timeout")
 
-        with patch.object(line_adapter, '_send_line_message', side_effect=mock_timeout):
+        with patch.object(line_adapter, '_send_alert', side_effect=mock_timeout):
             with patch.object(line_adapter, 'timeout_seconds', 0.05):
                 # Should handle timeout gracefully
                 try:
@@ -283,19 +289,19 @@ class TestLineIntegration:
     async def test_group_notification_support(self, line_adapter: Any) -> None:
         """Test sending to LINE groups vs individual users"""
         # LINE Notify can send to groups if token is from group
-        position = Position(
-            symbol="ADAUSDT",
-            side="SHORT",
-            quantity=1000.0,
-            entry_price=0.50,
-            current_price=0.48,
-            venue="SPOT",
-            pnl=20.0,
-            pnl_percent=4.0,
-            timestamp=datetime.now(timezone.utc)
-        )
+        position = {
+            "symbol": "ADAUSDT",
+            "side": "SHORT",
+            "quantity": 1000.0,
+            "entry_price": 0.50,
+            "current_price": 0.48,
+            "venue": "SPOT",
+            "pnl": 20.0,
+            "pnl_percent": 4.0,
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -310,32 +316,32 @@ class TestLineIntegration:
     async def test_alert_priority_levels(self, line_adapter: Any) -> None:
         """Test different priority levels for alerts"""
         # High priority - large loss
-        high_priority = Position(
-            symbol="BTCUSDT",
-            side="LONG",
-            quantity=1.0,
-            entry_price=50000.0,
-            current_price=45000.0,
-            venue="USD_M",
-            pnl=-5000.0,
-            pnl_percent=-10.0,
-            timestamp=datetime.now(timezone.utc)
-        )
+        high_priority = {
+            "symbol": "BTCUSDT",
+            "side": "LONG",
+            "quantity": 1.0,
+            "entry_price": 50000.0,
+            "current_price": 45000.0,
+            "venue": "USD_M",
+            "pnl": -5000.0,
+            "pnl_percent": -10.0,
+            "timestamp": datetime.now(timezone.utc)
+        }
 
         # Low priority - small position update
-        low_priority = Position(
-            symbol="DOGEUSDT",
-            side="LONG",
-            quantity=1000.0,
-            entry_price=0.10,
-            current_price=0.101,
-            venue="SPOT",
-            pnl=1.0,
-            pnl_percent=1.0,
-            timestamp=datetime.now(timezone.utc)
-        )
+        low_priority = {
+            "symbol": "DOGEUSDT",
+            "side": "LONG",
+            "quantity": 1000.0,
+            "entry_price": 0.10,
+            "current_price": 0.101,
+            "venue": "SPOT",
+            "pnl": 1.0,
+            "pnl_percent": 1.0,
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -364,14 +370,14 @@ class TestLineIntegration:
             "date": datetime.now(timezone.utc).date()
         }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
 
             # Format and send summary
             summary_msg = line_adapter.formatter.format_daily_summary(summary_data)
-            await line_adapter._send_line_message(summary_msg)
+            await line_adapter._send_alert(summary_msg)
 
             mock_send.assert_called_once()
             message = mock_send.call_args[0][0]

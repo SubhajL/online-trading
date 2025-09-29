@@ -8,9 +8,6 @@ from datetime import datetime, timezone
 from app.engine.adapters.alert.telegram import TelegramAlertAdapter
 from app.engine.adapters.alert.alert_formatter import AlertFormatter
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
-from app.engine.models import Position
-from app.engine.paper.broker import OrderUpdate
-from app.engine.models import TradingDecisionEvent as DecisionEvent
 from typing import Any
 
 
@@ -24,7 +21,7 @@ class TestTelegramIntegration:
 
     @pytest.fixture
     def deduplicator(self) -> Any:
-        return AlertDeduplicator(window_seconds=60)
+        return AlertDeduplicator(ttl_seconds=60)
 
     @pytest.fixture
     def telegram_adapter(self, formatter: Any, deduplicator: Any) -> Any:
@@ -32,29 +29,35 @@ class TestTelegramIntegration:
         bot_token = os.getenv("TELEGRAM_TEST_BOT_TOKEN", "test-token")
         chat_id = os.getenv("TELEGRAM_TEST_CHAT_ID", "test-chat-id")
 
+        # Create a mock event bus
+        mock_event_bus = MagicMock()
+        mock_event_bus.subscribe = AsyncMock()
+
         adapter = TelegramAlertAdapter(
             bot_token=bot_token,
             chat_id=chat_id,
-            formatter=formatter,
-            deduplicator=deduplicator
+            event_bus=mock_event_bus
         )
+        # Replace the internal formatter and deduplicator for testing
+        adapter.formatter = formatter
+        adapter.deduplicator = deduplicator
         return adapter
 
     @pytest.mark.asyncio
     async def test_send_order_filled_alert(self, telegram_adapter: Any) -> None:
         """Test sending a real order filled alert through Telegram"""
-        order = OrderUpdate(
-            order_id="TEST-ORDER-001",
-            symbol="BTCUSDT",
-            side="BUY",
-            status="FILLED",
-            executed_qty=0.001,
-            executed_price=45000.0,
-            venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
-        )
+        order = {
+            "order_id": "TEST-ORDER-001",
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "status": "FILLED",
+            "executed_qty": 0.001,
+            "executed_price": 45000.0,
+            "venue": "SPOT",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 123}})
@@ -72,19 +75,19 @@ class TestTelegramIntegration:
     @pytest.mark.asyncio
     async def test_send_position_alert_with_pnl(self, telegram_adapter: Any) -> None:
         """Test sending position update with P&L calculation"""
-        position = Position(
-            symbol="ETHUSDT",
-            side="LONG",
-            quantity=1.5,
-            entry_price=2500.0,
-            current_price=2600.0,
-            venue="USD_M",
-            pnl=150.0,
-            pnl_percent=4.0,
-            timestamp=datetime.now(timezone.utc)
-        )
+        position = {
+            "symbol": "ETHUSDT",
+            "side": "LONG",
+            "quantity": 1.5,
+            "entry_price": 2500.0,
+            "current_price": 2600.0,
+            "venue": "USD_M",
+            "pnl": 150.0,
+            "pnl_percent": 4.0,
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 124}})
@@ -101,17 +104,18 @@ class TestTelegramIntegration:
     @pytest.mark.asyncio
     async def test_deduplication_prevents_spam(self, telegram_adapter: Any) -> None:
         """Test that deduplication prevents sending duplicate alerts"""
-        decision = DecisionEvent(
-            symbol="BTCUSDT",
-            action="BUY",
-            quantity=0.001,
-            venue="SPOT",
-            type="MARKET",
-            confidence=0.85,
-            timestamp=datetime.now(timezone.utc)
-        )
+        decision = {
+            "symbol": "BTCUSDT",
+            "action": "BUY",
+            "side": "BUY",
+            "quantity": 0.001,
+            "venue": "SPOT",
+            "type": "MARKET",
+            "confidence": 0.85,
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 125}})
@@ -127,15 +131,15 @@ class TestTelegramIntegration:
     @pytest.mark.asyncio
     async def test_retry_on_network_error(self, telegram_adapter: Any) -> None:
         """Test retry logic when Telegram API fails"""
-        order = OrderUpdate(
-            order_id="TEST-ORDER-002",
-            symbol="BTCUSDT",
-            side="SELL",
-            status="NEW",
-            quantity=0.001,
-            venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
-        )
+        order = {
+            "order_id": "TEST-ORDER-002",
+            "symbol": "BTCUSDT",
+            "side": "SELL",
+            "status": "NEW",
+            "quantity": 0.001,
+            "venue": "SPOT",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
         call_count = 0
         async def mock_send_with_retry(message: Any) -> None:
@@ -144,7 +148,7 @@ class TestTelegramIntegration:
             if call_count < 3:
                 raise Exception("Network error")
 
-        with patch.object(telegram_adapter, '_send_telegram_message', side_effect=mock_send_with_retry):
+        with patch.object(telegram_adapter, '_send_alert', side_effect=mock_send_with_retry):
             with patch.object(telegram_adapter, 'retry_count', 3):
                 with patch.object(telegram_adapter, 'retry_delay', 0.01):  # Fast retry for tests
                     await telegram_adapter.send_alert(order)
@@ -154,19 +158,19 @@ class TestTelegramIntegration:
     async def test_rate_limiting(self, telegram_adapter: Any) -> None:
         """Test that rate limiting prevents excessive API calls"""
         orders = [
-            OrderUpdate(
-                order_id=f"ORDER-{i}",
-                symbol="BTCUSDT",
-                side="BUY" if i % 2 == 0 else "SELL",
-                status="NEW",
-                quantity=0.001,
-                venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
-            )
+            {
+                "order_id": f"ORDER-{i}",
+                "symbol": "BTCUSDT",
+                "side": "BUY" if i % 2 == 0 else "SELL",
+                "status": "NEW",
+                "quantity": 0.001,
+                "venue": "SPOT",
+                "timestamp": datetime.now(timezone.utc)
+        }
             for i in range(10)
         ]
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 127}})
@@ -190,18 +194,18 @@ class TestTelegramIntegration:
     async def test_markdown_formatting_escape(self, telegram_adapter: Any) -> None:
         """Test that special markdown characters are properly escaped"""
         # Order with special characters in symbol
-        order = OrderUpdate(
-            order_id="TEST_ORDER*123",
-            symbol="BTC_USDT",
-            side="BUY",
-            status="FILLED",
-            executed_qty=0.001,
-            executed_price=45000.0,
-            venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
-        )
+        order = {
+            "order_id": "TEST_ORDER*123",
+            "symbol": "BTC_USDT",
+            "side": "BUY",
+            "status": "FILLED",
+            "executed_qty": 0.001,
+            "executed_price": 45000.0,
+            "venue": "SPOT",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 128}})
@@ -217,39 +221,40 @@ class TestTelegramIntegration:
     async def test_batch_alerts_for_multiple_events(self, telegram_adapter: Any) -> None:
         """Test handling multiple alerts in quick succession"""
         events = [
-            OrderUpdate(
-                order_id="ORDER-1",
-                symbol="BTCUSDT",
-                side="BUY",
-                status="NEW",
-                quantity=0.001,
-                venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
-            ),
-            DecisionEvent(
-                symbol="ETHUSDT",
-                action="SELL",
-                quantity=0.5,
-                venue="USD_M",
-                type="LIMIT",
-                price=2500.0,
-                confidence=0.90,
-                timestamp=datetime.now(timezone.utc)
-            ),
-            Position(
-                symbol="BNBUSDT",
-                side="SHORT",
-                quantity=10.0,
-                entry_price=300.0,
-                current_price=295.0,
-                venue="USD_M",
-                pnl=50.0,
-                pnl_percent=1.67,
-                timestamp=datetime.now(timezone.utc)
-            )
+            {
+            "order_id": "ORDER-1",
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "status": "NEW",
+                "quantity": 0.001,
+                "venue": "SPOT",
+                "timestamp": datetime.now(timezone.utc)
+            },
+            {
+            "symbol": "ETHUSDT",
+            "action": "SELL",
+            "side": "SELL",
+                "quantity": 0.5,
+                "venue": "USD_M",
+                "type": "LIMIT",
+                "price": 2500.0,
+                "confidence": 0.90,
+                "timestamp": datetime.now(timezone.utc)
+            },
+            {
+            "symbol": "BNBUSDT",
+            "side": "SHORT",
+                "quantity": 10.0,
+                "entry_price": 300.0,
+                "current_price": 295.0,
+                "venue": "USD_M",
+                "pnl": 50.0,
+                "pnl_percent": 1.67,
+                "timestamp": datetime.now(timezone.utc)
+        }
         ]
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 129}})
@@ -270,18 +275,18 @@ class TestTelegramIntegration:
     @pytest.mark.asyncio
     async def test_error_alert_formatting(self, telegram_adapter: Any) -> None:
         """Test sending error alerts with proper formatting"""
-        error_order = OrderUpdate(
-            order_id="ERROR-ORDER",
-            symbol="BTCUSDT",
-            side="BUY",
-            status="REJECTED",
-            quantity=0.001,
-            venue="SPOT",
-            error="Insufficient balance",
-            timestamp=datetime.now(timezone.utc)
-        )
+        error_order = {
+            "order_id": "ERROR-ORDER",
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "status": "REJECTED",
+            "quantity": 0.001,
+            "venue": "SPOT",
+            "error": "Insufficient balance",
+            "timestamp": datetime.now(timezone.utc)
+        }
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 130}})
@@ -299,19 +304,19 @@ class TestTelegramIntegration:
         """Test that HTTP connection pooling works correctly"""
         # Send multiple alerts to test connection reuse
         orders = [
-            OrderUpdate(
-                order_id=f"POOL-ORDER-{i}",
-                symbol="BTCUSDT",
-                side="BUY",
-                status="NEW",
-                quantity=0.001,
-                venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
-            )
+            {
+                "order_id": f"POOL-ORDER-{i}",
+                "symbol": "BTCUSDT",
+                "side": "BUY",
+                "status": "NEW",
+                "quantity": 0.001,
+                "venue": "SPOT",
+                "timestamp": datetime.now(timezone.utc)
+        }
             for i in range(5)
         ]
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, '_send_alert') as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 131}})
