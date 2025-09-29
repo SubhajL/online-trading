@@ -6,11 +6,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from app.engine.adapters.alert.telegram import TelegramAdapter
-from app.engine.adapters.alert.line import LineAdapter
+from app.engine.adapters.alert.telegram import TelegramAlertAdapter
+from app.engine.adapters.alert.line import LineAlertAdapter
 from app.engine.adapters.alert.alert_formatter import AlertFormatter
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
-from app.engine.models import OrderUpdate, Position, DecisionEvent, SmcEvent
+from app.engine.models import Position, TradingDecisionEvent, SMCSignalEvent
+from app.engine.paper.broker import OrderUpdate
 
 
 class TestAlertSystemIntegration:
@@ -22,11 +23,11 @@ class TestAlertSystemIntegration:
 
     @pytest.fixture
     def deduplicator(self) -> Any:
-        return AlertDeduplicator(window_seconds=60)
+        return AlertDeduplicator(ttl_seconds=60)
 
     @pytest.fixture
     def telegram_adapter(self, formatter: Any, deduplicator: Any) -> Any:
-        return TelegramAdapter(
+        return TelegramAlertAdapter(
             bot_token="test-telegram-token",
             chat_id="test-chat-id",
             formatter=formatter,
@@ -35,7 +36,7 @@ class TestAlertSystemIntegration:
 
     @pytest.fixture
     def line_adapter(self, formatter: Any, deduplicator: Any) -> Any:
-        return LineAdapter(
+        return LineAlertAdapter(
             access_token="test-line-token",
             formatter=formatter,
             deduplicator=deduplicator
@@ -68,7 +69,7 @@ class TestAlertSystemIntegration:
     async def test_full_trading_flow_alerts(self, alert_system: Any) -> None:
         """Test alerts through a complete trading flow"""
         # 1. Trading signal
-        decision = DecisionEvent(
+        decision = TradingTradingDecisionEvent(
             symbol="BTCUSDT",
             action="BUY",
             quantity=0.01,
@@ -172,7 +173,7 @@ class TestAlertSystemIntegration:
     async def test_smc_event_alerts(self, alert_system: Any) -> None:
         """Test Smart Money Concept event alerts"""
         smc_events = [
-            SmcEvent(
+            SMCSignalEvent(
                 symbol="BTCUSDT",
                 timeframe="15m",
                 event_type="CHOCH",
@@ -180,7 +181,7 @@ class TestAlertSystemIntegration:
                 price=45000.0,
                 timestamp=datetime.now(timezone.utc)
             ),
-            SmcEvent(
+            SMCSignalEvent(
                 symbol="BTCUSDT",
                 timeframe="15m",
                 event_type="BOS",
@@ -188,7 +189,7 @@ class TestAlertSystemIntegration:
                 price=45500.0,
                 timestamp=datetime.now(timezone.utc)
             ),
-            SmcEvent(
+            SMCSignalEvent(
                 symbol="BTCUSDT",
                 timeframe="15m",
                 event_type="ORDER_BLOCK",
@@ -442,7 +443,7 @@ class TestAlertSystemIntegration:
                 pnl_percent=0.8,
                 timestamp=datetime.now(timezone.utc)
             ),
-            DecisionEvent(
+            TradingDecisionEvent(
                 symbol="BNBUSDT",
                 action="SELL",
                 quantity=10.0,

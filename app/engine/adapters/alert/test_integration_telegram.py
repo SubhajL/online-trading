@@ -5,10 +5,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
-from app.engine.adapters.alert.telegram import TelegramAdapter
+from app.engine.adapters.alert.telegram import TelegramAlertAdapter
 from app.engine.adapters.alert.alert_formatter import AlertFormatter
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
-from app.engine.models import OrderUpdate, Position, DecisionEvent
+from app.engine.models import Position, TradingDecisionEvent
+from app.engine.paper.broker import OrderUpdate
 from typing import Any
 
 
@@ -22,7 +23,7 @@ class TestTelegramIntegration:
 
     @pytest.fixture
     def deduplicator(self) -> Any:
-        return AlertDeduplicator(window_seconds=60)
+        return AlertDeduplicator(ttl_seconds=60)
 
     @pytest.fixture
     def telegram_adapter(self, formatter: Any, deduplicator: Any) -> Any:
@@ -30,7 +31,7 @@ class TestTelegramIntegration:
         bot_token = os.getenv("TELEGRAM_TEST_BOT_TOKEN", "test-token")
         chat_id = os.getenv("TELEGRAM_TEST_CHAT_ID", "test-chat-id")
 
-        adapter = TelegramAdapter(
+        adapter = TelegramAlertAdapter(
             bot_token=bot_token,
             chat_id=chat_id,
             formatter=formatter,
@@ -99,7 +100,7 @@ class TestTelegramIntegration:
     @pytest.mark.asyncio
     async def test_deduplication_prevents_spam(self, telegram_adapter: Any) -> None:
         """Test that deduplication prevents sending duplicate alerts"""
-        decision = DecisionEvent(
+        decision = TradingDecisionEvent(
             symbol="BTCUSDT",
             action="BUY",
             quantity=0.001,
@@ -224,7 +225,7 @@ class TestTelegramIntegration:
                 venue="SPOT",
                 timestamp=datetime.now(timezone.utc)
             ),
-            DecisionEvent(
+            TradingDecisionEvent(
                 symbol="ETHUSDT",
                 action="SELL",
                 quantity=0.5,
