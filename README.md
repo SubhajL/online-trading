@@ -172,7 +172,7 @@ make status
 ```
 
 Access points:
-- **Grafana**: http://localhost:3001 (admin/admin)
+- **Grafana**: http://localhost:3002 (admin/admin)
 - **Prometheus**: http://localhost:9090
 
 ### Full Infrastructure

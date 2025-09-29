@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 from datetime import datetime, timedelta
 import asyncio
 
-from alert_deduplicator import AlertDeduplicator
+from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
 from typing import Any
 
 

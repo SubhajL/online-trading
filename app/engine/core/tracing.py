@@ -4,6 +4,8 @@ Distributed tracing framework with OpenTelemetry support.
 Provides request tracing, span management, and context propagation.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 import asyncio

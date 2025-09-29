@@ -396,6 +396,8 @@ markers = [
     "database: marks tests as database tests",
     "redis: marks tests as redis tests",
     "binance: marks tests as binance integration tests",
+    "chaos: marks tests as chaos testing tests",
+    "e2e: marks tests as end-to-end tests",
 ]
 
 # ===========================
