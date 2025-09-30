@@ -40,7 +40,23 @@ class TestLineAlertAdapter:
         """Create adapter with CI-aware LINE client."""
         if is_ci():
             # In CI, mock the HTTP session
-            with patch("aiohttp.ClientSession"):
+            # Create a proper mock session
+            mock_session = Mock()
+            mock_response = Mock()
+            mock_response.status = 200
+            mock_response.json = AsyncMock(return_value={})
+
+            # Create the mock context manager properly
+            mock_post = Mock()
+            mock_post.__aenter__ = AsyncMock(return_value=mock_response)
+            mock_post.__aexit__ = AsyncMock(return_value=None)
+
+            # Make post return the context manager
+            mock_session.post = Mock(return_value=mock_post)
+            mock_session.close = AsyncMock()
+
+            # Patch aiohttp.ClientSession to return our mock
+            with patch("app.engine.adapters.alert.line.aiohttp.ClientSession", return_value=mock_session):
                 adapter = LineAlertAdapter(
                     access_token="test-token",
                     user_id="test-user",
@@ -48,28 +64,27 @@ class TestLineAlertAdapter:
                 )
                 adapter.deduplicator = deduplicator
                 adapter.formatter = formatter
-                # Mock the session for CI
-                # Create a proper mock session
-                mock_session = AsyncMock()
-
-                # Setup the post method to return async context manager
-                mock_response = AsyncMock()
-                mock_response.status = 200
-                mock_response.json = AsyncMock(return_value={})
-
-                mock_context = AsyncMock()
-                mock_context.__aenter__.return_value = mock_response
-                mock_context.__aexit__.return_value = None
-
-                mock_session.post.return_value = mock_context
-                mock_session.close = AsyncMock()
-
-                adapter.session = mock_session
                 return adapter
         else:
             # In local, could use real LINE if credentials exist
             # For now, still mock to avoid spamming real channels
-            with patch("aiohttp.ClientSession"):
+            # Create a proper mock session
+            mock_session = Mock()
+            mock_response = Mock()
+            mock_response.status = 200
+            mock_response.json = AsyncMock(return_value={})
+
+            # Create the mock context manager properly
+            mock_post = Mock()
+            mock_post.__aenter__ = AsyncMock(return_value=mock_response)
+            mock_post.__aexit__ = AsyncMock(return_value=None)
+
+            # Make post return the context manager
+            mock_session.post = Mock(return_value=mock_post)
+            mock_session.close = AsyncMock()
+
+            # Patch aiohttp.ClientSession to return our mock
+            with patch("app.engine.adapters.alert.line.aiohttp.ClientSession", return_value=mock_session):
                 adapter = LineAlertAdapter(
                     access_token="test-token",
                     user_id="test-user",
@@ -77,22 +92,6 @@ class TestLineAlertAdapter:
                 )
                 adapter.deduplicator = deduplicator
                 adapter.formatter = formatter
-                # Create a proper mock session
-                mock_session = AsyncMock()
-
-                # Setup the post method to return async context manager
-                mock_response = AsyncMock()
-                mock_response.status = 200
-                mock_response.json = AsyncMock(return_value={})
-
-                mock_context = AsyncMock()
-                mock_context.__aenter__.return_value = mock_response
-                mock_context.__aexit__.return_value = None
-
-                mock_session.post.return_value = mock_context
-                mock_session.close = AsyncMock()
-
-                adapter.session = mock_session
                 return adapter
 
     @pytest.mark.asyncio
@@ -114,46 +113,64 @@ class TestLineAlertAdapter:
     @pytest.mark.asyncio
     async def test_send_alert_success(self, adapter: Any) -> None:
         """Test successful alert sending."""
-        # Create a proper async context manager mock
+        # Create a proper mock session
+        mock_session = Mock()
         mock_response = Mock()
         mock_response.status = 200
         mock_response.json = AsyncMock(return_value={})
 
-        mock_context = AsyncMock()
-        mock_context.__aenter__.return_value = mock_response
-        mock_context.__aexit__.return_value = None
+        # Create the mock context manager properly
+        mock_post = Mock()
+        mock_post.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_post.__aexit__ = AsyncMock(return_value=None)
 
-        adapter.session.post.return_value = mock_context
+        # Make post return the context manager
+        mock_session.post = Mock(return_value=mock_post)
+        mock_session.close = AsyncMock()
 
-        result = await adapter._send_alert("Test message")
+        # Patch aiohttp.ClientSession in the line module
+        with patch("app.engine.adapters.alert.line.aiohttp.ClientSession", return_value=mock_session):
+            # Initialize the adapter to create the session
+            await adapter.start()
 
-        assert result is True
-        adapter.session.post.assert_called_once_with(
-            "https://api.line.me/v2/bot/message/push",
-            json={
-                "to": "test-user",
-                "messages": [{"type": "text", "text": "Test message"}],
-            },
-            headers={"Authorization": "Bearer test-token"},
-        )
+            result = await adapter._send_alert("Test message")
+
+            assert result is True
+            mock_session.post.assert_called_once_with(
+                "https://api.line.me/v2/bot/message/push",
+                json={
+                    "to": "test-user",
+                    "messages": [{"type": "text", "text": "Test message"}],
+                },
+                headers={"Authorization": "Bearer test-token", "Content-Type": "application/json"},
+            )
 
     @pytest.mark.asyncio
     async def test_send_alert_failure(self, adapter: Any) -> None:
         """Test failed alert sending."""
-        # Create a proper async context manager mock
+        # Create a proper mock session
+        mock_session = Mock()
         mock_response = Mock()
         mock_response.status = 400
         mock_response.text = AsyncMock(return_value="Bad request")
 
-        mock_context = AsyncMock()
-        mock_context.__aenter__.return_value = mock_response
-        mock_context.__aexit__.return_value = None
+        # Create the mock context manager properly
+        mock_post = Mock()
+        mock_post.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_post.__aexit__ = AsyncMock(return_value=None)
 
-        adapter.session.post.return_value = mock_context
+        # Make post return the context manager
+        mock_session.post = Mock(return_value=mock_post)
+        mock_session.close = AsyncMock()
 
-        result = await adapter._send_alert("Test message")
+        # Patch aiohttp.ClientSession in the line module
+        with patch("app.engine.adapters.alert.line.aiohttp.ClientSession", return_value=mock_session):
+            # Initialize the adapter to create the session
+            await adapter.start()
 
-        assert result is False
+            result = await adapter._send_alert("Test message")
+
+            assert result is False
 
     @pytest.mark.asyncio
     async def test_handle_decision_with_deduplication(self, adapter: Any) -> None:
@@ -230,29 +247,50 @@ class TestLineAlertAdapter:
     @pytest.mark.asyncio
     async def test_message_splitting(self, adapter: Any) -> None:
         """Test that long messages are split correctly."""
-        # LINE has 5000 char limit
-        long_message = "A" * 6000
-
-        # Create a proper async context manager mock
+        # Create a proper mock session
+        mock_session = Mock()
         mock_response = Mock()
         mock_response.status = 200
         mock_response.json = AsyncMock(return_value={})
 
-        mock_context = AsyncMock()
-        mock_context.__aenter__.return_value = mock_response
-        mock_context.__aexit__.return_value = None
+        # Create the mock context manager properly
+        mock_post = Mock()
+        mock_post.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_post.__aexit__ = AsyncMock(return_value=None)
 
-        adapter.session.post.return_value = mock_context
+        # Make post return the context manager
+        mock_session.post = Mock(return_value=mock_post)
+        mock_session.close = AsyncMock()
 
-        await adapter._send_alert(long_message)
+        # Patch aiohttp.ClientSession in the line module
+        with patch("app.engine.adapters.alert.line.aiohttp.ClientSession", return_value=mock_session):
+            # Initialize the adapter to create the session
+            await adapter.start()
 
-        # Should split into 2 messages
-        assert adapter.session.post.call_count == 2
+            # LINE has 5000 char limit
+            # Create a message with multiple lines that will split into 2 chunks
+            line1 = "A" * 3000
+            line2 = "B" * 3000
+            long_message = f"{line1}\n{line2}"
+
+            await adapter._send_alert(long_message)
+
+            # Should split into 2 messages
+            assert mock_session.post.call_count == 2
 
     @pytest.mark.asyncio
     async def test_stop_closes_session(self, adapter: Any) -> None:
         """Test that stop properly closes the session."""
-        # Session is already mocked in adapter fixture
-        await adapter.stop()
+        # Create a proper mock session
+        mock_session = AsyncMock()
+        mock_session.close = AsyncMock()
 
-        adapter.session.close.assert_called_once()
+        # Patch aiohttp.ClientSession in the line module
+        with patch("app.engine.adapters.alert.line.aiohttp.ClientSession", return_value=mock_session):
+            # Initialize the adapter to create the session
+            await adapter.start()
+
+            # Now stop it
+            await adapter.stop()
+
+            mock_session.close.assert_called_once()

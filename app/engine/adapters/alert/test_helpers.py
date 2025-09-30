@@ -5,8 +5,8 @@ This module provides utilities for detecting CI environment and
 conditionally using mocks vs real services based on environment.
 """
 import os
-from typing import Any, Optional
-from unittest.mock import Mock, AsyncMock
+from typing import Any, Optional, Dict, Callable
+from unittest.mock import Mock, AsyncMock, MagicMock
 import redis
 import asyncio
 
@@ -145,3 +145,46 @@ def skip_if_no_service(service_name: str):
 
         return wrapper
     return decorator
+
+
+def build_mock_event_bus() -> Any:
+    """Build a mock event bus that can delegate to handlers"""
+    subscriptions: Dict[str, Callable] = {}
+
+    async def mock_subscribe(event_type: str, handler: Callable) -> None:
+        subscriptions[event_type] = handler
+
+    async def mock_publish(event_type: str, event: Any) -> None:
+        if event_type in subscriptions:
+            await subscriptions[event_type](event)
+
+    mock_event_bus = MagicMock()
+    mock_event_bus.subscribe = AsyncMock(side_effect=mock_subscribe)
+    mock_event_bus.publish = AsyncMock(side_effect=mock_publish)
+    mock_event_bus._subscriptions = subscriptions  # For test inspection
+
+    return mock_event_bus
+
+
+def inject_test_session(adapter: Any) -> None:
+    """Inject a test-friendly aiohttp session into the adapter"""
+    # Create a mock session that doesn't make real HTTP calls
+    mock_session = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={"ok": True, "result": {"message_id": 123}})
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=None)
+
+    mock_context = MagicMock()
+    mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_context.__aexit__ = AsyncMock(return_value=None)
+
+    mock_session.post = MagicMock(return_value=mock_context)
+    mock_session.close = AsyncMock()
+
+    # Replace the adapter's session
+    if hasattr(adapter, 'session'):
+        adapter.session = mock_session
+    elif hasattr(adapter, '_session'):
+        adapter._session = mock_session

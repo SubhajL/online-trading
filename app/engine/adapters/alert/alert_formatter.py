@@ -135,6 +135,35 @@ class AlertFormatter:
             return f"{sign}{formatted}"
         return formatted
 
+    def format_position(self, position: Dict[str, Any]) -> str:
+        """Format a position update into an alert message."""
+        symbol = position["symbol"]
+        side = position["side"]
+        quantity = position["quantity"]
+        entry_price = position.get("entry_price", 0)
+        current_price = position.get("current_price", 0)
+        pnl = position.get("pnl", 0)
+        pnl_percent = position.get("pnl_percent", 0)
+
+        # Build message
+        lines = [
+            "📊 POSITION UPDATE",
+            symbol,
+            f"{side.upper()} {quantity}"
+        ]
+
+        if entry_price and current_price:
+            lines.append(f"Entry: {self._format_currency(entry_price)}")
+            lines.append(f"Current: {self._format_currency(current_price)}")
+
+        if pnl is not None:
+            pnl_str = self._format_currency(abs(pnl), with_sign=False)
+            sign = "+" if pnl >= 0 else "-"
+            pnl_pct_sign = "+" if pnl_percent >= 0 else ""
+            lines.append(f"P&L: {sign}{pnl_str} ({pnl_pct_sign}{pnl_percent:.2f}%)")
+
+        return "\n".join(lines)
+
     def format_daily_summary(self, summary: Dict[str, Any]) -> str:
         """Format daily trading summary."""
         lines = [
