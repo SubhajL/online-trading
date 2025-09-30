@@ -29,7 +29,7 @@ describe('useWebSocket', () => {
   it('connects to WebSocket on mount', () => {
     const { result } = renderHook(() => useWebSocket())
 
-    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:3000')
+    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:8080')
     expect(result.current.connected).toBe(false)
     expect(result.current.connecting).toBe(false)
   })
@@ -75,7 +75,7 @@ describe('useWebSocket', () => {
       initialProps: { url: 'ws://localhost:3000' },
     })
 
-    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:3000')
+    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:8080')
     expect(mockService.connect).toHaveBeenCalledTimes(1)
 
     rerender({ url: 'ws://localhost:4000' })
@@ -88,7 +88,7 @@ describe('useWebSocket', () => {
   it('uses default URL from constants when not provided', () => {
     renderHook(() => useWebSocket())
 
-    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:3000')
+    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:8080')
   })
 
   it('uses custom URL when provided', () => {
