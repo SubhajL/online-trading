@@ -8,6 +8,7 @@ import { useBalances } from '@/hooks/useBalances'
 import { usePositions } from '@/hooks/usePositions'
 import { useOrders } from '@/hooks/useOrders'
 import type { OrderFormValues } from '@/types'
+import './layout.css'
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -56,7 +57,7 @@ export default function Home() {
       <div className="app-body">
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main className="app-main">
+        <main id="main-content" className="app-main" tabIndex={-1}>
           <Dashboard
             positions={positions}
             orders={orders}
@@ -69,34 +70,6 @@ export default function Home() {
           />
         </main>
       </div>
-
-      <style jsx>{`
-        .app-layout {
-          display: flex;
-          flex-direction: column;
-          min-height: 100vh;
-        }
-
-        .app-body {
-          display: flex;
-          flex: 1;
-        }
-
-        .app-main {
-          flex: 1;
-          overflow-x: auto;
-        }
-
-        @media (max-width: 768px) {
-          .app-body {
-            position: relative;
-          }
-
-          .app-main {
-            width: 100%;
-          }
-        }
-      `}</style>
     </div>
   )
 }

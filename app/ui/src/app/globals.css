@@ -1,3 +1,7 @@
+/* Import design tokens and shared layouts */
+@import '../styles/tokens.css';
+@import '../styles/layouts.css';
+
 /* CSS Reset and Base Styles */
 *,
 *::before,
@@ -19,9 +23,9 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
     'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  background-color: #131722;
-  color: #d1d4dc;
-  line-height: 1.6;
+  background-color: var(--color-surface-base);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
 }
 
 /* Typography */
@@ -32,32 +36,32 @@ h4,
 h5,
 h6 {
   margin: 0;
-  font-weight: 600;
-  line-height: 1.2;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
 }
 
 h1 {
-  font-size: 2rem;
+  font-size: var(--font-size-3xl);
 }
 
 h2 {
-  font-size: 1.75rem;
+  font-size: var(--font-size-2xl);
 }
 
 h3 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-xl);
 }
 
 h4 {
-  font-size: 1.25rem;
+  font-size: var(--font-size-lg);
 }
 
 h5 {
-  font-size: 1.125rem;
+  font-size: var(--font-size-base);
 }
 
 h6 {
-  font-size: 1rem;
+  font-size: var(--font-size-sm);
 }
 
 p {
@@ -65,13 +69,13 @@ p {
 }
 
 a {
-  color: #26a69a;
+  color: var(--color-success-500);
   text-decoration: none;
-  transition: color 0.2s ease;
+  transition: color var(--duration-fast) var(--easing-default);
 }
 
 a:hover {
-  color: #2bbbad;
+  color: var(--color-success-400);
 }
 
 button {
@@ -86,7 +90,7 @@ button {
   width: 100%;
   max-width: 1920px;
   margin: 0 auto;
-  padding: 0 32px;
+  padding: 0 var(--space-6);
 }
 
 .text-center {
@@ -102,19 +106,19 @@ button {
 }
 
 .text-muted {
-  color: #758696;
+  color: var(--color-text-muted);
 }
 
 .text-success {
-  color: #26a69a;
+  color: var(--color-success-500);
 }
 
 .text-danger {
-  color: #ef5350;
+  color: var(--color-error-400);
 }
 
 .text-warning {
-  color: #ff9800;
+  color: var(--color-warning-500);
 }
 
 /* Layout Utilities */
@@ -143,19 +147,19 @@ button {
 }
 
 .gap-1 {
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .gap-2 {
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .gap-3 {
-  gap: 24px;
+  gap: var(--space-5);
 }
 
 .gap-4 {
-  gap: 32px;
+  gap: var(--space-6);
 }
 
 /* Spacing Utilities */
@@ -164,19 +168,19 @@ button {
 }
 
 .m-1 {
-  margin: 8px;
+  margin: var(--space-2);
 }
 
 .m-2 {
-  margin: 16px;
+  margin: var(--space-4);
 }
 
 .m-3 {
-  margin: 24px;
+  margin: var(--space-5);
 }
 
 .m-4 {
-  margin: 32px;
+  margin: var(--space-6);
 }
 
 .p-0 {
@@ -184,19 +188,19 @@ button {
 }
 
 .p-1 {
-  padding: 8px;
+  padding: var(--space-2);
 }
 
 .p-2 {
-  padding: 16px;
+  padding: var(--space-4);
 }
 
 .p-3 {
-  padding: 24px;
+  padding: var(--space-5);
 }
 
 .p-4 {
-  padding: 32px;
+  padding: var(--space-6);
 }
 
 /* Scrollbar Styling */
@@ -206,16 +210,16 @@ button {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1e222d;
+  background: var(--color-surface-raised);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2e39;
-  border-radius: 4px;
+  background: var(--color-surface-overlay);
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3e49;
+  background: var(--color-surface-hover);
 }
 
 /* Loading Animation */
@@ -226,18 +230,18 @@ button {
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #2a2e39;
-  border-top-color: #26a69a;
-  border-radius: 50%;
+  width: var(--space-6);
+  height: var(--space-6);
+  border: 3px solid var(--color-surface-overlay);
+  border-top-color: var(--color-success-500);
+  border-radius: var(--radius-full);
   animation: spin 1s linear infinite;
 }
 
 /* Responsive Grid */
 .grid {
   display: grid;
-  gap: 24px;
+  gap: var(--space-5);
 }
 
 .grid-cols-1 {
@@ -258,7 +262,7 @@ button {
 
 @media (max-width: 768px) {
   .container {
-    padding: 0 20px;
+    padding: 0 var(--space-4);
   }
 
   .grid-cols-2,
@@ -273,4 +277,28 @@ button {
   .grid-cols-4 {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Focus Visible Styles - WCAG Compliance */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Skip Link for Keyboard Navigation */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary-600);
+  color: white;
+  padding: var(--space-2) var(--space-4);
+  z-index: var(--z-index-tooltip);
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-medium);
+  transition: top var(--duration-fast) var(--easing-default);
+}
+
+.skip-link:focus {
+  top: var(--space-2);
 }

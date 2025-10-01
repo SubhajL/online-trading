@@ -1,4 +1,5 @@
 import { formatCurrency, formatNumber } from '@/utils/formatters'
+import { deriveChangeClass } from '@/utils/metricHelpers'
 import './MetricsCard.css'
 
 type MetricsCardProps = {
@@ -43,15 +44,6 @@ export function MetricsCard({
       default:
         return val.toString()
     }
-  }
-
-  const getChangeClass = (changeValue: string): string => {
-    if (changeValue.startsWith('+')) {
-      return 'change-positive'
-    } else if (changeValue.startsWith('-')) {
-      return 'change-negative'
-    }
-    return 'change-neutral'
   }
 
   if (loading) {
@@ -102,7 +94,9 @@ export function MetricsCard({
         <div className="metrics-value">{formatValue(value)}</div>
 
         <div className="metrics-indicators">
-          {change && <span className={`metrics-change ${getChangeClass(change)}`}>{change}</span>}
+          {change && (
+            <span className={`metrics-change ${deriveChangeClass(change)}`}>{change}</span>
+          )}
 
           {trend && (
             <span className={`trend-indicator trend-${trend}`} data-testid="trend-indicator">

@@ -38,7 +38,7 @@ export default function PortfolioPage() {
       <div className="app-body">
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main className="app-main">
+        <main id="main-content" className="app-main" tabIndex={-1}>
           <div className="page-container">
             <h1 className="page-title">Portfolio Overview</h1>
 
@@ -157,124 +157,6 @@ export default function PortfolioPage() {
           </div>
         </main>
       </div>
-
-      <style jsx>{`
-        .app-layout {
-          display: flex;
-          flex-direction: column;
-          min-height: 100vh;
-        }
-
-        .app-body {
-          display: flex;
-          flex: 1;
-        }
-
-        .app-main {
-          flex: 1;
-          overflow-x: auto;
-        }
-
-        .page-container {
-          padding: 2rem;
-        }
-
-        .page-title {
-          margin-bottom: 2rem;
-          color: #f0f0f0;
-        }
-
-        .portfolio-summary {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 1.5rem;
-          margin-bottom: 3rem;
-        }
-
-        .summary-card {
-          background: #2a2d3a;
-          padding: 1.5rem;
-          border-radius: 0.5rem;
-          border: 1px solid #3a3d4a;
-        }
-
-        .summary-card h3 {
-          font-size: 0.875rem;
-          color: #9ca3af;
-          margin-bottom: 0.5rem;
-          text-transform: uppercase;
-        }
-
-        .summary-card .value {
-          font-size: 1.5rem;
-          font-weight: bold;
-          color: #f0f0f0;
-        }
-
-        .portfolio-sections {
-          display: flex;
-          flex-direction: column;
-          gap: 3rem;
-        }
-
-        .positions-section,
-        .balances-section {
-          background: #2a2d3a;
-          padding: 1.5rem;
-          border-radius: 0.5rem;
-          border: 1px solid #3a3d4a;
-        }
-
-        .positions-section h2,
-        .balances-section h2 {
-          margin-bottom: 1rem;
-          color: #f0f0f0;
-        }
-
-        .data-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        .data-table th {
-          text-align: left;
-          padding: 0.75rem;
-          border-bottom: 1px solid #3a3d4a;
-          color: #9ca3af;
-          font-weight: 500;
-        }
-
-        .data-table td {
-          padding: 0.75rem;
-          border-bottom: 1px solid #3a3d4a;
-          color: #f0f0f0;
-        }
-
-        .data-table tr:last-child td {
-          border-bottom: none;
-        }
-
-        .buy {
-          color: #10b981;
-        }
-        .sell {
-          color: #ef4444;
-        }
-        .positive {
-          color: #10b981;
-        }
-        .negative {
-          color: #ef4444;
-        }
-
-        .error-message {
-          background: #dc2626;
-          color: white;
-          padding: 1rem;
-          border-radius: 0.5rem;
-          margin-bottom: 2rem;
-        }
-      `}</style>
     </div>
   )
 }
