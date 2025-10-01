@@ -2,7 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-
 # Claude Code Guidelines by Sabrina Ramonov
 
 ## Implementation Best Practices
