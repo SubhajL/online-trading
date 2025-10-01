@@ -1,30 +1,30 @@
 .account-balance {
-  background-color: #1e222d;
-  border: 1px solid #2a2e39;
-  border-radius: 8px;
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
 .balance-title {
   margin: 0;
-  padding: 16px 20px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #d1d4dc;
-  border-bottom: 1px solid #2a2e39;
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .balance-loading,
 .balance-error,
 .empty-state {
-  padding: 40px 20px;
+  padding: var(--space-10) var(--space-5);
   text-align: center;
-  color: #758696;
-  font-size: 14px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .balance-error {
-  color: #ef5350;
+  color: var(--color-text-danger);
 }
 
 .balance-loading::before {
@@ -32,10 +32,10 @@
   display: block;
   width: 32px;
   height: 32px;
-  margin: 0 auto 12px;
-  border: 3px solid #2a2e39;
-  border-top-color: #758696;
-  border-radius: 50%;
+  margin: 0 auto var(--space-3);
+  border: 3px solid var(--color-border-subtle);
+  border-top-color: var(--color-text-muted);
+  border-radius: var(--radius-full);
   animation: spin 1s linear infinite;
 }
 
@@ -46,11 +46,11 @@
 }
 
 .balances-container {
-  padding: 20px;
+  padding: var(--space-5);
 }
 
 .venue-group {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
 }
 
 .venue-group:last-child {
@@ -58,13 +58,13 @@
 }
 
 .venue-title {
-  margin: 0 0 12px 0;
-  padding: 8px 12px;
-  background-color: #161a1e;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #758696;
+  margin: 0 0 var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-base);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   display: inline-block;
 }
@@ -76,29 +76,29 @@
 .table-header {
   display: grid;
   grid-template-columns: 100px repeat(4, 1fr);
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid #2a2e39;
-  font-size: 12px;
-  font-weight: 500;
-  color: #758696;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
   text-transform: uppercase;
 }
 
 .balance-row {
   display: grid;
   grid-template-columns: 100px repeat(4, 1fr);
-  gap: 12px;
+  gap: var(--space-3);
   align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(42, 46, 57, 0.5);
-  font-size: 14px;
-  color: #d1d4dc;
-  transition: background-color 0.2s ease;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle, rgba(42, 46, 57, 0.5));
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  transition: background-color var(--duration-base) var(--easing-default);
 }
 
 .balance-row:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: var(--color-surface-hover);
 }
 
 .balance-row:last-child {
@@ -106,49 +106,49 @@
 }
 
 .asset-name {
-  font-weight: 500;
-  color: #d1d4dc;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
 }
 
 .free-amount {
-  color: #26a69a;
+  color: var(--color-text-success);
 }
 
 .locked-amount {
-  color: #ff9800;
+  color: var(--color-warning-text, #ff9800);
   position: relative;
 }
 
 .locked-amount::before {
   content: '🔒';
-  font-size: 12px;
-  margin-right: 4px;
+  font-size: var(--font-size-xs);
+  margin-right: var(--space-1);
 }
 
 .total-amount {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .usd-value {
-  color: #758696;
+  color: var(--color-text-muted);
 }
 
 .total-usd {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  background-color: #161a1e;
-  border-top: 1px solid #2a2e39;
-  font-size: 14px;
-  font-weight: 500;
-  color: #d1d4dc;
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--color-surface-base);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
 }
 
 .total-usd-value {
-  font-size: 18px;
-  font-weight: 600;
-  color: #26a69a;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-success);
 }
 
 /* Mobile responsive */
@@ -164,10 +164,10 @@
   }
 
   .balances-container {
-    padding: 16px;
+    padding: var(--space-4);
   }
 
   .venue-group {
-    margin-bottom: 20px;
+    margin-bottom: var(--space-5);
   }
 }

@@ -1,16 +1,16 @@
 .chart-toolbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-  background-color: #1e222d;
-  border-bottom: 1px solid #2a2e39;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface-raised);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .toolbar-dropdown {
@@ -20,21 +20,21 @@
 .toolbar-button {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background-color: #161a1e;
-  border: 1px solid #2a2e39;
-  border-radius: 6px;
-  color: #d1d4dc;
-  font-size: 13px;
-  font-weight: 500;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface-base);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--duration-base) var(--easing-default);
 }
 
 .toolbar-button:hover:not(:disabled) {
-  background-color: #2a2e39;
-  border-color: #3a3e49;
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-border-default);
 }
 
 .toolbar-button:disabled {
@@ -43,18 +43,18 @@
 }
 
 .dropdown-trigger svg {
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-base) var(--easing-default);
 }
 
 .dropdown-menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--space-1));
   left: 0;
   min-width: 120px;
-  background-color: #1e222d;
-  border: 1px solid #2a2e39;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
   z-index: 100;
   overflow: hidden;
 }
@@ -62,29 +62,29 @@
 .dropdown-item {
   display: block;
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-3);
   background: none;
   border: none;
-  color: #d1d4dc;
-  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--duration-base) var(--easing-default);
 }
 
 .dropdown-item:hover {
-  background-color: #2a2e39;
+  background-color: var(--color-surface-hover);
 }
 
 .dropdown-item.active {
-  background-color: #2a2e39;
-  color: #26a69a;
+  background-color: var(--color-surface-hover);
+  color: var(--color-text-success);
 }
 
 .toolbar-separator {
   width: 1px;
   height: 24px;
-  background-color: #2a2e39;
+  background-color: var(--color-border-subtle);
 }
 
 .indicators-group {
@@ -95,15 +95,15 @@
 .indicator-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--duration-base) var(--easing-default);
 }
 
 .indicator-toggle:hover {
-  background-color: #2a2e39;
+  background-color: var(--color-surface-hover);
 }
 
 .indicator-toggle input[type='checkbox'] {
@@ -111,7 +111,7 @@
   height: 16px;
   margin: 0;
   cursor: pointer;
-  accent-color: #26a69a;
+  accent-color: var(--color-text-success);
 }
 
 .indicator-toggle input[type='checkbox']:disabled {
@@ -120,15 +120,15 @@
 }
 
 .indicator-label {
-  font-size: 13px;
-  color: #d1d4dc;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
   user-select: none;
 }
 
 @media (max-width: 768px) {
   .chart-toolbar {
     flex-wrap: wrap;
-    gap: 12px;
+    gap: var(--space-3);
   }
 
   .indicators-group {

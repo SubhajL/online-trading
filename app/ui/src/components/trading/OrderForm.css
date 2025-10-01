@@ -1,41 +1,41 @@
 .order-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  background-color: #1e222d;
-  border: 1px solid #2a2e39;
-  border-radius: 8px;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background-color: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .form-group label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #758696;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
 }
 
 .form-group input,
 .form-group select {
-  padding: 10px 12px;
-  background-color: #161a1e;
-  border: 1px solid #2a2e39;
-  border-radius: 6px;
-  color: #d1d4dc;
-  font-size: 14px;
-  transition: all 0.2s ease;
+  padding: 10px var(--space-3);
+  background-color: var(--color-surface-base);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  transition: all var(--duration-base) var(--easing-default);
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #3a3e49;
-  background-color: #1e222d;
+  border-color: var(--color-border-focus);
+  background-color: var(--color-surface-raised);
 }
 
 .form-group input:disabled,
@@ -45,20 +45,20 @@
 }
 
 .form-group input::placeholder {
-  color: #758696;
+  color: var(--color-text-muted);
 }
 
 .radio-group {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .radio-label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #d1d4dc;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
   cursor: pointer;
 }
 
@@ -74,32 +74,32 @@
 }
 
 .error-message {
-  font-size: 12px;
-  color: #ef5350;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-danger);
 }
 
 .submit-error {
-  padding: 12px;
+  padding: var(--space-3);
   background-color: rgba(239, 83, 80, 0.1);
   border: 1px solid rgba(239, 83, 80, 0.3);
-  border-radius: 6px;
-  color: #ef5350;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-danger);
+  font-size: var(--font-size-sm);
 }
 
 .submit-button {
-  padding: 12px 24px;
+  padding: var(--space-3) var(--space-6);
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--duration-base) var(--easing-default);
   text-transform: uppercase;
 }
 
 .submit-button.buy {
-  background-color: #26a69a;
+  background-color: var(--color-text-success);
   color: #ffffff;
 }
 
@@ -108,7 +108,7 @@
 }
 
 .submit-button.sell {
-  background-color: #ef5350;
+  background-color: var(--color-text-danger);
   color: #ffffff;
 }
 

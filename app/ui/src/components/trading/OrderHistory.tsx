@@ -1,23 +1,12 @@
 import { useState } from 'react'
 import type { Order, OrderStatus } from '@/types'
+import { deriveOrderStatusTheme, isCancelableStatus } from '@/utils/tradingHelpers'
+import './OrderHistory.css'
 
 type OrderHistoryProps = {
   orders: Order[]
   onCancel: (order: Order) => void
   loading?: boolean
-}
-
-const STATUS_COLORS: Record<OrderStatus, { bg: string; text: string }> = {
-  NEW: { bg: 'bg-blue-500/10', text: 'text-blue-500' },
-  PARTIALLY_FILLED: { bg: 'bg-yellow-500/10', text: 'text-yellow-500' },
-  FILLED: { bg: 'bg-green-500/10', text: 'text-green-500' },
-  CANCELED: { bg: 'bg-gray-500/10', text: 'text-gray-500' },
-  REJECTED: { bg: 'bg-red-500/10', text: 'text-red-500' },
-  EXPIRED: { bg: 'bg-gray-500/10', text: 'text-gray-500' },
-}
-
-const isCancelable = (status: OrderStatus) => {
-  return status === 'NEW' || status === 'PARTIALLY_FILLED'
 }
 
 export function OrderHistory({ orders, onCancel, loading = false }: OrderHistoryProps) {
@@ -82,111 +71,92 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
 
   if (loading) {
     return (
-      <div className="bg-gray-900 rounded-lg p-4 flex justify-center items-center h-64">
-        <div
-          data-testid="loading-spinner"
-          className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"
-        />
+      <div className="order-history">
+        <div className="order-history-loading" data-testid="loading-spinner">
+          Loading orders...
+        </div>
       </div>
     )
   }
 
   return (
-    <div data-testid="order-history" className="bg-gray-900 rounded-lg p-4">
-      {/* Filters */}
-      <div className="flex gap-4 mb-4">
-        <input
-          type="text"
-          placeholder="Filter by symbol..."
-          value={symbolFilter}
-          onChange={e => setSymbolFilter(e.target.value)}
-          className="flex-1 px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        />
-        <select
-          data-testid="status-filter"
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as OrderStatus | '')}
-          className="px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="">All Status</option>
-          <option value="NEW">New</option>
-          <option value="PARTIALLY_FILLED">Partial</option>
-          <option value="FILLED">Filled</option>
-          <option value="CANCELED">Canceled</option>
-          <option value="REJECTED">Rejected</option>
-          <option value="EXPIRED">Expired</option>
-        </select>
+    <div data-testid="order-history" className="order-history">
+      <div className="order-history-header">
+        <h3 className="order-history-title">Order History</h3>
+        <div className="order-history-filter">
+          <label htmlFor="status-filter">Status:</label>
+          <select
+            id="status-filter"
+            data-testid="status-filter"
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as OrderStatus | '')}
+          >
+            <option value="">All</option>
+            <option value="NEW">New</option>
+            <option value="PARTIALLY_FILLED">Partial</option>
+            <option value="FILLED">Filled</option>
+            <option value="CANCELED">Canceled</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="EXPIRED">Expired</option>
+          </select>
+        </div>
       </div>
 
-      {/* Orders table */}
       {sortedOrders.length === 0 ? (
-        <div className="text-center text-gray-500 py-8">No orders yet</div>
+        <div className="empty-state">No orders yet</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-sm text-gray-400 border-b border-gray-800">
-                <th className="pb-2">Time</th>
-                <th className="pb-2">Symbol</th>
-                <th className="pb-2">Side</th>
-                <th className="pb-2">Type</th>
-                <th className="pb-2">Price</th>
-                <th className="pb-2">Quantity</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2">Venue</th>
-                <th className="pb-2"></th>
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              {sortedOrders.map(order => (
-                <tr
-                  key={order.orderId}
-                  data-testid={`order-row-${order.orderId}`}
-                  className="border-b border-gray-800 hover:bg-gray-800/50"
-                >
-                  <td className="py-2">{formatTime(order.createdAt)}</td>
-                  <td className="py-2">{order.symbol}</td>
-                  <td
-                    className={`py-2 ${order.side === 'BUY' ? 'text-green-500' : 'text-red-500'}`}
-                  >
-                    {order.side}
-                  </td>
-                  <td className="py-2">{order.type}</td>
-                  <td className="py-2">{formatPrice(order)}</td>
-                  <td className="py-2">{formatQuantity(order)}</td>
-                  <td className="py-2">
-                    <span
-                      className={`px-2 py-1 text-xs rounded ${STATUS_COLORS[order.status].bg} ${STATUS_COLORS[order.status].text}`}
-                    >
-                      {order.status}
+        <div className="order-history-table">
+          <div className="table-header">
+            <span>Order ID</span>
+            <span>Date/Time</span>
+            <span>Symbol</span>
+            <span>Type</span>
+            <span>Side</span>
+            <span>Price</span>
+            <span>Amount</span>
+            <span>Filled</span>
+            <span>Total</span>
+            <span>Status</span>
+            <span>Venue</span>
+          </div>
+
+          {sortedOrders.map(order => {
+            const statusTheme = deriveOrderStatusTheme(order.status)
+            return (
+              <div
+                key={order.orderId}
+                className="order-row"
+                data-testid={`order-row-${order.orderId}`}
+              >
+                <span className="order-id">{order.orderId.slice(-8)}</span>
+                <div className="order-date">
+                  <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                  <span className="order-time">{formatTime(order.createdAt)}</span>
+                </div>
+                <span className="symbol">{order.symbol}</span>
+                <span className="order-type">{order.type}</span>
+                <span className={`side-badge ${order.side.toLowerCase()}`}>{order.side}</span>
+                <span>{formatPrice(order)}</span>
+                <span>{order.quantity}</span>
+                <span>
+                  {order.executedQuantity ?? 0}
+                  {order.executedQuantity && order.quantity && (
+                    <span className="fill-percentage">
+                      {' '}
+                      ({Math.round((order.executedQuantity / order.quantity) * 100)}%)
                     </span>
-                  </td>
-                  <td className="py-2">
-                    <span
-                      className={`px-2 py-1 text-xs rounded ${
-                        order.venue === 'SPOT'
-                          ? 'bg-blue-500/10 text-blue-500'
-                          : 'bg-purple-500/10 text-purple-500'
-                      }`}
-                    >
-                      {order.venue}
-                    </span>
-                  </td>
-                  <td className="py-2">
-                    {isCancelable(order.status) && (
-                      <button
-                        data-testid="cancel-order-button"
-                        onClick={() => onCancel(order)}
-                        className="text-xs text-red-500 hover:text-red-400"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                </span>
+                <span>
+                  {order.avgPrice && order.executedQuantity
+                    ? `$${(order.avgPrice * order.executedQuantity).toFixed(2)}`
+                    : '-'}
+                </span>
+                <span className={`status-badge ${statusTheme.statusClass}`}>{order.status}</span>
+                <span className="venue-badge">{order.venue}</span>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

@@ -55,14 +55,14 @@ describe('PositionsList', () => {
     render(<PositionsList positions={mockPositions} />)
 
     const profitPnl = screen.getByText('+$200.00')
-    expect(profitPnl).toHaveClass('pnl-positive')
+    expect(profitPnl).toHaveClass('delta-positive')
 
     const profitPercent = screen.getByText('+5.00%')
-    expect(profitPercent).toHaveClass('pnl-positive')
+    expect(profitPercent).toHaveClass('delta-positive')
 
     // Second position also has profit
     const sellProfit = screen.getByText('+$100.00')
-    expect(sellProfit).toHaveClass('pnl-positive')
+    expect(sellProfit).toHaveClass('delta-positive')
   })
 
   it('displays negative PnL with correct color', () => {
@@ -80,10 +80,10 @@ describe('PositionsList', () => {
     render(<PositionsList positions={[losingPosition]} />)
 
     const lossPnlElements = screen.getAllByText('-$200.00')
-    expect(lossPnlElements[1]).toHaveClass('pnl-negative') // Position P&L, not total
+    expect(lossPnlElements[1]).toHaveClass('delta-negative') // Position P&L, not total
 
     const lossPercent = screen.getByText('-4.76%')
-    expect(lossPercent).toHaveClass('pnl-negative')
+    expect(lossPercent).toHaveClass('delta-negative')
   })
 
   it('shows empty state when no positions', () => {
