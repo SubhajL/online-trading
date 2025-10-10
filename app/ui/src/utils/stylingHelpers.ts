@@ -115,3 +115,43 @@ export function buildPageContainerStyle(
     backgroundColor: tokens.colors.surface.base,
   }
 }
+
+export type AutoTradingToggleState = 'enabled' | 'disabled' | 'error'
+
+/**
+ * Returns inline style object for auto trading toggle based on state
+ */
+export function getAutoTradingToggleStyles(
+  tokens: DesignTokens,
+  state: AutoTradingToggleState,
+): {
+  backgroundColor: string
+  color: string
+  borderColor: string
+  borderRadius: string
+} {
+  switch (state) {
+    case 'enabled':
+      return {
+        backgroundColor: tokens.colors.success[50],
+        color: tokens.colors.text.success,
+        borderColor: tokens.colors.success[300],
+        borderRadius: tokens.radius.md,
+      }
+    case 'error':
+      return {
+        backgroundColor: tokens.colors.error[50],
+        color: tokens.colors.text.danger,
+        borderColor: tokens.colors.error[300],
+        borderRadius: tokens.radius.md,
+      }
+    case 'disabled':
+    default:
+      return {
+        backgroundColor: tokens.colors.gray[100],
+        color: tokens.colors.text.muted,
+        borderColor: tokens.colors.gray[300],
+        borderRadius: tokens.radius.md,
+      }
+  }
+}

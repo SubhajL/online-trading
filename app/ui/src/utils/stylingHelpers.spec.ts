@@ -5,6 +5,7 @@ import {
   getSpinnerStyle,
   composeErrorBannerStyles,
   buildPageContainerStyle,
+  getAutoTradingToggleStyles,
 } from './stylingHelpers'
 
 const mockTokens: DesignTokens = {
@@ -291,5 +292,33 @@ describe('buildPageContainerStyle', () => {
       padding: mockTokens.spacing[0],
       backgroundColor: mockTokens.colors.surface.base,
     })
+  })
+})
+
+describe('getAutoTradingToggleStyles', () => {
+  test('returns enabled palette from success tokens', () => {
+    const result = getAutoTradingToggleStyles(mockTokens, 'enabled')
+    expect(result.backgroundColor).toBe(mockTokens.colors.success[50])
+    expect(result.color).toBe(mockTokens.colors.text.success)
+    expect(result.borderColor).toBe(mockTokens.colors.success[300])
+  })
+
+  test('returns disabled palette from warning tokens', () => {
+    const result = getAutoTradingToggleStyles(mockTokens, 'disabled')
+    expect(result.backgroundColor).toBe(mockTokens.colors.gray[100])
+    expect(result.color).toBe(mockTokens.colors.text.muted)
+    expect(result.borderColor).toBe(mockTokens.colors.gray[300])
+  })
+
+  test('returns error palette from error tokens', () => {
+    const result = getAutoTradingToggleStyles(mockTokens, 'error')
+    expect(result.backgroundColor).toBe(mockTokens.colors.error[50])
+    expect(result.color).toBe(mockTokens.colors.text.danger)
+    expect(result.borderColor).toBe(mockTokens.colors.error[300])
+  })
+
+  test('applies shared border radius from tokens', () => {
+    const result = getAutoTradingToggleStyles(mockTokens, 'enabled')
+    expect(result.borderRadius).toBe(mockTokens.radius.md)
   })
 })

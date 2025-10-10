@@ -44,3 +44,37 @@ export function mapRouteToNavTokens(
     borderLeft: '3px solid transparent',
   }
 }
+
+export type Candle = {
+  open: number
+  close: number
+  high: number
+  low: number
+  volume: number
+}
+
+/**
+ * Returns color for volume bar based on candle direction
+ */
+export function getVolumeBarColor(candle: Candle, tokens: DesignTokens): string {
+  if (candle.close > candle.open) {
+    return tokens.colors.success[500]
+  }
+  if (candle.close < candle.open) {
+    return tokens.colors.error[500]
+  }
+  return tokens.colors.gray[400]
+}
+
+/**
+ * Returns padding that ensures 44px minimum touch target height
+ */
+export function getTouchTargetPadding(tokens: DesignTokens): {
+  paddingTop: string
+  paddingBottom: string
+} {
+  return {
+    paddingTop: tokens.spacing[3],
+    paddingBottom: tokens.spacing[3],
+  }
+}

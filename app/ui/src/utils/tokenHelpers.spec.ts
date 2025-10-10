@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest'
-import { createChartThemeFromTokens, mapRouteToNavTokens } from './tokenHelpers'
+import {
+  createChartThemeFromTokens,
+  mapRouteToNavTokens,
+  getVolumeBarColor,
+  getTouchTargetPadding,
+} from './tokenHelpers'
 import { DEFAULT_TOKENS } from '../constants/defaultTokens'
 import type { ChartTheme } from '../types/chartTheme'
 
@@ -70,5 +75,35 @@ describe('mapRouteToNavTokens', () => {
   test('returns inactive nav styles with transparent border', () => {
     const result = mapRouteToNavTokens(false, DEFAULT_TOKENS)
     expect(result.borderLeft).toBe('3px solid transparent')
+  })
+})
+
+describe('getVolumeBarColor', () => {
+  test('bullish candle maps to success color', () => {
+    const candle = { open: 100, close: 110, high: 115, low: 95, volume: 1000 }
+    const result = getVolumeBarColor(candle, DEFAULT_TOKENS)
+    expect(result).toBe(DEFAULT_TOKENS.colors.success[500])
+  })
+
+  test('bearish candle maps to error color', () => {
+    const candle = { open: 110, close: 100, high: 115, low: 95, volume: 1000 }
+    const result = getVolumeBarColor(candle, DEFAULT_TOKENS)
+    expect(result).toBe(DEFAULT_TOKENS.colors.error[500])
+  })
+
+  test('flat candle falls back to neutral', () => {
+    const candle = { open: 100, close: 100, high: 105, low: 95, volume: 1000 }
+    const result = getVolumeBarColor(candle, DEFAULT_TOKENS)
+    expect(result).toBe(DEFAULT_TOKENS.colors.gray[400])
+  })
+})
+
+describe('getTouchTargetPadding', () => {
+  test('returns padding yielding forty four pixels', () => {
+    const result = getTouchTargetPadding(DEFAULT_TOKENS)
+    expect(result).toEqual({
+      paddingTop: DEFAULT_TOKENS.spacing[3],
+      paddingBottom: DEFAULT_TOKENS.spacing[3],
+    })
   })
 })
