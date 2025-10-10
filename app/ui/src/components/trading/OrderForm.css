@@ -31,9 +31,10 @@
   transition: all var(--duration-base) var(--easing-default);
 }
 
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
+.form-group input:focus-visible,
+.form-group select:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
   border-color: var(--color-border-focus);
   background-color: var(--color-surface-raised);
 }
@@ -80,8 +81,8 @@
 
 .submit-error {
   padding: var(--space-3);
-  background-color: hsla(0, 84%, 60%, 0.1);
-  border: 1px solid hsla(0, 84%, 60%, 0.3);
+  background-color: var(--color-error-50);
+  border: 1px solid var(--color-error-200);
   border-radius: var(--radius-md);
   color: var(--color-text-danger);
   font-size: var(--font-size-sm);
@@ -99,21 +100,31 @@
 }
 
 .submit-button.buy {
-  background-color: var(--color-text-success);
-  color: var(--button-success-text);
+  background-color: var(--color-success-500);
+  color: var(--color-text-inverse);
 }
 
 .submit-button.buy:hover:not(:disabled) {
   background-color: var(--color-success-600);
 }
 
+.submit-button.buy:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
 .submit-button.sell {
-  background-color: var(--color-text-danger);
-  color: var(--button-danger-text);
+  background-color: var(--color-error-500);
+  color: var(--color-text-inverse);
 }
 
 .submit-button.sell:hover:not(:disabled) {
-  background-color: var(--color-error-500);
+  background-color: var(--color-error-600);
+}
+
+.submit-button.sell:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
 }
 
 .submit-button:disabled {
