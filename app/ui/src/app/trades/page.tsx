@@ -4,6 +4,8 @@ import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { useState, useMemo } from 'react'
 import { useOrders } from '@/hooks/useOrders'
+import { mapStatusToClassName } from '@/utils/cssHelpers'
+import styles from './trades.module.css'
 
 export default function TradesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -57,63 +59,63 @@ export default function TradesPage() {
   }
 
   return (
-    <div className="app-layout">
+    <div className={styles.appLayout}>
       <Header userName="Trader" onLogout={() => console.warn('TODO: Implement logout')} />
 
-      <div className="app-body">
+      <div className={styles.appBody}>
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main id="main-content" className="app-main" tabIndex={-1}>
-          <div className="page-container">
-            <h1 className="page-title">Active Trades</h1>
+        <main id="main-content" className={styles.appMain} tabIndex={-1}>
+          <div className={styles.pageContainer}>
+            <h1 className={styles.pageTitle}>Active Trades</h1>
 
             {error && (
-              <div className="error-message">
+              <div className={styles.errorMessage}>
                 <p>Failed to load trades: {error}</p>
               </div>
             )}
 
-            <div className="trades-summary">
-              <div className="stat-card">
-                <span className="stat-label">Total Trades</span>
-                <span className="stat-value">{stats.totalTrades}</span>
+            <div className={styles.tradesSummary}>
+              <div className={styles.statCard}>
+                <span className={styles.statLabel}>Total Trades</span>
+                <span className={styles.statValue}>{stats.totalTrades}</span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Open Orders</span>
-                <span className="stat-value">{stats.openOrders}</span>
+              <div className={styles.statCard}>
+                <span className={styles.statLabel}>Open Orders</span>
+                <span className={styles.statValue}>{stats.openOrders}</span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Filled Orders</span>
-                <span className="stat-value">{stats.filledOrders}</span>
+              <div className={styles.statCard}>
+                <span className={styles.statLabel}>Filled Orders</span>
+                <span className={styles.statValue}>{stats.filledOrders}</span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Canceled Orders</span>
-                <span className="stat-value">{stats.canceledOrders}</span>
+              <div className={styles.statCard}>
+                <span className={styles.statLabel}>Canceled Orders</span>
+                <span className={styles.statValue}>{stats.canceledOrders}</span>
               </div>
             </div>
 
-            <div className="trades-controls">
-              <div className="filter-tabs">
+            <div className={styles.tradesControls}>
+              <div className={styles.filterTabs}>
                 <button
-                  className={`filter-tab ${filter === 'all' ? 'active' : ''}`}
+                  className={`${styles.filterTab} ${filter === 'all' ? styles.active : ''}`}
                   onClick={() => setFilter('all')}
                 >
                   All ({stats.totalTrades})
                 </button>
                 <button
-                  className={`filter-tab ${filter === 'open' ? 'active' : ''}`}
+                  className={`${styles.filterTab} ${filter === 'open' ? styles.active : ''}`}
                   onClick={() => setFilter('open')}
                 >
                   Open ({stats.openOrders})
                 </button>
                 <button
-                  className={`filter-tab ${filter === 'filled' ? 'active' : ''}`}
+                  className={`${styles.filterTab} ${filter === 'filled' ? styles.active : ''}`}
                   onClick={() => setFilter('filled')}
                 >
                   Filled ({stats.filledOrders})
                 </button>
                 <button
-                  className={`filter-tab ${filter === 'canceled' ? 'active' : ''}`}
+                  className={`${styles.filterTab} ${filter === 'canceled' ? styles.active : ''}`}
                   onClick={() => setFilter('canceled')}
                 >
                   Canceled ({stats.canceledOrders})
@@ -121,13 +123,13 @@ export default function TradesPage() {
               </div>
             </div>
 
-            <div className="trades-table-container">
+            <div className={styles.tradesTableContainer}>
               {loading ? (
-                <p className="loading-message">Loading trades...</p>
+                <p className={styles.loadingMessage}>Loading trades...</p>
               ) : filteredOrders.length === 0 ? (
-                <p className="empty-message">No trades found</p>
+                <p className={styles.emptyMessage}>No trades found</p>
               ) : (
-                <table className="trades-table">
+                <table className={styles.tradesTable}>
                   <thead>
                     <tr>
                       <th>Time</th>
@@ -147,7 +149,9 @@ export default function TradesPage() {
                         <td>{formatDate(order.createdAt)}</td>
                         <td>{order.symbol}</td>
                         <td>{order.type}</td>
-                        <td className={order.side === 'BUY' ? 'buy' : 'sell'}>{order.side}</td>
+                        <td className={order.side === 'BUY' ? styles.buy : styles.sell}>
+                          {order.side}
+                        </td>
                         <td>
                           {order.type === 'MARKET'
                             ? 'Market'
@@ -160,14 +164,16 @@ export default function TradesPage() {
                         <td>{order.quantity}</td>
                         <td>{order.executedQuantity || 0}</td>
                         <td>
-                          <span className={`status status-${order.status.toLowerCase()}`}>
+                          <span
+                            className={`${styles.status} ${styles[mapStatusToClassName(order.status)] || ''}`}
+                          >
                             {order.status}
                           </span>
                         </td>
                         <td>
                           {(order.status === 'NEW' || order.status === 'PARTIALLY_FILLED') && (
                             <button
-                              className="cancel-btn"
+                              className={styles.cancelBtn}
                               onClick={() => handleCancelOrder(String(order.orderId))}
                             >
                               Cancel

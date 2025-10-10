@@ -1,0 +1,281 @@
+/**
+ * Analytics page CSS module
+ * Token-based styling scoped to analytics page
+ */
+
+.appLayout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.appBody {
+  display: flex;
+  flex: 1;
+}
+
+.appMain {
+  flex: 1;
+  overflow-x: auto;
+}
+
+.pageContainer {
+  padding: var(--space-8);
+}
+
+.analyticsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-8);
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.pageTitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.timeframeSelector {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.timeframeBtn {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing-default);
+  text-transform: uppercase;
+}
+
+.timeframeBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.timeframeBtn.active {
+  background: var(--color-primary-500);
+  color: white;
+  border-color: var(--color-primary-500);
+}
+
+.performanceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.metricCard {
+  background: var(--color-surface-raised);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.metricCard h3 {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-medium);
+}
+
+.metricValue {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.metricValue.positive {
+  color: var(--color-text-success);
+}
+
+.metricValue.negative {
+  color: var(--color-text-danger);
+}
+
+.analyticsSections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.tradingStats,
+.symbolPerformance,
+.pnlChart {
+  background: var(--color-surface-raised);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-default);
+}
+
+.tradingStats h2,
+.symbolPerformance h2,
+.pnlChart h2 {
+  margin-bottom: var(--space-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.statLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-medium);
+}
+
+.statValue {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.statValue.positive {
+  color: var(--color-text-success);
+}
+
+.statValue.negative {
+  color: var(--color-text-danger);
+}
+
+.symbolTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-4);
+}
+
+.symbolTable th {
+  text-align: left;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+}
+
+.symbolTable td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.symbolTable tr:last-child td {
+  border-bottom: none;
+}
+
+.positive {
+  color: var(--color-text-success);
+}
+
+.negative {
+  color: var(--color-text-danger);
+}
+
+.chartContainer {
+  margin-top: var(--space-4);
+}
+
+.simpleBarChart {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+  height: 200px;
+  padding: var(--space-4);
+}
+
+.barWrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 100%;
+}
+
+.bar {
+  width: 100%;
+  min-height: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.bar.positive {
+  background: var(--color-success-500);
+}
+
+.bar.negative {
+  background: var(--color-error-400);
+}
+
+.barLabel {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.barValue {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.loadingContainer {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.errorMessage {
+  background: var(--color-danger-bg, #dc2626);
+  color: var(--color-text-on-danger, white);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-8);
+}
+
+@media (max-width: 768px) {
+  .appBody {
+    position: relative;
+  }
+
+  .appMain {
+    width: 100%;
+  }
+
+  .analyticsHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .timeframeSelector {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .simpleBarChart {
+    overflow-x: auto;
+  }
+}

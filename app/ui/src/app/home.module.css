@@ -1,0 +1,30 @@
+/**
+ * Home page (Dashboard) CSS module
+ * Token-based styling scoped to the homepage
+ */
+
+.appLayout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.appBody {
+  display: flex;
+  flex: 1;
+}
+
+.appMain {
+  flex: 1;
+  overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+  .appBody {
+    position: relative;
+  }
+
+  .appMain {
+    width: 100%;
+  }
+}

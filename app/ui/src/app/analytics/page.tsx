@@ -4,6 +4,7 @@ import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { useState } from 'react'
 import { useAnalytics } from '@/hooks/useAnalytics'
+import styles from './analytics.module.css'
 
 type TimeFrame = '24h' | '7d' | '30d' | '90d' | '1y' | 'all'
 
@@ -14,21 +15,21 @@ export default function AnalyticsPage() {
   const { data, loading, error } = useAnalytics(timeframe)
 
   return (
-    <div className="app-layout">
+    <div className={styles.appLayout}>
       <Header userName="Trader" onLogout={() => console.warn('TODO: Implement logout')} />
 
-      <div className="app-body">
+      <div className={styles.appBody}>
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main id="main-content" className="app-main" tabIndex={-1}>
-          <div className="page-container">
-            <div className="analytics-header">
-              <h1 className="page-title">Trading Analytics</h1>
-              <div className="timeframe-selector">
+        <main id="main-content" className={styles.appMain} tabIndex={-1}>
+          <div className={styles.pageContainer}>
+            <div className={styles.analyticsHeader}>
+              <h1 className={styles.pageTitle}>Trading Analytics</h1>
+              <div className={styles.timeframeSelector}>
                 {(['24h', '7d', '30d', '90d', '1y', 'all'] as TimeFrame[]).map(tf => (
                   <button
                     key={tf}
-                    className={`timeframe-btn ${timeframe === tf ? 'active' : ''}`}
+                    className={`${styles.timeframeBtn} ${timeframe === tf ? styles.active : ''}`}
                     onClick={() => setTimeframe(tf)}
                   >
                     {tf === 'all' ? 'All' : tf}
@@ -38,97 +39,107 @@ export default function AnalyticsPage() {
             </div>
 
             {error && (
-              <div className="error-message">
+              <div className={styles.errorMessage}>
                 <p>Failed to load analytics: {error}</p>
               </div>
             )}
 
             {loading ? (
-              <div className="loading-container">
+              <div className={styles.loadingContainer}>
                 <p>Loading analytics...</p>
               </div>
             ) : error ? null : (
               <>
-                <div className="performance-grid">
-                  <div className="metric-card">
+                <div className={styles.performanceGrid}>
+                  <div className={styles.metricCard}>
                     <h3>Total Return</h3>
                     <p
-                      className={`metric-value ${data.performance.totalReturn >= 0 ? 'positive' : 'negative'}`}
+                      className={`${styles.metricValue} ${data.performance.totalReturn >= 0 ? styles.positive : styles.negative}`}
                     >
                       {data.performance.totalReturn >= 0 ? '+' : ''}
                       {data.performance.totalReturn}%
                     </p>
                   </div>
-                  <div className="metric-card">
+                  <div className={styles.metricCard}>
                     <h3>Win Rate</h3>
-                    <p className="metric-value">{data.performance.winRate}%</p>
+                    <p className={styles.metricValue}>{data.performance.winRate}%</p>
                   </div>
-                  <div className="metric-card">
+                  <div className={styles.metricCard}>
                     <h3>Profit Factor</h3>
-                    <p className="metric-value">{data.performance.profitFactor}</p>
+                    <p className={styles.metricValue}>{data.performance.profitFactor}</p>
                   </div>
-                  <div className="metric-card">
+                  <div className={styles.metricCard}>
                     <h3>Sharpe Ratio</h3>
-                    <p className="metric-value">{data.performance.sharpeRatio}</p>
+                    <p className={styles.metricValue}>{data.performance.sharpeRatio}</p>
                   </div>
-                  <div className="metric-card">
+                  <div className={styles.metricCard}>
                     <h3>Max Drawdown</h3>
-                    <p className="metric-value negative">{data.performance.maxDrawdown}%</p>
+                    <p className={`${styles.metricValue} ${styles.negative}`}>
+                      {data.performance.maxDrawdown}%
+                    </p>
                   </div>
-                  <div className="metric-card">
+                  <div className={styles.metricCard}>
                     <h3>Avg Win</h3>
-                    <p className="metric-value positive">${data.performance.avgWin}</p>
+                    <p className={`${styles.metricValue} ${styles.positive}`}>
+                      ${data.performance.avgWin}
+                    </p>
                   </div>
-                  <div className="metric-card">
+                  <div className={styles.metricCard}>
                     <h3>Avg Loss</h3>
-                    <p className="metric-value negative">${data.performance.avgLoss}</p>
+                    <p className={`${styles.metricValue} ${styles.negative}`}>
+                      ${data.performance.avgLoss}
+                    </p>
                   </div>
-                  <div className="metric-card">
+                  <div className={styles.metricCard}>
                     <h3>Best Trade</h3>
-                    <p className="metric-value positive">${data.performance.bestTrade}</p>
+                    <p className={`${styles.metricValue} ${styles.positive}`}>
+                      ${data.performance.bestTrade}
+                    </p>
                   </div>
                 </div>
 
-                <div className="analytics-sections">
-                  <section className="trading-stats">
+                <div className={styles.analyticsSections}>
+                  <section className={styles.tradingStats}>
                     <h2>Trading Statistics</h2>
-                    <div className="stats-grid">
-                      <div className="stat-item">
-                        <span className="stat-label">Total Trades</span>
-                        <span className="stat-value">{data.tradingStats.totalTrades}</span>
+                    <div className={styles.statsGrid}>
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Total Trades</span>
+                        <span className={styles.statValue}>{data.tradingStats.totalTrades}</span>
                       </div>
-                      <div className="stat-item">
-                        <span className="stat-label">Winning Trades</span>
-                        <span className="stat-value positive">
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Winning Trades</span>
+                        <span className={`${styles.statValue} ${styles.positive}`}>
                           {data.tradingStats.winningTrades}
                         </span>
                       </div>
-                      <div className="stat-item">
-                        <span className="stat-label">Losing Trades</span>
-                        <span className="stat-value negative">
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Losing Trades</span>
+                        <span className={`${styles.statValue} ${styles.negative}`}>
                           {data.tradingStats.losingTrades}
                         </span>
                       </div>
-                      <div className="stat-item">
-                        <span className="stat-label">Avg Hold Time</span>
-                        <span className="stat-value">{data.tradingStats.avgHoldTime}</span>
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Avg Hold Time</span>
+                        <span className={styles.statValue}>{data.tradingStats.avgHoldTime}</span>
                       </div>
-                      <div className="stat-item">
-                        <span className="stat-label">Total Volume</span>
-                        <span className="stat-value">
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Total Volume</span>
+                        <span className={styles.statValue}>
                           ${data.tradingStats.totalVolume.toLocaleString()}
                         </span>
                       </div>
-                      <div className="stat-item">
-                        <span className="stat-label">Total Commission</span>
-                        <span className="stat-value">${data.tradingStats.totalCommission}</span>
+                      <div className={styles.statItem}>
+                        <span className={styles.statLabel}>Total Commission</span>
+                        <span className={styles.statValue}>
+                          ${data.tradingStats.totalCommission}
+                        </span>
                       </div>
                     </div>
                   </section>
 
-                  <section className="symbol-performance">
+                  <section className={styles.symbolPerformance}>
                     <h2>Performance by Symbol</h2>
-                    <table className="symbol-table">
+                    <table className={styles.symbolTable}>
                       <thead>
                         <tr>
                           <th>Symbol</th>
@@ -142,10 +153,10 @@ export default function AnalyticsPage() {
                           <tr key={sym.symbol}>
                             <td>{sym.symbol}</td>
                             <td>{sym.trades}</td>
-                            <td className={sym.pnl >= 0 ? 'positive' : 'negative'}>
+                            <td className={sym.pnl >= 0 ? styles.positive : styles.negative}>
                               ${sym.pnl.toFixed(2)}
                             </td>
-                            <td className={sym.winRate >= 50 ? 'positive' : 'negative'}>
+                            <td className={sym.winRate >= 50 ? styles.positive : styles.negative}>
                               {sym.winRate.toFixed(1)}%
                             </td>
                           </tr>
@@ -154,22 +165,22 @@ export default function AnalyticsPage() {
                     </table>
                   </section>
 
-                  <section className="pnl-chart">
+                  <section className={styles.pnlChart}>
                     <h2>Weekly P&L</h2>
-                    <div className="chart-container">
-                      <div className="simple-bar-chart">
+                    <div className={styles.chartContainer}>
+                      <div className={styles.simpleBarChart}>
                         {data.weeklyPnL.map(week => (
-                          <div key={week.week} className="bar-wrapper">
+                          <div key={week.week} className={styles.barWrapper}>
                             <div
-                              className={`bar ${week.pnl >= 0 ? 'positive' : 'negative'}`}
+                              className={`${styles.bar} ${week.pnl >= 0 ? styles.positive : styles.negative}`}
                               style={{
                                 height: `${Math.abs(week.pnl) / 30}px`,
                                 marginTop: week.pnl < 0 ? '0' : 'auto',
                                 marginBottom: week.pnl >= 0 ? '0' : 'auto',
                               }}
                             />
-                            <span className="bar-label">{week.week}</span>
-                            <span className="bar-value">${week.pnl}</span>
+                            <span className={styles.barLabel}>{week.week}</span>
+                            <span className={styles.barValue}>${week.pnl}</span>
                           </div>
                         ))}
                       </div>

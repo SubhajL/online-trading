@@ -3,6 +3,7 @@
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { useState } from 'react'
+import styles from './settings.module.css'
 
 export default function SettingsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -50,49 +51,49 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="app-layout">
+    <div className={styles.appLayout}>
       <Header userName="Trader" onLogout={() => console.warn('TODO: Implement logout')} />
 
-      <div className="app-body">
+      <div className={styles.appBody}>
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main id="main-content" className="app-main" tabIndex={-1}>
-          <div className="page-container">
-            <h1 className="page-title">Settings</h1>
+        <main id="main-content" className={styles.appMain} tabIndex={-1}>
+          <div className={styles.pageContainer}>
+            <h1 className={styles.pageTitle}>Settings</h1>
 
-            <div className="settings-container">
-              <div className="settings-tabs">
+            <div className={styles.settingsContainer}>
+              <div className={styles.settingsTabs}>
                 <button
-                  className={`tab ${activeTab === 'general' ? 'active' : ''}`}
+                  className={`${styles.tab} ${activeTab === 'general' ? styles.active : ''}`}
                   onClick={() => setActiveTab('general')}
                 >
                   General
                 </button>
                 <button
-                  className={`tab ${activeTab === 'trading' ? 'active' : ''}`}
+                  className={`${styles.tab} ${activeTab === 'trading' ? styles.active : ''}`}
                   onClick={() => setActiveTab('trading')}
                 >
                   Trading
                 </button>
                 <button
-                  className={`tab ${activeTab === 'notifications' ? 'active' : ''}`}
+                  className={`${styles.tab} ${activeTab === 'notifications' ? styles.active : ''}`}
                   onClick={() => setActiveTab('notifications')}
                 >
                   Notifications
                 </button>
                 <button
-                  className={`tab ${activeTab === 'api' ? 'active' : ''}`}
+                  className={`${styles.tab} ${activeTab === 'api' ? styles.active : ''}`}
                   onClick={() => setActiveTab('api')}
                 >
                   API Keys
                 </button>
               </div>
 
-              <div className="settings-content">
+              <div className={styles.settingsContent}>
                 {activeTab === 'general' && (
-                  <div className="settings-section">
+                  <div className={styles.settingsSection}>
                     <h2>General Settings</h2>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>Theme</label>
                       <select
                         value={settings.general.theme}
@@ -102,7 +103,7 @@ export default function SettingsPage() {
                         <option value="light">Light</option>
                       </select>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>Timezone</label>
                       <select
                         value={settings.general.timezone}
@@ -116,7 +117,7 @@ export default function SettingsPage() {
                         <option value="Asia/Tokyo">Tokyo</option>
                       </select>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>Language</label>
                       <select
                         value={settings.general.language}
@@ -134,9 +135,9 @@ export default function SettingsPage() {
                 )}
 
                 {activeTab === 'trading' && (
-                  <div className="settings-section">
+                  <div className={styles.settingsSection}>
                     <h2>Trading Settings</h2>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>Default Venue</label>
                       <select
                         value={settings.trading.defaultVenue}
@@ -148,7 +149,7 @@ export default function SettingsPage() {
                         <option value="FUTURES">Futures</option>
                       </select>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>Default Leverage</label>
                       <input
                         type="number"
@@ -164,7 +165,7 @@ export default function SettingsPage() {
                         }
                       />
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>
                         <input
                           type="checkbox"
@@ -176,7 +177,7 @@ export default function SettingsPage() {
                         Confirm orders before submission
                       </label>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>Max Position Size (USDT)</label>
                       <input
                         type="number"
@@ -190,7 +191,7 @@ export default function SettingsPage() {
                         }
                       />
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>Default Stop Loss (%)</label>
                       <input
                         type="number"
@@ -205,7 +206,7 @@ export default function SettingsPage() {
                         }
                       />
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>Default Take Profit (%)</label>
                       <input
                         type="number"
@@ -224,9 +225,9 @@ export default function SettingsPage() {
                 )}
 
                 {activeTab === 'notifications' && (
-                  <div className="settings-section">
+                  <div className={styles.settingsSection}>
                     <h2>Notification Settings</h2>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>
                         <input
                           type="checkbox"
@@ -238,7 +239,7 @@ export default function SettingsPage() {
                         Email Alerts
                       </label>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>
                         <input
                           type="checkbox"
@@ -254,7 +255,7 @@ export default function SettingsPage() {
                         Push Notifications
                       </label>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>
                         <input
                           type="checkbox"
@@ -270,7 +271,7 @@ export default function SettingsPage() {
                         Trade Execution Alerts
                       </label>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>
                         <input
                           type="checkbox"
@@ -282,7 +283,7 @@ export default function SettingsPage() {
                         Price Alerts
                       </label>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>
                         <input
                           type="checkbox"
@@ -298,27 +299,27 @@ export default function SettingsPage() {
                 )}
 
                 {activeTab === 'api' && (
-                  <div className="settings-section">
+                  <div className={styles.settingsSection}>
                     <h2>API Configuration</h2>
-                    <div className="api-status">
-                      <div className="status-item">
+                    <div className={styles.apiStatus}>
+                      <div className={styles.statusItem}>
                         <span>Spot Trading</span>
                         <span
-                          className={`status ${settings.api.spotConnected ? 'connected' : 'disconnected'}`}
+                          className={`${styles.status} ${settings.api.spotConnected ? styles.connected : styles.disconnected}`}
                         >
                           {settings.api.spotConnected ? 'Connected' : 'Disconnected'}
                         </span>
                       </div>
-                      <div className="status-item">
+                      <div className={styles.statusItem}>
                         <span>Futures Trading</span>
                         <span
-                          className={`status ${settings.api.futuresConnected ? 'connected' : 'disconnected'}`}
+                          className={`${styles.status} ${settings.api.futuresConnected ? styles.connected : styles.disconnected}`}
                         >
                           {settings.api.futuresConnected ? 'Connected' : 'Disconnected'}
                         </span>
                       </div>
                     </div>
-                    <div className="setting-item">
+                    <div className={styles.settingItem}>
                       <label>
                         <input
                           type="checkbox"
@@ -330,40 +331,40 @@ export default function SettingsPage() {
                         Testnet Mode
                       </label>
                     </div>
-                    <div className="api-keys-section">
+                    <div className={styles.apiKeysSection}>
                       <h3>API Keys</h3>
-                      <p className="warning">⚠️ Never share your API keys with anyone</p>
-                      <div className="key-input-group">
+                      <p className={styles.warning}>⚠️ Never share your API keys with anyone</p>
+                      <div className={styles.keyInputGroup}>
                         <label>Spot API Key</label>
                         <input type="password" placeholder="Enter your Spot API key" disabled />
                         <button
-                          className="update-btn"
+                          className={styles.updateBtn}
                           onClick={() => console.warn('TODO: Update Spot API key')}
                         >
                           Update
                         </button>
                       </div>
-                      <div className="key-input-group">
+                      <div className={styles.keyInputGroup}>
                         <label>Spot Secret Key</label>
                         <input type="password" placeholder="Enter your Spot secret key" disabled />
                         <button
-                          className="update-btn"
+                          className={styles.updateBtn}
                           onClick={() => console.warn('TODO: Update Spot secret key')}
                         >
                           Update
                         </button>
                       </div>
-                      <div className="key-input-group">
+                      <div className={styles.keyInputGroup}>
                         <label>Futures API Key</label>
                         <input type="password" placeholder="Enter your Futures API key" disabled />
                         <button
-                          className="update-btn"
+                          className={styles.updateBtn}
                           onClick={() => console.warn('TODO: Update Futures API key')}
                         >
                           Update
                         </button>
                       </div>
-                      <div className="key-input-group">
+                      <div className={styles.keyInputGroup}>
                         <label>Futures Secret Key</label>
                         <input
                           type="password"
@@ -371,7 +372,7 @@ export default function SettingsPage() {
                           disabled
                         />
                         <button
-                          className="update-btn"
+                          className={styles.updateBtn}
                           onClick={() => console.warn('TODO: Update Futures secret key')}
                         >
                           Update
@@ -382,14 +383,17 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              <div className="settings-actions">
+              <div className={styles.settingsActions}>
                 <button
-                  className="save-btn"
+                  className={styles.saveBtn}
                   onClick={() => console.warn('TODO: Save settings to BFF')}
                 >
                   Save Changes
                 </button>
-                <button className="cancel-btn" onClick={() => console.warn('TODO: Reset settings')}>
+                <button
+                  className={styles.cancelBtn}
+                  onClick={() => console.warn('TODO: Reset settings')}
+                >
                   Cancel
                 </button>
               </div>

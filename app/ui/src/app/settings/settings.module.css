@@ -1,0 +1,273 @@
+/**
+ * Settings page CSS module
+ * Token-based styling scoped to settings page
+ */
+
+.appLayout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.appBody {
+  display: flex;
+  flex: 1;
+}
+
+.appMain {
+  flex: 1;
+  overflow-x: auto;
+}
+
+.pageContainer {
+  padding: var(--space-8);
+}
+
+.pageTitle {
+  margin-bottom: var(--space-8);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.settingsContainer {
+  max-width: 1000px;
+}
+
+.settingsTabs {
+  display: flex;
+  gap: var(--space-2);
+  border-bottom: 2px solid var(--color-border-subtle);
+  margin-bottom: var(--space-6);
+}
+
+.tab {
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all var(--duration-fast) var(--easing-default);
+}
+
+.tab:hover {
+  color: var(--color-text-secondary);
+}
+
+.tab.active {
+  color: var(--color-primary-400);
+  border-bottom-color: var(--color-primary-400);
+}
+
+.settingsContent {
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-default);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.settingsSection h2 {
+  margin-bottom: var(--space-6);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settingItem {
+  margin-bottom: var(--space-4);
+}
+
+.settingItem label {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.settingItem input[type='text'],
+.settingItem input[type='number'],
+.settingItem input[type='password'],
+.settingItem select {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--space-3);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  color: var(--input-text);
+  font-size: var(--font-size-sm);
+}
+
+.settingItem input[type='text']:focus,
+.settingItem input[type='number']:focus,
+.settingItem input[type='password']:focus,
+.settingItem select:focus {
+  outline: none;
+  border-color: var(--input-border-focus);
+}
+
+.settingItem input[type='checkbox'] {
+  width: auto;
+  margin-right: var(--space-2);
+}
+
+.apiStatus {
+  margin-bottom: var(--space-6);
+}
+
+.statusItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3);
+  background: var(--color-surface-overlay);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.statusItem span:first-child {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.status {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.status.connected {
+  background: var(--status-filled-bg);
+  color: var(--status-filled-text);
+}
+
+.status.disconnected {
+  background: var(--status-rejected-bg);
+  color: var(--status-rejected-text);
+}
+
+.apiKeysSection {
+  margin-top: var(--space-6);
+}
+
+.apiKeysSection h3 {
+  margin-bottom: var(--space-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.warning {
+  padding: var(--space-3);
+  background: var(--status-partial-bg);
+  color: var(--status-partial-text);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.keyInputGroup {
+  margin-bottom: var(--space-4);
+}
+
+.keyInputGroup label {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.keyInputGroup input {
+  width: 100%;
+  padding: var(--space-3);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  color: var(--input-text);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-2);
+}
+
+.updateBtn {
+  padding: var(--space-2) var(--space-4);
+  background: var(--button-secondary-bg);
+  border: 1px solid var(--button-secondary-border);
+  border-radius: var(--radius-sm);
+  color: var(--button-secondary-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing-default);
+}
+
+.updateBtn:hover {
+  background: var(--button-secondary-bg-hover);
+}
+
+.settingsActions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.saveBtn {
+  padding: var(--space-3) var(--space-6);
+  background: var(--button-success-bg);
+  color: var(--button-success-text);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--easing-default);
+}
+
+.saveBtn:hover {
+  background: var(--button-success-bg-hover);
+}
+
+.cancelBtn {
+  padding: var(--space-3) var(--space-6);
+  background: var(--button-secondary-bg);
+  border: 1px solid var(--button-secondary-border);
+  border-radius: var(--radius-sm);
+  color: var(--button-secondary-text);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing-default);
+}
+
+.cancelBtn:hover {
+  background: var(--button-secondary-bg-hover);
+}
+
+@media (max-width: 768px) {
+  .appBody {
+    position: relative;
+  }
+
+  .appMain {
+    width: 100%;
+  }
+
+  .settingsTabs {
+    overflow-x: auto;
+  }
+
+  .settingsActions {
+    flex-direction: column;
+  }
+
+  .saveBtn,
+  .cancelBtn {
+    width: 100%;
+  }
+}

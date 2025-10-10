@@ -1,23 +1,30 @@
+import type { DesignTokens } from '../types/tokens'
+
 /**
  * Metric helper utilities for Dashboard components.
- * Provides token-based class name derivation for metric trends and changes.
+ * Provides token-based color derivation for metric trends and changes.
  */
 
 /**
- * Computes trend class based on value comparison to threshold.
+ * Computes trend color based on value comparison to threshold.
  *
  * @param value - Current metric value
  * @param threshold - Baseline threshold for comparison (default: 0)
- * @returns Token-based class name: 'trend-up', 'trend-down', or 'trend-neutral'
+ * @param tokens - Design tokens for color values
+ * @returns Color string from tokens: text.success, text.danger, or text.muted
  */
-export function computeMetricTrend(value: number, threshold: number = 0): string {
+export function computeMetricTrend(
+  value: number,
+  threshold: number = 0,
+  tokens: DesignTokens,
+): string {
   if (value > threshold) {
-    return 'trend-up'
+    return tokens.colors.text.success
   }
   if (value < threshold) {
-    return 'trend-down'
+    return tokens.colors.text.danger
   }
-  return 'trend-neutral'
+  return tokens.colors.text.muted
 }
 
 /**

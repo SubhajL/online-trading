@@ -4,6 +4,7 @@ import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { useState } from 'react'
 import { useOrderHistory } from '@/hooks/useOrderHistory'
+import styles from './history.module.css'
 
 export default function HistoryPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -48,65 +49,65 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="app-layout">
+    <div className={styles.appLayout}>
       <Header userName="Trader" onLogout={() => console.warn('TODO: Implement logout')} />
 
-      <div className="app-body">
+      <div className={styles.appBody}>
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main id="main-content" className="app-main" tabIndex={-1}>
-          <div className="page-container">
-            <h1 className="page-title">Trade History</h1>
+        <main id="main-content" className={styles.appMain} tabIndex={-1}>
+          <div className={styles.pageContainer}>
+            <h1 className={styles.pageTitle}>Trade History</h1>
 
             {error && (
-              <div className="error-message">
+              <div className={styles.errorMessage}>
                 <p>Failed to load trade history: {error}</p>
               </div>
             )}
 
-            <div className="history-stats">
-              <div className="stat-card">
-                <span className="stat-label">Total Trades</span>
-                <span className="stat-value">{stats.totalTrades}</span>
+            <div className={styles.historyStats}>
+              <div className={styles.statCard}>
+                <span className={styles.statLabel}>Total Trades</span>
+                <span className={styles.statValue}>{stats.totalTrades}</span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Buy Orders</span>
-                <span className="stat-value buy">{stats.buyOrders}</span>
+              <div className={styles.statCard}>
+                <span className={styles.statLabel}>Buy Orders</span>
+                <span className={`${styles.statValue} ${styles.buy}`}>{stats.buyOrders}</span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Sell Orders</span>
-                <span className="stat-value sell">{stats.sellOrders}</span>
+              <div className={styles.statCard}>
+                <span className={styles.statLabel}>Sell Orders</span>
+                <span className={`${styles.statValue} ${styles.sell}`}>{stats.sellOrders}</span>
               </div>
-              <div className="stat-card">
-                <span className="stat-label">Total Volume</span>
-                <span className="stat-value">
+              <div className={styles.statCard}>
+                <span className={styles.statLabel}>Total Volume</span>
+                <span className={styles.statValue}>
                   ${stats.totalVolume.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                 </span>
               </div>
             </div>
 
-            <div className="history-controls">
-              <div className="date-range-selector">
+            <div className={styles.historyControls}>
+              <div className={styles.dateRangeSelector}>
                 <button
-                  className={`range-btn ${dateRange === '1d' ? 'active' : ''}`}
+                  className={`${styles.rangeBtn} ${dateRange === '1d' ? styles.active : ''}`}
                   onClick={() => setDateRange('1d')}
                 >
                   24H
                 </button>
                 <button
-                  className={`range-btn ${dateRange === '7d' ? 'active' : ''}`}
+                  className={`${styles.rangeBtn} ${dateRange === '7d' ? styles.active : ''}`}
                   onClick={() => setDateRange('7d')}
                 >
                   7D
                 </button>
                 <button
-                  className={`range-btn ${dateRange === '30d' ? 'active' : ''}`}
+                  className={`${styles.rangeBtn} ${dateRange === '30d' ? styles.active : ''}`}
                   onClick={() => setDateRange('30d')}
                 >
                   30D
                 </button>
                 <button
-                  className={`range-btn ${dateRange === 'all' ? 'active' : ''}`}
+                  className={`${styles.rangeBtn} ${dateRange === 'all' ? styles.active : ''}`}
                   onClick={() => setDateRange('all')}
                 >
                   All
@@ -114,13 +115,13 @@ export default function HistoryPage() {
               </div>
             </div>
 
-            <div className="history-table-container">
+            <div className={styles.historyTableContainer}>
               {loading ? (
-                <p className="loading-message">Loading history...</p>
+                <p className={styles.loadingMessage}>Loading history...</p>
               ) : filteredOrders.length === 0 ? (
-                <p className="empty-message">No trades found in selected period</p>
+                <p className={styles.emptyMessage}>No trades found in selected period</p>
               ) : (
-                <table className="history-table">
+                <table className={styles.historyTable}>
                   <thead>
                     <tr>
                       <th>Date</th>
@@ -141,7 +142,9 @@ export default function HistoryPage() {
                         <td>{formatTime(order.createdAt)}</td>
                         <td>{order.symbol}</td>
                         <td>{order.type}</td>
-                        <td className={order.side === 'BUY' ? 'buy' : 'sell'}>{order.side}</td>
+                        <td className={order.side === 'BUY' ? styles.buy : styles.sell}>
+                          {order.side}
+                        </td>
                         <td>${(order.avgPrice || order.price || 0).toFixed(2)}</td>
                         <td>{(order.executedQuantity || 0).toFixed(4)}</td>
                         <td>
@@ -154,7 +157,7 @@ export default function HistoryPage() {
                           })}
                         </td>
                         <td>
-                          <span className={`status status-${order.status.toLowerCase()}`}>
+                          <span className={`${styles.status} ${styles.statusFilled}`}>
                             {order.status}
                           </span>
                         </td>

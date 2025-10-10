@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/Layout/Sidebar'
 import { useState } from 'react'
 import { usePositions } from '@/hooks/usePositions'
 import { useBalances } from '@/hooks/useBalances'
+import styles from './portfolio.module.css'
 
 export default function PortfolioPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -32,24 +33,24 @@ export default function PortfolioPage() {
   const totalValue = positionsTotalValue + balancesValue
 
   return (
-    <div className="app-layout">
+    <div className={styles.appLayout}>
       <Header userName="Trader" onLogout={() => console.warn('TODO: Implement logout')} />
 
-      <div className="app-body">
+      <div className={styles.appBody}>
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main id="main-content" className="app-main" tabIndex={-1}>
-          <div className="page-container">
-            <h1 className="page-title">Portfolio Overview</h1>
+        <main id="main-content" className={styles.appMain} tabIndex={-1}>
+          <div className={styles.pageContainer}>
+            <h1 className={styles.pageTitle}>Portfolio Overview</h1>
 
             {error ? (
-              <div className="error-message">
+              <div className={styles.errorMessage}>
                 <p>Failed to load portfolio data: {error}</p>
               </div>
             ) : (
               <>
-                <div className="portfolio-summary">
-                  <div className="summary-card">
+                <div className={styles.portfolioSummary}>
+                  <div className={styles.summaryCard}>
                     <h3>Total Portfolio Value</h3>
                     <p className="value">
                       $
@@ -59,28 +60,28 @@ export default function PortfolioPage() {
                       })}
                     </p>
                   </div>
-                  <div className="summary-card">
+                  <div className={styles.summaryCard}>
                     <h3>Total P&L</h3>
-                    <p className={`value ${totalPnl >= 0 ? 'positive' : 'negative'}`}>
+                    <p className={`value ${totalPnl >= 0 ? styles.positive : styles.negative}`}>
                       ${totalPnl.toFixed(2)} ({totalPnl >= 0 ? '+' : ''}
                       {((totalPnl / totalValue) * 100).toFixed(2)}%)
                     </p>
                   </div>
-                  <div className="summary-card">
+                  <div className={styles.summaryCard}>
                     <h3>Open Positions</h3>
                     <p className="value">{positions.length}</p>
                   </div>
                 </div>
 
-                <div className="portfolio-sections">
-                  <section className="positions-section">
+                <div className={styles.portfolioSections}>
+                  <section className={styles.positionsSection}>
                     <h2>Open Positions</h2>
                     {loading ? (
                       <p>Loading positions...</p>
                     ) : positions.length === 0 ? (
                       <p>No open positions</p>
                     ) : (
-                      <table className="data-table">
+                      <table className={styles.dataTable}>
                         <thead>
                           <tr>
                             <th>Symbol</th>
@@ -96,14 +97,18 @@ export default function PortfolioPage() {
                           {positions.map((pos, idx) => (
                             <tr key={idx}>
                               <td>{pos.symbol}</td>
-                              <td className={pos.side === 'BUY' ? 'buy' : 'sell'}>{pos.side}</td>
+                              <td className={pos.side === 'BUY' ? styles.buy : styles.sell}>
+                                {pos.side}
+                              </td>
                               <td>{pos.quantity}</td>
                               <td>${pos.entryPrice.toFixed(2)}</td>
                               <td>${pos.markPrice.toFixed(2)}</td>
-                              <td className={pos.pnl >= 0 ? 'positive' : 'negative'}>
+                              <td className={pos.pnl >= 0 ? styles.positive : styles.negative}>
                                 ${pos.pnl.toFixed(2)}
                               </td>
-                              <td className={pos.pnlPercent >= 0 ? 'positive' : 'negative'}>
+                              <td
+                                className={pos.pnlPercent >= 0 ? styles.positive : styles.negative}
+                              >
                                 {pos.pnlPercent >= 0 ? '+' : ''}
                                 {pos.pnlPercent.toFixed(2)}%
                               </td>
@@ -114,14 +119,14 @@ export default function PortfolioPage() {
                     )}
                   </section>
 
-                  <section className="balances-section">
+                  <section className={styles.balancesSection}>
                     <h2>Asset Balances</h2>
                     {loading ? (
                       <p>Loading balances...</p>
                     ) : balances.length === 0 ? (
                       <p>No assets</p>
                     ) : (
-                      <table className="data-table">
+                      <table className={styles.dataTable}>
                         <thead>
                           <tr>
                             <th>Asset</th>

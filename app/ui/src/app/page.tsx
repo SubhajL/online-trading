@@ -8,7 +8,7 @@ import { useBalances } from '@/hooks/useBalances'
 import { usePositions } from '@/hooks/usePositions'
 import { useOrders } from '@/hooks/useOrders'
 import type { OrderFormValues } from '@/types'
-import './layout.css'
+import styles from './home.module.css'
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -51,13 +51,13 @@ export default function Home() {
   }
 
   return (
-    <div className="app-layout">
+    <div className={styles.appLayout}>
       <Header userName="Trader" onLogout={handleLogout} />
 
-      <div className="app-body">
+      <div className={styles.appBody}>
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main id="main-content" className="app-main" tabIndex={-1}>
+        <main id="main-content" className={styles.appMain} tabIndex={-1}>
           <Dashboard
             positions={positions}
             orders={orders}

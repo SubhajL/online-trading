@@ -1,6 +1,5 @@
 import { describe, test, expect } from 'vitest'
 import { deriveOrderStatusTheme, formatPositionDelta, isCancelableStatus } from './tradingHelpers'
-import type { OrderStatus } from '@/types'
 
 describe('deriveOrderStatusTheme', () => {
   test('returns theme for NEW status', () => {
