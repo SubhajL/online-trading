@@ -178,7 +178,7 @@ describe('VolumeChart', () => {
   })
 
   describe('token-based colors', () => {
-    it('uses getVolumeBarColor for bullish candles', () => {
+    it('returns success-500 token color for bullish candles', () => {
       const bullishCandles: Candle[] = [
         {
           time: 1704067200,
@@ -193,11 +193,11 @@ describe('VolumeChart', () => {
       render(<VolumeChart candles={bullishCandles} />)
 
       const volumeData = mockAddIndicator.mock.calls[0]?.[1]
-      // Should use success token color instead of hardcoded #26a69a
-      expect(volumeData[0]!.color).toMatch(/hsl\(142/)
+      // Should use exact success-500 token color
+      expect(volumeData[0]!.color).toBe('hsl(142, 71%, 45%)')
     })
 
-    it('uses getVolumeBarColor for bearish candles', () => {
+    it('returns error-500 token color for bearish candles', () => {
       const bearishCandles: Candle[] = [
         {
           time: 1704067200,
@@ -212,11 +212,11 @@ describe('VolumeChart', () => {
       render(<VolumeChart candles={bearishCandles} />)
 
       const volumeData = mockAddIndicator.mock.calls[0]?.[1]
-      // Should use error token color instead of hardcoded #ef5350
-      expect(volumeData[0]!.color).toMatch(/hsl\(0/)
+      // Should use exact error-500 token color
+      expect(volumeData[0]!.color).toBe('hsl(0, 84%, 55%)')
     })
 
-    it('uses getVolumeBarColor for flat candles', () => {
+    it('returns gray-400 token color for flat candles', () => {
       const flatCandles: Candle[] = [
         {
           time: 1704067200,
@@ -231,8 +231,8 @@ describe('VolumeChart', () => {
       render(<VolumeChart candles={flatCandles} />)
 
       const volumeData = mockAddIndicator.mock.calls[0]?.[1]
-      // Should use neutral gray token color
-      expect(volumeData[0]!.color).toMatch(/hsl\(220/)
+      // Should use exact gray-400 neutral token color
+      expect(volumeData[0]!.color).toBe('hsl(220, 13%, 65%)')
     })
   })
 })

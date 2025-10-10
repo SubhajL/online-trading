@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { getTokens } from '@/utils/getTokens'
 import { getAutoTradingToggleStyles } from '@/utils/stylingHelpers'
 import type { AutoTradingToggleState } from '@/utils/stylingHelpers'
@@ -20,7 +20,7 @@ export function AutoTradingToggle({
   className = '',
 }: AutoTradingToggleProps) {
   const [showTooltip, setShowTooltip] = useState(false)
-  const tokens = getTokens()
+  const tokens = useMemo(() => getTokens(), [])
 
   const state: AutoTradingToggleState = error ? 'error' : enabled ? 'enabled' : 'disabled'
   const containerStyles = getAutoTradingToggleStyles(tokens, state)

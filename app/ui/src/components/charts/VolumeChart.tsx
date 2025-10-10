@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useMemo } from 'react'
 import { useChart } from '@/hooks/useChart'
 import type { Candle } from '@/types'
 import type { HistogramData, Time } from 'lightweight-charts'
@@ -15,7 +15,7 @@ type VolumeChartProps = {
 export function VolumeChart({ candles, loading = false, className = '' }: VolumeChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { addIndicator } = useChart(containerRef)
-  const tokens = getTokens()
+  const tokens = useMemo(() => getTokens(), [])
 
   useEffect(() => {
     if (candles.length > 0) {
