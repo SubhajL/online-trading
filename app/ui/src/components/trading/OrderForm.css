@@ -80,8 +80,8 @@
 
 .submit-error {
   padding: var(--space-3);
-  background-color: rgba(239, 83, 80, 0.1);
-  border: 1px solid rgba(239, 83, 80, 0.3);
+  background-color: hsla(0, 84%, 60%, 0.1);
+  border: 1px solid hsla(0, 84%, 60%, 0.3);
   border-radius: var(--radius-md);
   color: var(--color-text-danger);
   font-size: var(--font-size-sm);
@@ -100,20 +100,20 @@
 
 .submit-button.buy {
   background-color: var(--color-text-success);
-  color: #ffffff;
+  color: var(--button-success-text);
 }
 
 .submit-button.buy:hover:not(:disabled) {
-  background-color: #2cb5a8;
+  background-color: var(--color-success-600);
 }
 
 .submit-button.sell {
   background-color: var(--color-text-danger);
-  color: #ffffff;
+  color: var(--button-danger-text);
 }
 
 .submit-button.sell:hover:not(:disabled) {
-  background-color: #f66462;
+  background-color: var(--color-error-500);
 }
 
 .submit-button:disabled {
