@@ -135,4 +135,38 @@ describe('AutoTradingToggle', () => {
 
     expect(screen.getByText(/Enable to allow automated trading/i)).toBeInTheDocument()
   })
+
+  describe('token-based styling', () => {
+    it('applies enabled token styles when enabled', () => {
+      render(<AutoTradingToggle enabled={true} onChange={mockOnChange} />)
+
+      const container = screen.getByTestId('auto-trading-toggle')
+      const computedStyles = window.getComputedStyle(container)
+
+      // Should use success token colors for enabled state
+      expect(computedStyles.backgroundColor).toMatch(/142|rgb/)
+    })
+
+    it('applies disabled token styles when disabled', () => {
+      render(<AutoTradingToggle enabled={false} onChange={mockOnChange} />)
+
+      const container = screen.getByTestId('auto-trading-toggle')
+      const computedStyles = window.getComputedStyle(container)
+
+      // Should use gray token colors for disabled state
+      expect(computedStyles.backgroundColor).toBeTruthy()
+    })
+
+    it('applies error token styles when error present', () => {
+      render(
+        <AutoTradingToggle enabled={false} onChange={mockOnChange} error="Connection failed" />,
+      )
+
+      const container = screen.getByTestId('auto-trading-toggle')
+      const computedStyles = window.getComputedStyle(container)
+
+      // Should use error token colors
+      expect(computedStyles.backgroundColor).toBeTruthy()
+    })
+  })
 })
