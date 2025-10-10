@@ -6,6 +6,8 @@ import {
   composeErrorBannerStyles,
   buildPageContainerStyle,
   getAutoTradingToggleStyles,
+  getIndicatorColor,
+  applyFocusVisible,
 } from './stylingHelpers'
 
 const mockTokens: DesignTokens = {
@@ -241,7 +243,7 @@ describe('getSpinnerStyle', () => {
 
 describe('composeErrorBannerStyles', () => {
   test('returns error banner style with icon', () => {
-    const result = composeErrorBannerStyles(true, mockTokens)
+    const result = composeErrorBannerStyles(true, mockTokens, 'error')
     expect(result).toEqual({
       backgroundColor: mockTokens.colors.error[50],
       color: mockTokens.colors.text.danger,
@@ -255,7 +257,7 @@ describe('composeErrorBannerStyles', () => {
   })
 
   test('returns error banner style without icon', () => {
-    const result = composeErrorBannerStyles(false, mockTokens)
+    const result = composeErrorBannerStyles(false, mockTokens, 'error')
     expect(result).toEqual({
       backgroundColor: mockTokens.colors.error[50],
       color: mockTokens.colors.text.danger,
@@ -267,6 +269,33 @@ describe('composeErrorBannerStyles', () => {
       gap: undefined,
     })
   })
+
+  test('error severity returns danger palette', () => {
+    const result = composeErrorBannerStyles(false, mockTokens, 'error')
+    expect(result.backgroundColor).toBe(mockTokens.colors.error[50])
+    expect(result.color).toBe(mockTokens.colors.text.danger)
+    expect(result.border).toBe(`1px solid ${mockTokens.colors.error[200]}`)
+  })
+
+  test('warning severity returns warning palette', () => {
+    const result = composeErrorBannerStyles(false, mockTokens, 'warning')
+    expect(result.backgroundColor).toBe(mockTokens.colors.warning[50])
+    expect(result.color).toBe(mockTokens.colors.text.warning)
+    expect(result.border).toBe(`1px solid ${mockTokens.colors.warning[200]}`)
+  })
+
+  test('info severity returns info palette', () => {
+    const result = composeErrorBannerStyles(false, mockTokens, 'info')
+    expect(result.backgroundColor).toBe(mockTokens.colors.info[50])
+    expect(result.color).toBe(mockTokens.colors.text.info)
+    expect(result.border).toBe(`1px solid ${mockTokens.colors.info[200]}`)
+  })
+
+  test('defaults to error when severity omitted for backward compat', () => {
+    const result = composeErrorBannerStyles(false, mockTokens)
+    expect(result.backgroundColor).toBe(mockTokens.colors.error[50])
+    expect(result.color).toBe(mockTokens.colors.text.danger)
+  })
 })
 
 describe('buildPageContainerStyle', () => {
@@ -275,6 +304,8 @@ describe('buildPageContainerStyle', () => {
     expect(result).toEqual({
       padding: mockTokens.spacing[8],
       backgroundColor: mockTokens.colors.surface.base,
+      maxWidth: undefined,
+      margin: undefined,
     })
   })
 
@@ -283,6 +314,8 @@ describe('buildPageContainerStyle', () => {
     expect(result).toEqual({
       padding: mockTokens.spacing[6],
       backgroundColor: mockTokens.colors.surface.base,
+      maxWidth: undefined,
+      margin: undefined,
     })
   })
 
@@ -291,7 +324,39 @@ describe('buildPageContainerStyle', () => {
     expect(result).toEqual({
       padding: mockTokens.spacing[0],
       backgroundColor: mockTokens.colors.surface.base,
+      maxWidth: undefined,
+      margin: undefined,
     })
+  })
+
+  test('applies maxWidth sm with auto margin', () => {
+    const result = buildPageContainerStyle(mockTokens, 8, 'sm')
+    expect(result.maxWidth).toBe('640px')
+    expect(result.margin).toBe('0 auto')
+  })
+
+  test('applies maxWidth md with auto margin', () => {
+    const result = buildPageContainerStyle(mockTokens, 8, 'md')
+    expect(result.maxWidth).toBe('768px')
+    expect(result.margin).toBe('0 auto')
+  })
+
+  test('applies maxWidth lg with auto margin', () => {
+    const result = buildPageContainerStyle(mockTokens, 8, 'lg')
+    expect(result.maxWidth).toBe('1024px')
+    expect(result.margin).toBe('0 auto')
+  })
+
+  test('applies maxWidth xl with auto margin', () => {
+    const result = buildPageContainerStyle(mockTokens, 8, 'xl')
+    expect(result.maxWidth).toBe('1280px')
+    expect(result.margin).toBe('0 auto')
+  })
+
+  test('applies maxWidth full without auto margin', () => {
+    const result = buildPageContainerStyle(mockTokens, 8, 'full')
+    expect(result.maxWidth).toBe('100%')
+    expect(result.margin).toBeUndefined()
   })
 })
 
@@ -320,5 +385,57 @@ describe('getAutoTradingToggleStyles', () => {
   test('applies shared border radius from tokens', () => {
     const result = getAutoTradingToggleStyles(mockTokens, 'enabled')
     expect(result.borderRadius).toBe(mockTokens.radius.md)
+  })
+})
+
+describe('getIndicatorColor', () => {
+  test('maps EMA to error token color', () => {
+    const result = getIndicatorColor('EMA', mockTokens)
+    expect(result).toBe(mockTokens.colors.error[500])
+  })
+
+  test('maps SMA to success token color', () => {
+    const result = getIndicatorColor('SMA', mockTokens)
+    expect(result).toBe(mockTokens.colors.success[500])
+  })
+
+  test('maps RSI to info token color', () => {
+    const result = getIndicatorColor('RSI', mockTokens)
+    expect(result).toBe(mockTokens.colors.info[500])
+  })
+
+  test('maps MACD to warning token color', () => {
+    const result = getIndicatorColor('MACD', mockTokens)
+    expect(result).toBe(mockTokens.colors.warning[500])
+  })
+
+  test('maps BB to primary token color', () => {
+    const result = getIndicatorColor('BB', mockTokens)
+    expect(result).toBe(mockTokens.colors.primary[500])
+  })
+
+  test('falls back to neutral token for unknown indicator', () => {
+    const result = getIndicatorColor('UNKNOWN' as any, mockTokens)
+    expect(result).toBe(mockTokens.colors.gray[500])
+  })
+})
+
+describe('applyFocusVisible', () => {
+  test('returns focus-visible styles with border focus color', () => {
+    const result = applyFocusVisible(mockTokens)
+    expect(result).toEqual({
+      outline: `2px solid ${mockTokens.colors.border.focus}`,
+      outlineOffset: '2px',
+    })
+  })
+
+  test('uses custom outline width when provided', () => {
+    const result = applyFocusVisible(mockTokens, '3px')
+    expect(result.outline).toBe(`3px solid ${mockTokens.colors.border.focus}`)
+  })
+
+  test('uses custom outline offset when provided', () => {
+    const result = applyFocusVisible(mockTokens, '2px', '4px')
+    expect(result.outlineOffset).toBe('4px')
   })
 })

@@ -53,12 +53,24 @@ describe('Chart', () => {
     removeSmcOverlay: vi.fn(),
     addZoneOverlay: vi.fn(),
     removeZoneOverlay: vi.fn(),
+    addMarkers: vi.fn(),
+    addPriceLevels: vi.fn(),
+    removePriceLevels: vi.fn(),
     cleanup: vi.fn(),
   }
 
   const mockUseMarketData = {
     candles: mockCandles,
-    indicators: {},
+    indicators: {
+      EMA: [
+        { time: 1640995200, value: 45100 },
+        { time: 1640995260, value: 45150 },
+      ],
+      RSI: [
+        { time: 1640995200, value: 65 },
+        { time: 1640995260, value: 62 },
+      ],
+    },
     smcEvents: mockSmcEvents,
     zones: mockZones,
     loading: false,

@@ -31,19 +31,20 @@ export function PageShell({
 }: PageShellProps) {
   const tokens = useMemo(() => getTokens(), [])
   const containerStyles = buildPageContainerStyle(tokens, paddingLevel)
-
-  const maxWidthClass = {
-    sm: styles.maxWidthSm,
-    md: styles.maxWidthMd,
-    lg: styles.maxWidthLg,
-    xl: styles.maxWidthXl,
-    full: styles.maxWidthFull,
-  }[maxWidth]
+  const contentStyles = buildPageContainerStyle(tokens, 0, maxWidth)
 
   return (
     <div className={`${styles.pageShell} ${className}`} style={containerStyles}>
       {skipLinkTarget && <div id={skipLinkTarget} className={styles.skipTarget} tabIndex={-1} />}
-      <div className={`${styles.content} ${maxWidthClass}`}>{children}</div>
+      <div
+        className={styles.content}
+        style={{
+          maxWidth: contentStyles.maxWidth,
+          margin: contentStyles.margin,
+        }}
+      >
+        {children}
+      </div>
     </div>
   )
 }

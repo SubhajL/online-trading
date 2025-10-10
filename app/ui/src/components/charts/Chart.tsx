@@ -1,9 +1,11 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { useChart } from '@/hooks/useChart'
 import { useMarketData } from '@/hooks/useMarketData'
 import { IndicatorPanel } from './IndicatorPanel'
 import { SmcOverlays } from './SmcOverlays'
 import { ZoneOverlays } from './ZoneOverlays'
+import { getTokens } from '@/utils/getTokens'
+import { getIndicatorColor } from '@/utils/stylingHelpers'
 import type { Symbol, Timeframe, ChartType, IndicatorType } from '@/types'
 import type { UTCTimestamp } from 'lightweight-charts'
 
@@ -41,6 +43,7 @@ export function Chart({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showSmc, setShowSmc] = useState(showSmcOverlays)
   const [showZones, setShowZones] = useState(showZoneOverlays)
+  const tokens = useMemo(() => getTokens(), [])
 
   const {
     updateCandles,
@@ -87,11 +90,11 @@ export function Chart({
           value: d.value,
         }))
         addIndicator(indicatorType, formattedData, {
-          color: getIndicatorColor(indicatorType),
+          color: getIndicatorColor(indicatorType, tokens),
         })
       }
     })
-  }, [indicators, enabledIndicators, addIndicator])
+  }, [indicators, enabledIndicators, addIndicator, tokens])
 
   // Update SMC overlays
   useEffect(() => {
@@ -156,18 +159,6 @@ export function Chart({
     } else {
       setEnabledIndicators(prev => [...prev, indicator])
     }
-  }
-
-  const getIndicatorColor = (indicator: IndicatorType): string => {
-    const colors: Record<IndicatorType, string> = {
-      EMA: '#FF6B6B',
-      SMA: '#4ECDC4',
-      RSI: '#45B7D1',
-      VOLUME: '#96CEB4',
-      MACD: '#F7B731',
-      BB: '#5F27CD',
-    }
-    return colors[indicator] || '#999999'
   }
 
   const toggleFullscreen = () => {

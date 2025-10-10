@@ -86,8 +86,9 @@ describe('PageShell', () => {
         </PageShell>,
       )
 
-      const content = container.querySelector('[class*="content"]')
-      expect(content?.className).toContain('maxWidthMd')
+      const content = container.querySelector('[class*="content"]') as HTMLElement
+      expect(content?.style.maxWidth).toBe('768px')
+      expect(content?.style.margin).toMatch(/^0(px)? auto$/)
     })
 
     test('applies small max-width when specified', () => {
@@ -97,8 +98,9 @@ describe('PageShell', () => {
         </PageShell>,
       )
 
-      const content = container.querySelector('[class*="content"]')
-      expect(content?.className).toContain('maxWidthSm')
+      const content = container.querySelector('[class*="content"]') as HTMLElement
+      expect(content?.style.maxWidth).toBe('640px')
+      expect(content?.style.margin).toMatch(/^0(px)? auto$/)
     })
 
     test('applies full width when specified', () => {
@@ -108,8 +110,9 @@ describe('PageShell', () => {
         </PageShell>,
       )
 
-      const content = container.querySelector('[class*="content"]')
-      expect(content?.className).toContain('maxWidthFull')
+      const content = container.querySelector('[class*="content"]') as HTMLElement
+      expect(content?.style.maxWidth).toBe('100%')
+      expect(content?.style.margin).toBe('')
     })
   })
 
