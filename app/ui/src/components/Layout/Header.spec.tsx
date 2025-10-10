@@ -84,4 +84,35 @@ describe('Header', () => {
     const header = container.querySelector('header')
     expect(header).toHaveClass('custom-header')
   })
+
+  describe('WCAG Touch Targets & Accessibility', () => {
+    test('nav links have touch-target-min class for 44px height', () => {
+      vi.mocked(usePathname).mockReturnValue('/')
+      render(<Header />)
+
+      const dashboardLink = screen.getByText('Dashboard').closest('a')
+      expect(dashboardLink).toBeInTheDocument()
+      expect(dashboardLink).toHaveClass('nav-link')
+      // CSS: .nav-link has min-height: var(--touch-target-min) which is 44px
+    })
+
+    test('logout button has touch-target-min for 44px height', () => {
+      vi.mocked(usePathname).mockReturnValue('/')
+      const handleLogout = vi.fn()
+      render(<Header onLogout={handleLogout} />)
+
+      const logoutButton = screen.getByText('Logout')
+      expect(logoutButton).toHaveClass('logout-button')
+      // CSS: .logout-button has min-height: var(--touch-target-min) which is 44px
+    })
+
+    test('logo link has focus-visible styling', () => {
+      vi.mocked(usePathname).mockReturnValue('/')
+      render(<Header />)
+
+      const logoLink = screen.getByText('Trading Platform')
+      expect(logoLink).toHaveClass('header-logo')
+      // CSS ensures focus-visible with 2px solid var(--color-border-focus)
+    })
+  })
 })

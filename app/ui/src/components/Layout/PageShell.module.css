@@ -1,0 +1,58 @@
+/* PageShell - Reusable page wrapper with token-based styling */
+
+.pageShell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  background-color: var(--color-surface-base);
+  color: var(--color-text-primary);
+}
+
+.skipTarget {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.skipTarget:focus {
+  width: auto;
+  height: auto;
+  clip: auto;
+  overflow: visible;
+  background: var(--color-primary-500);
+  color: var(--button-primary-text);
+  padding: var(--space-3) var(--space-4);
+  z-index: var(--z-index-modal);
+  border-radius: var(--radius-sm);
+}
+
+.content {
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Max-width variants */
+.maxWidthSm {
+  max-width: 640px;
+}
+
+.maxWidthMd {
+  max-width: 768px;
+}
+
+.maxWidthLg {
+  max-width: 1024px;
+}
+
+.maxWidthXl {
+  max-width: 1280px;
+}
+
+.maxWidthFull {
+  max-width: 100%;
+}
