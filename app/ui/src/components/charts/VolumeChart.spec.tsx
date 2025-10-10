@@ -77,14 +77,10 @@ describe('VolumeChart', () => {
     // Check that volume data includes color information based on candle direction
     const volumeData = mockAddIndicator.mock.calls[0]?.[1]
 
-    // First candle closes higher than opens (green)
-    expect(volumeData[0]!.color).toBe('#26a69a')
-
-    // Second candle closes higher than opens (green)
-    expect(volumeData[1]!.color).toBe('#26a69a')
-
-    // Third candle closes higher than opens (green)
-    expect(volumeData[2]!.color).toBe('#26a69a')
+    // All test candles close higher than opens (bullish = success token)
+    expect(volumeData[0]!.color).toBe('hsl(142, 71%, 45%)')
+    expect(volumeData[1]!.color).toBe('hsl(142, 71%, 45%)')
+    expect(volumeData[2]!.color).toBe('hsl(142, 71%, 45%)')
   })
 
   it('shows loading state', () => {
@@ -179,5 +175,64 @@ describe('VolumeChart', () => {
     // Volume chart should use the same time values as candles
     const volumeData = mockAddIndicator.mock.calls[0]![1]
     expect(volumeData.map((d: any) => d.time)).toEqual(mockCandles.map(c => c.time))
+  })
+
+  describe('token-based colors', () => {
+    it('uses getVolumeBarColor for bullish candles', () => {
+      const bullishCandles: Candle[] = [
+        {
+          time: 1704067200,
+          open: 42000,
+          high: 42500,
+          low: 41800,
+          close: 42300, // close > open = bullish
+          volume: 100,
+        },
+      ]
+
+      render(<VolumeChart candles={bullishCandles} />)
+
+      const volumeData = mockAddIndicator.mock.calls[0]?.[1]
+      // Should use success token color instead of hardcoded #26a69a
+      expect(volumeData[0]!.color).toMatch(/hsl\(142/)
+    })
+
+    it('uses getVolumeBarColor for bearish candles', () => {
+      const bearishCandles: Candle[] = [
+        {
+          time: 1704067200,
+          open: 42300,
+          high: 42500,
+          low: 41800,
+          close: 42000, // close < open = bearish
+          volume: 100,
+        },
+      ]
+
+      render(<VolumeChart candles={bearishCandles} />)
+
+      const volumeData = mockAddIndicator.mock.calls[0]?.[1]
+      // Should use error token color instead of hardcoded #ef5350
+      expect(volumeData[0]!.color).toMatch(/hsl\(0/)
+    })
+
+    it('uses getVolumeBarColor for flat candles', () => {
+      const flatCandles: Candle[] = [
+        {
+          time: 1704067200,
+          open: 42000,
+          high: 42500,
+          low: 41800,
+          close: 42000, // close === open = flat
+          volume: 100,
+        },
+      ]
+
+      render(<VolumeChart candles={flatCandles} />)
+
+      const volumeData = mockAddIndicator.mock.calls[0]?.[1]
+      // Should use neutral gray token color
+      expect(volumeData[0]!.color).toMatch(/hsl\(220/)
+    })
   })
 })

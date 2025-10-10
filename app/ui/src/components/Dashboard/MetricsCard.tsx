@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 import { deriveChangeClass } from '@/utils/metricHelpers'
 import './MetricsCard.css'
@@ -9,7 +10,7 @@ type MetricsCardProps = {
   subtitle?: string
   loading?: boolean
   error?: string
-  icon?: string
+  icon?: ReactNode
   format?: 'currency' | 'percentage' | 'number' | 'none'
   trend?: 'up' | 'down' | 'neutral'
   className?: string

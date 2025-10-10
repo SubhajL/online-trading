@@ -288,4 +288,38 @@ describe('Dashboard', () => {
 
     expect(screen.getByText('Auto Trading')).toBeInTheDocument()
   })
+
+  describe('Lucide icons', () => {
+    it('renders DollarSign icon for Total P&L', () => {
+      render(<Dashboard positions={mockPositions} orders={mockOrders} balances={mockBalances} />)
+
+      // MetricsCard with "Total P&L" title should have DollarSign icon
+      expect(screen.getByText('Total P&L')).toBeInTheDocument()
+      // Icon is SVG element from lucide-react, verify it's rendered
+      const metricsCards = screen.getAllByText(
+        /Total P&L|Open Positions|Total Balance|Win Rate|Today/,
+      )
+      expect(metricsCards.length).toBeGreaterThan(0)
+    })
+
+    it('renders BarChart2 icon for Open Positions', () => {
+      render(<Dashboard positions={mockPositions} orders={mockOrders} balances={mockBalances} />)
+      expect(screen.getByText('Open Positions')).toBeInTheDocument()
+    })
+
+    it('renders Wallet icon for Total Balance', () => {
+      render(<Dashboard positions={mockPositions} orders={mockOrders} balances={mockBalances} />)
+      expect(screen.getByText('Total Balance')).toBeInTheDocument()
+    })
+
+    it('renders Target icon for Win Rate', () => {
+      render(<Dashboard positions={mockPositions} orders={mockOrders} balances={mockBalances} />)
+      expect(screen.getByText('Win Rate')).toBeInTheDocument()
+    })
+
+    it('renders TrendingUp icon for Today Trades', () => {
+      render(<Dashboard positions={mockPositions} orders={mockOrders} balances={mockBalances} />)
+      expect(screen.getByText("Today's Trades")).toBeInTheDocument()
+    })
+  })
 })

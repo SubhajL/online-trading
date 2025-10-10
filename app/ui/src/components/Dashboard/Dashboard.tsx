@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { DollarSign, BarChart2, Wallet, Target, TrendingUp } from 'lucide-react'
 import type { Position, Order, Balance, OrderFormValues } from '@/types'
 import { MetricsCard } from './MetricsCard'
 import { OrderForm } from '../trading/OrderForm'
@@ -110,7 +111,7 @@ export function Dashboard({
           value={totalPnL}
           format="currency"
           change={formatPercentageChange(totalPnL > 0 ? 5.2 : -2.3)}
-          icon="💰"
+          icon={<DollarSign size={20} />}
           loading={loading}
         />
 
@@ -135,7 +136,7 @@ export function Dashboard({
             title="Open Positions"
             value={positions.length}
             format="number"
-            icon="📊"
+            icon={<BarChart2 size={20} />}
             loading={loading}
           />
           <span data-testid="positions-count" style={{ display: 'none' }}>
@@ -149,7 +150,7 @@ export function Dashboard({
             subtitle="All Venues"
             value={totalBalance}
             format="currency"
-            icon="💵"
+            icon={<Wallet size={20} />}
             loading={loading}
           />
           <span
@@ -165,7 +166,7 @@ export function Dashboard({
           title="Win Rate"
           value={winRate}
           format="percentage"
-          icon="🎯"
+          icon={<Target size={20} />}
           loading={loading}
         />
 
@@ -174,7 +175,7 @@ export function Dashboard({
             title="Today's Trades"
             value={todayTrades.length}
             format="number"
-            icon="📈"
+            icon={<TrendingUp size={20} />}
             loading={loading}
           />
           <span data-testid="trades-count" style={{ display: 'none' }}>

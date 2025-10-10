@@ -2,6 +2,8 @@ import { useRef, useEffect } from 'react'
 import { useChart } from '@/hooks/useChart'
 import type { Candle } from '@/types'
 import type { HistogramData, Time } from 'lightweight-charts'
+import { getVolumeBarColor } from '@/utils/tokenHelpers'
+import { getTokens } from '@/utils/getTokens'
 import './VolumeChart.css'
 
 type VolumeChartProps = {
@@ -13,20 +15,21 @@ type VolumeChartProps = {
 export function VolumeChart({ candles, loading = false, className = '' }: VolumeChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { addIndicator } = useChart(containerRef)
+  const tokens = getTokens()
 
   useEffect(() => {
     if (candles.length > 0) {
       const volumeData: HistogramData[] = candles.map(candle => ({
         time: candle.time as Time,
         value: candle.volume,
-        color: candle.close >= candle.open ? '#26a69a' : '#ef5350',
+        color: getVolumeBarColor(candle, tokens),
       }))
 
       addIndicator('VOLUME', volumeData, {
         priceScaleId: 'volume',
       })
     }
-  }, [candles, addIndicator])
+  }, [candles, addIndicator, tokens])
 
   return (
     <div className={`volume-chart ${className}`} data-testid="volume-chart">
