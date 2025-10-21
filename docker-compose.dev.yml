@@ -67,12 +67,23 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-your_secure_password_here}@postgres:5432/${POSTGRES_DB:-trading_platform}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-trading_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_secure_password_here}
+      - POSTGRES_DB=${POSTGRES_DB:-trading_platform}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-trading_platform}
+      - DB_USER=${POSTGRES_USER:-trading_user}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-your_secure_password_here}
       - REDIS_URL=redis://redis:6379/0
       - ENGINE_PORT=${ENGINE_PORT:-8000}
       - ENVIRONMENT=development
       - DEBUG=true
       - LOG_LEVEL=debug
       - PYTHONPATH=/workspace
+      - ROUTER_URL=http://router:8080
     ports:
       - "${ENGINE_PORT:-8000}:8000"
     working_dir: /workspace/app/engine
@@ -146,7 +157,7 @@ services:
       - PORT=${BFF_PORT:-3001}
       - NODE_ENV=development
       - ENGINE_PUBSUB_URL=redis://redis:6379
-      - ROUTER_BASE_URL=http://router:8080
+      - ROUTER_URL=http://router:8080
       - ROUTER_API_KEY=${ROUTER_API_KEY}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
