@@ -24,6 +24,10 @@ from ..models import (
     OrderType,
     TimeFrame,
 )
+from ..resilience.thread_safe_circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +70,15 @@ class BinanceRestClient:
 
         # Session management
         self._session: ClientSession | None = None
+
+        # Circuit breaker for external requests
+        self._circuit_breaker = CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=5,
+                success_threshold=2,
+                timeout_seconds=60,
+            ),
+        )
 
         logger.info(f"BinanceRestClient initialized (testnet: {testnet})")
 
@@ -151,6 +164,11 @@ class BinanceRestClient:
         if self.api_key:
             headers["X-MBX-APIKEY"] = self.api_key
 
+        # Circuit breaker pre-check
+        if not await self._circuit_breaker.should_allow_request():
+            logger.error("Circuit breaker open for Binance REST client")
+            raise RuntimeError("CircuitBreakerOpen")
+
         try:
             if method.upper() == "GET":
                 async with self._session.get(
@@ -158,29 +176,40 @@ class BinanceRestClient:
                     params=params,
                     headers=headers,
                 ) as response:
-                    return await self._handle_response(response)
+                    # Do not count rate-limit responses as failures
+                    if response.status in (418, 429):
+                        return await self._handle_response(response)
+                    data = await self._handle_response(response)
+                    await self._circuit_breaker.record_success()
+                    return data
             elif method.upper() == "POST":
                 async with self._session.post(
                     url,
                     data=params,
                     headers=headers,
                 ) as response:
-                    return await self._handle_response(response)
+                    data = await self._handle_response(response)
+                    await self._circuit_breaker.record_success()
+                    return data
             elif method.upper() == "DELETE":
                 async with self._session.delete(
                     url,
                     params=params,
                     headers=headers,
                 ) as response:
-                    return await self._handle_response(response)
+                    data = await self._handle_response(response)
+                    await self._circuit_breaker.record_success()
+                    return data
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
         except TimeoutError:
             logger.error(f"Request timeout for {method} {endpoint}")
+            await self._circuit_breaker.record_failure()
             raise
         except Exception as e:
             logger.error(f"Request error for {method} {endpoint}: {e}")
+            await self._circuit_breaker.record_failure()
             raise
 
     async def _handle_response(

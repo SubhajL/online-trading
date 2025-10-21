@@ -2,55 +2,74 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import numpy as np
+
 from ..models import Candle
 from ..smc_types import Pivot, PivotMethod, SwingType
 
 
 def detect_n_bar_pivots(candles: list[Candle], n: int = 3) -> list[Pivot]:
+    """Detect n-bar pivots using window comparisons with NumPy assistance.
+
+    This preserves exact Decimal prices from input candles while using
+    vectorized window max/min checks to reduce Python-level overhead.
+    """
+    if n <= 1:
+        return []
     if len(candles) < n:
         return []
 
-    pivots = []
     half_n = n // 2
+    highs = np.array([float(c.high_price) for c in candles], dtype=np.float64)
+    lows = np.array([float(c.low_price) for c in candles], dtype=np.float64)
 
+    pivots: list[Pivot] = []
     for i in range(half_n, len(candles) - half_n):
         current = candles[i]
-
-        # Check for swing high
-        is_high = True
-        for j in range(i - half_n, i + half_n + 1):
-            if j != i and candles[j].high_price > current.high_price:
-                is_high = False
-                break
-
-        if is_high:
-            pivots.append(
-                Pivot(
-                    timestamp=current.close_time,
-                    price=current.high_price,
-                    is_high=True,
-                    strength=n,
-                    bar_index=current.bar_index,
+        # window excluding center index for strict comparison
+        w_start = i - half_n
+        w_end = i + half_n + 1
+        # High pivot: no neighbor strictly greater than current high
+        win_highs = highs[w_start:w_end]
+        if win_highs.size:
+            # max excluding center
+            if win_highs.size == 1:
+                max_excl = -np.inf
+            else:
+                max_excl = max(
+                    np.max(win_highs[: i - w_start]),
+                    np.max(win_highs[i - w_start + 1 :]),
                 )
-            )
-
-        # Check for swing low
-        is_low = True
-        for j in range(i - half_n, i + half_n + 1):
-            if j != i and candles[j].low_price < current.low_price:
-                is_low = False
-                break
-
-        if is_low:
-            pivots.append(
-                Pivot(
-                    timestamp=current.close_time,
-                    price=current.low_price,
-                    is_high=False,
-                    strength=n,
-                    bar_index=current.bar_index,
+            if highs[i] >= max_excl:
+                pivots.append(
+                    Pivot(
+                        timestamp=current.close_time,
+                        price=current.high_price,  # preserve Decimal
+                        is_high=True,
+                        strength=n,
+                        bar_index=current.bar_index,
+                    ),
                 )
-            )
+
+        # Low pivot: no neighbor strictly lower than current low
+        win_lows = lows[w_start:w_end]
+        if win_lows.size:
+            if win_lows.size == 1:
+                min_excl = np.inf
+            else:
+                min_excl = min(
+                    np.min(win_lows[: i - w_start]), np.min(win_lows[i - w_start + 1 :])
+                )
+            if lows[i] <= min_excl:
+                pivots.append(
+                    Pivot(
+                        timestamp=current.close_time,
+                        price=current.low_price,  # preserve Decimal
+                        is_high=False,
+                        strength=n,
+                        bar_index=current.bar_index,
+                    ),
+                )
 
     return pivots
 

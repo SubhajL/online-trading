@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 import json
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urlparse
 
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidStatusCode
@@ -23,6 +23,30 @@ from ..models import Candle, CandleUpdateEvent, TimeFrame
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def build_combined_stream_url(base_url: str, streams: list[str]) -> str:
+    """
+    Build Binance-compliant combined stream WebSocket URL.
+
+    Converts base URL and stream list into the format required by Binance:
+    wss://host:port/stream?streams=stream1/stream2/stream3
+
+    Args:
+        base_url: Base WebSocket URL (e.g., "wss://stream.binance.com:9443/ws/")
+        streams: List of stream names (e.g., ["btcusdt@kline_1m", "ethusdt@ticker"])
+
+    Returns:
+        Combined stream URL in Binance format
+    """
+    parsed = urlparse(base_url)
+
+    # Construct new URL with /stream endpoint
+    scheme = parsed.scheme
+    netloc = parsed.netloc
+    streams_param = "/".join(streams)
+
+    return f"{scheme}://{netloc}/stream?streams={streams_param}"
 
 
 class BinanceWebSocketClient:
@@ -106,7 +130,9 @@ class BinanceWebSocketClient:
 
         logger.info("WebSocket client stopped")
 
-    async def subscribe_klines(self, symbols: list[str], timeframes: list[TimeFrame]) -> None:
+    async def subscribe_klines(
+        self, symbols: list[str], timeframes: list[TimeFrame]
+    ) -> None:
         """
         Subscribe to kline/candlestick streams
 
@@ -227,13 +253,14 @@ class BinanceWebSocketClient:
     async def _connect_and_listen(self) -> None:
         """Connect to WebSocket and listen for messages"""
         try:
-            # Build WebSocket URL
+            # Build WebSocket URL using Binance combined stream format
             if self._subscriptions:
-                streams = "/".join(sorted(self._subscriptions))
-                url = urljoin(self.base_url, streams)
+                url = build_combined_stream_url(
+                    self.base_url, sorted(self._subscriptions)
+                )
             else:
-                # Use a dummy stream for connection
-                url = urljoin(self.base_url, "btcusdt@ticker")
+                # Use a dummy stream for initial connection
+                url = build_combined_stream_url(self.base_url, ["btcusdt@ticker"])
 
             logger.info(f"Connecting to WebSocket: {url[:100]}...")
 

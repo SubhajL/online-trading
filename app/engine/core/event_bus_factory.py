@@ -16,7 +16,7 @@ from app.engine.core.interfaces import (
 )
 
 if TYPE_CHECKING:
-    from app.engine.bus_refactored import EventBus
+    from app.engine.bus import EventBus
 from app.engine.core.event_processor import EventProcessingConfig, EventProcessor
 from app.engine.core.security import SecureConfig, SecurityLevel
 from app.engine.core.subscription_manager import SubscriptionConfig, SubscriptionManager
@@ -36,6 +36,9 @@ class EventBusConfig:
     dead_letter_queue_size: int = 1000
     subscription_config: dict[str, Any] | None = None
     processing_config: dict[str, Any] | None = None
+    slow_event_warning_threshold_ms: int = 100
+    use_priority_queue: bool = True
+    dlq_on_any_failure: bool = False
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
@@ -53,6 +56,9 @@ class EventBusConfig:
 
         if self.dead_letter_queue_size < 0:
             raise ValueError("dead_letter_queue_size must be non-negative")
+        if self.slow_event_warning_threshold_ms <= 0:
+            raise ValueError("slow_event_warning_threshold_ms must be positive")
+        # No extra hard bounds for toggles; they are simple booleans
 
     @classmethod
     def from_secure_config(
@@ -94,6 +100,17 @@ class EventBusConfig:
             ),
             subscription_config=cls._load_subscription_config(secure_config),
             processing_config=cls._load_processing_config(secure_config),
+            slow_event_warning_threshold_ms=int(
+                secure_config.get("EVENT_BUS_SLOW_EVENT_WARN_MS", 100),
+            ),
+            use_priority_queue=(
+                secure_config.get("EVENT_BUS_USE_PRIORITY_QUEUE", "true").lower()
+                == "true"
+            ),
+            dlq_on_any_failure=(
+                secure_config.get("EVENT_BUS_DLQ_ON_ANY_FAILURE", "false").lower()
+                == "true"
+            ),
         )
 
     @staticmethod

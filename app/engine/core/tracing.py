@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Distributed tracing framework with OpenTelemetry support.
 
@@ -475,6 +477,14 @@ class W3CTraceContextPropagator:
 _tracer_provider = TracerProvider()
 
 
+class NoopTracerProvider(TracerProvider):
+    """A tracer provider that intentionally does nothing (used in tests)."""
+
+    def add_span_processor(self, processor: "SpanProcessor") -> None:  # type: ignore[override]
+        # Ignore processor registration in noop mode
+        return
+
+
 def get_tracer_provider() -> TracerProvider:
     """Get global tracer provider."""
     return _tracer_provider
@@ -484,6 +494,22 @@ def set_tracer_provider(provider: TracerProvider) -> None:
     """Set global tracer provider."""
     global _tracer_provider
     _tracer_provider = provider
+
+
+def configure_tracing_from_env() -> None:
+    """Configure tracing based on TRACING_DISABLED env var.
+
+    If TRACING_DISABLED=true, installs a NoopTracerProvider; otherwise installs a fresh TracerProvider.
+    """
+    import os
+
+    disabled = os.getenv("TRACING_DISABLED", "false").lower() == "true"
+    provider: TracerProvider
+    if disabled:
+        provider = NoopTracerProvider()
+    else:
+        provider = TracerProvider()
+    set_tracer_provider(provider)
 
 
 def get_tracer(name: str, version: str | None = None) -> Tracer:

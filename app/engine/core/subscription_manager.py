@@ -319,3 +319,10 @@ class SubscriptionManager:
 
             subscription.retry_count = 0
             subscription.last_error = None
+
+    async def get_subscription_by_id(
+        self, subscription_id: str
+    ) -> EventSubscription | None:
+        """Get a subscription by its ID (read-only access)."""
+        async with self._lock:
+            return self._subscriptions_by_id.get(subscription_id)

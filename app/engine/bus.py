@@ -54,9 +54,21 @@ class EventBus:
         self._subscription_manager = subscription_manager
         self._event_processor = event_processor
         self._config = config
+        self._use_priority_queue: bool = getattr(config, "use_priority_queue", True)
+        self._dlq_on_any_failure: bool = getattr(config, "dlq_on_any_failure", False)
 
-        # Event processing queue
-        self._event_queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=config.max_queue_size)
+        # Event processing queue (priority or FIFO)
+        if self._use_priority_queue:
+            self._event_queue: asyncio.PriorityQueue[Any] = asyncio.PriorityQueue(
+                maxsize=config.max_queue_size,
+            )
+        else:
+            self._event_queue = asyncio.Queue(maxsize=config.max_queue_size)  # type: ignore[assignment]
+
+        # Dead-letter queue
+        self._dead_letter_queue: asyncio.Queue[Any] = asyncio.Queue(
+            maxsize=config.dead_letter_queue_size,
+        )
 
         # Worker management
         self._running = False
@@ -165,8 +177,13 @@ class EventBus:
             event.metadata["priority"] = priority
             event.metadata["published_at"] = asyncio.get_event_loop().time()
 
-            # Add to processing queue
-            await self._event_queue.put(event)
+            # Add to processing queue respecting queue mode
+            if self._use_priority_queue:
+                await self._event_queue.put(
+                    (-priority, asyncio.get_event_loop().time(), event)
+                )
+            else:
+                await self._event_queue.put(event)
             logger.debug(f"Published event {event.event_type} for {event.symbol}")
             return True
 
@@ -287,9 +304,43 @@ class EventBus:
         while self._running:
             try:
                 # Get event from queue with timeout
-                event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
+                if self._use_priority_queue:
+                    _prio, _ts, event = await asyncio.wait_for(
+                        self._event_queue.get(), timeout=1.0
+                    )
+                else:
+                    event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
 
-                await self._process_event_with_subscriptions(event)
+                # Measure per-event processing time
+                start = asyncio.get_event_loop().time()
+                result = await self._process_event_with_subscriptions(event)
+                # DLQ policy
+                try:
+                    if result is not None and result.failed_handlers > 0:
+                        if self._dlq_on_any_failure or result.successful_handlers == 0:
+                            await self._maybe_enqueue_dead_letter(
+                                event,
+                                reason=(
+                                    "any_handler_failed"
+                                    if self._dlq_on_any_failure
+                                    else "all_handlers_failed"
+                                ),
+                            )
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f"DLQ enqueue error: {e}")
+                elapsed = (asyncio.get_event_loop().time() - start) * 1000.0
+
+                # Warn if processing exceeds configured threshold
+                try:
+                    threshold_ms = getattr(
+                        self._config, "slow_event_warning_threshold_ms", 100
+                    )
+                except Exception:
+                    threshold_ms = 100
+                if elapsed > threshold_ms:
+                    logger.warning(
+                        f"Slow event processing: {elapsed:.2f}ms (threshold {threshold_ms}ms)",
+                    )
 
             except TimeoutError:
                 # Normal timeout, continue loop
@@ -306,7 +357,7 @@ class EventBus:
         ErrorCategory.PROCESSING,
         ErrorSeverity.MEDIUM,
     )
-    async def _process_event_with_subscriptions(self, event: BaseEvent) -> None:
+    async def _process_event_with_subscriptions(self, event: BaseEvent) -> Any:
         """
         Process an event by getting subscriptions and delegating to processor.
 
@@ -335,6 +386,51 @@ class EventBus:
                 await self._subscription_manager.record_subscription_success(
                     subscription.subscription_id,
                 )
+        return result
+
+    async def _maybe_enqueue_dead_letter(self, event: BaseEvent, reason: str) -> None:
+        """Enqueue event into dead letter queue with reason."""
+        try:
+            event.metadata["dead_letter_reason"] = reason
+            event.metadata["dead_letter_timestamp"] = datetime.utcnow().isoformat()
+            await self._dead_letter_queue.put(event)
+        except asyncio.QueueFull:
+            logger.error("Dead letter queue full, dropping event")
+
+    async def get_dead_letter_events(self, limit: int = 100) -> list[BaseEvent]:
+        """Return up to limit events from DLQ without draining it."""
+        events: list[BaseEvent] = []
+        size = self._dead_letter_queue.qsize()
+        tmp: list[BaseEvent] = []
+        for _ in range(size):
+            try:
+                ev = self._dead_letter_queue.get_nowait()
+                tmp.append(ev)
+            except asyncio.QueueEmpty:
+                break
+        for ev in tmp:
+            await self._dead_letter_queue.put(ev)
+            if len(events) < limit:
+                events.append(ev)
+        return events
+
+    async def get_subscription_status(
+        self, subscription_id: str
+    ) -> dict[str, Any] | None:
+        """Get subscription status including circuit breaker state."""
+        sub = await self._subscription_manager.get_subscription_by_id(subscription_id)
+        if not sub:
+            return None
+        cb_state = await self._event_processor.get_circuit_breaker_state(
+            sub.subscriber_id
+        )
+        return {
+            "subscription_id": subscription_id,
+            "subscriber_id": sub.subscriber_id,
+            "is_active": sub.is_active,
+            "retry_count": sub.retry_count,
+            "circuit_breaker_state": cb_state,
+        }
 
     async def __aenter__(self) -> None:
         """Async context manager entry."""
@@ -384,7 +480,9 @@ def get_event_bus() -> EventBus:
         RuntimeError: If no event bus has been set[Any]
     """
     if _global_event_bus is None:
-        raise RuntimeError("No event bus has been set[Any]. Call set_event_bus() first.")
+        raise RuntimeError(
+            "No event bus has been set[Any]. Call set_event_bus() first."
+        )
     return _global_event_bus
 
 

@@ -175,7 +175,9 @@ class Candle(BaseModel):
     trades: int
     taker_buy_base_volume: Decimal
     taker_buy_quote_volume: Decimal
-    bar_index: int | None = None  # Bar index within the sequence (optional for backward compatibility)
+    bar_index: int | None = (
+        None  # Bar index within the sequence (optional for backward compatibility)
+    )
 
     @validator(
         "open_price",
@@ -318,6 +320,41 @@ class SMCSignal(BaseModel):
     confidence: Decimal = Field(ge=0, le=1)
     zone: SupplyDemandZone | None = None
     reasoning: str
+
+
+# ============================================================================
+# Additional Event Models for End-to-End Flows
+# ============================================================================
+
+
+class FeaturesUpdateEvent(BaseEvent):
+    """Event emitted when features are updated/calculated for a symbol/timeframe."""
+
+    event_type: EventType = EventType.FEATURES_CALCULATED
+    symbol: str
+    timeframe: TimeFrame
+    features: TechnicalIndicators
+
+
+class SignalEvent(BaseEvent):
+    """Generic trading signal event wrapping an SMC signal."""
+
+    event_type: EventType = EventType.SMC_SIGNAL
+    signal: SMCSignal
+
+
+class SMCEvent(BaseEvent):
+    """Generic SMC event container used in test flows."""
+
+    event_type: EventType = EventType.SMC_SIGNAL
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ZoneEvent(BaseEvent):
+    """Zone update event wrapping a supply/demand zone."""
+
+    event_type: EventType = EventType.FEATURES_CALCULATED
+    zone: SupplyDemandZone
 
 
 class RetestSignal(BaseModel):

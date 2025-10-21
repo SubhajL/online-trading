@@ -132,11 +132,24 @@ def load_configuration() -> EngineConfig:
             password=os.getenv("DB_PASSWORD", "password"),
         )
 
-        redis_config = RedisConfig(
-            host=os.getenv("REDIS_HOST", "localhost"),
-            port=int(os.getenv("REDIS_PORT", "6379")),
-            password=os.getenv("REDIS_PASSWORD"),
-        )
+        # Parse Redis configuration from URL if provided, otherwise use individual vars
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            # Parse redis://host:port/db format
+            import urllib.parse
+            parsed = urllib.parse.urlparse(redis_url)
+            redis_config = RedisConfig(
+                host=parsed.hostname or "localhost",
+                port=parsed.port or 6379,
+                password=parsed.password,
+                database=int(parsed.path.lstrip('/')) if parsed.path.strip('/') else 0,
+            )
+        else:
+            redis_config = RedisConfig(
+                host=os.getenv("REDIS_HOST", "localhost"),
+                port=int(os.getenv("REDIS_PORT", "6379")),
+                password=os.getenv("REDIS_PASSWORD"),
+            )
 
         binance_config = BinanceConfig(
             api_key=os.getenv("BINANCE_API_KEY", ""),
