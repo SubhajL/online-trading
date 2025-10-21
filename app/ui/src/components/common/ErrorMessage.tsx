@@ -1,5 +1,8 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { formatErrorMessage } from '../../utils/formatErrorMessage'
+import { getTokens } from '@/utils/getTokens'
+import { getErrorBannerStyles } from '@/utils/tokenHelpers'
+import type { BannerSeverity } from '@/utils/tokenHelpers'
 import './ErrorMessage.css'
 
 type ErrorMessageProps = {
@@ -26,15 +29,30 @@ export function ErrorMessage({
   className = '',
 }: ErrorMessageProps) {
   const message = formatErrorMessage(error)
+  const tokens = useMemo(() => getTokens(), [])
+  const bannerStyles = useMemo(
+    () => getErrorBannerStyles(variant as BannerSeverity, tokens),
+    [variant, tokens],
+  )
 
-  const classes = ['error-message', `variant-${variant}`, compact && 'compact', className]
-    .filter(Boolean)
-    .join(' ')
+  const classes = ['error-message', compact && 'compact', className].filter(Boolean).join(' ')
 
   const ariaLive = variant === 'error' ? 'assertive' : 'polite'
 
   return (
-    <div className={classes} data-testid="error-message" role="alert" aria-live={ariaLive}>
+    <div
+      className={classes}
+      data-testid="error-message"
+      role="alert"
+      aria-live={ariaLive}
+      style={{
+        backgroundColor: bannerStyles.backgroundColor,
+        color: bannerStyles.color,
+        borderColor: bannerStyles.borderColor,
+        padding: bannerStyles.padding,
+        borderRadius: bannerStyles.borderRadius,
+      }}
+    >
       <div className="error-content">
         {/* Icon */}
         <div className="error-icon-wrapper">

@@ -1,10 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
 import { OrderForm } from './OrderForm'
 
 describe('OrderForm', () => {
   const mockOnSubmit = vi.fn()
+  const specDir = path.dirname(fileURLToPath(import.meta.url))
+  const orderFormStyles = readFileSync(path.join(specDir, 'OrderForm.css'), 'utf-8')
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -266,5 +271,10 @@ describe('OrderForm', () => {
     // Press Alt+S for Sell
     await user.keyboard('{Alt>}s{/Alt}')
     expect(screen.getByRole('radio', { name: /sell/i })).toBeChecked()
+  })
+
+  it('defines focus styles using tokenized border color', () => {
+    expect(orderFormStyles).toContain('var(--color-border-focus)')
+    expect(orderFormStyles).toContain(':focus-visible')
   })
 })

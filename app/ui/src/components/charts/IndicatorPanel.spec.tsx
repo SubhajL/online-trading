@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IndicatorPanel } from './IndicatorPanel'
 import type { IndicatorType } from '@/types'
+import { DEFAULT_TOKENS } from '@/constants/defaultTokens'
 
 describe('IndicatorPanel', () => {
   const mockOnToggleIndicator = vi.fn()
@@ -184,7 +185,11 @@ describe('IndicatorPanel', () => {
       )
 
       const panel = screen.getByTestId('indicator-panel')
-      expect(panel).toHaveClass('absolute', 'right-0', 'top-0', 'bg-gray-800', 'shadow-lg')
+      expect(panel).toHaveStyle({
+        backgroundColor: DEFAULT_TOKENS.colors.surface.raised,
+        borderLeft: `1px solid ${DEFAULT_TOKENS.colors.border.default}`,
+        borderRadius: DEFAULT_TOKENS.radius.lg,
+      })
     })
 
     it('should style active indicator items differently', () => {
@@ -199,8 +204,13 @@ describe('IndicatorPanel', () => {
       const emaItem = screen.getByTestId('indicator-item-EMA')
       const smaItem = screen.getByTestId('indicator-item-SMA')
 
-      expect(emaItem).toHaveClass('bg-gray-700')
-      expect(smaItem).toHaveClass('hover:bg-gray-700')
+      expect(emaItem).toHaveStyle({
+        backgroundColor: DEFAULT_TOKENS.colors.surface.overlay,
+        color: DEFAULT_TOKENS.colors.text.primary,
+      })
+      expect(smaItem).toHaveStyle({
+        color: DEFAULT_TOKENS.colors.text.secondary,
+      })
     })
   })
 

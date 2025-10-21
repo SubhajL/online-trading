@@ -2,6 +2,12 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ErrorMessage } from './ErrorMessage'
 import * as formatErrorMessageModule from '../../utils/formatErrorMessage'
+import { DEFAULT_TOKENS } from '@/constants/defaultTokens'
+import { getTokens } from '@/utils/getTokens'
+
+vi.mock('@/utils/getTokens', () => ({
+  getTokens: vi.fn(),
+}))
 
 // Mock the formatErrorMessage function
 vi.mock('../../utils/formatErrorMessage')
@@ -14,6 +20,7 @@ describe('ErrorMessage', () => {
       if (typeof error === 'string') return error
       return 'Formatted error message'
     })
+    vi.mocked(getTokens).mockReturnValue(DEFAULT_TOKENS)
   })
 
   it('renders error message from string', () => {
@@ -37,25 +44,28 @@ describe('ErrorMessage', () => {
     expect(formatErrorMessageModule.formatErrorMessage).toHaveBeenCalledWith(error)
   })
 
-  it('renders with error variant by default', () => {
-    render(<ErrorMessage error="Test error" />)
+  it('applies token background and text color for error variant', () => {
+    render(<ErrorMessage error="Tokenized error" />)
 
     const container = screen.getByTestId('error-message')
-    expect(container).toHaveClass('error-message', 'variant-error')
+    expect(container.style.backgroundColor).toBe(DEFAULT_TOKENS.colors.error[50])
+    expect(container.style.color).toBe(DEFAULT_TOKENS.colors.text.danger)
   })
 
-  it('renders with warning variant', () => {
-    render(<ErrorMessage error="Test warning" variant="warning" />)
+  it('applies token styling for warning variant', () => {
+    render(<ErrorMessage error="Tokenized warning" variant="warning" />)
 
     const container = screen.getByTestId('error-message')
-    expect(container).toHaveClass('error-message', 'variant-warning')
+    expect(container.style.backgroundColor).toBe(DEFAULT_TOKENS.colors.warning[50])
+    expect(container.style.color).toBe(DEFAULT_TOKENS.colors.text.warning)
   })
 
-  it('renders with info variant', () => {
-    render(<ErrorMessage error="Test info" variant="info" />)
+  it('applies token styling for info variant', () => {
+    render(<ErrorMessage error="Tokenized info" variant="info" />)
 
     const container = screen.getByTestId('error-message')
-    expect(container).toHaveClass('error-message', 'variant-info')
+    expect(container.style.backgroundColor).toBe(DEFAULT_TOKENS.colors.info[50])
+    expect(container.style.color).toBe(DEFAULT_TOKENS.colors.text.info)
   })
 
   it('shows dismiss button when dismissible', () => {

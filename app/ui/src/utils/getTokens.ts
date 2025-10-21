@@ -210,5 +210,40 @@ export function getTokens(): DesignTokens {
     radius: readRadius(styles),
     typography: readTypography(styles),
     chart: readChartColors(styles),
+    breakpoints: readBreakpoints(styles),
+    constraints: readConstraints(styles),
+  }
+}
+
+/**
+ * Reads breakpoint tokens from CSS custom properties
+ */
+export function readBreakpoints(
+  styles: CSSStyleDeclaration,
+): import('../types/tokens').Breakpoints {
+  return {
+    mobile:
+      styles.getPropertyValue('--breakpoint-mobile').trim() || DEFAULT_TOKENS.breakpoints.mobile,
+    tablet:
+      styles.getPropertyValue('--breakpoint-tablet').trim() || DEFAULT_TOKENS.breakpoints.tablet,
+    desktop:
+      styles.getPropertyValue('--breakpoint-desktop').trim() || DEFAULT_TOKENS.breakpoints.desktop,
+    wide: styles.getPropertyValue('--breakpoint-wide').trim() || DEFAULT_TOKENS.breakpoints.wide,
+  }
+}
+
+/**
+ * Reads constraint tokens from CSS custom properties
+ */
+export function readConstraints(
+  styles: CSSStyleDeclaration,
+): import('../types/tokens').Constraints {
+  return {
+    maxScrollHeight:
+      styles.getPropertyValue('--constraint-max-scroll-height').trim() ||
+      DEFAULT_TOKENS.constraints.maxScrollHeight,
+    minTouchTarget:
+      styles.getPropertyValue('--constraint-min-touch-target').trim() ||
+      DEFAULT_TOKENS.constraints.minTouchTarget,
   }
 }

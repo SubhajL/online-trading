@@ -4,6 +4,10 @@ import {
   mapRouteToNavTokens,
   getVolumeBarColor,
   getTouchTargetPadding,
+  getIndicatorColor,
+  getErrorBannerStyles,
+  ensureFocusVisibleStyles,
+  getSpinnerStyles,
 } from './tokenHelpers'
 import { DEFAULT_TOKENS } from '../constants/defaultTokens'
 import type { ChartTheme } from '../types/chartTheme'
@@ -105,5 +109,140 @@ describe('getTouchTargetPadding', () => {
       paddingTop: DEFAULT_TOKENS.spacing[3],
       paddingBottom: DEFAULT_TOKENS.spacing[3],
     })
+  })
+})
+
+describe('getIndicatorColor', () => {
+  test('maps EMA to error token', () => {
+    const color = getIndicatorColor('EMA', DEFAULT_TOKENS)
+    expect(color).toBe(DEFAULT_TOKENS.colors.error[500])
+  })
+
+  test('maps SMA to success token', () => {
+    const color = getIndicatorColor('SMA', DEFAULT_TOKENS)
+    expect(color).toBe(DEFAULT_TOKENS.colors.success[500])
+  })
+
+  test('maps RSI to info token', () => {
+    const color = getIndicatorColor('RSI', DEFAULT_TOKENS)
+    expect(color).toBe(DEFAULT_TOKENS.colors.info[500])
+  })
+
+  test('maps MACD to warning token', () => {
+    const color = getIndicatorColor('MACD', DEFAULT_TOKENS)
+    expect(color).toBe(DEFAULT_TOKENS.colors.warning[500])
+  })
+
+  test('maps BB to primary token', () => {
+    const color = getIndicatorColor('BB', DEFAULT_TOKENS)
+    expect(color).toBe(DEFAULT_TOKENS.colors.primary[500])
+  })
+
+  test('falls back to neutral token for unknown indicators', () => {
+    const color = getIndicatorColor('VOLUME', DEFAULT_TOKENS)
+    expect(color).toBe(DEFAULT_TOKENS.colors.gray[500])
+  })
+})
+
+describe('getErrorBannerStyles', () => {
+  test('returns danger palette for error severity', () => {
+    const styles = getErrorBannerStyles('error', DEFAULT_TOKENS)
+    expect(styles.backgroundColor).toBe(DEFAULT_TOKENS.colors.error[50])
+    expect(styles.color).toBe(DEFAULT_TOKENS.colors.text.danger)
+    expect(styles.borderColor).toBe(DEFAULT_TOKENS.colors.error[200])
+  })
+
+  test('returns warning palette for warning severity', () => {
+    const styles = getErrorBannerStyles('warning', DEFAULT_TOKENS)
+    expect(styles.backgroundColor).toBe(DEFAULT_TOKENS.colors.warning[50])
+    expect(styles.color).toBe(DEFAULT_TOKENS.colors.text.warning)
+    expect(styles.borderColor).toBe(DEFAULT_TOKENS.colors.warning[200])
+  })
+
+  test('returns info palette for info severity', () => {
+    const styles = getErrorBannerStyles('info', DEFAULT_TOKENS)
+    expect(styles.backgroundColor).toBe(DEFAULT_TOKENS.colors.info[50])
+    expect(styles.color).toBe(DEFAULT_TOKENS.colors.text.info)
+    expect(styles.borderColor).toBe(DEFAULT_TOKENS.colors.info[200])
+  })
+
+  test('includes padding from tokens', () => {
+    const styles = getErrorBannerStyles('error', DEFAULT_TOKENS)
+    expect(styles.padding).toBe(DEFAULT_TOKENS.spacing[4])
+  })
+
+  test('includes border radius from tokens', () => {
+    const styles = getErrorBannerStyles('error', DEFAULT_TOKENS)
+    expect(styles.borderRadius).toBe(DEFAULT_TOKENS.radius.md)
+  })
+})
+
+describe('ensureFocusVisibleStyles', () => {
+  test('provides outline using focus token', () => {
+    const styles = ensureFocusVisibleStyles(DEFAULT_TOKENS)
+    expect(styles.outline).toContain(DEFAULT_TOKENS.colors.border.focus)
+  })
+
+  test('includes default width of 2px', () => {
+    const styles = ensureFocusVisibleStyles(DEFAULT_TOKENS)
+    expect(styles.outline).toContain('2px')
+  })
+
+  test('includes default offset of 2px', () => {
+    const styles = ensureFocusVisibleStyles(DEFAULT_TOKENS)
+    expect(styles.outlineOffset).toBe('2px')
+  })
+
+  test('allows custom width', () => {
+    const styles = ensureFocusVisibleStyles(DEFAULT_TOKENS, '3px')
+    expect(styles.outline).toContain('3px')
+  })
+
+  test('allows custom offset', () => {
+    const styles = ensureFocusVisibleStyles(DEFAULT_TOKENS, '2px', '4px')
+    expect(styles.outlineOffset).toBe('4px')
+  })
+})
+
+describe('getSpinnerStyles', () => {
+  test('small size uses token spacing', () => {
+    const styles = getSpinnerStyles('sm', 'primary', DEFAULT_TOKENS)
+    expect(styles.width).toBe('16px')
+    expect(styles.height).toBe('16px')
+    expect(styles.borderWidth).toBe('2px')
+  })
+
+  test('medium size uses larger dimensions', () => {
+    const styles = getSpinnerStyles('md', 'primary', DEFAULT_TOKENS)
+    expect(styles.width).toBe('24px')
+    expect(styles.height).toBe('24px')
+    expect(styles.borderWidth).toBe('3px')
+  })
+
+  test('large size uses largest dimensions', () => {
+    const styles = getSpinnerStyles('lg', 'primary', DEFAULT_TOKENS)
+    expect(styles.width).toBe('32px')
+    expect(styles.height).toBe('32px')
+    expect(styles.borderWidth).toBe('4px')
+  })
+
+  test('primary variant uses success token', () => {
+    const styles = getSpinnerStyles('md', 'primary', DEFAULT_TOKENS)
+    expect(styles.borderColor).toContain(DEFAULT_TOKENS.colors.success[500])
+  })
+
+  test('secondary variant uses primary token', () => {
+    const styles = getSpinnerStyles('md', 'secondary', DEFAULT_TOKENS)
+    expect(styles.borderColor).toContain(DEFAULT_TOKENS.colors.primary[500])
+  })
+
+  test('white variant uses inverse text token', () => {
+    const styles = getSpinnerStyles('md', 'white', DEFAULT_TOKENS)
+    expect(styles.borderColor).toContain(DEFAULT_TOKENS.colors.text.inverse)
+  })
+
+  test('border color includes transparent segments', () => {
+    const styles = getSpinnerStyles('md', 'primary', DEFAULT_TOKENS)
+    expect(styles.borderColor).toContain('transparent')
   })
 })

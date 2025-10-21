@@ -10,32 +10,32 @@ describe('LoadingSpinner', () => {
     expect(spinner).toBeInTheDocument()
   })
 
-  it('applies default size class', () => {
+  it('applies default size styles', () => {
     render(<LoadingSpinner />)
 
-    const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toHaveClass('loading-spinner', 'size-medium')
+    const circle = screen.getByTestId('loading-spinner').querySelector('.spinner-circle')
+    expect(circle).toHaveStyle({ width: '24px', height: '24px', borderWidth: '3px' })
   })
 
-  it('applies small size class', () => {
+  it('applies small size styles', () => {
     render(<LoadingSpinner size="small" />)
 
-    const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toHaveClass('loading-spinner', 'size-small')
+    const circle = screen.getByTestId('loading-spinner').querySelector('.spinner-circle')
+    expect(circle).toHaveStyle({ width: '16px', height: '16px', borderWidth: '2px' })
   })
 
-  it('applies medium size class', () => {
+  it('applies medium size styles', () => {
     render(<LoadingSpinner size="medium" />)
 
-    const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toHaveClass('loading-spinner', 'size-medium')
+    const circle = screen.getByTestId('loading-spinner').querySelector('.spinner-circle')
+    expect(circle).toHaveStyle({ width: '24px', height: '24px', borderWidth: '3px' })
   })
 
-  it('applies large size class', () => {
+  it('applies large size styles', () => {
     render(<LoadingSpinner size="large" />)
 
-    const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toHaveClass('loading-spinner', 'size-large')
+    const circle = screen.getByTestId('loading-spinner').querySelector('.spinner-circle')
+    expect(circle).toHaveStyle({ width: '32px', height: '32px', borderWidth: '4px' })
   })
 
   it('renders with custom className', () => {
@@ -110,25 +110,25 @@ describe('LoadingSpinner', () => {
     expect(container).toHaveClass('center-text')
   })
 
-  it('applies color variant', () => {
+  it('applies color variant with token', () => {
     render(<LoadingSpinner color="primary" />)
 
-    const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toHaveClass('color-primary')
+    const circle = screen.getByTestId('loading-spinner').querySelector('.spinner-circle')
+    expect(circle).toHaveStyle({ borderColor: expect.stringContaining('transparent') })
   })
 
-  it('applies secondary color variant', () => {
+  it('applies secondary color variant with token', () => {
     render(<LoadingSpinner color="secondary" />)
 
-    const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toHaveClass('color-secondary')
+    const circle = screen.getByTestId('loading-spinner').querySelector('.spinner-circle')
+    expect(circle).toHaveStyle({ borderColor: expect.stringContaining('transparent') })
   })
 
-  it('applies white color variant', () => {
+  it('applies white color variant with token', () => {
     render(<LoadingSpinner color="white" />)
 
-    const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toHaveClass('color-white')
+    const circle = screen.getByTestId('loading-spinner').querySelector('.spinner-circle')
+    expect(circle).toHaveStyle({ borderColor: expect.stringContaining('transparent') })
   })
 
   it('combines multiple props correctly', () => {
@@ -143,13 +143,10 @@ describe('LoadingSpinner', () => {
     )
 
     const spinner = screen.getByTestId('loading-spinner')
-    expect(spinner).toHaveClass(
-      'loading-spinner',
-      'size-large',
-      'color-primary',
-      'inline',
-      'custom-class',
-    )
+    expect(spinner).toHaveClass('loading-spinner', 'inline', 'custom-class')
+
+    const circle = spinner.querySelector('.spinner-circle')
+    expect(circle).toHaveStyle({ width: '32px', height: '32px', borderWidth: '4px' })
     expect(screen.getByText('Processing...')).toBeInTheDocument()
   })
 })

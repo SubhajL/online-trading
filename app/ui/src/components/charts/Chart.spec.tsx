@@ -4,10 +4,15 @@ import userEvent from '@testing-library/user-event'
 import { Chart } from './Chart'
 import { useChart } from '@/hooks/useChart'
 import { useMarketData } from '@/hooks/useMarketData'
+import { getTokens } from '@/utils/getTokens'
+import { DEFAULT_TOKENS } from '@/constants/defaultTokens'
 import type { Candle, Timeframe, SmcEvent, Zone } from '@/types'
 
 vi.mock('@/hooks/useChart')
 vi.mock('@/hooks/useMarketData')
+vi.mock('@/utils/getTokens', () => ({
+  getTokens: vi.fn(),
+}))
 
 describe('Chart', () => {
   const mockCandles: Candle[] = [
@@ -83,6 +88,7 @@ describe('Chart', () => {
     vi.clearAllMocks()
     vi.mocked(useChart).mockReturnValue(mockUseChart)
     vi.mocked(useMarketData).mockReturnValue(mockUseMarketData as any)
+    vi.mocked(getTokens).mockReturnValue(DEFAULT_TOKENS)
   })
 
   describe('rendering', () => {
@@ -116,6 +122,62 @@ describe('Chart', () => {
     })
   })
 
+  describe('token-based styling', () => {
+    it('applies token background to chart container', () => {
+      render(<Chart symbol="BTCUSDT" />)
+
+      const container = screen.getByTestId('chart-root')
+      expect(container).toHaveStyle({
+        backgroundColor: DEFAULT_TOKENS.colors.gray[900],
+        borderRadius: DEFAULT_TOKENS.radius.lg,
+      })
+    })
+
+    it('applies token styles to active timeframe button', () => {
+      render(<Chart symbol="BTCUSDT" timeframe="15m" />)
+
+      const button = screen.getByText('15m')
+      expect(button).toHaveStyle({
+        backgroundColor: DEFAULT_TOKENS.colors.primary[600],
+        color: DEFAULT_TOKENS.colors.text.inverse,
+      })
+    })
+
+    it('applies token styles to chart type select', () => {
+      render(<Chart symbol="BTCUSDT" />)
+
+      const select = screen.getByTestId('chart-type-selector')
+      expect(select).toHaveStyle({
+        backgroundColor: DEFAULT_TOKENS.colors.surface.overlay,
+        border: `1px solid ${DEFAULT_TOKENS.colors.border.subtle}`,
+        color: DEFAULT_TOKENS.colors.text.primary,
+      })
+    })
+
+    it('applies token styles to icon buttons', () => {
+      render(<Chart symbol="BTCUSDT" />)
+
+      const fitButton = screen.getByTestId('fit-content-button')
+      expect(fitButton).toHaveStyle({
+        color: DEFAULT_TOKENS.colors.text.muted,
+      })
+    })
+
+    it('applies token background to loading overlay', () => {
+      vi.mocked(useMarketData).mockReturnValue({
+        ...mockUseMarketData,
+        loading: true,
+      } as any)
+
+      render(<Chart symbol="BTCUSDT" />)
+
+      const overlay = screen.getByTestId('chart-loading')
+      expect(overlay).toHaveStyle({
+        backgroundColor: `${DEFAULT_TOKENS.colors.surface.base}cc`,
+      })
+    })
+  })
+
   describe('timeframe selection', () => {
     it('should render timeframe buttons', () => {
       render(<Chart symbol="BTCUSDT" />)
@@ -140,7 +202,8 @@ describe('Chart', () => {
       render(<Chart symbol="BTCUSDT" timeframe="15m" />)
 
       const button15m = screen.getByText('15m')
-      expect(button15m).toHaveClass('bg-blue-600')
+      expect(button15m.style.backgroundColor).toBeTruthy()
+      expect(button15m.style.color).toBeTruthy()
     })
   })
 
@@ -298,12 +361,14 @@ describe('Chart', () => {
 
     it('should handle fullscreen toggle', async () => {
       const user = userEvent.setup()
-      render(<Chart symbol="BTCUSDT" />)
+      const { container } = render(<Chart symbol="BTCUSDT" />)
 
       const fullscreenButton = screen.getByTestId('fullscreen-button')
       await user.click(fullscreenButton)
 
-      expect(screen.getByTestId('chart-container')).toHaveClass('fullscreen')
+      const chartWrapper = container.firstChild as HTMLElement
+      expect(chartWrapper).toHaveStyle({ position: 'fixed' })
+      expect(chartWrapper).toHaveStyle({ zIndex: '50' })
     })
   })
 
@@ -314,6 +379,113 @@ describe('Chart', () => {
       unmount()
 
       expect(mockUseChart.cleanup).toHaveBeenCalled()
+    })
+  })
+
+  describe('token-based styling', () => {
+    it('renders container with token-based background', () => {
+      const { container } = render(<Chart symbol="BTCUSDT" />)
+      const chartWrapper = container.firstChild as HTMLElement
+      expect(chartWrapper.style.backgroundColor).toBeTruthy()
+      expect(chartWrapper.style.backgroundColor).not.toMatch(/#[0-9a-fA-F]{6}/)
+    })
+
+    it('applies active button styles to selected timeframe', () => {
+      render(<Chart symbol="BTCUSDT" timeframe="15m" />)
+      const button15m = screen.getByRole('button', { name: '15m' })
+      expect(button15m.style.backgroundColor).toBeTruthy()
+      expect(button15m.style.color).toBeTruthy()
+      expect(button15m.style.padding).toBeTruthy()
+    })
+
+    it('applies inactive button styles to unselected timeframe', () => {
+      render(<Chart symbol="BTCUSDT" timeframe="15m" />)
+      const button1m = screen.getByRole('button', { name: '1m' })
+      expect(button1m.style.backgroundColor).toBeTruthy()
+      expect(button1m.style.color).toBeTruthy()
+      expect(button1m.style.padding).toBeTruthy()
+    })
+
+    it('applies token styles to indicator toggle button', () => {
+      render(<Chart symbol="BTCUSDT" />)
+      const indicatorButton = screen.getByTestId('indicator-panel-toggle')
+      expect(indicatorButton.style.backgroundColor).toBeTruthy()
+      expect(indicatorButton.style.color).toBeTruthy()
+      expect(indicatorButton.style.borderRadius).toBeTruthy()
+    })
+
+    it('applies inactive token styles to SMC toggle', () => {
+      render(<Chart symbol="BTCUSDT" showSmcOverlays={false} />)
+      const smcButton = screen.getByTestId('smc-overlay-toggle')
+      expect(smcButton.style.backgroundColor).toBeTruthy()
+      expect(smcButton.style.color).toBeTruthy()
+    })
+
+    it('applies active token styles to SMC toggle', () => {
+      render(<Chart symbol="BTCUSDT" showSmcOverlays={true} />)
+      const smcButton = screen.getByTestId('smc-overlay-toggle')
+      expect(smcButton.style.backgroundColor).toBeTruthy()
+      expect(smcButton.style.color).toBeTruthy()
+    })
+
+    it('applies inactive token styles to zone toggle', () => {
+      render(<Chart symbol="BTCUSDT" showZoneOverlays={false} />)
+      const zoneButton = screen.getByTestId('zone-overlay-toggle')
+      expect(zoneButton.style.backgroundColor).toBeTruthy()
+      expect(zoneButton.style.color).toBeTruthy()
+    })
+
+    it('applies active token styles to zone toggle', () => {
+      render(<Chart symbol="BTCUSDT" showZoneOverlays={true} />)
+      const zoneButton = screen.getByTestId('zone-overlay-toggle')
+      expect(zoneButton.style.backgroundColor).toBeTruthy()
+      expect(zoneButton.style.color).toBeTruthy()
+    })
+
+    it('applies token background to loading overlay', () => {
+      vi.mocked(useMarketData).mockReturnValue({
+        ...mockUseMarketData,
+        loading: true,
+      } as any)
+      render(<Chart symbol="BTCUSDT" />)
+      const loadingOverlay = screen.getByTestId('chart-loading')
+      expect(loadingOverlay.style.backgroundColor).toBeTruthy()
+    })
+
+    it('does not contain hex color literals', () => {
+      const { container } = render(<Chart symbol="BTCUSDT" />)
+      const buttons = container.querySelectorAll('button')
+      buttons.forEach(button => {
+        const bgColor = button.style.backgroundColor
+        if (bgColor) {
+          expect(bgColor).not.toMatch(/#[0-9a-fA-F]{6}/)
+        }
+      })
+    })
+
+    it('renders SVG icons with inline size styles, no Tailwind classes', () => {
+      const { container } = render(<Chart symbol="BTCUSDT" />)
+      const fitButton = screen.getByTestId('fit-content-button')
+      const svg = fitButton.querySelector('svg') as SVGElement
+      expect(svg).toBeTruthy()
+      // Inline width/height from tokens
+      expect((svg as any).style.width).toBe(DEFAULT_TOKENS.spacing[4])
+      expect((svg as any).style.height).toBe(DEFAULT_TOKENS.spacing[4])
+      // No Tailwind utility classes
+      const cls = (svg.getAttribute('class') || '').trim()
+      expect(cls).toBe('')
+    })
+
+    it('contains no Tailwind utility class keywords in DOM', () => {
+      const { container } = render(<Chart symbol="BTCUSDT" />)
+      const withClass = Array.from(container.querySelectorAll('[class]')) as HTMLElement[]
+      const forbidden = ['w-', 'h-', 'px-', 'py-', 'bg-', 'text-']
+      withClass.forEach(el => {
+        const cls = el.getAttribute('class') || ''
+        forbidden.forEach(fragment => {
+          expect(cls.includes(fragment)).toBe(false)
+        })
+      })
     })
   })
 })

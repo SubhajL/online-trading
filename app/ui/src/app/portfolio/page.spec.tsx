@@ -21,15 +21,16 @@ vi.mock('@/hooks/useBalances', () => ({
 }))
 
 describe('PortfolioPage', () => {
-  test('renders with CSS module classes', () => {
+  test('renders portfolio content', () => {
     render(<PortfolioPage />)
     expect(screen.getByText('Portfolio Overview')).toBeInTheDocument()
   })
 
-  test('applies appLayout CSS module class to root div', () => {
-    const { container } = render(<PortfolioPage />)
-    const rootDiv = container.firstChild as HTMLElement
-    expect(rootDiv.className).toContain('appLayout')
+  test('includes main landmark with id and tabIndex', () => {
+    render(<PortfolioPage />)
+    const mainElement = screen.getByRole('main')
+    expect(mainElement.id).toBe('main-content')
+    expect(mainElement.tabIndex).toBe(-1)
   })
 
   test('renders portfolio summary cards', () => {

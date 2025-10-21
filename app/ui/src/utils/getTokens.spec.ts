@@ -9,6 +9,8 @@ import {
   readRadius,
   readTypography,
   readChartColors,
+  readBreakpoints,
+  readConstraints,
 } from './getTokens'
 import { DEFAULT_TOKENS } from '../constants/defaultTokens'
 import type { DesignTokens } from '../types/tokens'
@@ -86,6 +88,32 @@ describe('getTokens', () => {
     const tokens = getTokens()
     const _typecheck: DesignTokens = tokens
     expect(_typecheck).toBeDefined()
+  })
+
+  test('includes breakpoints in token object', () => {
+    vi.stubGlobal('window', undefined)
+    const tokens = getTokens()
+    expect(tokens.breakpoints).toBeDefined()
+    expect(tokens.breakpoints.tablet).toBe('768px')
+  })
+
+  test('includes constraints in token object', () => {
+    vi.stubGlobal('window', undefined)
+    const tokens = getTokens()
+    expect(tokens.constraints).toBeDefined()
+    expect(tokens.constraints.maxScrollHeight).toBe('300px')
+  })
+
+  test('breakpoints.tablet matches ErrorBoundary media query value', () => {
+    vi.stubGlobal('window', undefined)
+    const tokens = getTokens()
+    expect(tokens.breakpoints.tablet).toBe('768px')
+  })
+
+  test('constraints.maxScrollHeight usable in CSS', () => {
+    vi.stubGlobal('window', undefined)
+    const tokens = getTokens()
+    expect(tokens.constraints.maxScrollHeight).toMatch(/^\d+px$/)
   })
 })
 
@@ -288,5 +316,77 @@ describe('readChartColors', () => {
 
     const result = readChartColors(mockStyles)
     expect(result.bg).toBe('hsl(0, 0%, 100%)')
+  })
+})
+
+describe('readBreakpoints', () => {
+  test('returns mobile tablet desktop wide breakpoints', () => {
+    const mockStyles = {
+      getPropertyValue: vi.fn((prop: string) => {
+        const map: Record<string, string> = {
+          '--breakpoint-mobile': '640px',
+          '--breakpoint-tablet': '768px',
+          '--breakpoint-desktop': '1024px',
+          '--breakpoint-wide': '1280px',
+        }
+        return map[prop] || ''
+      }),
+    } as unknown as CSSStyleDeclaration
+
+    const result = readBreakpoints(mockStyles)
+    expect(result).toEqual({
+      mobile: '640px',
+      tablet: '768px',
+      desktop: '1024px',
+      wide: '1280px',
+    })
+  })
+
+  test('falls back to defaults when CSS variables missing', () => {
+    const mockStyles = {
+      getPropertyValue: vi.fn().mockReturnValue(''),
+    } as unknown as CSSStyleDeclaration
+
+    const result = readBreakpoints(mockStyles)
+    expect(result.mobile).toBe('640px')
+    expect(result.tablet).toBe('768px')
+    expect(result.desktop).toBe('1024px')
+    expect(result.wide).toBe('1280px')
+  })
+})
+
+describe('readConstraints', () => {
+  test('returns maxScrollHeight for error stacks', () => {
+    const mockStyles = {
+      getPropertyValue: vi.fn((prop: string) => {
+        if (prop === '--constraint-max-scroll-height') return '300px'
+        return ''
+      }),
+    } as unknown as CSSStyleDeclaration
+
+    const result = readConstraints(mockStyles)
+    expect(result.maxScrollHeight).toBe('300px')
+  })
+
+  test('returns minTouchTarget for accessibility', () => {
+    const mockStyles = {
+      getPropertyValue: vi.fn((prop: string) => {
+        if (prop === '--constraint-min-touch-target') return '44px'
+        return ''
+      }),
+    } as unknown as CSSStyleDeclaration
+
+    const result = readConstraints(mockStyles)
+    expect(result.minTouchTarget).toBe('44px')
+  })
+
+  test('falls back to defaults when CSS variables missing', () => {
+    const mockStyles = {
+      getPropertyValue: vi.fn().mockReturnValue(''),
+    } as unknown as CSSStyleDeclaration
+
+    const result = readConstraints(mockStyles)
+    expect(result.maxScrollHeight).toBe('300px')
+    expect(result.minTouchTarget).toBe('44px')
   })
 })

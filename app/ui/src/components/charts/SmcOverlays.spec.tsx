@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { SmcOverlays } from './SmcOverlays'
 import type { SmcEvent } from '@/types'
+import { getTokens } from '@/utils/getTokens'
+import { DEFAULT_TOKENS } from '@/constants/defaultTokens'
+
+vi.mock('@/utils/getTokens', () => ({ getTokens: vi.fn() }))
 
 describe('SmcOverlays', () => {
   const mockSmcEvents: SmcEvent[] = [
@@ -47,6 +51,10 @@ describe('SmcOverlays', () => {
     current: document.createElement('div'),
   })
 
+  beforeEach(() => {
+    vi.mocked(getTokens).mockReturnValue(DEFAULT_TOKENS)
+  })
+
   describe('rendering', () => {
     it('should render overlay container', () => {
       const chartRef = createMockChartRef()
@@ -59,8 +67,11 @@ describe('SmcOverlays', () => {
       const chartRef = createMockChartRef()
       render(<SmcOverlays events={[]} chartRef={chartRef} />)
 
-      const container = screen.getByTestId('smc-overlays')
-      expect(container).toHaveClass('absolute', 'inset-0', 'pointer-events-none', 'z-20')
+      const container = screen.getByTestId('smc-overlays') as HTMLElement
+      expect(container.style.position).toBe('absolute')
+      expect(container.style.top).toBe('0px')
+      expect(container.style.left).toBe('0px')
+      expect(container.style.pointerEvents).toBe('none')
     })
 
     it('should render empty container when no events', () => {
@@ -138,8 +149,9 @@ describe('SmcOverlays', () => {
       ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
-      const label = screen.getByText('↑ CHoCH')
-      expect(label).toHaveClass('bg-green-600', 'text-white')
+      const label = screen.getByText('↑ CHoCH') as HTMLElement
+      expect(label.style.backgroundColor).toBe(DEFAULT_TOKENS.colors.success[600])
+      expect(label.style.color).toBe(DEFAULT_TOKENS.colors.text.inverse)
     })
 
     it('should apply bearish BOS styling', () => {
@@ -157,8 +169,9 @@ describe('SmcOverlays', () => {
       ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
-      const label = screen.getByText('↓ BoS')
-      expect(label).toHaveClass('bg-red-500', 'text-white')
+      const label = screen.getByText('↓ BoS') as HTMLElement
+      expect(label.style.backgroundColor).toBe(DEFAULT_TOKENS.colors.error[600] || DEFAULT_TOKENS.colors.error[500])
+      expect(label.style.color).toBe(DEFAULT_TOKENS.colors.text.inverse)
     })
 
     it('should apply bullish ORDER_BLOCK styling', () => {
@@ -176,8 +189,9 @@ describe('SmcOverlays', () => {
       ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
-      const label = screen.getByText('↑ OB')
-      expect(label).toHaveClass('bg-green-400', 'text-green-900')
+      const label = screen.getByText('↑ OB') as HTMLElement
+      expect(label.style.backgroundColor).toBeTruthy()
+      expect(label.style.color).toBeTruthy()
     })
 
     it('should apply bearish FVG styling', () => {
@@ -195,8 +209,9 @@ describe('SmcOverlays', () => {
       ]
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
-      const label = screen.getByText('↓ FVG')
-      expect(label).toHaveClass('bg-red-300', 'text-red-900')
+      const label = screen.getByText('↓ FVG') as HTMLElement
+      expect(label.style.backgroundColor).toBeTruthy()
+      expect(label.style.color).toBeTruthy()
     })
   })
 

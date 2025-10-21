@@ -75,6 +75,18 @@ export type ChartColors = {
   candleDown: string
 }
 
+export type Breakpoints = {
+  mobile: string
+  tablet: string
+  desktop: string
+  wide: string
+}
+
+export type Constraints = {
+  maxScrollHeight: string
+  minTouchTarget: string
+}
+
 export interface DesignTokens {
   colors: {
     primary: ColorScale
@@ -91,4 +103,6 @@ export interface DesignTokens {
   radius: RadiusScale
   typography: Typography
   chart: ChartColors
+  breakpoints: Breakpoints
+  constraints: Constraints
 }

@@ -3,9 +3,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
+  border: 1px solid;
   margin-bottom: var(--space-4);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
@@ -102,47 +100,14 @@
   opacity: 1;
 }
 
-/* Variants */
-.error-message.variant-error {
-  background-color: var(--color-error-50);
-  border-color: var(--color-error-200);
-  color: var(--color-text-danger);
+/* Button styles for different variants handled via inline styles */
+.error-button {
+  opacity: 0.9;
 }
 
-.error-message.variant-error .error-button {
-  background-color: var(--color-error-100);
-}
-
-.error-message.variant-error .error-button:hover {
-  background-color: var(--color-error-200);
-}
-
-.error-message.variant-warning {
-  background-color: var(--color-warning-50);
-  border-color: var(--color-warning-200);
-  color: var(--color-text-warning);
-}
-
-.error-message.variant-warning .error-button {
-  background-color: var(--color-warning-100);
-}
-
-.error-message.variant-warning .error-button:hover {
-  background-color: var(--color-warning-200);
-}
-
-.error-message.variant-info {
-  background-color: var(--color-info-50);
-  border-color: var(--color-info-200);
-  color: var(--color-text-info);
-}
-
-.error-message.variant-info .error-button {
-  background-color: var(--color-info-100);
-}
-
-.error-message.variant-info .error-button:hover {
-  background-color: var(--color-info-200);
+.error-button:hover {
+  opacity: 1;
+  filter: brightness(0.95);
 }
 
 /* Compact mode */

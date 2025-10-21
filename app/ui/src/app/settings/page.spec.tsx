@@ -8,10 +8,10 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
   })
 
-  test('applies appLayout CSS module class to root div', () => {
+  test('applies pageShell CSS module class to root div', () => {
     const { container } = render(<SettingsPage />)
     const rootDiv = container.firstChild as HTMLElement
-    expect(rootDiv.className).toContain('appLayout')
+    expect(rootDiv.className).toContain('pageShell')
   })
 
   test('renders settings tabs', () => {

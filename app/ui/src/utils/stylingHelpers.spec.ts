@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { DesignTokens } from '../types/tokens'
+import { DEFAULT_TOKENS } from '../constants/defaultTokens'
 import {
   getToolbarVariantStyles,
   getSpinnerStyle,
@@ -8,159 +9,26 @@ import {
   getAutoTradingToggleStyles,
   getIndicatorColor,
   applyFocusVisible,
+  getChartButtonStyles,
+  getChartSelectStyles,
+  getIconButtonStyles,
+  getOverlayStyles,
+  getSpinnerStyles,
+  getIconSizeStyles,
+  getPanelContainerStyles,
+  getPanelHeaderStyles,
+  getPanelItemStyles,
+  getSmcLabelStyles,
+  getSmcLineStyles,
+  getZoneOverlayStyles,
+  getZoneLabelStyles,
+  getZoneBadgeStyles,
+  getAbsoluteFillStyles,
+  getPageHeadingStyles,
+  getTabButtonStyles,
 } from './stylingHelpers'
 
-const mockTokens: DesignTokens = {
-  colors: {
-    primary: {
-      50: 'hsl(220, 70%, 95%)',
-      100: 'hsl(220, 70%, 90%)',
-      200: 'hsl(220, 70%, 80%)',
-      300: 'hsl(220, 70%, 70%)',
-      400: 'hsl(220, 70%, 60%)',
-      500: 'hsl(220, 70%, 50%)',
-      600: 'hsl(220, 70%, 40%)',
-      700: 'hsl(220, 70%, 30%)',
-      800: 'hsl(220, 70%, 20%)',
-      900: 'hsl(220, 70%, 10%)',
-    },
-    success: {
-      50: 'hsl(140, 70%, 95%)',
-      100: 'hsl(140, 70%, 90%)',
-      200: 'hsl(140, 70%, 80%)',
-      300: 'hsl(140, 70%, 70%)',
-      400: 'hsl(140, 70%, 60%)',
-      500: 'hsl(140, 70%, 50%)',
-      600: 'hsl(140, 70%, 40%)',
-      700: 'hsl(140, 70%, 30%)',
-      800: 'hsl(140, 70%, 20%)',
-      900: 'hsl(140, 70%, 10%)',
-    },
-    warning: {
-      50: 'hsl(40, 90%, 95%)',
-      100: 'hsl(40, 90%, 90%)',
-      200: 'hsl(40, 90%, 80%)',
-      300: 'hsl(40, 90%, 70%)',
-      400: 'hsl(40, 90%, 60%)',
-      500: 'hsl(40, 90%, 50%)',
-      600: 'hsl(40, 90%, 40%)',
-      700: 'hsl(40, 90%, 30%)',
-      800: 'hsl(40, 90%, 20%)',
-      900: 'hsl(40, 90%, 10%)',
-    },
-    error: {
-      50: 'hsl(0, 70%, 95%)',
-      100: 'hsl(0, 70%, 90%)',
-      200: 'hsl(0, 70%, 80%)',
-      300: 'hsl(0, 70%, 70%)',
-      400: 'hsl(0, 70%, 60%)',
-      500: 'hsl(0, 70%, 50%)',
-      600: 'hsl(0, 70%, 40%)',
-      700: 'hsl(0, 70%, 30%)',
-      800: 'hsl(0, 70%, 20%)',
-      900: 'hsl(0, 70%, 10%)',
-    },
-    info: {
-      50: 'hsl(200, 70%, 95%)',
-      100: 'hsl(200, 70%, 90%)',
-      200: 'hsl(200, 70%, 80%)',
-      300: 'hsl(200, 70%, 70%)',
-      400: 'hsl(200, 70%, 60%)',
-      500: 'hsl(200, 70%, 50%)',
-      600: 'hsl(200, 70%, 40%)',
-      700: 'hsl(200, 70%, 30%)',
-      800: 'hsl(200, 70%, 20%)',
-      900: 'hsl(200, 70%, 10%)',
-    },
-    gray: {
-      50: 'hsl(0, 0%, 95%)',
-      100: 'hsl(0, 0%, 90%)',
-      200: 'hsl(0, 0%, 80%)',
-      300: 'hsl(0, 0%, 70%)',
-      400: 'hsl(0, 0%, 60%)',
-      500: 'hsl(0, 0%, 50%)',
-      600: 'hsl(0, 0%, 40%)',
-      700: 'hsl(0, 0%, 30%)',
-      800: 'hsl(0, 0%, 20%)',
-      900: 'hsl(0, 0%, 10%)',
-    },
-    surface: {
-      base: 'hsl(0, 0%, 100%)',
-      raised: 'hsl(0, 0%, 98%)',
-      overlay: 'hsl(0, 0%, 96%)',
-      hover: 'hsl(0, 0%, 94%)',
-      input: 'hsl(0, 0%, 97%)',
-    },
-    text: {
-      primary: 'hsl(0, 0%, 10%)',
-      secondary: 'hsl(0, 0%, 30%)',
-      muted: 'hsl(0, 0%, 50%)',
-      disabled: 'hsl(0, 0%, 70%)',
-      inverse: 'hsl(0, 0%, 100%)',
-      success: 'hsl(140, 70%, 30%)',
-      danger: 'hsl(0, 70%, 40%)',
-      warning: 'hsl(40, 90%, 30%)',
-      info: 'hsl(200, 70%, 30%)',
-    },
-    border: {
-      subtle: 'hsl(0, 0%, 90%)',
-      default: 'hsl(0, 0%, 80%)',
-      strong: 'hsl(0, 0%, 60%)',
-      focus: 'hsl(220, 70%, 50%)',
-    },
-  },
-  spacing: {
-    0: '0',
-    1: '4px',
-    2: '8px',
-    3: '12px',
-    4: '16px',
-    5: '20px',
-    6: '24px',
-    7: '28px',
-    8: '32px',
-    9: '36px',
-    10: '40px',
-  },
-  radius: {
-    none: '0',
-    sm: '4px',
-    md: '8px',
-    lg: '12px',
-    full: '9999px',
-  },
-  typography: {
-    fontSize: {
-      xs: '12px',
-      sm: '14px',
-      base: '16px',
-      lg: '18px',
-      xl: '20px',
-      '2xl': '24px',
-      '3xl': '30px',
-      '4xl': '36px',
-      '5xl': '48px',
-    },
-    fontWeight: {
-      normal: 400,
-      medium: 500,
-      semibold: 600,
-      bold: 700,
-    },
-    lineHeight: {
-      tight: 1.25,
-      normal: 1.5,
-      relaxed: 1.75,
-    },
-  },
-  chart: {
-    bg: 'hsl(0, 0%, 100%)',
-    text: 'hsl(0, 0%, 10%)',
-    grid: 'hsl(0, 0%, 90%)',
-    candleUp: 'hsl(140, 70%, 50%)',
-    candleDown: 'hsl(0, 70%, 50%)',
-  },
-}
+const mockTokens: DesignTokens = DEFAULT_TOKENS
 
 describe('getToolbarVariantStyles', () => {
   test('returns primary variant classes', () => {
@@ -437,5 +305,209 @@ describe('applyFocusVisible', () => {
   test('uses custom outline offset when provided', () => {
     const result = applyFocusVisible(mockTokens, '2px', '4px')
     expect(result.outlineOffset).toBe('4px')
+  })
+})
+
+describe('getChartButtonStyles', () => {
+  test('returns active state with primary background and white text', () => {
+    const result = getChartButtonStyles(true, mockTokens)
+    expect(result).toEqual({
+      backgroundColor: mockTokens.colors.primary[600],
+      color: mockTokens.colors.text.inverse,
+      padding: `${mockTokens.spacing[2]} ${mockTokens.spacing[3]}`,
+      borderRadius: mockTokens.radius.md,
+      border: 'none',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s ease, color 0.2s ease',
+    })
+  })
+
+  test('returns inactive state with gray background and muted text', () => {
+    const result = getChartButtonStyles(false, mockTokens)
+    expect(result).toEqual({
+      backgroundColor: mockTokens.colors.gray[800],
+      color: mockTokens.colors.gray[300],
+      padding: `${mockTokens.spacing[2]} ${mockTokens.spacing[3]}`,
+      borderRadius: mockTokens.radius.md,
+      border: 'none',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s ease, color 0.2s ease',
+    })
+  })
+
+  test('includes padding from spacing tokens', () => {
+    const result = getChartButtonStyles(false, mockTokens)
+    expect(result.padding).toBe(`${mockTokens.spacing[2]} ${mockTokens.spacing[3]}`)
+  })
+
+  test('includes borderRadius from radius tokens', () => {
+    const result = getChartButtonStyles(false, mockTokens)
+    expect(result.borderRadius).toBe(mockTokens.radius.md)
+  })
+
+  test('includes transition for smooth state changes', () => {
+    const result = getChartButtonStyles(false, mockTokens)
+    expect(result.transition).toBe('background-color 0.2s ease, color 0.2s ease')
+  })
+
+  test('uses token values not hex literals', () => {
+    const result = getChartButtonStyles(true, mockTokens)
+    expect(result.backgroundColor).not.toMatch(/#[0-9a-fA-F]{6}/)
+    expect(result.color).not.toMatch(/#[0-9a-fA-F]{6}/)
+  })
+})
+
+describe('getChartSelectStyles', () => {
+  test('uses surface tokens for background, border, and text', () => {
+    const styles = getChartSelectStyles(mockTokens)
+    expect(styles.backgroundColor).toBe(mockTokens.colors.surface.overlay)
+    expect(styles.border).toBe(`1px solid ${mockTokens.colors.border.subtle}`)
+    expect(styles.color).toBe(mockTokens.colors.text.primary)
+  })
+
+  test('applies spacing and radius tokens for padding', () => {
+    const styles = getChartSelectStyles(mockTokens)
+    expect(styles.padding).toBe(`${mockTokens.spacing[2]} ${mockTokens.spacing[3]}`)
+    expect(styles.borderRadius).toBe(mockTokens.radius.sm)
+  })
+})
+
+describe('getIconButtonStyles', () => {
+  test('returns default icon button styles using muted text', () => {
+    const styles = getIconButtonStyles(mockTokens, 'default')
+    expect(styles.color).toBe(mockTokens.colors.text.muted)
+    expect(styles.backgroundColor).toBe('transparent')
+    expect(styles.border).toBe('none')
+  })
+
+  test('returns hover icon button styles using primary token', () => {
+    const styles = getIconButtonStyles(mockTokens, 'hover')
+    expect(styles.color).toBe(mockTokens.colors.text.primary)
+  })
+})
+
+describe('getOverlayStyles', () => {
+  test('returns overlay styles with dark surface token and flex centering', () => {
+    const styles = getOverlayStyles(mockTokens)
+    expect(styles.backgroundColor).toBe(`${mockTokens.colors.surface.base}cc`)
+    expect(styles.display).toBe('flex')
+    expect(styles.alignItems).toBe('center')
+    expect(styles.justifyContent).toBe('center')
+  })
+})
+
+describe('getSpinnerStyles', () => {
+  test('returns spinner size using spacing tokens', () => {
+    const styles = getSpinnerStyles('sm', mockTokens)
+    expect(styles.width).toBe(mockTokens.spacing[4])
+    expect(styles.height).toBe(mockTokens.spacing[4])
+  })
+
+  test('returns spinner border color from primary tokens by default', () => {
+    const styles = getSpinnerStyles('md', mockTokens)
+    expect(styles.borderColor).toBe(mockTokens.colors.primary[500])
+  })
+
+  test('returns spinner border color from success tokens when variant provided', () => {
+    const styles = getSpinnerStyles('lg', mockTokens, 'success')
+    expect(styles.borderColor).toBe(mockTokens.colors.success[500])
+  })
+})
+
+// New helpers
+describe('getIconSizeStyles', () => {
+  test('returns sm width/height from spacing tokens', () => {
+    const styles = getIconSizeStyles('sm', mockTokens)
+    expect(styles).toEqual({ width: mockTokens.spacing[3], height: mockTokens.spacing[3] })
+  })
+
+  test('returns md width/height from spacing tokens', () => {
+    const styles = getIconSizeStyles('md', mockTokens)
+    expect(styles).toEqual({ width: mockTokens.spacing[4], height: mockTokens.spacing[4] })
+  })
+
+  test('returns lg width/height from spacing tokens', () => {
+    const styles = getIconSizeStyles('lg', mockTokens)
+    expect(styles).toEqual({ width: mockTokens.spacing[5], height: mockTokens.spacing[5] })
+  })
+})
+
+describe('panel styles', () => {
+test('getPanelContainerStyles uses surface and border tokens', () => {
+    const s = getPanelContainerStyles(mockTokens)
+    expect(s.backgroundColor).toBe(mockTokens.colors.surface.raised)
+    expect(s.borderLeft).toBe(`1px solid ${mockTokens.colors.border.default}`)
+    expect(s.borderRadius).toBe(mockTokens.radius.lg)
+  })
+
+test('getPanelHeaderStyles uses border and padding tokens', () => {
+    const s = getPanelHeaderStyles(mockTokens)
+    expect(s.borderBottom).toBe(`1px solid ${mockTokens.colors.border.subtle}`)
+    expect(s.padding).toBe(`${mockTokens.spacing[4]} ${mockTokens.spacing[4]}`)
+  })
+
+test('getPanelItemStyles active/inactive token palettes', () => {
+    const active = getPanelItemStyles(true, mockTokens)
+    const inactive = getPanelItemStyles(false, mockTokens)
+    expect(active.backgroundColor).not.toBe('transparent')
+    expect(active.color).toBe(mockTokens.colors.text.primary)
+    expect(inactive.color).toBe(mockTokens.colors.text.secondary)
+  })
+})
+
+describe('SMC overlay styles', () => {
+test('label uses success tokens for bullish', () => {
+    const s = getSmcLabelStyles({ direction: 'bullish', type: 'CHOCH' }, mockTokens)
+    expect(s.backgroundColor).toBe(mockTokens.colors.success[600])
+    expect(s.color).toBe(mockTokens.colors.text.inverse)
+  })
+
+test('line uses error tokens for bearish', () => {
+    const s = getSmcLineStyles({ direction: 'bearish', type: 'BOS' }, mockTokens)
+    expect(s.backgroundColor).toBe(mockTokens.colors.error[500])
+    expect(s.height).toBe('1px')
+  })
+})
+
+describe('Zone overlay styles', () => {
+test('overlay uses tokens and computed opacity', () => {
+    const s = getZoneOverlayStyles({ type: 'supply', strength: 3, touches: 1 }, mockTokens)
+    expect(s.backgroundColor).toBe(mockTokens.colors.error[500])
+    expect(typeof s.opacity).toBe('number')
+    expect(s.border).toBe(`1px solid ${mockTokens.colors.error[500]}`)
+  })
+
+test('label and badge token colors reflect type', () => {
+    const label = getZoneLabelStyles({ type: 'demand' }, mockTokens)
+    const badge = getZoneBadgeStyles({ type: 'demand' }, mockTokens)
+    expect(label.color).toBe(mockTokens.colors.success[600])
+    expect(badge.backgroundColor).toBe(mockTokens.colors.success[100])
+  })
+})
+
+describe('layout helpers', () => {
+test('getAbsoluteFillStyles returns absolute inset and zIndex', () => {
+    const s = getAbsoluteFillStyles(mockTokens, 20)
+    expect(s.position).toBe('absolute')
+    expect(s.top).toBe(0)
+    expect(s.left).toBe(0)
+    expect(s.zIndex).toBe(20)
+    expect(s.pointerEvents).toBe('none')
+  })
+
+test('getPageHeadingStyles uses typography and text tokens', () => {
+    const s = getPageHeadingStyles(mockTokens)
+    expect(s.fontSize).toBe(mockTokens.typography.fontSize.xl)
+    expect(s.color).toBe(mockTokens.colors.text.primary)
+    expect(s.margin).toContain(mockTokens.spacing[4])
+  })
+
+test('getTabButtonStyles active/inactive use tokens', () => {
+    const a = getTabButtonStyles(true, mockTokens)
+    const i = getTabButtonStyles(false, mockTokens)
+    expect(a.backgroundColor).toBe(mockTokens.colors.primary[600])
+    expect(a.color).toBe(mockTokens.colors.text.inverse)
+    expect(i.backgroundColor).toBe(mockTokens.colors.surface.overlay)
+    expect(i.color).toBe(mockTokens.colors.text.secondary)
   })
 })

@@ -1,4 +1,7 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+import { getTokens } from '@/utils/getTokens'
+import { getSpinnerStyles } from '@/utils/tokenHelpers'
+import type { SpinnerSize, SpinnerVariant } from '@/utils/tokenHelpers'
 import './LoadingSpinner.css'
 
 type LoadingSpinnerProps = {
@@ -14,7 +17,7 @@ type LoadingSpinnerProps = {
 
 export function LoadingSpinner({
   size = 'medium',
-  color,
+  color = 'primary',
   label,
   inline = false,
   overlay = false,
@@ -22,13 +25,20 @@ export function LoadingSpinner({
   centerText = false,
   className = '',
 }: LoadingSpinnerProps) {
-  const spinnerClasses = [
-    'loading-spinner',
-    `size-${size}`,
-    inline && 'inline',
-    color && `color-${color}`,
-    className,
-  ]
+  const tokens = useMemo(() => getTokens(), [])
+
+  const sizeMap: Record<typeof size, SpinnerSize> = {
+    small: 'sm',
+    medium: 'md',
+    large: 'lg',
+  }
+
+  const spinnerStyles = useMemo(
+    () => getSpinnerStyles(sizeMap[size], color as SpinnerVariant, tokens),
+    [size, color, tokens],
+  )
+
+  const spinnerClasses = ['loading-spinner', inline && 'inline', className]
     .filter(Boolean)
     .join(' ')
 
@@ -40,7 +50,15 @@ export function LoadingSpinner({
         role="status"
         aria-label={label || 'Loading...'}
       >
-        <div className="spinner-circle" />
+        <div
+          className="spinner-circle"
+          style={{
+            width: spinnerStyles.width,
+            height: spinnerStyles.height,
+            borderWidth: spinnerStyles.borderWidth,
+            borderColor: spinnerStyles.borderColor,
+          }}
+        />
       </div>
       {label && <span className="loading-label">{label}</span>}
     </>

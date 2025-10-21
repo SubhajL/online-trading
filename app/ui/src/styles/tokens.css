@@ -274,6 +274,19 @@
   --touch-target-min: 44px; /* WCAG minimum */
 }
 
+  /* ===== BREAKPOINTS ===== */
+  /* Responsive breakpoint values for media queries */
+  --breakpoint-mobile: 640px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-wide: 1280px;
+
+  /* ===== CONSTRAINTS ===== */
+  /* Reusable constraint values for consistent UX */
+  --constraint-max-scroll-height: 300px; /* Max height for scrollable code blocks */
+  --constraint-min-touch-target: 44px;   /* Minimum touch target size (iOS HIG / WCAG) */
+}
+
 /**
  * CONTRAST RATIO VERIFICATION
  *

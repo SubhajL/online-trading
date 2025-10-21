@@ -30,8 +30,14 @@ export function PageShell({
   className = '',
 }: PageShellProps) {
   const tokens = useMemo(() => getTokens(), [])
-  const containerStyles = buildPageContainerStyle(tokens, paddingLevel)
-  const contentStyles = buildPageContainerStyle(tokens, 0, maxWidth)
+  const containerStyles = useMemo(
+    () => buildPageContainerStyle(tokens, paddingLevel),
+    [tokens, paddingLevel],
+  )
+  const contentStyles = useMemo(
+    () => buildPageContainerStyle(tokens, 0, maxWidth),
+    [tokens, maxWidth],
+  )
 
   return (
     <div className={`${styles.pageShell} ${className}`} style={containerStyles}>

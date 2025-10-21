@@ -1,5 +1,8 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
 import React from 'react'
 import { ErrorBoundary } from './ErrorBoundary'
 
@@ -27,6 +30,8 @@ function ThrowErrorInEffect({ shouldThrow }: { shouldThrow: boolean }) {
 }
 
 describe('ErrorBoundary', () => {
+  const specDir = path.dirname(fileURLToPath(import.meta.url))
+  const errorBoundaryStyles = readFileSync(path.join(specDir, 'ErrorBoundary.css'), 'utf-8')
   // Suppress console.error for these tests
   const originalError = console.error
   beforeEach(() => {
@@ -177,6 +182,12 @@ describe('ErrorBoundary', () => {
 
     const retryButton = screen.getByText('Try again')
     expect(retryButton).toBeInTheDocument()
+  })
+
+  it('defines token-based styling for detail toggle and panels', () => {
+    expect(errorBoundaryStyles).toContain('var(--color-border-default)')
+    expect(errorBoundaryStyles).toContain('var(--color-surface-raised)')
+    expect(errorBoundaryStyles).toContain('var(--color-border-focus)')
   })
 
   it('resets when retry button is clicked', () => {

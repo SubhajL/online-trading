@@ -1,4 +1,12 @@
 import type { IndicatorType } from '@/types'
+import { useMemo } from 'react'
+import { getTokens } from '@/utils/getTokens'
+import {
+  getPanelContainerStyles,
+  getPanelHeaderStyles,
+  getPanelItemStyles,
+  getIconButtonStyles,
+} from '@/utils/stylingHelpers'
 
 type IndicatorPanelProps = {
   activeIndicators: IndicatorType[]
@@ -20,6 +28,15 @@ export function IndicatorPanel({
   onToggleIndicator,
   onClose,
 }: IndicatorPanelProps) {
+  const tokens = useMemo(() => getTokens(), [])
+  const containerStyles = getPanelContainerStyles(tokens)
+  const headerStyles = getPanelHeaderStyles(tokens)
+  const listStyles = {
+    padding: tokens.spacing[4],
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: tokens.spacing[2],
+  }
   const handleToggle = (indicator: IndicatorType) => {
     if (onToggleIndicator) {
       onToggleIndicator(indicator)
@@ -37,18 +54,40 @@ export function IndicatorPanel({
       data-testid="indicator-panel"
       role="dialog"
       aria-label="Technical Indicators"
-      className="absolute right-0 top-0 w-80 h-full bg-gray-800 shadow-lg rounded-l-lg z-30"
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        width: '320px',
+        height: '100%',
+        zIndex: 30,
+        ...containerStyles,
+      }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700">
-        <h3 className="text-lg font-semibold text-white">Technical Indicators</h3>
+      <div style={headerStyles}>
+        <h3
+          style={{
+            fontSize: tokens.typography.fontSize.lg,
+            fontWeight: tokens.typography.fontWeight.semibold,
+            color: tokens.colors.text.primary,
+            margin: 0,
+          }}
+        >
+          Technical Indicators
+        </h3>
         <button
           data-testid="close-button"
           onClick={handleClose}
-          className="p-1 text-gray-400 hover:text-white transition-colors"
+          style={getIconButtonStyles(tokens)}
           aria-label="Close panel"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg
+            style={{ width: tokens.spacing[4], height: tokens.spacing[4] }}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -60,32 +99,31 @@ export function IndicatorPanel({
       </div>
 
       {/* Indicators list */}
-      <div className="p-4 space-y-2">
+      <div style={listStyles}>
         {INDICATORS.map(indicator => {
           const isActive = activeIndicators.includes(indicator.type)
           return (
             <div
               key={indicator.type}
               data-testid={`indicator-item-${indicator.type}`}
-              className={`flex items-center p-3 rounded-lg transition-colors ${
-                isActive ? 'bg-gray-700' : 'hover:bg-gray-700'
-              }`}
+              style={getPanelItemStyles(isActive, tokens)}
             >
-              <label
-                htmlFor={`indicator-${indicator.type}`}
-                className="flex items-center flex-1 cursor-pointer"
-              >
+              <label htmlFor={`indicator-${indicator.type}`} style={{ display: 'flex', flex: 1, alignItems: 'center', cursor: 'pointer' }}>
                 <input
                   id={`indicator-${indicator.type}`}
                   type="checkbox"
                   checked={isActive}
                   onChange={() => handleToggle(indicator.type)}
-                  className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
                   aria-label={indicator.type}
+                  style={{ width: '16px', height: '16px', margin: 0 }}
                 />
-                <div className="ml-3 flex-1">
-                  <div className="text-sm font-medium text-white">{indicator.name}</div>
-                  <div className="text-xs text-gray-400">{indicator.description}</div>
+                <div style={{ marginLeft: tokens.spacing[3], flex: 1 }}>
+                  <div style={{ fontSize: tokens.typography.fontSize.sm, fontWeight: tokens.typography.fontWeight.medium, color: tokens.colors.text.primary }}>
+                    {indicator.name}
+                  </div>
+                  <div style={{ fontSize: tokens.typography.fontSize.xs, color: tokens.colors.text.muted }}>
+                    {indicator.description}
+                  </div>
                 </div>
               </label>
             </div>
@@ -94,8 +132,18 @@ export function IndicatorPanel({
       </div>
 
       {/* Help text */}
-      <div className="absolute bottom-4 left-4 right-4 p-3 bg-gray-700 rounded-lg">
-        <p className="text-xs text-gray-300">
+      <div
+        style={{
+          position: 'absolute',
+          bottom: tokens.spacing[4],
+          left: tokens.spacing[4],
+          right: tokens.spacing[4],
+          padding: tokens.spacing[3],
+          backgroundColor: tokens.colors.surface.overlay,
+          borderRadius: tokens.radius.md,
+        }}
+      >
+        <p style={{ fontSize: tokens.typography.fontSize.xs, color: tokens.colors.text.secondary }}>
           Select indicators to display on the chart. Some indicators may affect performance.
         </p>
       </div>

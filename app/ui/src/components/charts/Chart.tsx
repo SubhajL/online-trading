@@ -1,11 +1,20 @@
 import { useRef, useState, useEffect, useMemo } from 'react'
+import type { CSSProperties } from 'react'
 import { useChart } from '@/hooks/useChart'
 import { useMarketData } from '@/hooks/useMarketData'
 import { IndicatorPanel } from './IndicatorPanel'
 import { SmcOverlays } from './SmcOverlays'
 import { ZoneOverlays } from './ZoneOverlays'
 import { getTokens } from '@/utils/getTokens'
-import { getIndicatorColor } from '@/utils/stylingHelpers'
+import {
+  getIndicatorColor,
+  getChartButtonStyles,
+  getChartSelectStyles,
+  getIconButtonStyles,
+  getOverlayStyles,
+  getSpinnerStyles,
+  getIconSizeStyles,
+} from '@/utils/stylingHelpers'
 import type { Symbol, Timeframe, ChartType, IndicatorType } from '@/types'
 import type { UTCTimestamp } from 'lightweight-charts'
 
@@ -165,28 +174,77 @@ export function Chart({
     setIsFullscreen(!isFullscreen)
   }
 
+  const baseRootStyles: CSSProperties = {
+    backgroundColor: tokens.colors.gray[900],
+    borderRadius: tokens.radius.lg,
+    display: 'flex',
+    flexDirection: 'column',
+  }
+
+  const fullscreenStyles: CSSProperties = isFullscreen
+    ? { position: 'fixed', inset: 0, zIndex: 50 }
+    : { position: 'relative' }
+
+  const rootStyles: CSSProperties = { ...baseRootStyles, ...fullscreenStyles }
+
+  const headerStyles: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: `${tokens.spacing[2]} ${tokens.spacing[4]}`,
+    borderBottom: `1px solid ${tokens.colors.border.subtle}`,
+    gap: tokens.spacing[4],
+  }
+
+  const timeframeGroupStyles: CSSProperties = {
+    display: 'flex',
+    gap: tokens.spacing[1],
+    alignItems: 'center',
+  }
+
+  const headerLeftStyles: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacing[4],
+  }
+
+  const headerRightStyles: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacing[2],
+  }
+
+  const iconButtonStyle = getIconButtonStyles(tokens)
+  const iconSvgStyle: CSSProperties = getIconSizeStyles('md', tokens)
+
+  const chartAreaStyles: CSSProperties = {
+    position: 'relative',
+    height: '600px',
+  }
+
   return (
-    <div
-      className={`relative bg-gray-900 rounded-lg ${
-        isFullscreen ? 'fixed inset-0 z-50 fullscreen' : ''
-      } ${className}`}
-    >
+    <div data-testid="chart-root" style={rootStyles} className={className}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
-        <div className="flex items-center gap-4">
-          <h3 className="text-lg font-semibold text-white">{symbol}</h3>
+      <div style={headerStyles}>
+        <div style={headerLeftStyles}>
+          <h3
+            style={{
+              fontSize: tokens.typography.fontSize.lg,
+              fontWeight: tokens.typography.fontWeight.semibold,
+              color: tokens.colors.text.primary,
+              margin: 0,
+            }}
+          >
+            {symbol}
+          </h3>
 
           {/* Timeframe selector */}
-          <div className="flex gap-1">
+          <div style={timeframeGroupStyles}>
             {TIMEFRAMES.map(tf => (
               <button
                 key={tf}
                 onClick={() => handleTimeframeChange(tf)}
-                className={`px-3 py-1 text-sm rounded transition-colors ${
-                  selectedTimeframe === tf
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
+                style={getChartButtonStyles(selectedTimeframe === tf, tokens)}
               >
                 {tf}
               </button>
@@ -194,13 +252,13 @@ export function Chart({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div style={headerRightStyles}>
           {/* Chart type selector */}
           <select
             data-testid="chart-type-selector"
             value={chartType}
             onChange={e => handleChartTypeChange(e.target.value as ChartType)}
-            className="bg-gray-800 text-white text-sm px-3 py-1 rounded border border-gray-700"
+            style={getChartSelectStyles(tokens)}
           >
             {CHART_TYPES.map(type => (
               <option key={type} value={type}>
@@ -213,7 +271,7 @@ export function Chart({
           <button
             data-testid="indicator-panel-toggle"
             onClick={() => setShowIndicatorPanel(!showIndicatorPanel)}
-            className="px-3 py-1 text-sm bg-gray-800 text-gray-300 rounded hover:bg-gray-700"
+            style={getChartButtonStyles(showIndicatorPanel, tokens)}
           >
             Indicators
           </button>
@@ -222,9 +280,7 @@ export function Chart({
           <button
             data-testid="smc-overlay-toggle"
             onClick={() => setShowSmc(!showSmc)}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              showSmc ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-            }`}
+            style={getChartButtonStyles(showSmc, tokens)}
           >
             SMC
           </button>
@@ -233,9 +289,7 @@ export function Chart({
           <button
             data-testid="zone-overlay-toggle"
             onClick={() => setShowZones(!showZones)}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              showZones ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-            }`}
+            style={getChartButtonStyles(showZones, tokens)}
           >
             Zones
           </button>
@@ -244,10 +298,10 @@ export function Chart({
           <button
             data-testid="fit-content-button"
             onClick={fitContent}
-            className="p-1 text-gray-400 hover:text-white"
+            style={iconButtonStyle}
             title="Fit content"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg style={iconSvgStyle} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -260,10 +314,10 @@ export function Chart({
           <button
             data-testid="fullscreen-button"
             onClick={toggleFullscreen}
-            className="p-1 text-gray-400 hover:text-white"
+            style={iconButtonStyle}
             title="Toggle fullscreen"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg style={iconSvgStyle} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {isFullscreen ? (
                 <path
                   strokeLinecap="round"
@@ -285,23 +339,48 @@ export function Chart({
       </div>
 
       {/* Chart container */}
-      <div className="relative h-[600px]">
+      <div style={chartAreaStyles}>
         {loading && (
           <div
             data-testid="chart-loading"
-            className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75 z-10"
+            style={getOverlayStyles(tokens)}
           >
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div
+              style={{
+                ...getSpinnerStyles('lg', tokens),
+                borderTopColor: tokens.colors.primary[500],
+                borderRightColor: tokens.colors.primary[500],
+                borderBottomColor: tokens.colors.primary[500],
+                borderLeftColor: 'transparent',
+                animation: 'spin 1s linear infinite',
+              }}
+            ></div>
           </div>
         )}
 
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75 z-10">
-            <p className="text-red-500">Error: {error}</p>
+          <div
+            style={getOverlayStyles(tokens)}
+          >
+            <p
+              style={{
+                color: tokens.colors.text.danger,
+                fontSize: tokens.typography.fontSize.sm,
+                backgroundColor: tokens.colors.error[50],
+                padding: `${tokens.spacing[2]} ${tokens.spacing[3]}`,
+                borderRadius: tokens.radius.sm,
+              }}
+            >
+              Error: {error}
+            </p>
           </div>
         )}
 
-        <div ref={containerRef} data-testid="chart-container" className="w-full h-full" />
+        <div
+          ref={containerRef}
+          data-testid="chart-container"
+          style={{ width: '100%', height: '100%' }}
+        />
 
         {/* Overlays */}
         {showSmc && <SmcOverlays events={smcEvents} chartRef={containerRef} />}

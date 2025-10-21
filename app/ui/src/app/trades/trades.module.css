@@ -3,26 +3,6 @@
  * Token-based styling scoped to trades page
  */
 
-.appLayout {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-.appBody {
-  display: flex;
-  flex: 1;
-}
-
-.appMain {
-  flex: 1;
-  overflow-x: auto;
-}
-
-.pageContainer {
-  padding: var(--space-8);
-}
-
 .pageTitle {
   margin-bottom: var(--space-8);
   color: var(--color-text-primary);

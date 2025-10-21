@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
+import { PageShell } from '@/components/Layout/PageShell'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
 import { useBalances } from '@/hooks/useBalances'
 import { usePositions } from '@/hooks/usePositions'
@@ -51,13 +52,13 @@ export default function Home() {
   }
 
   return (
-    <div className={styles.appLayout}>
+    <PageShell skipLinkTarget="dashboard-content" maxWidth="full">
       <Header userName="Trader" onLogout={handleLogout} />
 
-      <div className={styles.appBody}>
+      <div style={{ display: 'flex', flex: 1 }}>
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-        <main id="main-content" className={styles.appMain} tabIndex={-1}>
+        <main id="main-content" tabIndex={-1} style={{ flex: 1, padding: '1rem' }}>
           <Dashboard
             positions={positions}
             orders={orders}
@@ -70,6 +71,6 @@ export default function Home() {
           />
         </main>
       </div>
-    </div>
+    </PageShell>
   )
 }

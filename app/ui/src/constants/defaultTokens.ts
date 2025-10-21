@@ -156,4 +156,14 @@ export const DEFAULT_TOKENS: DesignTokens = {
     candleUp: 'hsl(142, 71%, 45%)',
     candleDown: 'hsl(0, 84%, 60%)',
   },
+  breakpoints: {
+    mobile: '640px',
+    tablet: '768px',
+    desktop: '1024px',
+    wide: '1280px',
+  },
+  constraints: {
+    maxScrollHeight: '300px',
+    minTouchTarget: '44px',
+  },
 }
