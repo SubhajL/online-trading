@@ -52,6 +52,7 @@ class ConnectionPool:
                     command_timeout=60,
                     server_settings={
                         "application_name": "trading_engine",
+                        "TimeZone": "UTC",
                     },
                 )
                 logger.info(

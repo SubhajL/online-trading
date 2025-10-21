@@ -53,7 +53,13 @@ class Migration:
 
 
 class MigrationRunner:
-    """Manages database migrations."""
+    """Manages database migrations.
+
+    Canonical behavior:
+    - Only apply the contiguous sequence of migrations starting at current_version + 1.
+    - If there is a gap after that point, stop at the gap (do not error).
+    - The bootstrap migration (000_migration_version.sql) is applied automatically when current_version == 0.
+    """
 
     def __init__(self, pool: ConnectionPool, migrations_dir: Path) -> None:
         self.pool = pool
@@ -102,17 +108,40 @@ class MigrationRunner:
 
         return migrations
 
-    async def validate_migration_order(self, migrations: list[Migration]) -> None:
-        """Ensure migrations are sequential with no gaps."""
-        expected_version = 0
+    def compute_contiguous_plan(
+        self,
+        migrations: list[Migration],
+        start_version: int,
+        target_version: int | None = None,
+    ) -> list[Migration]:
+        """
+        Compute the contiguous list of migrations to apply starting at start_version.
 
-        for migration in sorted(migrations, key=lambda m: m.version):
-            if migration.version != expected_version:
-                raise ValueError(
-                    f"Migration version gap detected: expected {expected_version}, "
-                    f"found {migration.version} ({migration.filename})",
-                )
-            expected_version += 1
+        - Returns the longest prefix with versions [start_version, start_version+1, ...]
+          stopping at the first gap.
+        - If target_version is provided, do not include versions greater than target_version.
+        """
+        if not migrations:
+            return []
+
+        # Keep only migrations at or above the start_version
+        candidates = [m for m in migrations if m.version >= start_version]
+        candidates.sort(key=lambda m: m.version)
+
+        plan: list[Migration] = []
+        expected = start_version
+        for m in candidates:
+            if target_version is not None and m.version > target_version:
+                break
+            if m.version == expected:
+                plan.append(m)
+                expected += 1
+                continue
+            if m.version > expected:
+                # Found a gap; stop planning here
+                break
+            # If m.version < expected, just skip (duplicate/older)
+        return plan
 
     async def apply_migration(self, migration: Migration, conn: Connection) -> None:
         """Apply a single migration within a transaction."""
@@ -203,16 +232,10 @@ class MigrationRunner:
         current_version = await self.get_current_version()
         available_migrations = await self.get_available_migrations()
 
-        # Validate migration sequence
-        await self.validate_migration_order(available_migrations)
-
-        # Filter migrations to apply
-        migrations_to_apply = [
-            m
-            for m in available_migrations
-            if m.version > current_version
-            and (target_version is None or m.version <= target_version)
-        ]
+        # Compute the contiguous plan starting after the current version
+        migrations_to_apply = self.compute_contiguous_plan(
+            available_migrations, start_version=current_version + 1, target_version=target_version
+        )
 
         if not migrations_to_apply:
             logger.info(f"Database is up to date at version {current_version}")

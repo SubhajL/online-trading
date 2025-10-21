@@ -265,18 +265,19 @@ class TimescaleDBAdapter:
             """,
             )
 
-            # Events table for audit trail
+            # Events table for audit trail (with composite primary key for hypertable)
             await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS events (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    id UUID DEFAULT gen_random_uuid(),
                     timestamp TIMESTAMPTZ NOT NULL,
                     event_type VARCHAR(50) NOT NULL,
                     symbol VARCHAR(20),
                     timeframe VARCHAR(5),
                     event_data JSONB,
                     metadata JSONB,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (timestamp, id)
                 );
             """,
             )
