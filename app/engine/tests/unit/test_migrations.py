@@ -13,7 +13,7 @@ from app.engine.adapters.db.connection_pool import ConnectionPool
 
 
 @pytest.fixture
-def mock_connection() -> None:
+def mock_connection() -> AsyncMock:
     """Mock database connection."""
     conn = AsyncMock(spec=Connection)
     conn.fetchval = AsyncMock()
@@ -22,26 +22,29 @@ def mock_connection() -> None:
 
     # Mock transaction context manager
     @asynccontextmanager
-    async def mock_transaction() -> None:
+    async def mock_transaction():
         yield
 
+    # asyncpg uses `async with conn.transaction(): ...`
     conn.transaction = mock_transaction
+    return conn
 
 
 @pytest.fixture
-def mock_pool(mock_connection) -> None:
+def mock_pool(mock_connection: AsyncMock) -> MagicMock:
     """Mock connection pool."""
     pool = MagicMock(spec=ConnectionPool)
 
     @asynccontextmanager
-    async def mock_acquire() -> None:
+    async def mock_acquire():
         yield mock_connection
 
     pool.acquire = mock_acquire
+    return pool
 
 
 @pytest.fixture
-def migrations_dir(tmp_path) -> None:
+def migrations_dir(tmp_path) -> Path:
     """Create temporary migrations directory."""
     migrations = tmp_path / "migrations"
     migrations.mkdir()
@@ -53,7 +56,7 @@ def migrations_dir(tmp_path) -> None:
     )
     (migrations / "000_migration_version.sql").write_text("-- Bootstrap migration")
 
-    return
+    return migrations
 
 
 class TestMigration:
@@ -125,25 +128,26 @@ class TestMigrationRunner:
         assert migrations[2].version == 2
 
     @pytest.mark.asyncio
-    async def test_validate_migration_order_valid(self, mock_pool, migrations_dir) -> None:
-        """Test validation with correct migration order."""
+    async def test_compute_contiguous_plan_valid(self, mock_pool, migrations_dir) -> None:
+        """Plan is contiguous from start when files are sequential."""
         runner = MigrationRunner(mock_pool, migrations_dir)
         migrations = await runner.get_available_migrations()
 
-        # Should not raise
-        await runner.validate_migration_order(migrations)
+        plan = runner.compute_contiguous_plan(migrations, start_version=1)
+        assert [m.version for m in plan] == [1, 2]
 
     @pytest.mark.asyncio
-    async def test_validate_migration_order_gap(self, mock_pool, migrations_dir) -> None:
-        """Test validation detects version gaps."""
-        # Create migration with gap
+    async def test_compute_contiguous_plan_stops_at_gap(self, mock_pool, migrations_dir) -> None:
+        """Plan stops at first gap and ignores later files."""
+        # Create migration with gap after 2
         (migrations_dir / "004_gap_migration.sql").write_text("SELECT 1;")
 
         runner = MigrationRunner(mock_pool, migrations_dir)
         migrations = await runner.get_available_migrations()
 
-        with pytest.raises(ValueError, match="Migration version gap detected"):
-            await runner.validate_migration_order(migrations)
+        plan = runner.compute_contiguous_plan(migrations, start_version=0)
+        # Expect bootstrap (0), then 1, 2; 4 is ignored due to gap at 3
+        assert [m.version for m in plan] == [0, 1, 2]
 
     @pytest.mark.asyncio
     async def test_apply_migration_success(self, mock_pool, mock_connection) -> None:
