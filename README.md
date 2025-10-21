@@ -94,6 +94,36 @@ make test-watch
 make test-coverage
 ```
 
+### Engine Tests with Database
+
+Some engine tests require a running TimescaleDB (PostgreSQL) and Redis. Set the following env vars for tests (defaults shown):
+
+- `DB_HOST=localhost`
+- `DB_PORT=5432`
+- `TEST_DB_NAME=test_trading_db`
+- `DB_USER=trading_user`
+- `DB_PASSWORD=trading_pass`
+
+Start the DB services:
+
+```
+docker compose -f docker-compose.dev.yml up -d postgres redis
+```
+
+Integration tests apply SQL migrations from `db/migrations` automatically. Then run:
+
+```
+cd app/engine
+source .venv/bin/activate
+pytest -m integration
+```
+
+To run the full engine suite:
+
+```
+make test-engine
+```
+
 ### Building
 
 ```bash
@@ -300,3 +330,16 @@ online trader/
 ## License
 
 MIT License - see LICENSE file for details.
+
+#### Event Bus Configuration (Engine)
+
+The engine's in‑memory EventBus can be tuned via the following environment variables (read by `EventBusConfig.from_secure_config`):
+
+- `EVENT_BUS_USE_PRIORITY_QUEUE` (default: `true`)
+  - When `true`, the bus uses a priority queue; higher `priority` values are processed first.
+  - When `false`, the bus uses FIFO ordering.
+- `EVENT_BUS_DLQ_ON_ANY_FAILURE` (default: `false`)
+  - When `true`, any handler failure for an event places it in the dead‑letter queue (DLQ).
+  - When `false`, events are DLQ’d only if all handlers fail.
+- `EVENT_BUS_SLOW_EVENT_WARN_MS` (default: `100`)
+  - Logs a warning when a single event processing exceeds this threshold (in milliseconds).
