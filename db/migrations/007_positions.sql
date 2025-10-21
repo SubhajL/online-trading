@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS positions (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     entry_order_id UUID,
     CONSTRAINT pk_positions PRIMARY KEY (position_id),
-    CONSTRAINT uq_positions_active UNIQUE (venue, symbol, is_active) WHERE is_active = TRUE,
     CONSTRAINT chk_pnl_calculation CHECK (
         unrealized_pnl = (current_price - entry_price) * size * CASE WHEN side = 'BUY' THEN 1 ELSE -1 END
     ),
@@ -47,13 +46,7 @@ CREATE TABLE IF NOT EXISTS positions (
     )
 );
 
--- Create hypertable on opened_at
-SELECT create_hypertable(
-    'positions',
-    'opened_at',
-    chunk_time_interval => INTERVAL '1 week',
-    if_not_exists => TRUE
-);
+-- Note: positions is a regular table (not hypertable) to support partial unique index
 
 -- Create indexes as specified in PRD
 CREATE INDEX IF NOT EXISTS idx_positions_symbol_opened
@@ -87,26 +80,12 @@ CREATE INDEX IF NOT EXISTS idx_positions_profitable
     ON positions (symbol, closed_at DESC)
     WHERE is_active = FALSE AND realized_pnl > 0;
 
--- Set compression policy
-ALTER TABLE positions SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'venue, symbol, is_active',
-    timescaledb.compress_orderby = 'opened_at DESC'
-);
-
--- Add compression policy
-SELECT add_compression_policy(
-    'positions',
-    compress_after => INTERVAL '30 days',
-    if_not_exists => TRUE
-);
-
--- Add retention policy
-SELECT add_retention_policy(
-    'positions',
-    drop_after => INTERVAL '2 years',
-    if_not_exists => TRUE
-);
+-- Compression/retention policies apply to hypertables; skipped for positions
 
 -- Grant permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON positions TO trading_user;
+
+-- Partial unique index to ensure only one active position per venue+symbol
+CREATE UNIQUE INDEX IF NOT EXISTS uq_positions_active
+    ON positions (venue, symbol)
+    WHERE is_active = TRUE;

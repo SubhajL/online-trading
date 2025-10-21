@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS zones (
     origin_candle_time TIMESTAMPTZ,
     origin_swing_price NUMERIC(18,8) CHECK (origin_swing_price > 0),
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT pk_zones PRIMARY KEY (zone_id),
+    CONSTRAINT pk_zones PRIMARY KEY (created_at, zone_id),
     CONSTRAINT uq_zones_unique_zone UNIQUE (venue, symbol, timeframe, zone_type, created_at, top_price, bottom_price),
     CONSTRAINT chk_price_order CHECK (top_price > bottom_price),
     CONSTRAINT chk_tested_after_created CHECK (tested_at IS NULL OR tested_at >= created_at),

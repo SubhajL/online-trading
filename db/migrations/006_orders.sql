@@ -40,13 +40,7 @@ CREATE TABLE IF NOT EXISTS orders (
     )
 );
 
--- Create hypertable on created_at
-SELECT create_hypertable(
-    'orders',
-    'created_at',
-    chunk_time_interval => INTERVAL '1 week',
-    if_not_exists => TRUE
-);
+-- Note: orders is not a hypertable to allow a UNIQUE(venue, client_order_id)
 
 -- Create indexes as specified in PRD
 CREATE INDEX IF NOT EXISTS idx_orders_symbol_created
@@ -87,25 +81,7 @@ CREATE TRIGGER update_orders_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Set compression policy
-ALTER TABLE orders SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'venue, symbol, status',
-    timescaledb.compress_orderby = 'created_at DESC'
-);
-
--- Add compression policy
-SELECT add_compression_policy(
-    'orders',
-    compress_after => INTERVAL '30 days',
-    if_not_exists => TRUE
-);
-
--- Add retention policy
-SELECT add_retention_policy(
-    'orders',
-    drop_after => INTERVAL '2 years',
-    if_not_exists => TRUE
-);
+-- Compression/retention policies apply to hypertables; skipped for orders
 
 -- Grant permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON orders TO trading_user;
