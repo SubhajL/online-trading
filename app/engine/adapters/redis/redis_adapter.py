@@ -14,6 +14,7 @@ import logging
 
 import redis.asyncio as redis
 from redis.asyncio import Redis
+from redis.asyncio.client import PubSub
 
 from ...models import Candle, TechnicalIndicators, TimeFrame
 
@@ -56,7 +57,7 @@ class RedisAdapter:
         self.decode_responses = decode_responses
 
         self._redis: Redis | None = None
-        self._pubsub: aioredis.client.PubSub | None = None
+        self._pubsub: PubSub | None = None
         self._initialized = False
 
         # Key prefixes for different data types
@@ -104,8 +105,7 @@ class RedisAdapter:
             )
 
             # Test connection
-            _result = self._redis.ping()
-            await _result if hasattr(_result, '__await__') else _result
+            await self._redis.ping()
 
             self._initialized = True
             logger.info("Redis adapter initialized successfully")
@@ -121,8 +121,7 @@ class RedisAdapter:
             self._pubsub = None
 
         if self._redis:
-            _result2 = self._redis.close()
-            await _result2 if hasattr(_result2, '__await__') else _result2
+            await self._redis.close()
             self._redis = None
 
         self._initialized = False

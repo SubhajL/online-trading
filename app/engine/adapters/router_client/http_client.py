@@ -16,6 +16,10 @@ from urllib.parse import urljoin
 from aiohttp import ClientSession, ClientTimeout
 
 from ...models import TradingDecision
+from ...resilience.thread_safe_circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+)
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -49,6 +53,15 @@ class RouterHTTPClient:
 
         self._session: ClientSession | None = None
         self._initialized = False
+
+        # Circuit breaker for router communication
+        self._circuit_breaker = CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=5,
+                success_threshold=2,
+                timeout_seconds=60,
+            ),
+        )
 
         logger.info(f"RouterHTTPClient configured for {base_url}")
 
@@ -106,6 +119,11 @@ class RouterHTTPClient:
         url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
         headers = self._get_headers()
 
+        # Circuit breaker pre-check
+        if not await self._circuit_breaker.should_allow_request():
+            logger.error("Circuit breaker open for RouterHTTPClient")
+            return {"error": "circuit_breaker_open", "status": 503}
+
         for attempt in range(self.retry_attempts):
             try:
                 async with self._session.request(
@@ -116,25 +134,31 @@ class RouterHTTPClient:
                     headers=headers,
                 ) as response:
                     if response.status == 200:
-                        return await response.json()
+                        payload = await response.json()
+                        await self._circuit_breaker.record_success()
+                        return payload
                     if response.status == 404:
                         logger.warning(f"Endpoint not found: {endpoint}")
+                        await self._circuit_breaker.record_failure()
                         return {"error": "endpoint_not_found", "status": 404}
                     if response.status >= 400:
                         error_text = await response.text()
                         logger.error(f"HTTP {response.status} error: {error_text}")
+                        await self._circuit_breaker.record_failure()
                         return {"error": error_text, "status": response.status}
 
             except TimeoutError:
                 logger.warning(
                     f"Request timeout for {method} {endpoint} (attempt {attempt + 1})",
                 )
+                await self._circuit_breaker.record_failure()
                 if attempt == self.retry_attempts - 1:
                     raise
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
 
             except Exception as e:
                 logger.error(f"Request error for {method} {endpoint}: {e}")
+                await self._circuit_breaker.record_failure()
                 if attempt == self.retry_attempts - 1:
                     raise
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
