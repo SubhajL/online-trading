@@ -512,3 +512,13 @@ playwright-report/
 # Visual regression snapshots (commit baseline snapshots, but not diffs)
 *-snapshots/*-actual.png
 *-snapshots/*-diff.png
+
+# ===========================
+# Project caches and temp directories
+# ===========================
+# pnpm store (workspace-local cache)
+app/bff/.pnpm-store/
+
+# Temp migrations directories used during tests/tools
+app/engine/tests/integration/_migrations_contiguous/
+db/_migrations_contiguous_event_flow/
