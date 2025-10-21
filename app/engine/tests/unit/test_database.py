@@ -51,8 +51,8 @@ class TestDatabaseConfig:
 
 class TestConnectionPool:
     @pytest.fixture
-    def pool_config(self) -> None:
-        return
+    def pool_config(self) -> DatabaseConfig:
+        return DatabaseConfig(
             postgres_url="postgresql://user:pass@localhost:5432/test",
             redis_url="redis://localhost:6379/1",
             pool_size=5,
@@ -285,8 +285,8 @@ class TestOptimisticLockMixin:
 
 class TestDatabaseManager:
     @pytest.fixture
-    def db_config(self) -> None:
-        return
+    def db_config(self) -> DatabaseConfig:
+        return DatabaseConfig(
             postgres_url="postgresql://test:test@localhost:5432/test",
             redis_url="redis://localhost:6379/1",
             pool_size=5,

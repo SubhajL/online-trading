@@ -32,8 +32,8 @@ from ..models import (
     BaseEvent,
     Candle,
 )
-from ..config import OrderSide'''
-from ..models import TimeFrame
+from ..config import OrderSide
+from ..models import TimeFrame'''
 
     expected = '''from typing import Any
 from ..bus import EventBus
@@ -41,7 +41,8 @@ from ..models import (
     BaseEvent,
     Candle,
 )
-from ..models import TimeFrame, OrderSide'''
+from ..models import OrderSide
+from ..models import TimeFrame'''
 
     result = ConfigImportFixer.fix_config_imports(content)
     assert result == expected
@@ -56,7 +57,7 @@ def test_preserve_real_config_imports():
 from ..models import (
     BaseEvent,
     Candle,
-)
+)'''
 
     expected = '''from ..config import (
     EventBusConfig,
@@ -116,7 +117,7 @@ from ..models import (
     BaseEvent,
     Candle,
     TimeFrame,
-)
+)'''
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
         f.write(content)

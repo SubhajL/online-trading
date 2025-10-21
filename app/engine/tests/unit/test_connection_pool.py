@@ -11,8 +11,8 @@ from app.engine.adapters.db.connection_pool import ConnectionPool, DBConfig
 
 
 @pytest.fixture
-def db_config() -> None:
-    return
+def db_config() -> DBConfig:
+    return DBConfig(
         host="localhost",
         port=5432,
         database="test_db",

@@ -31,15 +31,15 @@ def event_loop() -> None:
 
 
 @pytest.fixture(scope="session")
-async def test_db_config() -> None:
+async def test_db_config() -> DBConfig:
     """Test database configuration."""
+    return DBConfig(
         host=os.getenv("DB_HOST", "localhost"),
         port=int(os.getenv("DB_PORT", "5432")),
         database=os.getenv("TEST_DB_NAME", "test_trading_db"),
         username=os.getenv("DB_USER", "trading_user"),
         password=os.getenv("DB_PASSWORD", "trading_pass"),
-        max_connections=5,
-        min_connections=1,
+        pool_size=5,
     )
 
 

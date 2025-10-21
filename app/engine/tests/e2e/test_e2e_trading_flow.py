@@ -451,3 +451,4 @@ class TestE2ETradingFlow:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
+pytestmark = pytest.mark.e2e

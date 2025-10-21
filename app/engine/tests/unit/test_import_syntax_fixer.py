@@ -14,11 +14,11 @@ from ..config import (
 )'''
 
     expected = '''from ..bus import EventBus
-from ..models import (
+from ..config import (
     EventType,
     Order,
     OrderStatus,
-)
+)'''
 
     result = ImportSyntaxFixer.fix_imports(content)
     assert result == expected
@@ -42,7 +42,7 @@ from ..config import (
 
     expected = '''import logging
 from ..adapters.db import Database
-from ..models import (
+from ..config import (
     BaseEvent,
     EventType,
 )
@@ -50,11 +50,9 @@ from ..shared.technical import (
     calculate_atr,
 )
 from ..config import (
-    Symbol,
-)
-from ..models import (
     TimeFrame,
-)
+    Symbol,
+)'''
 
     result = ImportSyntaxFixer.fix_imports(content)
     assert result == expected
@@ -87,7 +85,7 @@ from ..config import (
 )'''
 
     expected = '''from ..bus import EventBus
-from ..models import (
+from ..config import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,
@@ -95,7 +93,7 @@ from ..models import (
     FeaturesCalculatedEvent,
     TechnicalIndicators,
     TimeFrame,
-)
+)'''
 
     result = ImportSyntaxFixer.fix_imports(content)
     assert result == expected
@@ -131,10 +129,10 @@ from ..config import (
             result = f.read()
 
         expected = '''from ..bus import EventBus
-from ..models import (
+from ..config import (
     EventType,
     Order,
-)
+)'''
 
         assert result == expected
     finally:

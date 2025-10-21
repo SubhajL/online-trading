@@ -352,3 +352,4 @@ class TestConvenienceFunctions:
         metrics = histogram.collect()
         count_metrics = [m for m in metrics if m.name == "timing_test_count"]
         assert len(count_metrics) > 0
+pytestmark = pytest.mark.integration
