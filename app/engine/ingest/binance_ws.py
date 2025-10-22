@@ -264,7 +264,8 @@ class BinanceWebSocketClient:
 
             logger.info(f"Connecting to WebSocket: {url[:100]}...")
 
-            async with websockets.connect(
+            connector = get_ws_connector()
+            async with connector(
                 url,
                 ping_interval=self.ping_interval,
                 ping_timeout=self.ping_timeout,
@@ -473,3 +474,11 @@ class BinanceWebSocketClient:
             "timeframes": len(self._timeframes),
             "running": self._running,
         }
+
+
+def get_ws_connector():
+    """Return the WebSocket connector callable.
+
+    Allows tests to inject a fake connector without importing external modules.
+    """
+    return websockets.connect
