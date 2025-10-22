@@ -7,6 +7,8 @@ from app.engine.preflight.check_redis import check_redis_connectivity, RedisPref
 
 class TestRedisPreflight:
     def test_missing_env_vars(self, monkeypatch):
+        # Ensure REDIS_URL is not present so fallback path is exercised
+        monkeypatch.delenv("REDIS_URL", raising=False)
         monkeypatch.delenv("REDIS_HOST", raising=False)
         monkeypatch.delenv("REDIS_PORT", raising=False)
 
@@ -28,3 +30,34 @@ class TestRedisPreflight:
             await check_redis_connectivity(1.0)
         except RedisPreflightError as e:
             pytest.skip(f"Redis not reachable: {e}")
+
+    @pytest.mark.asyncio
+    async def test_uses_redis_url_when_set(self, monkeypatch):
+        """Preflight prefers REDIS_URL and supports rediss scheme without needing host/port vars."""
+        from app.engine.preflight import check_redis as check_mod
+
+        # Ensure host/port are not set so fallback would normally fail
+        monkeypatch.delenv("REDIS_HOST", raising=False)
+        monkeypatch.delenv("REDIS_PORT", raising=False)
+
+        rediss_url = "rediss://default:token@example.upstash.io:6379/0"
+        monkeypatch.setenv("REDIS_URL", rediss_url)
+
+        captured = {}
+
+        class DummyClient:
+            async def ping(self):  # noqa: D401
+                return True
+
+            async def close(self):
+                return None
+
+        def fake_from_url(url, **kwargs):  # type: ignore[no-untyped-def]
+            captured["url"] = url
+            return DummyClient()
+
+        # Patch redis.from_url inside the module to intercept the URL
+        monkeypatch.setattr(check_mod.redis, "from_url", fake_from_url)
+
+        await check_redis_connectivity(0.5)
+        assert captured.get("url") == rediss_url

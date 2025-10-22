@@ -12,6 +12,8 @@ from .events import create_smc_event, create_zone_event, publish_events
 from .pivots import PivotMethod, detect_n_bar_pivots, detect_zigzag_pivots
 from .structure import detect_bos, detect_choch, get_key_levels, update_structure_state
 from .zones import detect_fair_value_gap, detect_order_block, expire_old_zones
+from .atr import atr
+from .numutils import to_float_ohlc_arrays
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +124,9 @@ class SMCEngine:
                     if choch_event.to_state == StructureState.BULLISH:
                         # Look for last bearish candle
                         if c.close_price < c.open_price:
-                            ob_zone = detect_order_block(c, choch_event, candle.timeframe)
+                            ob_zone = detect_order_block(
+                                c, choch_event, candle.timeframe
+                            )
                             if ob_zone:
                                 self._add_zone(key, ob_zone)
                                 zone_event = create_zone_event(ob_zone, "created")
@@ -131,7 +135,9 @@ class SMCEngine:
                     else:
                         # Look for last bullish candle
                         if c.close_price > c.open_price:
-                            ob_zone = detect_order_block(c, choch_event, candle.timeframe)
+                            ob_zone = detect_order_block(
+                                c, choch_event, candle.timeframe
+                            )
                             if ob_zone:
                                 self._add_zone(key, ob_zone)
                                 zone_event = create_zone_event(ob_zone, "created")
@@ -207,18 +213,14 @@ class SMCEngine:
         if len(candles) > self.max_candle_history:
             candles.pop(0)
 
-        # Update ATR approximation (simple True Range average)
+        # Update ATR using vectorized numpy compute; store as Decimal with boundary conversion
         if len(candles) >= 14:
             recent = candles[-14:]
-            true_ranges = []
-            for i in range(1, len(recent)):
-                high_low = recent[i].high_price - recent[i].low_price
-                high_close = abs(recent[i].high_price - recent[i - 1].close_price)
-                low_close = abs(recent[i].low_price - recent[i - 1].close_price)
-                true_ranges.append(max(high_low, high_close, low_close))
-
-            if true_ranges:
-                self._atr_values[key] = sum(true_ranges) / len(true_ranges)
+            _o, h, l, c = to_float_ohlc_arrays(recent)
+            atr_series = atr(h, l, c, period=14)
+            latest = atr_series[-1]
+            # Convert back to Decimal with sufficient precision at boundary
+            self._atr_values[key] = Decimal(str(latest))
 
     def _detect_pivots(self, candles: list[Candle]) -> list[Any]:
         if self.pivot_method == PivotMethod.N_BAR:

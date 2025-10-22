@@ -153,25 +153,26 @@ class TestCalculateMaxDrawdown:
 class TestApplySignalVectorized:
     """Tests for vectorized signal application."""
 
-    def test_apply_signal_vectorized_basic(self) -> None:
-        """Converts signals to positions correctly."""
+    def test_apply_signal_vectorized_basic_vector_sizer(self) -> None:
+        """Vectorized sizer returns signals as float positions."""
         signals = np.array([0, 1, 1, -1, -1, 0, 1, 0])
         prices = np.array([100, 105, 110, 108, 106, 105, 110, 115])
 
-        def simple_sizer(signal, price) -> None:
-            return
+        def simple_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:  # type: ignore[type-arg]
+            assert xs.shape == ps.shape
+            return xs.astype(float)
 
         positions = apply_signal_vectorized(signals, prices, simple_sizer)
 
         np.testing.assert_array_equal(positions, signals.astype(float))
 
-    def test_apply_signal_vectorized_position_limits(self) -> None:
-        """Respects maximum position constraints."""
-        signals = np.array([2, 3, 1, -2, -3])  # Large signals
-        prices = np.array([100, 105, 110, 108, 106])
+    def test_apply_signal_vectorized_limits_clipped(self) -> None:
+        """Over-range values are clipped to [-1, 1]."""
+        signals = np.array([2, 3, 1, -2, -3], dtype=float)
+        prices = np.array([100, 105, 110, 108, 106], dtype=float)
 
-        def limited_sizer(signal, price) -> None:
-            return
+        def limited_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:  # type: ignore[type-arg]
+            return xs  # deliberately out of allowed range
 
         positions = apply_signal_vectorized(signals, prices, limited_sizer)
 
@@ -179,16 +180,28 @@ class TestApplySignalVectorized:
         np.testing.assert_array_equal(positions, [1, 1, 1, -1, -1])
 
     def test_apply_signal_vectorized_price_dependent(self) -> None:
-        """Position sizing depends on price."""
+        """Position sizing depends on price in vectorized manner."""
         signals = np.array([1, 1, 1])
-        prices = np.array([100, 200, 50])
+        prices = np.array([100, 200, 50], dtype=float)
 
-        def inverse_price_sizer(signal, price) -> None:
-            return
+        def inverse_price_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:  # type: ignore[type-arg]
+            # More exposure when price is lower, normalized to ~[-1, 1]
+            return ps[0] / np.maximum(ps, 1e-9)
 
         positions = apply_signal_vectorized(signals, prices, inverse_price_sizer)
 
-        np.testing.assert_array_almost_equal(positions, [100, 50, 200])
+        np.testing.assert_array_almost_equal(positions, [1.0, 0.5, 1.0])
+
+    def test_apply_signal_vectorized_shape_mismatch_raises(self) -> None:
+        """Sizer returning a wrong-shaped array raises ValueError."""
+        signals = np.array([0, 1, 0], dtype=float)
+        prices = np.array([10, 11, 12], dtype=float)
+
+        def bad_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:  # type: ignore[type-arg]
+            return xs[:-1]
+
+        with pytest.raises(ValueError):
+            _ = apply_signal_vectorized(signals, prices, bad_sizer)
 
 
 class TestCalculateMetrics:

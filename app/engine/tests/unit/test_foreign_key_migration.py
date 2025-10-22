@@ -14,7 +14,7 @@ from app.engine.adapters.db.connection_pool import ConnectionPool
 
 
 @pytest.fixture
-def mock_connection() -> None:
+def mock_connection() -> AsyncMock:
     """Mock database connection."""
     conn = AsyncMock(spec=Connection)
     conn.fetchval = AsyncMock()
@@ -22,26 +22,28 @@ def mock_connection() -> None:
     conn.execute = AsyncMock()
 
     @asynccontextmanager
-    async def mock_transaction() -> None:
+    async def mock_transaction():
         yield
 
     conn.transaction = mock_transaction
+    return conn
 
 
 @pytest.fixture
-def mock_pool(mock_connection) -> None:
+def mock_pool(mock_connection: AsyncMock) -> MagicMock:
     """Mock connection pool."""
     pool = MagicMock(spec=ConnectionPool)
 
     @asynccontextmanager
-    async def mock_acquire() -> None:
+    async def mock_acquire():
         yield mock_connection
 
     pool.acquire = mock_acquire
+    return pool
 
 
 @pytest.fixture
-def migrations_dir(tmp_path) -> None:
+def migrations_dir(tmp_path) -> Path:
     """Create temporary migrations directory with foreign key migration."""
     migrations = tmp_path / "migrations"
     migrations.mkdir()
@@ -72,7 +74,7 @@ ON DELETE SET NULL;
 """
     (migrations / "008_add_foreign_keys.sql").write_text(fk_content)
 
-    return
+    return migrations
 
 
 class TestForeignKeyMigration:

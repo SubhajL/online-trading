@@ -313,7 +313,8 @@ class EventBus:
 
                 # Measure per-event processing time
                 start = asyncio.get_event_loop().time()
-                result = await self._process_event_with_subscriptions(event)
+                # Instrumented processing (updates metrics + tracing)
+                result = await self._process_one_event(event)
                 # DLQ policy
                 try:
                     if result is not None and result.failed_handlers > 0:
@@ -350,6 +351,48 @@ class EventBus:
                 await asyncio.sleep(0.1)
 
         logger.info(f"Worker {worker_name} stopped")
+
+    async def _process_one_event(self, event: BaseEvent) -> Any:
+        """Process a single event with observability instrumentation.
+
+        Updates queue metrics (size and processing lag) and wraps processing in a
+        tracing span with key attributes. Returns the EventProcessingResult.
+        """
+        # Compute processing lag relative to publish time if available
+        loop_time = asyncio.get_event_loop().time()
+        published_at = event.metadata.get("published_at", loop_time)
+        try:
+            processing_lag = max(0.0, float(loop_time - float(published_at)))
+        except Exception:
+            processing_lag = 0.0
+
+        # Update queue metrics if observability is available
+        try:
+            from app.engine.core.observability import get_observability
+
+            obs = get_observability()
+        except Exception:
+            obs = None
+
+        if obs is not None:
+            try:
+                obs.update_queue_metrics(
+                    queue_size=self._event_queue.qsize(), processing_lag=processing_lag
+                )
+            except Exception:
+                # Metrics should never break processing
+                pass
+
+            attrs = {
+                "event_type": getattr(event.event_type, "name", str(event.event_type)),
+                "symbol": getattr(event, "symbol", ""),
+                "priority": event.metadata.get("priority", 0),
+            }
+            async with obs.trace_operation("event.process", attributes=attrs):
+                return await self._process_event_with_subscriptions(event)
+
+        # Fallback to direct processing if no observability
+        return await self._process_event_with_subscriptions(event)
 
     @error_boundary(
         "EventBus",

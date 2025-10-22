@@ -10,6 +10,57 @@ import pytest_asyncio
 import os
 from pathlib import Path
 from app.engine.preflight.check_database import check_db_connectivity
+import pytest
+import pytest_asyncio
+
+# Redis fixtures
+import os
+import uuid
+import redis.asyncio as redis
+
+
+def _require_env(name: str) -> str:
+    val = os.getenv(name)
+    if not val:
+        raise KeyError(name)
+    return val
+
+
+@pytest_asyncio.fixture(scope="function")
+async def redis_client():
+    """Session-scoped Redis client using REDIS_URL; skips when not configured.
+
+    Requires REDIS_URL (supports rediss://). No legacy host/port fallback.
+    """
+    url = os.getenv("REDIS_URL")
+    if not url:
+        pytest.skip("REDIS_URL not set; skipping Redis-marked tests")
+
+    client = redis.from_url(url, decode_responses=False)
+    try:
+        # Basic connectivity check
+        pong = await client.ping()
+        if pong is not True:
+            pytest.skip("Redis PING failed; skipping")
+        yield client
+    finally:
+        try:
+            await client.aclose()
+        except Exception:
+            pass
+
+
+@pytest_asyncio.fixture(scope="function")
+async def redis_key(redis_client):
+    """Generate a unique, namespaced key and ensure cleanup after test."""
+    key = f"pytest:{uuid.uuid4().hex}"
+    try:
+        yield key
+    finally:
+        try:
+            await redis_client.delete(key)
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="session")
