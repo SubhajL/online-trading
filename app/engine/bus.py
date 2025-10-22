@@ -6,7 +6,7 @@ Uses dependency injection for subscription management and event processing.
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from typing import Any
 
@@ -435,7 +435,9 @@ class EventBus:
         """Enqueue event into dead letter queue with reason."""
         try:
             event.metadata["dead_letter_reason"] = reason
-            event.metadata["dead_letter_timestamp"] = datetime.utcnow().isoformat()
+            event.metadata["dead_letter_timestamp"] = datetime.now(
+                timezone.utc
+            ).isoformat()
             await self._dead_letter_queue.put(event)
         except asyncio.QueueFull:
             logger.error("Dead letter queue full, dropping event")
@@ -550,7 +552,7 @@ async def publish_event(topic: str, data: dict[str, Any]) -> bool:
             if topic == "candles.v1"
             else EventType.CANDLE_UPDATE
         ),
-        timestamp=data.get("timestamp", datetime.utcnow()),
+        timestamp=data.get("timestamp", datetime.now(timezone.utc)),
         data=data,
     )
     return await bus.publish(event)

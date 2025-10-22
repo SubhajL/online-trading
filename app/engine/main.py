@@ -10,7 +10,7 @@ from decimal import Decimal
 
 
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import os
 import signal
@@ -118,7 +118,7 @@ app.add_middleware(
 )
 
 # Track startup time
-startup_time = datetime.utcnow()
+startup_time = datetime.now(timezone.utc)
 
 
 def init_tracing_from_env() -> None:
@@ -351,11 +351,11 @@ async def health_check() -> HealthResponse:
                 service_health[service_name] = {"status": "error", "error": str(e)}
                 overall_status = "unhealthy"
 
-        uptime = (datetime.utcnow() - startup_time).total_seconds()
+        uptime = (datetime.now(timezone.utc) - startup_time).total_seconds()
 
         return HealthResponse(
             status=overall_status,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             services=service_health,
             uptime_seconds=uptime,
         )
@@ -368,7 +368,7 @@ async def health_check() -> HealthResponse:
 @app.get("/health/simple")
 async def simple_health_check() -> dict[str, Any]:
     """Simple health check for load balancers"""
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @app.get("/metrics", response_model=MetricsResponse)
@@ -393,7 +393,7 @@ async def get_metrics() -> MetricsResponse:
                 metrics[service_name] = {"error": str(e)}
 
         return MetricsResponse(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             event_bus=metrics.get("event_bus", {}),
             ingest=metrics.get("ingest", {}),
             features=metrics.get("features", {}),
@@ -516,8 +516,10 @@ async def get_status() -> dict[str, Any]:
                 status[service_name] = {"error": str(e)}
 
         return {
-            "timestamp": datetime.utcnow().isoformat(),
-            "uptime_seconds": (datetime.utcnow() - startup_time).total_seconds(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "uptime_seconds": (
+                datetime.now(timezone.utc) - startup_time
+            ).total_seconds(),
             "services": status,
         }
 
@@ -534,7 +536,7 @@ async def get_info() -> dict[str, Any]:
         "version": "1.0.0",
         "environment": os.getenv("ENVIRONMENT", "development"),
         "startup_time": startup_time.isoformat(),
-        "uptime_seconds": (datetime.utcnow() - startup_time).total_seconds(),
+        "uptime_seconds": (datetime.now(timezone.utc) - startup_time).total_seconds(),
         "services": list(services.keys()),
     }
 
@@ -549,7 +551,7 @@ async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse
         content={
             "error": "Internal server error",
             "message": str(exc),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
 

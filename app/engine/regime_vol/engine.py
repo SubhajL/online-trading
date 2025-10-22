@@ -7,7 +7,7 @@ Classifies market into TREND/RANGE/SHOCK regimes using:
 - ADX percentiles
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 import logging
@@ -249,7 +249,7 @@ async def emit_regime_event(
     try:
         event = BaseEvent(
             event_type=EventType.REGIME_UPDATE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             symbol=symbol,
             timeframe=TimeFrame(timeframe),
             metadata={
@@ -362,7 +362,7 @@ class RegimeVolEngine:
             # Store regime history
             if key not in self._regime_history:
                 self._regime_history[key] = deque(maxlen=1000)
-            self._regime_history[key].append((datetime.utcnow(), regime))
+            self._regime_history[key].append((datetime.now(timezone.utc), regime))
 
             # Emit regime event
             await emit_regime_event(

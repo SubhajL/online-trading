@@ -6,7 +6,7 @@ the shared math library, writes to the database, and publishes feature events.
 """
 
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import logging
 from typing import Any, cast
@@ -372,7 +372,7 @@ class FeatureEngine:
         """Publish a features calculated event"""
         try:
             event = FeaturesCalculatedEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 symbol=indicators.symbol,
                 timeframe=indicators.timeframe,
                 features=indicators,

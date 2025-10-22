@@ -9,7 +9,7 @@ from typing import Any
 
 import asyncio
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import json
 import logging
@@ -354,7 +354,7 @@ class BinanceWebSocketClient:
 
             # Create and publish candle update event
             event = CandleUpdateEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 symbol=candle.symbol,
                 timeframe=candle.timeframe,
                 candle=candle,

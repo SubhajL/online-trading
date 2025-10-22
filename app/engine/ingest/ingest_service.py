@@ -6,7 +6,7 @@ Manages WebSocket connections and REST API calls.
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from datetime import datetime, timedelta
 
@@ -153,7 +153,9 @@ class IngestService:
             logger.error(f"Error starting backfill: {e}")
             raise
 
-    async def _backfill_symbol_timeframe(self, symbol: str, timeframe: TimeFrame) -> None:
+    async def _backfill_symbol_timeframe(
+        self, symbol: str, timeframe: TimeFrame
+    ) -> None:
         """Backfill historical data for a specific symbol and timeframe"""
         try:
             logger.info(f"Starting backfill for {symbol} {timeframe.value}")
@@ -172,7 +174,7 @@ class IngestService:
             # Publish historical candles as events
             for candle in candles:
                 event = CandleUpdateEvent(
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     symbol=symbol,
                     timeframe=timeframe,
                     candle=candle,
@@ -276,7 +278,9 @@ class IngestService:
         """Get the latest candle for a symbol and timeframe"""
         return self._latest_candles.get(symbol, {}).get(timeframe)
 
-    async def get_gap_detection(self, symbol: str, timeframe: TimeFrame) -> list[dict[Any, Any]]:
+    async def get_gap_detection(
+        self, symbol: str, timeframe: TimeFrame
+    ) -> list[dict[Any, Any]]:
         """Detect gaps in historical data"""
         # This would implement gap detection logic
         # For now, return empty list
@@ -287,7 +291,9 @@ class IngestService:
 
         return gaps
 
-    async def fill_gaps(self, symbol: str, timeframe: TimeFrame, gaps: list[dict[Any, Any]]) -> None:
+    async def fill_gaps(
+        self, symbol: str, timeframe: TimeFrame, gaps: list[dict[Any, Any]]
+    ) -> None:
         """Fill detected gaps in historical data"""
         for gap in gaps:
             try:
@@ -305,7 +311,7 @@ class IngestService:
                 # Publish gap-fill candles
                 for candle in candles:
                     event = CandleUpdateEvent(
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(timezone.utc),
                         symbol=symbol,
                         timeframe=timeframe,
                         candle=candle,

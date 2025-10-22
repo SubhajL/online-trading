@@ -8,7 +8,7 @@ following best practices for resilient distributed systems.
 from abc import ABC, abstractmethod
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 import logging
 from typing import Any, Callable
@@ -45,7 +45,7 @@ class ErrorContext:
     """Rich context information for errors."""
 
     error_id: str = field(default_factory=lambda: str(uuid4()))
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     category: ErrorCategory = ErrorCategory.PROCESSING
     severity: ErrorSeverity = ErrorSeverity.MEDIUM
     component: str = ""
@@ -69,13 +69,15 @@ class EventBusError(Exception):
         self.message = message
         self.context = context or ErrorContext()
         self.cause = cause
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
 
 class SubscriptionError(EventBusError):
     """Error related to subscription management."""
 
-    def __init__(self, message: str, subscription_id: str | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self, message: str, subscription_id: str | None = None, **kwargs: Any
+    ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.SUBSCRIPTION
         if subscription_id:
@@ -86,7 +88,9 @@ class SubscriptionError(EventBusError):
 class ProcessingError(EventBusError):
     """Error during event processing."""
 
-    def __init__(self, message: str, event_id: UUID | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self, message: str, event_id: UUID | None = None, **kwargs: Any
+    ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.PROCESSING
         if event_id:
@@ -97,7 +101,9 @@ class ProcessingError(EventBusError):
 class QueueError(EventBusError):
     """Error related to queue operations."""
 
-    def __init__(self, message: str, queue_size: int | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self, message: str, queue_size: int | None = None, **kwargs: Any
+    ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.QUEUE
         if queue_size is not None:
@@ -108,7 +114,9 @@ class QueueError(EventBusError):
 class ConfigurationError(EventBusError):
     """Error in system configuration."""
 
-    def __init__(self, message: str, config_key: str | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self, message: str, config_key: str | None = None, **kwargs: Any
+    ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CONFIGURATION
         context.severity = ErrorSeverity.HIGH
@@ -120,7 +128,9 @@ class ConfigurationError(EventBusError):
 class TimeoutError(EventBusError):
     """Error due to operation timeout."""
 
-    def __init__(self, message: str, timeout_seconds: float | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self, message: str, timeout_seconds: float | None = None, **kwargs: Any
+    ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.TIMEOUT
         if timeout_seconds:
@@ -147,7 +157,7 @@ class ErrorStats:
     errors_by_severity: dict[ErrorSeverity, int] = field(default_factory=dict)
     recent_errors: list[ErrorContext] = field(default_factory=list)
     error_rate_per_minute: float = 0.0
-    last_reset: datetime = field(default_factory=datetime.utcnow)
+    last_reset: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ErrorHandler(ABC):
@@ -250,7 +260,7 @@ class MetricsErrorHandler(ErrorHandler):
 
     async def _update_error_rate(self) -> None:
         """Update error rate calculation."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         minute_ago = now - timedelta(minutes=1)
 
         recent_count = sum(
@@ -488,7 +498,12 @@ class error_boundary:
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> bool:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> bool:
         """Async context manager exit."""
         if exc_type is not None:
             context = create_error_context(
@@ -509,7 +524,12 @@ class error_boundary:
         """Sync context manager entry."""
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> bool:
         """Sync context manager exit."""
         if exc_type is not None:
             context = create_error_context(

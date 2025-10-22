@@ -9,7 +9,7 @@ Requirements:
 - RSI 40-55 bounce for longs
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import logging
 from typing import Any, NewType
@@ -421,7 +421,7 @@ class RetestEngine:
             )
 
             event = RetestSignalEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 symbol=signal.symbol,
                 timeframe=signal.timeframe,
                 signal=signal,

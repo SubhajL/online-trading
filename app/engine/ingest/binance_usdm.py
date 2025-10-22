@@ -6,7 +6,7 @@ emits only closed candles, handles reconnection with backfill.
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 
@@ -235,7 +235,7 @@ class BinanceUSDMIngester:
                         last_time = latest_candle.close_time
                     else:
                         # Default to 24 hours ago if no data
-                        last_time = datetime.utcnow() - timedelta(hours=24)
+                        last_time = datetime.now(timezone.utc) - timedelta(hours=24)
 
                 # Create backfill task
                 task = self._backfill_missing_candles(symbol, tf, last_time)
@@ -282,7 +282,7 @@ class BinanceUSDMIngester:
 
         # Calculate start and end times
         start_ts = int(start_time.timestamp() * 1000)
-        end_ts = int(datetime.utcnow().timestamp() * 1000)
+        end_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
 
         # Binance limit is 1500 candles per request for futures
         max_candles = 1500
@@ -297,7 +297,7 @@ class BinanceUSDMIngester:
                     break
 
                 # Build request URL with recvWindow for time sync
-                timestamp = int(datetime.utcnow().timestamp() * 1000)
+                timestamp = int(datetime.now(timezone.utc).timestamp() * 1000)
                 url = (
                     f"{self.rest_base_url}/fapi/v1/klines?"
                     f"symbol={symbol}&interval={timeframe}"
@@ -409,7 +409,7 @@ class BinanceUSDMIngester:
             logger.info("5. Ensure stable network latency to Binance servers")
 
         # Log current system time vs expected
-        system_time = datetime.utcnow()
+        system_time = datetime.now(timezone.utc)
         logger.info(f"Current system UTC time: {system_time.isoformat()}")
         logger.info("You can check time offset at: https://www.time.is/")
 

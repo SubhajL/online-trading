@@ -8,7 +8,7 @@ position management, and account operations.
 from typing import Any
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import logging
 from urllib.parse import urljoin
@@ -451,7 +451,7 @@ class RouterHTTPClient:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     async def get_service_status(self) -> dict[str, Any]:
@@ -465,7 +465,7 @@ class RouterHTTPClient:
             return {
                 "status": "error",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     # ============================================================================

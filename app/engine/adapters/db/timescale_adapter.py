@@ -9,7 +9,7 @@ from typing import Any, AsyncIterator
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -671,7 +671,7 @@ class TimescaleDBAdapter:
                     "database_size": size_result["size"] if size_result else "unknown",
                     "pool_size": self._pool.get_size() if self._pool else 0,
                     "table_statistics": table_stats,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
         except Exception as e:
@@ -679,7 +679,7 @@ class TimescaleDBAdapter:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     async def get_database_stats(self) -> dict[str, Any]:
@@ -711,7 +711,7 @@ class TimescaleDBAdapter:
                 return {
                     "candle_counts": [dict(row) for row in candle_counts],
                     "recent_activity": dict(recent_activity) if recent_activity else {},
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
         except Exception as e:
@@ -721,7 +721,7 @@ class TimescaleDBAdapter:
     async def cleanup_old_data(self, days_to_keep: int = 90) -> dict[str, int]:
         """Clean up old data beyond retention period"""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
             cleanup_results = {}
 
             async with self.get_connection() as conn:

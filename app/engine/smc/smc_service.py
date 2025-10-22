@@ -5,13 +5,10 @@ Main service that orchestrates pivot detection, zone identification, and signal 
 for Smart Money Concepts analysis. Integrates with the event bus for real-time processing.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from decimal import Decimal
 from typing import Any
-
-
-
 
 
 from ..bus import get_event_bus
@@ -390,7 +387,8 @@ class SMCService:
                                 direction=OrderSide.BUY,
                                 entry_price=current_candle.close_price,
                                 stop_loss=zone.bottom_price * Decimal("0.998"),
-                                take_profit=current_candle.close_price * Decimal("1.015"),
+                                take_profit=current_candle.close_price
+                                * Decimal("1.015"),
                                 confidence=Decimal(str(confidence)),
                                 zone=zone,
                                 reasoning="Bullish reaction at bullish order block",
@@ -413,7 +411,8 @@ class SMCService:
                                 direction=OrderSide.SELL,
                                 entry_price=current_candle.close_price,
                                 stop_loss=zone.top_price * Decimal("1.002"),
-                                take_profit=current_candle.close_price * Decimal("0.985"),
+                                take_profit=current_candle.close_price
+                                * Decimal("0.985"),
                                 confidence=Decimal(str(confidence)),
                                 zone=zone,
                                 reasoning="Bearish reaction at bearish order block",
@@ -543,7 +542,7 @@ class SMCService:
 
             # Create and publish event
             event = SMCSignalEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 symbol=signal.symbol,
                 timeframe=signal.timeframe,
                 signal=signal,
@@ -563,7 +562,9 @@ class SMCService:
     def _cleanup_old_signals(self) -> None:
         """Remove old signals that have expired"""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=self.signal_timeout_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
+                hours=self.signal_timeout_hours
+            )
             self._active_signals = [
                 signal
                 for signal in self._active_signals

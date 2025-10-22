@@ -9,7 +9,7 @@ Listens for candle updates and calculates indicators in real-time.
 """
 
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from ..bus import get_event_bus
@@ -165,7 +165,7 @@ class FeatureService:
 
             # Create and publish features calculated event
             event = FeaturesCalculatedEvent(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 symbol=symbol,
                 timeframe=timeframe,
                 features=indicators,
@@ -175,7 +175,7 @@ class FeatureService:
 
             # Update statistics
             self._calculations_performed += 1
-            self._last_calculation_time = datetime.utcnow()
+            self._last_calculation_time = datetime.now(timezone.utc)
 
             logger.debug(f"Published features for {symbol} {timeframe.value}")
 

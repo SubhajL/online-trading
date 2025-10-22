@@ -7,7 +7,7 @@ Provides high-performance caching for trading data and coordination between serv
 
 from typing import Any
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import json
 import logging
@@ -734,7 +734,7 @@ class RedisAdapter:
                 "connected_clients": info.get("connected_clients", 0),
                 "total_commands_processed": info.get("total_commands_processed", 0),
                 "uptime_seconds": info.get("uptime_in_seconds", 0),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -742,7 +742,7 @@ class RedisAdapter:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     async def get_key_count(self, pattern: str = "*") -> int:

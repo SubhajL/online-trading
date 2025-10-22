@@ -10,7 +10,7 @@ from typing import Any
 from base64 import b64decode, b64encode
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import hashlib
 import logging
@@ -72,7 +72,7 @@ class ValidationResult:
 class SecurityAudit:
     """Security audit information."""
 
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     total_variables: int = 0
     validated_variables: int = 0
     failed_validations: list[ValidationResult] = field(default_factory=list)
@@ -96,7 +96,9 @@ class EnvironmentValidator:
         "hostname": r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$",
     }
 
-    def __init__(self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT) -> None:
+    def __init__(
+        self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT
+    ) -> None:
         self.security_level = security_level
         self.rules: dict[str, ValidationRule] = {}
         self._setup_default_rules()
@@ -581,7 +583,7 @@ class SecurityGuard:
     def __init__(self, config: SecureConfig) -> None:
         self.config = config
         self.violations: list[dict[str, Any]] = []
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
 
     def check_file_permissions(self, path: Path) -> bool:
         """Check if file has secure permissions."""
@@ -632,7 +634,7 @@ class SecurityGuard:
     ) -> None:
         """Log a security violation."""
         violation = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "type": violation_type,
             "message": message,
             "severity": severity,
@@ -646,8 +648,8 @@ class SecurityGuard:
         audit = self.config.audit()
 
         return {
-            "timestamp": datetime.utcnow().isoformat(),
-            "uptime": str(datetime.utcnow() - self.start_time),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "uptime": str(datetime.now(timezone.utc) - self.start_time),
             "security_level": self.config.security_level.value,
             "audit_results": {
                 "score": audit.security_score,

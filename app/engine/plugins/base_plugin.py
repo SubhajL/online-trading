@@ -5,7 +5,7 @@ Base plugin interface for extending the trading engine.
 from typing import Any
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..models import BaseEvent, Candle, TechnicalIndicators
 
@@ -91,7 +91,7 @@ class IndicatorPlugin(BasePlugin):
                 return [
                     BaseEvent(
                         event_type=event.event_type,
-                        timestamp=datetime.utcnow(),
+                        timestamp=datetime.now(timezone.utc),
                         symbol=event.symbol,
                         timeframe=event.timeframe,
                         metadata={"custom_indicators": indicators},

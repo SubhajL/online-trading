@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -33,7 +33,7 @@ class SystemClock(Clock):
 
     def now(self) -> datetime:
         """Get current UTC datetime."""
-        return datetime.utcnow()
+        return datetime.now(timezone.utc)
 
     async def sleep(self, seconds: float) -> None:
         """Sleep using asyncio."""
@@ -57,7 +57,7 @@ class FakeClock(Clock):
 
     def __init__(self, initial_time: datetime | None = None):
         """Initialize with optional starting time."""
-        self._current_time = initial_time or datetime.utcnow()
+        self._current_time = initial_time or datetime.now(timezone.utc)
         self._monotonic_start = 0.0
         self._monotonic_current = 0.0
         self._scheduled: list[ScheduledCallback] = []

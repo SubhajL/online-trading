@@ -10,7 +10,7 @@ Can consume from:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List
 
 from ..models import Candle, TimeFrame
@@ -33,7 +33,7 @@ class MarketDataFeeder:
         symbols: List[str],
         timeframes: List[TimeFrame],
         data_source: str = "timescale",
-        **data_source_kwargs
+        **data_source_kwargs,
     ):
         self.broker = broker
         self.symbols = symbols
@@ -61,7 +61,9 @@ class MarketDataFeeder:
                 for timeframe in self.timeframes:
                     key = f"{symbol}_{timeframe.value}"
 
-                    dataset = create_dataset(self.data_source, **self.data_source_kwargs)
+                    dataset = create_dataset(
+                        self.data_source, **self.data_source_kwargs
+                    )
                     streaming_dataset = StreamingDataset(dataset)
                     self.datasets[key] = streaming_dataset
 
@@ -79,10 +81,7 @@ class MarketDataFeeder:
             raise
 
     async def start_historical_feed(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        speed_multiplier: float = 1.0
+        self, start_date: datetime, end_date: datetime, speed_multiplier: float = 1.0
     ):
         """Start historical data feed for testing"""
         if self.is_running:
@@ -110,10 +109,7 @@ class MarketDataFeeder:
             raise
 
     async def _stream_candles(
-        self,
-        symbol: str,
-        timeframe: TimeFrame,
-        streaming_dataset: StreamingDataset
+        self, symbol: str, timeframe: TimeFrame, streaming_dataset: StreamingDataset
     ):
         """Stream live candles for a symbol/timeframe"""
         logger.info(f"Starting live stream for {symbol} {timeframe.value}")
@@ -121,7 +117,7 @@ class MarketDataFeeder:
         try:
             # For live data, we'd typically connect to WebSocket
             # For now, simulate by streaming recent data
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(days=1)  # Last 24 hours
 
             streaming_dataset.start_stream(symbol, timeframe, start_time, end_time)
@@ -130,7 +126,9 @@ class MarketDataFeeder:
                 candle = streaming_dataset.next_candle()
                 if candle:
                     await self.broker.update_market_data(candle)
-                    logger.debug(f"Fed candle: {symbol} {timeframe.value} @ {candle.close_price}")
+                    logger.debug(
+                        f"Fed candle: {symbol} {timeframe.value} @ {candle.close_price}"
+                    )
 
                 # Wait for next candle interval
                 await asyncio.sleep(self._get_interval_seconds(timeframe))
@@ -144,7 +142,7 @@ class MarketDataFeeder:
         timeframe: TimeFrame,
         start_date: datetime,
         end_date: datetime,
-        speed_multiplier: float
+        speed_multiplier: float,
     ):
         """Stream historical candles at accelerated speed"""
         logger.info(f"Starting historical stream for {symbol} {timeframe.value}")
@@ -161,7 +159,9 @@ class MarketDataFeeder:
                 candle = streaming_dataset.next_candle()
                 if candle:
                     await self.broker.update_market_data(candle)
-                    logger.debug(f"Fed historical candle: {symbol} @ {candle.close_price}")
+                    logger.debug(
+                        f"Fed historical candle: {symbol} @ {candle.close_price}"
+                    )
 
                 await asyncio.sleep(interval_seconds)
 
@@ -177,7 +177,7 @@ class MarketDataFeeder:
             TimeFrame.M30: 1800,
             TimeFrame.H1: 3600,
             TimeFrame.H4: 14400,
-            TimeFrame.D1: 86400
+            TimeFrame.D1: 86400,
         }
         return intervals.get(timeframe, 300)  # Default to 5 minutes
 
@@ -241,7 +241,7 @@ class MarketDataFeeder:
         # Cancel tasks for this symbol
         tasks_to_remove = []
         for i, task in enumerate(self.tasks):
-            task_name = task.get_name() if hasattr(task, 'get_name') else ''
+            task_name = task.get_name() if hasattr(task, "get_name") else ""
             if symbol in task_name:
                 task.cancel()
                 tasks_to_remove.append(i)
@@ -270,7 +270,7 @@ class MockLiveDataFeeder:
         broker: PaperBroker,
         symbols: List[str],
         timeframe: TimeFrame = TimeFrame.M1,
-        lookback_hours: int = 24
+        lookback_hours: int = 24,
     ):
         self.broker = broker
         self.symbols = symbols
@@ -292,17 +292,17 @@ class MockLiveDataFeeder:
                 symbols=self.symbols,
                 timeframes=[self.timeframe],
                 data_source="timescale",
-                database_url=database_url
+                database_url=database_url,
             )
 
             # Stream recent data as "live" feed
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(hours=self.lookback_hours)
 
             await feeder.start_historical_feed(
                 start_time,
                 end_time,
-                speed_multiplier=60.0  # 60x speed for testing
+                speed_multiplier=60.0,  # 60x speed for testing
             )
 
             # Keep running
