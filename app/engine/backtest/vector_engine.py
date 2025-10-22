@@ -134,6 +134,18 @@ def apply_signal_vectorized(
     # Apply position sizer vectorized
     positions = position_sizer(signals, prices)
 
+    # Validate shape and type strictly (no legacy coercions)
+    if not isinstance(positions, np.ndarray):  # type: ignore[unreachable]
+        raise ValueError("position_sizer must return a numpy ndarray")
+    if positions.shape != signals.shape:
+        raise ValueError(
+            f"position_sizer returned shape {positions.shape}, expected {signals.shape}"
+        )
+
+    # Enforce exposure constraints and numeric dtype
+    positions = positions.astype(np.float64, copy=False)
+    positions = np.clip(positions, -1.0, 1.0)
+
     return positions
 
 
