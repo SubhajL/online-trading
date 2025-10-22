@@ -9,7 +9,6 @@ from typing import Any
 from decimal import Decimal
 
 
-
 from contextlib import asynccontextmanager
 from datetime import datetime
 import logging
@@ -77,6 +76,8 @@ async def lifespan(app: FastAPI) -> Any:
     logger.info("Starting trading engine...")
 
     try:
+        # Initialize tracing provider as early as possible
+        init_tracing_from_env()
         # Load configuration
         config = load_configuration()
 
@@ -120,6 +121,16 @@ app.add_middleware(
 startup_time = datetime.utcnow()
 
 
+def init_tracing_from_env() -> None:
+    """Initialize global tracing provider from environment.
+
+    Delegates to core.tracing.configure_tracing_from_env to respect TRACING_DISABLED.
+    """
+    from .core.tracing import configure_tracing_from_env
+
+    configure_tracing_from_env()
+
+
 def load_configuration() -> EngineConfig:
     """Load configuration from environment and config files"""
     try:
@@ -137,12 +148,13 @@ def load_configuration() -> EngineConfig:
         if redis_url:
             # Parse redis://host:port/db format
             import urllib.parse
+
             parsed = urllib.parse.urlparse(redis_url)
             redis_config = RedisConfig(
                 host=parsed.hostname or "localhost",
                 port=parsed.port or 6379,
                 password=parsed.password,
-                database=int(parsed.path.lstrip('/')) if parsed.path.strip('/') else 0,
+                database=int(parsed.path.lstrip("/")) if parsed.path.strip("/") else 0,
             )
         else:
             redis_config = RedisConfig(
@@ -188,6 +200,7 @@ async def initialize_services(config: EngineConfig) -> None:
     try:
         # Initialize event bus
         from .bus import create_event_bus
+
         event_bus = create_event_bus()
         set_event_bus(event_bus)
         services["event_bus"] = event_bus
@@ -204,7 +217,9 @@ async def initialize_services(config: EngineConfig) -> None:
         services["database"] = db_adapter
 
         # Initialize Redis adapter
+        redis_url = os.getenv("REDIS_URL")
         redis_adapter = RedisAdapter(
+            url=redis_url,
             host=config.redis.host,
             port=config.redis.port,
             password=config.redis.password,
@@ -298,7 +313,7 @@ async def shutdown_services() -> None:
             if adapter_name in services:
                 try:
                     adapter = services[adapter_name]
-                    if hasattr(adapter, 'close'):
+                    if hasattr(adapter, "close"):
                         await adapter.close()
                     logger.info(f"Closed {adapter_name}")
                 except Exception as e:
