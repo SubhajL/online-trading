@@ -36,6 +36,7 @@ class RedisAdapter:
 
     def __init__(
         self,
+        url: str | None = None,
         host: str = "localhost",
         port: int = 6379,
         password: str | None = None,
@@ -46,6 +47,8 @@ class RedisAdapter:
         retry_on_timeout: bool = True,
         decode_responses: bool = False,
     ):
+        # If a full URL is provided (supports rediss://), prefer it
+        self.url = url
         self.host = host
         self.port = port
         self.password = password
@@ -95,14 +98,26 @@ class RedisAdapter:
             if self.password:
                 connection_params["password"] = self.password
 
-            self._redis = redis.from_url(
-                f"redis://{self.host}:{self.port}/{self.database}",
-                **{
-                    k: v
-                    for k, v in connection_params.items()
-                    if k not in ["host", "port", "db"]
-                },
-            )
+            if self.url:
+                # Use provided URL as-is (preserves scheme like rediss:// for TLS)
+                self._redis = redis.from_url(
+                    self.url,
+                    **{
+                        k: v
+                        for k, v in connection_params.items()
+                        if k not in ["host", "port", "db"]
+                    },
+                )
+            else:
+                # Build non-TLS URL by default; callers needing TLS should supply url=rediss://...
+                self._redis = redis.from_url(
+                    f"redis://{self.host}:{self.port}/{self.database}",
+                    **{
+                        k: v
+                        for k, v in connection_params.items()
+                        if k not in ["host", "port", "db"]
+                    },
+                )
 
             # Test connection
             await self._redis.ping()
@@ -176,11 +191,11 @@ class RedisAdapter:
             if expire:
                 assert self._redis is not None
                 _result3 = self._redis.setex(redis_key, expire, serialized_value)
-                result = await _result3 if hasattr(_result3, '__await__') else _result3
+                result = await _result3 if hasattr(_result3, "__await__") else _result3
             else:
                 assert self._redis is not None
                 _result4 = self._redis.set(redis_key, serialized_value)
-                result = await _result4 if hasattr(_result4, '__await__') else _result4
+                result = await _result4 if hasattr(_result4, "__await__") else _result4
 
             return bool(result)
 
@@ -196,7 +211,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
             _result5 = self._redis.get(redis_key)
-            value = await _result5 if hasattr(_result5, '__await__') else _result5
+            value = await _result5 if hasattr(_result5, "__await__") else _result5
 
             if value is None:
                 return None
@@ -217,7 +232,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
             _result6 = self._redis.delete(redis_key)
-            result = await _result6 if hasattr(_result6, '__await__') else _result6
+            result = await _result6 if hasattr(_result6, "__await__") else _result6
             return bool(result)
 
         except Exception as e:
@@ -232,7 +247,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
             _result7 = self._redis.exists(redis_key)
-            result = await _result7 if hasattr(_result7, '__await__') else _result7
+            result = await _result7 if hasattr(_result7, "__await__") else _result7
             return bool(result)
 
         except Exception as e:
@@ -247,7 +262,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
             _result8 = self._redis.expire(redis_key, seconds)
-            result = await _result8 if hasattr(_result8, '__await__') else _result8
+            result = await _result8 if hasattr(_result8, "__await__") else _result8
             return bool(result)
 
         except Exception as e:
@@ -273,7 +288,7 @@ class RedisAdapter:
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
             _result9 = self._redis.hset(redis_key, field, serialized_value)
-            result = await _result9 if hasattr(_result9, '__await__') else _result9
+            result = await _result9 if hasattr(_result9, "__await__") else _result9
             return bool(result)
 
         except Exception as e:
@@ -293,7 +308,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
             _result10 = self._redis.hget(redis_key, field)
-            value = await _result10 if hasattr(_result10, '__await__') else _result10
+            value = await _result10 if hasattr(_result10, "__await__") else _result10
 
             if value is None:
                 return None
@@ -314,7 +329,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
             _result11 = self._redis.hgetall(redis_key)
-            result = await _result11 if hasattr(_result11, '__await__') else _result11
+            result = await _result11 if hasattr(_result11, "__await__") else _result11
 
             if not result:
                 return {}
@@ -340,7 +355,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
             _result12 = self._redis.hdel(redis_key, field)
-            result = await _result12 if hasattr(_result12, '__await__') else _result12
+            result = await _result12 if hasattr(_result12, "__await__") else _result12
             return bool(result)
 
         except Exception as e:
@@ -360,7 +375,7 @@ class RedisAdapter:
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
             _result13 = self._redis.lpush(redis_key, serialized_value)
-            result = await _result13 if hasattr(_result13, '__await__') else _result13
+            result = await _result13 if hasattr(_result13, "__await__") else _result13
             return int(result)
 
         except Exception as e:
@@ -376,7 +391,7 @@ class RedisAdapter:
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
             _result14 = self._redis.rpush(redis_key, serialized_value)
-            result = await _result14 if hasattr(_result14, '__await__') else _result14
+            result = await _result14 if hasattr(_result14, "__await__") else _result14
             return int(result)
 
         except Exception as e:
@@ -391,7 +406,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
             _result15 = self._redis.lpop(redis_key)
-            value = await _result15 if hasattr(_result15, '__await__') else _result15
+            value = await _result15 if hasattr(_result15, "__await__") else _result15
 
             if value is None:
                 return None
@@ -418,7 +433,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
             _result16 = self._redis.lrange(redis_key, start, end)
-            values = await _result16 if hasattr(_result16, '__await__') else _result16
+            values = await _result16 if hasattr(_result16, "__await__") else _result16
 
             result: list[Any] = []
             for value in values:
@@ -445,7 +460,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
             _result17 = self._redis.ltrim(redis_key, start, end)
-            result = await _result17 if hasattr(_result17, '__await__') else _result17
+            result = await _result17 if hasattr(_result17, "__await__") else _result17
             return bool(result)
 
         except Exception as e:
@@ -606,7 +621,7 @@ class RedisAdapter:
             serialized_message = self._serialize_value(message)
             assert self._redis is not None
             _result18 = self._redis.publish(channel, serialized_message)
-            result = await _result18 if hasattr(_result18, '__await__') else _result18
+            result = await _result18 if hasattr(_result18, "__await__") else _result18
             return int(result)
 
         except Exception as e:
@@ -647,7 +662,7 @@ class RedisAdapter:
             redis_keys = [self._build_key(prefix, key) for key in keys]
             assert self._redis is not None
             _result19 = self._redis.mget(*redis_keys)
-            values = await _result19 if hasattr(_result19, '__await__') else _result19
+            values = await _result19 if hasattr(_result19, "__await__") else _result19
 
             result: list[Any] = []
             for value in values:
@@ -679,7 +694,7 @@ class RedisAdapter:
 
             assert self._redis is not None
             _result20 = self._redis.mset(redis_pairs)
-            result = await _result20 if hasattr(_result20, '__await__') else _result20
+            result = await _result20 if hasattr(_result20, "__await__") else _result20
             return bool(result)
 
         except Exception as e:
@@ -698,16 +713,18 @@ class RedisAdapter:
             # Test ping
             assert self._redis is not None
             _result21 = self._redis.ping()
-            ping_result = await _result21 if hasattr(_result21, '__await__') else _result21
+            ping_result = (
+                await _result21 if hasattr(_result21, "__await__") else _result21
+            )
 
             # Get Redis info
             _result22 = self._redis.info()
-            info = await _result22 if hasattr(_result22, '__await__') else _result22
+            info = await _result22 if hasattr(_result22, "__await__") else _result22
 
             # Get database size
             assert self._redis is not None
             _result23 = self._redis.dbsize()
-            dbsize = await _result23 if hasattr(_result23, '__await__') else _result23
+            dbsize = await _result23 if hasattr(_result23, "__await__") else _result23
 
             return {
                 "status": "healthy" if ping_result else "unhealthy",
@@ -734,7 +751,7 @@ class RedisAdapter:
             self._ensure_connected()
             assert self._redis is not None
             _result24 = self._redis.keys(pattern)
-            keys = await _result24 if hasattr(_result24, '__await__') else _result24
+            keys = await _result24 if hasattr(_result24, "__await__") else _result24
             return len(keys)
 
         except Exception as e:
@@ -750,17 +767,23 @@ class RedisAdapter:
                 pattern = self._build_key(prefix, "*")
                 assert self._redis is not None
                 _result25 = self._redis.keys(pattern)
-                keys = await _result25 if hasattr(_result25, '__await__') else _result25
+                keys = await _result25 if hasattr(_result25, "__await__") else _result25
                 if keys:
                     _result26 = self._redis.delete(*keys)
-                    deleted = await _result26 if hasattr(_result26, '__await__') else _result26
+                    deleted = (
+                        await _result26
+                        if hasattr(_result26, "__await__")
+                        else _result26
+                    )
                     return int(deleted)
                 return 0
             else:
                 # Clear entire database
                 assert self._redis is not None
                 _result27 = self._redis.flushdb()
-                result = await _result27 if hasattr(_result27, '__await__') else _result27
+                result = (
+                    await _result27 if hasattr(_result27, "__await__") else _result27
+                )
                 return 1 if result else 0
 
         except Exception as e:
@@ -776,6 +799,11 @@ class RedisAdapter:
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         """Async context manager exit"""
         await self.close()
