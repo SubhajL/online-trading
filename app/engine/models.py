@@ -7,13 +7,14 @@ the trading platform, including events, market data, signals, and decisions.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import enum as _enum
 import uuid
 from typing import Any
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, field_serializer
+from pydantic.config import ConfigDict
 
 UUID = uuid.UUID
 uuid4 = uuid.uuid4
@@ -146,12 +147,14 @@ class BaseEvent(BaseModel):
     timeframe: TimeFrame | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-            UUID: lambda v: str(v),
-        }
+    model_config = ConfigDict()
+
+    @field_serializer("timestamp")
+    def _ser_ts(self, v: datetime) -> str:  # noqa: D401
+        # Ensure timezone-aware ISO string
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 # ============================================================================
@@ -179,7 +182,23 @@ class Candle(BaseModel):
         None  # Bar index within the sequence (optional for backward compatibility)
     )
 
-    @validator(
+    @field_validator(
+        "open_price",
+        "high_price",
+        "low_price",
+        "close_price",
+        "volume",
+        "quote_volume",
+        "taker_buy_base_volume",
+        "taker_buy_quote_volume",
+        mode="after",
+    )
+    def ensure_positive(cls, v: Decimal) -> Decimal:  # noqa: N805
+        if v <= 0:
+            raise ValueError("Price and volume values must be positive")
+        return v
+
+    @field_serializer(
         "open_price",
         "high_price",
         "low_price",
@@ -189,10 +208,8 @@ class Candle(BaseModel):
         "taker_buy_base_volume",
         "taker_buy_quote_volume",
     )
-    def ensure_positive(cls, v: Decimal) -> Decimal:
-        if v <= 0:
-            raise ValueError("Price and volume values must be positive")
-        return v
+    def _ser_decimal(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
 
 
 class Ticker(BaseModel):
