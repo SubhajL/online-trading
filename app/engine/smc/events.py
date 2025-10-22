@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from ..bus import get_event_bus
@@ -17,7 +17,7 @@ def create_smc_event(
 ) -> BaseEvent:
     return BaseEvent(
         event_type=EventType.SMC_SIGNAL,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         symbol=symbol,
         timeframe=timeframe,
         metadata={
@@ -26,13 +26,18 @@ def create_smc_event(
             "from_state": smc_event.from_state,
             "to_state": smc_event.to_state,
             "current_state": current_state.value,
-            "key_levels": {k: str(v) if isinstance(v, (int, float)) else v for k, v in key_levels.items()},
+            "key_levels": {
+                k: str(v) if isinstance(v, (int, float)) else v
+                for k, v in key_levels.items()
+            },
             "strength": str(smc_event.strength),
             "reference_pivot": {
                 "price": str(smc_event.reference_pivot.price),
                 "is_high": smc_event.reference_pivot.is_high,
                 "bar_index": smc_event.reference_pivot.bar_index,
-            } if smc_event.reference_pivot else None,
+            }
+            if smc_event.reference_pivot
+            else None,
         },
     )
 
@@ -43,7 +48,7 @@ def create_zone_event(
 ) -> BaseEvent:
     return BaseEvent(
         event_type=EventType.SMC_SIGNAL,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         symbol=zone.symbol,
         timeframe=zone.timeframe,
         metadata={

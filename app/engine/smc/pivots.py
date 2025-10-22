@@ -194,6 +194,128 @@ def detect_zigzag_pivots(
     return pivots
 
 
+def detect_zigzag_pivots_np(
+    candles: list[Candle],
+    atr_value: float,
+    min_reversal_factor: float = 2.0,
+) -> list[Pivot]:
+    """NumPy-oriented ZigZag detection mirroring the legacy logic.
+
+    Uses scalar ATR-based threshold (atr_value * min_reversal_factor) and scans
+    through highs/lows to emit pivots. Converts back to Decimal/Candle metadata
+    when constructing Pivot models.
+    """
+    n = len(candles)
+    if n < 2:
+        return []
+
+    highs = np.array([float(c.high_price) for c in candles], dtype=np.float64)
+    lows = np.array([float(c.low_price) for c in candles], dtype=np.float64)
+
+    min_rev = float(atr_value) * float(min_reversal_factor)
+    pivots: list[Pivot] = []
+
+    current_high = highs[0]
+    current_low = lows[0]
+    current_high_idx = 0
+    current_low_idx = 0
+    last_pivot_is_high: bool | None = None
+
+    for i in range(1, n):
+        h = highs[i]
+        l = lows[i]
+
+        if last_pivot_is_high is None:
+            if h > current_high:
+                current_high = h
+                current_high_idx = i
+            if l < current_low:
+                current_low = l
+                current_low_idx = i
+
+            if (current_high - current_low) >= min_rev:
+                if current_high_idx > current_low_idx:
+                    # Low came first
+                    c = candles[current_low_idx]
+                    pivots.append(
+                        Pivot(
+                            timestamp=c.close_time,
+                            price=c.low_price,
+                            is_high=False,
+                            strength=int(min_reversal_factor),
+                            bar_index=c.bar_index,
+                        ),
+                    )
+                    last_pivot_is_high = False
+                    current_low = l
+                    current_low_idx = i
+                else:
+                    c = candles[current_high_idx]
+                    pivots.append(
+                        Pivot(
+                            timestamp=c.close_time,
+                            price=c.high_price,
+                            is_high=True,
+                            strength=int(min_reversal_factor),
+                            bar_index=c.bar_index,
+                        ),
+                    )
+                    last_pivot_is_high = True
+                    current_high = h
+                    current_high_idx = i
+
+        elif last_pivot_is_high:
+            if l < current_low:
+                current_low = l
+                current_low_idx = i
+            if h > current_high:
+                # Enough down move?
+                last_high_price = float(pivots[-1].price) if pivots else current_high
+                if (last_high_price - current_low) >= min_rev:
+                    c = candles[current_low_idx]
+                    pivots.append(
+                        Pivot(
+                            timestamp=c.close_time,
+                            price=c.low_price,
+                            is_high=False,
+                            strength=int(min_reversal_factor),
+                            bar_index=c.bar_index,
+                        ),
+                    )
+                    last_pivot_is_high = False
+                    current_high = h
+                    current_high_idx = i
+                else:
+                    current_high = h
+                    current_high_idx = i
+
+        else:
+            if h > current_high:
+                current_high = h
+                current_high_idx = i
+            if l < current_low:
+                last_low_price = float(pivots[-1].price) if pivots else current_low
+                if (current_high - last_low_price) >= min_rev:
+                    c = candles[current_high_idx]
+                    pivots.append(
+                        Pivot(
+                            timestamp=c.close_time,
+                            price=c.high_price,
+                            is_high=True,
+                            strength=int(min_reversal_factor),
+                            bar_index=c.bar_index,
+                        ),
+                    )
+                    last_pivot_is_high = True
+                    current_low = l
+                    current_low_idx = i
+                else:
+                    current_low = l
+                    current_low_idx = i
+
+    return pivots
+
+
 def classify_pivot_relationship(
     prev_pivot: Pivot,
     curr_pivot: Pivot,
