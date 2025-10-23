@@ -287,6 +287,10 @@ class PivotPoint(BaseModel):
     strength: int = Field(ge=1, le=10)
     volume_profile: Decimal | None = None
 
+    @field_serializer("price", "volume_profile")
+    def _ser_pp_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+        return None if v is None else str(v)
+
 
 class SupplyDemandZone(BaseModel):
     """Supply/Demand zone identification"""
@@ -303,6 +307,10 @@ class SupplyDemandZone(BaseModel):
     touches: int = Field(default=0)
     is_active: bool = Field(default=True)
     tested_at: datetime | None = None
+
+    @field_serializer("top_price", "bottom_price", "volume_profile")
+    def _ser_zone_decimals(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
 
 
 class MarketStructure(BaseModel):
@@ -337,6 +345,16 @@ class SMCSignal(BaseModel):
     confidence: Decimal = Field(ge=0, le=1)
     zone: SupplyDemandZone | None = None
     reasoning: str
+
+    @field_serializer("timestamp")
+    def _ser_sig_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
+    @field_serializer("entry_price", "stop_loss", "take_profit", "confidence")
+    def _ser_signal_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+        return None if v is None else str(v)
 
 
 # ============================================================================
@@ -386,6 +404,16 @@ class RetestSignal(BaseModel):
     success_probability: Decimal = Field(ge=0, le=1)
     volume_confirmation: bool
     confluence_factors: list[str] = Field(default_factory=list)
+
+    @field_serializer("timestamp")
+    def _ser_rt_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
+    @field_serializer("level_price", "success_probability")
+    def _ser_retest_decimals(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
 
 
 # ============================================================================
@@ -450,6 +478,23 @@ class TradingDecision(BaseModel):
     confidence: Decimal = Field(ge=0, le=1)
     reasoning: str
     risk_reward_ratio: Decimal | None = None
+
+    @field_serializer("timestamp")
+    def _ser_td_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
+    @field_serializer(
+        "entry_price",
+        "quantity",
+        "stop_loss",
+        "take_profit",
+        "confidence",
+        "risk_reward_ratio",
+    )
+    def _ser_td_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+        return None if v is None else str(v)
 
     # Guards and filters
     news_sentiment: str | None = None
@@ -570,6 +615,10 @@ class OrderFilledEvent(BaseEvent):
     fill_price: Decimal
     fill_quantity: Decimal
     fill_timestamp: datetime
+
+    @field_serializer("fill_price", "fill_quantity")
+    def _ser_fill_decimals(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
 
 
 class PositionUpdateEvent(BaseEvent):

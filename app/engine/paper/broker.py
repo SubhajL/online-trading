@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Any
 
 import asyncio
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 import asyncpg
 
 from ..models import Candle, TimeFrame
@@ -70,6 +70,16 @@ class PlaceBracketResponse(BaseModel):
     partial_failure: bool = False
     errors: List[str] = []
 
+    @field_serializer("quantity")
+    def _ser_qty(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
+
+    @field_serializer("created_at")
+    def _ser_created(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
 
 class CancelRequest(BaseModel):
     symbol: str
@@ -97,6 +107,16 @@ class OrderUpdate(BaseModel):
     executed_qty: Decimal
     update_time: datetime
     reason: Optional[str] = None
+
+    @field_serializer("price", "quantity", "executed_qty")
+    def _ser_decimals(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
+
+    @field_serializer("update_time")
+    def _ser_update_time(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 # ============================================================================
