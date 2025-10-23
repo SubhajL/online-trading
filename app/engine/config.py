@@ -4,8 +4,8 @@ Centralized configuration management with Pydantic validation.
 
 import os
 
-from pydantic import BaseModel, Field, SecretStr, validator
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Any
 
 
@@ -17,15 +17,19 @@ class EventBusConfig(BaseModel):
     enable_persistence: bool = Field(default=False)
     dead_letter_queue_size: int = Field(default=1000, gt=0)
 
-    @validator("max_queue_size")
-    def validate_max_queue_size(cls, v: Any) -> None:
+    @field_validator("max_queue_size")
+    @classmethod
+    def validate_max_queue_size(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("max_queue_size must be positive")
+        return v
 
-    @validator("num_workers")
-    def validate_num_workers(cls, v: Any) -> None:
+    @field_validator("num_workers")
+    @classmethod
+    def validate_num_workers(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("num_workers must be positive")
+        return v
 
     @classmethod
     def from_env(cls) -> "EventBusConfig":
@@ -171,10 +175,11 @@ class AppConfig(BaseSettings):
     circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig)
     rate_limiter: RateLimiterConfig = Field(default_factory=RateLimiterConfig)
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        env_nested_delimiter = "__"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+    )
 
     @classmethod
     def load_from_env(cls) -> "AppConfig":

@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 
-from app.engine.tests.utils.async import await_until, await_until_events
+from app.engine.tests.utils.async_utils import await_until, await_until_events
 
 
 @pytest.mark.asyncio

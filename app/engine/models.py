@@ -233,6 +233,30 @@ class Ticker(BaseModel):
     close_time: datetime
     count: int
 
+    @field_serializer(
+        "price_change",
+        "price_change_percent",
+        "weighted_avg_price",
+        "prev_close_price",
+        "last_price",
+        "last_qty",
+        "bid_price",
+        "ask_price",
+        "open_price",
+        "high_price",
+        "low_price",
+        "volume",
+        "quote_volume",
+    )
+    def _ser_ticker_decimals(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
+
+    @field_serializer("open_time", "close_time")
+    def _ser_ticker_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
 
 # ============================================================================
 # Technical Analysis Models
@@ -269,6 +293,31 @@ class TechnicalIndicators(BaseModel):
     bb_lower: Decimal | None = None
     bb_width: Decimal | None = None
     bb_percent: Decimal | None = None
+
+    @field_serializer(
+        "ema_9",
+        "ema_21",
+        "ema_50",
+        "ema_200",
+        "rsi_14",
+        "macd_line",
+        "macd_signal",
+        "macd_histogram",
+        "atr_14",
+        "bb_upper",
+        "bb_middle",
+        "bb_lower",
+        "bb_width",
+        "bb_percent",
+    )
+    def _ser_ti_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+        return None if v is None else str(v)
+
+    @field_serializer("timestamp")
+    def _ser_ti_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 # ============================================================================
@@ -323,6 +372,16 @@ class MarketStructure(BaseModel):
     price: Decimal
     previous_structure: SMCStructure | None = None
     trend_direction: str | None = None  # "bullish", "bearish", "neutral"
+
+    @field_serializer("price")
+    def _ser_ms_price(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
+
+    @field_serializer("timestamp")
+    def _ser_ms_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 # ============================================================================
@@ -652,6 +711,12 @@ class HealthStatus(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
     response_time_ms: float | None = None
 
+    @field_serializer("timestamp")
+    def _ser_health_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
+
 
 class SystemMetrics(BaseModel):
     """System metrics"""
@@ -665,6 +730,12 @@ class SystemMetrics(BaseModel):
     events_processed: int
     errors_count: int
     uptime_seconds: float
+
+    @field_serializer("timestamp")
+    def _ser_sys_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 class TradingMetrics(BaseModel):
@@ -683,6 +754,26 @@ class TradingMetrics(BaseModel):
     average_loss: Decimal
     largest_win: Decimal
     largest_loss: Decimal
+
+    @field_serializer(
+        "win_rate",
+        "total_pnl",
+        "max_drawdown",
+        "sharpe_ratio",
+        "profit_factor",
+        "average_win",
+        "average_loss",
+        "largest_win",
+        "largest_loss",
+    )
+    def _ser_tm_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+        return None if v is None else str(v)
+
+    @field_serializer("timestamp")
+    def _ser_tm_ts(self, v: datetime) -> str:  # noqa: D401
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
 
 # ============================================================================
