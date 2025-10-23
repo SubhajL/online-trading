@@ -734,19 +734,45 @@ class RedisAdapter:
             logger.error(f"Error getting key count: {e}")
             return 0
 
-    async def clear_cache(self, prefix: str | None = None) -> int:
-        """Clear cache with optional prefix filter"""
+    async def _iter_keys(self, pattern: str, scan_count: int = 1000):
+        """Iterate keys lazily using SCAN to avoid blocking the server."""
+        assert self._redis is not None
+        async for k in self._redis.scan_iter(match=pattern, count=scan_count):
+            yield k
+
+    async def clear_cache(
+        self,
+        prefix: str | None = None,
+        *,
+        batch_size: int = 1000,
+        scan_count: int = 1000,
+    ) -> int:
+        """Clear cache with optional prefix filter using SCAN + batched DEL.
+
+        When a prefix is provided, uses SCAN to discover keys and deletes them in
+        batches to avoid large command frames and KEYS blocking. Returns the total
+        number of deleted keys. If no prefix is provided, performs a flushdb.
+        """
         try:
             self._ensure_connected()
 
             if prefix:
                 pattern = self._build_key(prefix, "*")
                 assert self._redis is not None
-                keys = await self._redis.keys(pattern)
-                if keys:
-                    deleted = await self._redis.delete(*keys)
-                    return int(deleted)
-                return 0
+                total_deleted = 0
+                buffer: list[str] = []
+                async for key in self._iter_keys(pattern, scan_count=scan_count):
+                    # Normalize to str for delete signature
+                    buffer.append(key.decode() if isinstance(key, bytes) else key)
+                    if len(buffer) >= batch_size:
+                        deleted = await self._redis.delete(*buffer)
+                        total_deleted += int(deleted)
+                        buffer.clear()
+                if buffer:
+                    deleted = await self._redis.delete(*buffer)
+                    total_deleted += int(deleted)
+                return total_deleted
+
             # Clear entire database
             assert self._redis is not None
             result = await self._redis.flushdb()

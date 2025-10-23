@@ -417,6 +417,22 @@ async def build_system_health(services: dict[str, Any]) -> HealthCheck:
                 ),
             )
 
+    # Include redis adapter health if present
+    redis_adapter = services.get("redis")
+    if redis_adapter is not None:
+        try:
+            components.append(await check_redis_adapter_health(redis_adapter))
+        except Exception as e:  # noqa: BLE001
+            components.append(
+                ComponentHealth(
+                    name="redis",
+                    status=HealthStatus.DEGRADED,
+                    latency_ms=0,
+                    message=f"redis health error: {e!s}",
+                    details={},
+                ),
+            )
+
     return aggregate_health_status(components)
 
 
@@ -482,6 +498,46 @@ async def check_binance_client_health(binance_client: Any) -> ComponentHealth:
     latency = (time.time() - start) * 1000
     return ComponentHealth(
         name="binance",
+        status=status,
+        latency_ms=latency,
+        message=message,
+        details=details,
+    )
+
+
+async def check_redis_adapter_health(redis_adapter: Any) -> ComponentHealth:
+    """Collect redis adapter health using its health_check method."""
+    start = time.time()
+    try:
+        stats = await redis_adapter.health_check()
+        status_str = stats.get("status", "unhealthy")
+        status = (
+            HealthStatus.HEALTHY
+            if status_str == "healthy"
+            else (
+                HealthStatus.DEGRADED
+                if status_str == "degraded"
+                else HealthStatus.UNHEALTHY
+            )
+        )
+        message = (
+            "Redis operational"
+            if status == HealthStatus.HEALTHY
+            else f"Redis {status.value}"
+        )
+        details = {
+            "database_size": stats.get("database_size", 0),
+            "connected_clients": stats.get("connected_clients", 0),
+            "memory_usage": stats.get("memory_usage", "unknown"),
+            "total_commands_processed": stats.get("total_commands_processed", 0),
+        }
+    except Exception as e:  # noqa: BLE001
+        status = HealthStatus.DEGRADED
+        message = f"redis metrics error: {e!s}"
+        details = {}
+    latency = (time.time() - start) * 1000
+    return ComponentHealth(
+        name="redis",
         status=status,
         latency_ms=latency,
         message=message,
