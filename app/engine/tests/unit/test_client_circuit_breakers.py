@@ -444,3 +444,21 @@ def test_binance_breaker_config_wired_from_env(monkeypatch) -> None:
     mapping = binance_breaker_config_from_env()
     assert "GET:/api/v3/depth" in mapping
     assert mapping["GET:/api/v3/depth"].failure_threshold == 3
+
+
+def test_router_breaker_config_invalid_json(monkeypatch) -> None:
+    from app.engine.core.breaker_config import router_breaker_config_from_env
+
+    monkeypatch.setenv("ROUTER_BREAKERS_JSON", "not-json")
+    with pytest.raises(ValueError):
+        _ = router_breaker_config_from_env()
+
+
+def test_binance_breaker_config_missing_fields(monkeypatch) -> None:
+    from app.engine.core.breaker_config import binance_breaker_config_from_env
+    import json as _json
+
+    bad = {"GET:/api/v3/time": {"failure_threshold": 1}}  # missing success_threshold/timeout_seconds
+    monkeypatch.setenv("BINANCE_BREAKERS_JSON", _json.dumps(bad))
+    with pytest.raises(ValueError):
+        _ = binance_breaker_config_from_env()

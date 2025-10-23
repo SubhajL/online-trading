@@ -3,6 +3,7 @@ Health monitoring system for production readiness.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -374,6 +375,60 @@ def create_health_endpoint(
             }
 
     return endpoint
+
+
+async def build_system_health(services: dict[str, Any]) -> HealthCheck:
+    """Aggregate system health across router and binance clients."""
+    components: list[ComponentHealth] = []
+
+    router = services.get("router")
+    if router is not None:
+        try:
+            components.append(await check_router_client_health(router))
+        except Exception as e:  # noqa: BLE001
+            components.append(
+                ComponentHealth(
+                    name="router",
+                    status=HealthStatus.DEGRADED,
+                    latency_ms=0,
+                    message=f"router health error: {e!s}",
+                    details={},
+                ),
+            )
+
+    binance_client = None
+    ingest = services.get("ingest")
+    if ingest is not None and hasattr(ingest, "rest_client"):
+        binance_client = ingest.rest_client
+    elif services.get("binance") is not None:
+        binance_client = services.get("binance")
+
+    if binance_client is not None:
+        try:
+            components.append(await check_binance_client_health(binance_client))
+        except Exception as e:  # noqa: BLE001
+            components.append(
+                ComponentHealth(
+                    name="binance",
+                    status=HealthStatus.DEGRADED,
+                    latency_ms=0,
+                    message=f"binance health error: {e!s}",
+                    details={},
+                ),
+            )
+
+    return aggregate_health_status(components)
+
+
+def create_system_health_endpoint(
+    services: dict[str, Any],
+) -> Callable[[str], dict[str, Any]]:
+    """Create a synchronous HTTP endpoint that returns system health JSON."""
+
+    def _sync_health() -> HealthCheck:
+        return asyncio.run(build_system_health(services))
+
+    return create_health_endpoint(_sync_health)
 
 
 async def check_router_client_health(router_client: Any) -> ComponentHealth:

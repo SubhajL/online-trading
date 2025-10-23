@@ -168,6 +168,34 @@ Key configuration sections:
 - Service ports and URLs
 - Monitoring and logging
 
+### Per-Endpoint Circuit Breakers (Router & Binance)
+
+You can configure per-endpoint circuit breakers via environment JSON. Keys use normalized endpoint identifiers:
+
+- Router keys: `METHOD:/top-segment` (e.g., `GET:/orders`, `POST:/orders`)
+- Binance keys: `METHOD:/api/v3/<endpoint>` (first three segments, e.g., `GET:/api/v3/depth`, `GET:/api/v3/time`)
+
+Provide a JSON object mapping keys to breaker thresholds:
+
+```
+ROUTER_BREAKERS_JSON='{
+  "POST:/orders": {"failure_threshold": 2, "success_threshold": 1, "timeout_seconds": 0.5},
+  "GET:/orders": {"failure_threshold": 5, "success_threshold": 2, "timeout_seconds": 1.0}
+}'
+
+BINANCE_BREAKERS_JSON='{
+  "GET:/api/v3/depth": {"failure_threshold": 3, "success_threshold": 1, "timeout_seconds": 0.5},
+  "GET:/api/v3/time": {"failure_threshold": 5, "success_threshold": 2, "timeout_seconds": 1.0}
+}'
+```
+
+Fields:
+- `failure_threshold` (int ≥ 1): consecutive failures to Open
+- `success_threshold` (int ≥ 1): consecutive successes in Half-Open to Close
+- `timeout_seconds` (float ≥ 0): time before transitioning Open → Half-Open
+
+Invalid JSON or keys without a `METHOD:/path` will raise a ValueError on startup.
+
 ## Database
 
 ### Starting Database Services
