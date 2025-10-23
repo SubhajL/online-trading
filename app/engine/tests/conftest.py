@@ -233,7 +233,7 @@ async def clean_test_data(real_db):
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
-async def _auto_event_flow_bus_services(request, event_bus_and_services):
+async def _auto_event_flow_bus_services(request):
     """Automatically start bus + services for event_flow module only.
 
     This ensures services are available without altering other test modules.
@@ -252,7 +252,10 @@ async def _auto_event_flow_bus_services(request, event_bus_and_services):
             import pytest
 
             pytest.exit(f"Database preflight failed for event_flow: {e}", returncode=1)
-        # event_bus_and_services is session-scoped; referencing ensures it's active
+        # Lazily activate heavy fixture only for event_flow tests
+        event_bus_and_services = request.getfixturevalue("event_bus_and_services")
+        # Ensure the underlying fixture is awaited/entered at least once
+        # by requesting it; then yield to test and teardown happens via fixture itself
         yield
     else:
         yield

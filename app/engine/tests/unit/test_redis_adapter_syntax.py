@@ -118,7 +118,7 @@ class TestMypyCompliance:
         return Path(__file__).parent.parent.parent / "mypy.ini"
 
     def test_no_mypy_errors_after_fix(self, redis_adapter_path: Path, mypy_config_path: Path) -> None:
-        """Track type-checking; allow non-syntax mypy errors for now."""
+        """Require full mypy success for redis adapter."""
         result = run_mypy_on_file(redis_adapter_path, mypy_config_path)
-        syntax_errors = [e for e in result.errors if "Invalid syntax" in e]
-        assert len(syntax_errors) == 0
+        assert result.success, f"Mypy errors:\n" + "\n".join(result.errors)
+        assert result.error_count == 0
