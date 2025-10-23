@@ -162,36 +162,53 @@ class EventProcessor:
                     await circuit_breaker.record_failure()
                 return False, subscription, exc
 
-        # Build tasks for all active subscriptions; skip inactive immediately
-        tasks: list[asyncio.Task[tuple[bool, EventSubscription, Exception | None]]] = []
-        for sub in sorted_subscriptions:
-            if not sub.is_active:
-                continue
-            tasks.append(asyncio.create_task(_run_single(sub)))
+        # Execute concurrently via TaskGroup and aggregate outcomes
+        results: list[tuple[bool, EventSubscription, Exception | None]] = []
+        if sorted_subscriptions:
+            try:
+                tg = asyncio.TaskGroup()
+            except AttributeError:
+                tg = None  # Py<3.11 safeguard; not expected in this env
 
-        # Execute concurrently and aggregate outcomes
-        if tasks:
-            results = await asyncio.gather(*tasks, return_exceptions=False)
-            for ok, sub, exc in results:
-                if ok:
-                    successful_handlers += 1
-                else:
-                    failed_handlers += 1
-                    error_type = (
-                        type(exc).__name__ if exc is not None else "ProcessingError"
+            if tg is not None:
+                async with tg:  # type: ignore[attr-defined]
+                    for sub in sorted_subscriptions:
+                        if not sub.is_active:
+                            continue
+                        tg.create_task(_run_single(sub)).add_done_callback(
+                            lambda t: results.append(t.result()),
+                        )
+            else:
+                # Fallback to gather if TaskGroup unavailable
+                tasks = [
+                    asyncio.create_task(_run_single(sub))
+                    for sub in sorted_subscriptions
+                    if sub.is_active
+                ]
+                if tasks:
+                    results.extend(
+                        await asyncio.gather(*tasks, return_exceptions=False),
                     )
-                    error_message = str(exc) if exc is not None else "Unknown error"
-                    # Normalize CB open case to a consistent type
-                    if error_message == "CircuitBreakerOpen":
-                        error_type = "CircuitBreakerOpen"
-                    errors.append(
-                        EventProcessingError(
-                            subscription_id=sub.subscription_id,
-                            subscriber_id=sub.subscriber_id,
-                            error_type=error_type,
-                            error_message=error_message,
-                        ),
-                    )
+
+        for ok, sub, exc in results:
+            if ok:
+                successful_handlers += 1
+            else:
+                failed_handlers += 1
+                error_type = (
+                    type(exc).__name__ if exc is not None else "ProcessingError"
+                )
+                error_message = str(exc) if exc is not None else "Unknown error"
+                if error_message == "CircuitBreakerOpen":
+                    error_type = "CircuitBreakerOpen"
+                errors.append(
+                    EventProcessingError(
+                        subscription_id=sub.subscription_id,
+                        subscriber_id=sub.subscriber_id,
+                        error_type=error_type,
+                        error_message=error_message,
+                    ),
+                )
 
         processing_time = asyncio.get_event_loop().time() - start_time
 

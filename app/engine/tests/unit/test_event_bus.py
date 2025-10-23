@@ -203,3 +203,50 @@ class TestEventBus:
         assert metrics["events_processed"] == events_to_publish
         assert metrics["events_failed"] == 0
         assert metrics["queue_size"] == 0  # All processed
+
+    async def test_taskgroup_bounded_concurrency_and_exceptions(self) -> None:
+        # Configure bus with max 2 concurrent handlers and DLQ on any failure
+        cfg = EventBusConfig(
+            max_queue_size=100,
+            num_workers=1,
+            processing_config={"max_concurrent_handlers": 2},
+            dlq_on_any_failure=True,
+        )
+        bus = EventBusFactory().create_with_config(cfg)
+        await bus.start()
+
+        current = 0
+        max_seen = 0
+        lock = asyncio.Lock()
+
+        async def measured_handler(_):  # noqa: ANN001
+            nonlocal current, max_seen
+            async with lock:
+                current += 1
+                max_seen = max(max_seen, current)
+            await asyncio.sleep(0.05)
+            async with lock:
+                current -= 1
+
+        async def failing_handler(_):  # noqa: ANN001
+            await asyncio.sleep(0.02)
+            raise RuntimeError("boom")
+
+        # Subscribe multiple handlers
+        for i in range(3):
+            await bus.subscribe(f"m{i}", measured_handler, [EventType.CANDLE_UPDATE])
+        await bus.subscribe("fail", failing_handler, [EventType.CANDLE_UPDATE])
+
+        evt = BaseEvent(event_type=EventType.CANDLE_UPDATE, timestamp=datetime.utcnow(), symbol="BTCUSDT")
+        await bus.publish(evt)
+
+        await asyncio.sleep(0.3)
+
+        # Concurrency should never exceed configured bound
+        assert max_seen <= 2
+
+        # With dlq_on_any_failure, event should be in DLQ
+        dlq = await bus.get_dead_letter_events()
+        assert any(e.event_id == evt.event_id for e in dlq)
+
+        await bus.stop()

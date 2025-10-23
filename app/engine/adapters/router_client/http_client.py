@@ -135,6 +135,13 @@ class RouterHTTPClient:
                         payload = await response.json()
                         await self._circuit_breaker.record_success()
                         return payload
+                    if response.status in (418, 429):
+                        # Throttling or banned; do not count towards breaker failures
+                        warn_text = await response.text()
+                        logger.warning(
+                            f"Throttled/banned ({response.status}) for {endpoint}: {warn_text}",
+                        )
+                        return {"error": "throttled", "status": response.status}
                     if response.status == 404:
                         logger.warning(f"Endpoint not found: {endpoint}")
                         await self._circuit_breaker.record_failure()
