@@ -38,6 +38,7 @@ class IngestService:
         backfill_days: int = 30,
         enable_realtime: bool = True,
         enable_backfill: bool = True,
+        binance_breakers_config: dict[str, Any] | None = None,
     ) -> None:
         self.symbols = symbols
         self.timeframes = timeframes
@@ -60,6 +61,7 @@ class IngestService:
             api_secret=creds["api_secret"],
             testnet=creds.get("testnet", True),
             base_url=creds.get("base_url"),
+            per_endpoint_breakers_config=binance_breakers_config,
         )
 
         self._event_bus = get_event_bus()
@@ -85,7 +87,8 @@ class IngestService:
 
         # If client has a coroutine function but not an AsyncMock, wrap it so tests can assert calls
         if hasattr(client, "get_historical_data") and not isinstance(
-            client.get_historical_data, AsyncMock,
+            client.get_historical_data,
+            AsyncMock,
         ):
             fn = client.get_historical_data
             # Only wrap callables
@@ -206,7 +209,9 @@ class IngestService:
             raise
 
     async def _backfill_symbol_timeframe(
-        self, symbol: str, timeframe: TimeFrame,
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
     ) -> None:
         """Backfill historical data for a specific symbol and timeframe"""
         try:
@@ -331,7 +336,9 @@ class IngestService:
         return self._latest_candles.get(symbol, {}).get(timeframe)
 
     async def get_gap_detection(
-        self, symbol: str, timeframe: TimeFrame,
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
     ) -> list[dict[Any, Any]]:
         """Detect gaps in historical data"""
         # This would implement gap detection logic
@@ -344,7 +351,10 @@ class IngestService:
         return gaps
 
     async def fill_gaps(
-        self, symbol: str, timeframe: TimeFrame, gaps: list[dict[Any, Any]],
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        gaps: list[dict[Any, Any]],
     ) -> None:
         """Fill detected gaps in historical data"""
         for gap in gaps:

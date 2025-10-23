@@ -22,6 +22,65 @@ from app.engine.core.health import (
     HealthCheck,
 )
 
+from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConfig as CBConfig
+
+
+async def _open_router_breaker(client):
+    # helper: trip GET:/orders once (threshold 1) to OPEN
+    mapping = {("GET", "/orders"): [(500, "e")]}  # type: ignore
+    from app.engine.tests.unit.test_client_circuit_breakers import _RouterSession
+
+    client._initialized = True  # type: ignore[attr-defined]
+    client._session = _RouterSession(mapping)  # type: ignore[attr-defined]
+    await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+
+
+async def _open_binance_breaker(client):
+    mapping = {("GET", "/api/v3/depth"): [(500, {"msg": "e"})]}  # type: ignore
+    from app.engine.tests.unit.test_client_circuit_breakers import _BinanceSession
+
+    client._session = _BinanceSession(mapping)  # type: ignore[attr-defined]
+    try:
+        await client.get_order_book("BTCUSDT", 5)  # type: ignore
+    except Exception:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_health_includes_router_breaker_metrics() -> None:
+    from app.engine.adapters.router_client.http_client import RouterHTTPClient
+    from app.engine.core.health import check_router_client_health
+
+    cfg = {"GET:/orders": CBConfig(failure_threshold=1, success_threshold=1, timeout_seconds=1)}
+    client = RouterHTTPClient(base_url="http://example", per_endpoint_breakers_config=cfg)
+    await _open_router_breaker(client)
+
+    comp = await check_router_client_health(client)
+    assert isinstance(comp, ComponentHealth)
+    assert comp.name == "router"
+    assert "breakers" in comp.details
+    breakers = comp.details["breakers"]
+    assert any(k.startswith("GET:/orders") for k in breakers.keys())
+    assert breakers["GET:/orders"]["state"] in ("OPEN", "HALF_OPEN", "CLOSED")
+
+
+@pytest.mark.asyncio
+async def test_health_includes_binance_breaker_metrics() -> None:
+    from app.engine.ingest.binance_rest import BinanceRestClient
+    from app.engine.core.health import check_binance_client_health
+
+    cfg = {"GET:/api/v3/depth": CBConfig(failure_threshold=1, success_threshold=1, timeout_seconds=1)}
+    client = BinanceRestClient(api_key="k", api_secret="s", testnet=True, per_endpoint_breakers_config=cfg)
+    await _open_binance_breaker(client)
+
+    comp = await check_binance_client_health(client)
+    assert isinstance(comp, ComponentHealth)
+    assert comp.name == "binance"
+    assert "breakers" in comp.details
+    breakers = comp.details["breakers"]
+    assert "GET:/api/v3/depth" in breakers
+    assert breakers["GET:/api/v3/depth"]["failure_count"] >= 1
+
 
 class TestDatabaseHealth:
     """Tests for database health checks."""

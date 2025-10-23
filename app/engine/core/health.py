@@ -11,6 +11,8 @@ import logging
 import time
 from typing import Any
 
+from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerState
+
 logger = logging.getLogger(__name__)
 
 
@@ -308,7 +310,9 @@ def aggregate_health_status(components: list[ComponentHealth]) -> HealthCheck:
     )
 
 
-def create_health_endpoint(health_check_fn: Callable[[], HealthCheck]) -> Callable[[str], dict[str, Any]]:
+def create_health_endpoint(
+    health_check_fn: Callable[[], HealthCheck],
+) -> Callable[[str], dict[str, Any]]:
     """
     Create HTTP endpoint for health checks.
     Returns JSON with proper status codes.
@@ -370,3 +374,61 @@ def create_health_endpoint(health_check_fn: Callable[[], HealthCheck]) -> Callab
             }
 
     return endpoint
+
+
+async def check_router_client_health(router_client: Any) -> ComponentHealth:
+    """Collect router client health including per-endpoint breaker metrics."""
+    start = time.time()
+    details: dict[str, Any] = {}
+    try:
+        metrics = await router_client.get_breaker_metrics()
+        details["breakers"] = metrics
+        states = [m.get("state") for m in metrics.values()]
+        open_count = sum(1 for s in states if s == CircuitBreakerState.OPEN.name)
+        half_open = sum(1 for s in states if s == CircuitBreakerState.HALF_OPEN.name)
+        status = (
+            HealthStatus.UNHEALTHY
+            if open_count > 0
+            else (HealthStatus.DEGRADED if half_open > 0 else HealthStatus.HEALTHY)
+        )
+        message = f"router breakers open={open_count} half_open={half_open}"
+    except Exception as e:  # noqa: BLE001
+        status = HealthStatus.DEGRADED
+        message = f"router metrics error: {e!s}"
+    latency = (time.time() - start) * 1000
+    return ComponentHealth(
+        name="router",
+        status=status,
+        latency_ms=latency,
+        message=message,
+        details=details,
+    )
+
+
+async def check_binance_client_health(binance_client: Any) -> ComponentHealth:
+    """Collect binance client health including per-endpoint breaker metrics."""
+    start = time.time()
+    details: dict[str, Any] = {}
+    try:
+        metrics = await binance_client.get_breaker_metrics()
+        details["breakers"] = metrics
+        states = [m.get("state") for m in metrics.values()]
+        open_count = sum(1 for s in states if s == CircuitBreakerState.OPEN.name)
+        half_open = sum(1 for s in states if s == CircuitBreakerState.HALF_OPEN.name)
+        status = (
+            HealthStatus.UNHEALTHY
+            if open_count > 0
+            else (HealthStatus.DEGRADED if half_open > 0 else HealthStatus.HEALTHY)
+        )
+        message = f"binance breakers open={open_count} half_open={half_open}"
+    except Exception as e:  # noqa: BLE001
+        status = HealthStatus.DEGRADED
+        message = f"binance metrics error: {e!s}"
+    latency = (time.time() - start) * 1000
+    return ComponentHealth(
+        name="binance",
+        status=status,
+        latency_ms=latency,
+        message=message,
+        details=details,
+    )

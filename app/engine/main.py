@@ -226,9 +226,13 @@ async def initialize_services(config: EngineConfig) -> None:
         services["redis"] = redis_adapter
 
         # Initialize router client
+        from .core.breaker_config import router_breaker_config_from_env
+
+        router_breakers = router_breaker_config_from_env()
         router_client = RouterHTTPClient(
             base_url=os.getenv("ROUTER_URL", "http://localhost:8001"),
             api_key=os.getenv("ROUTER_API_KEY"),
+            per_endpoint_breakers_config=router_breakers if router_breakers else None,
         )
         await router_client.initialize()
         services["router"] = router_client
@@ -243,6 +247,9 @@ async def initialize_services(config: EngineConfig) -> None:
 
         timeframes = [TimeFrame.M5, TimeFrame.M15, TimeFrame.H1, TimeFrame.H4]
 
+        from .core.breaker_config import binance_breaker_config_from_env
+
+        binance_breakers = binance_breaker_config_from_env()
         ingest_service = IngestService(
             binance_config={
                 "spot": {
@@ -254,6 +261,7 @@ async def initialize_services(config: EngineConfig) -> None:
             },
             symbols=symbols,
             timeframes=timeframes,
+            binance_breakers_config=binance_breakers if binance_breakers else None,
         )
         services["ingest"] = ingest_service
 
@@ -518,9 +526,7 @@ async def get_status() -> dict[str, Any]:
 
         return {
             "timestamp": datetime.now(UTC).isoformat(),
-            "uptime_seconds": (
-                datetime.now(UTC) - startup_time
-            ).total_seconds(),
+            "uptime_seconds": (datetime.now(UTC) - startup_time).total_seconds(),
             "services": status,
         }
 

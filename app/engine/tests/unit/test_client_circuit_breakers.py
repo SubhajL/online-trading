@@ -424,3 +424,23 @@ async def test_binance_breaker_metrics_shape_and_values() -> None:
         pass
     m2 = await client.get_breaker_metrics()  # type: ignore[attr-defined]
     assert m2["GET:/api/v3/depth"]["success_count"] >= 0  # monotonic
+def test_router_breaker_config_wired_from_env(monkeypatch) -> None:
+    from app.engine.core.breaker_config import router_breaker_config_from_env
+    import json as _json
+
+    cfg = {"GET:/orders": {"failure_threshold": 2, "success_threshold": 1, "timeout_seconds": 0.01}}
+    monkeypatch.setenv("ROUTER_BREAKERS_JSON", _json.dumps(cfg))
+    mapping = router_breaker_config_from_env()
+    assert "GET:/orders" in mapping
+    assert mapping["GET:/orders"].failure_threshold == 2
+
+
+def test_binance_breaker_config_wired_from_env(monkeypatch) -> None:
+    from app.engine.core.breaker_config import binance_breaker_config_from_env
+    import json as _json
+
+    cfg = {"GET:/api/v3/depth": {"failure_threshold": 3, "success_threshold": 1, "timeout_seconds": 0.02}}
+    monkeypatch.setenv("BINANCE_BREAKERS_JSON", _json.dumps(cfg))
+    mapping = binance_breaker_config_from_env()
+    assert "GET:/api/v3/depth" in mapping
+    assert mapping["GET:/api/v3/depth"].failure_threshold == 3
