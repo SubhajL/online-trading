@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 from .models import BaseEvent, EventType, OrderSide, TimeFrame
 
@@ -49,6 +49,10 @@ class Pivot(BaseModel):
     strength: int = 1
     bar_index: int
 
+    @field_serializer("price")
+    def _ser_price(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
+
 
 class StructurePoint(BaseModel):
     pivot: Pivot
@@ -65,6 +69,10 @@ class SMCEvent(BaseModel):
     reference_pivot: Pivot | None = None
     strength: Decimal = Field(default=Decimal("1.0"))
 
+    @field_serializer("price", "strength")
+    def _ser_decimal(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
+
 
 class Zone(BaseModel):
     zone_id: UUID
@@ -79,6 +87,10 @@ class Zone(BaseModel):
     expiry_bars: int
     touches: int = 0
     strength: Decimal = Field(default=Decimal("1.0"))
+
+    @field_serializer("top_price", "bottom_price", "strength")
+    def _ser_zone_dec(self, v: Decimal) -> str:  # noqa: D401
+        return str(v)
 
     @property
     def mid_price(self) -> Decimal:
