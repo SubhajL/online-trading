@@ -247,6 +247,31 @@ class BinanceRestClient:
         self._breakers[key] = br
         return br
 
+    async def get_breaker_metrics(self) -> dict[str, dict[str, Any]]:
+        """Return per-endpoint circuit breaker metrics for observability."""
+        metrics: dict[str, dict[str, Any]] = {}
+        for key, br in self._breakers.items():
+            stats = await br.get_stats()
+            state = await br.get_state()
+            metrics[key] = {
+                "state": state.name,
+                "failure_count": stats.failure_count,
+                "success_count": stats.success_count,
+                "consecutive_failures": stats.consecutive_failures,
+                "consecutive_successes": stats.consecutive_successes,
+                "last_failure_time": (
+                    stats.last_failure_time.isoformat()
+                    if stats.last_failure_time
+                    else None
+                ),
+                "last_success_time": (
+                    stats.last_success_time.isoformat()
+                    if stats.last_success_time
+                    else None
+                ),
+            }
+        return metrics
+
     async def _handle_response(
         self,
         response: aiohttp.ClientResponse,
