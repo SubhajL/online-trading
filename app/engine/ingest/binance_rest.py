@@ -51,6 +51,7 @@ class BinanceRestClient:
         testnet: bool = False,
         request_timeout: int = 30,
         rate_limit_per_minute: int = 1200,
+        per_endpoint_breakers_config: dict[str, CircuitBreakerConfig] | None = None,
     ):
         self.api_key = api_key
         self.api_secret = api_secret
@@ -71,14 +72,14 @@ class BinanceRestClient:
         # Session management
         self._session: ClientSession | None = None
 
-        # Circuit breaker for external requests
-        self._circuit_breaker = CircuitBreaker(
-            CircuitBreakerConfig(
-                failure_threshold=5,
-                success_threshold=2,
-                timeout_seconds=60,
-            ),
+        # Per-endpoint circuit breakers
+        self._default_breaker_config = CircuitBreakerConfig(
+            failure_threshold=5,
+            success_threshold=2,
+            timeout_seconds=60,
         )
+        self._endpoint_breaker_cfgs = per_endpoint_breakers_config or {}
+        self._breakers: dict[str, CircuitBreaker] = {}
 
         logger.info(f"BinanceRestClient initialized (testnet: {testnet})")
 
@@ -165,7 +166,8 @@ class BinanceRestClient:
             headers["X-MBX-APIKEY"] = self.api_key
 
         # Circuit breaker pre-check
-        if not await self._circuit_breaker.should_allow_request():
+        breaker = self._get_breaker_for(method, endpoint)
+        if not await breaker.should_allow_request():
             logger.error("Circuit breaker open for Binance REST client")
             raise RuntimeError("CircuitBreakerOpen")
 
@@ -178,9 +180,14 @@ class BinanceRestClient:
                 ) as response:
                     # Do not count rate-limit responses as failures
                     if response.status in (418, 429):
-                        return await self._handle_response(response)
+                        # Return payload so caller can handle throttle without tripping breaker
+                        try:
+                            data = await response.json()
+                        except Exception:
+                            data = {"msg": "throttled"}
+                        return data
                     data = await self._handle_response(response)
-                    await self._circuit_breaker.record_success()
+                    await breaker.record_success()
                     return data
             elif method.upper() == "POST":
                 async with self._session.post(
@@ -188,8 +195,14 @@ class BinanceRestClient:
                     data=params,
                     headers=headers,
                 ) as response:
+                    if response.status in (418, 429):
+                        try:
+                            data = await response.json()
+                        except Exception:
+                            data = {"msg": "throttled"}
+                        return data
                     data = await self._handle_response(response)
-                    await self._circuit_breaker.record_success()
+                    await breaker.record_success()
                     return data
             elif method.upper() == "DELETE":
                 async with self._session.delete(
@@ -197,20 +210,42 @@ class BinanceRestClient:
                     params=params,
                     headers=headers,
                 ) as response:
+                    if response.status in (418, 429):
+                        try:
+                            data = await response.json()
+                        except Exception:
+                            data = {"msg": "throttled"}
+                        return data
                     data = await self._handle_response(response)
-                    await self._circuit_breaker.record_success()
+                    await breaker.record_success()
                     return data
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
         except TimeoutError:
             logger.error(f"Request timeout for {method} {endpoint}")
-            await self._circuit_breaker.record_failure()
+            await breaker.record_failure()
             raise
         except Exception as e:
             logger.error(f"Request error for {method} {endpoint}: {e}")
-            await self._circuit_breaker.record_failure()
+            await breaker.record_failure()
             raise
+
+    def _breaker_key(self, method: str, endpoint: str) -> str:
+        """Normalized breaker key: METHOD:/first-three-segments"""
+        parts = endpoint.strip().lstrip("/").split("/")
+        key_path = "/" + "/".join(parts[:3]) if parts else "/"
+        return f"{method.upper()}:{key_path}"
+
+    def _get_breaker_for(self, method: str, endpoint: str) -> CircuitBreaker:
+        key = self._breaker_key(method, endpoint)
+        br = self._breakers.get(key)
+        if br is not None:
+            return br
+        cfg = self._endpoint_breaker_cfgs.get(key, self._default_breaker_config)
+        br = CircuitBreaker(cfg)
+        self._breakers[key] = br
+        return br
 
     async def _handle_response(
         self,

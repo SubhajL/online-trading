@@ -42,6 +42,7 @@ class RouterHTTPClient:
         timeout: int = 30,
         retry_attempts: int = 3,
         retry_delay: float = 1.0,
+        per_endpoint_breakers_config: dict[str, CircuitBreakerConfig] | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -52,14 +53,14 @@ class RouterHTTPClient:
         self._session: ClientSession | None = None
         self._initialized = False
 
-        # Circuit breaker for router communication
-        self._circuit_breaker = CircuitBreaker(
-            CircuitBreakerConfig(
-                failure_threshold=5,
-                success_threshold=2,
-                timeout_seconds=60,
-            ),
+        # Default circuit breaker config and per-endpoint breakers
+        self._default_breaker_config = CircuitBreakerConfig(
+            failure_threshold=5,
+            success_threshold=2,
+            timeout_seconds=60,
         )
+        self._endpoint_breaker_cfgs = per_endpoint_breakers_config or {}
+        self._breakers: dict[str, CircuitBreaker] = {}
 
         logger.info(f"RouterHTTPClient configured for {base_url}")
 
@@ -104,6 +105,22 @@ class RouterHTTPClient:
 
         return headers
 
+    def _breaker_key(self, method: str, endpoint: str) -> str:
+        """Normalized breaker key: METHOD:/top-level-segment"""
+        seg = endpoint.strip().lstrip("/").split("/", 1)[0]
+        top = f"/{seg}" if seg else "/"
+        return f"{method.upper()}:{top}"
+
+    def _get_breaker_for(self, method: str, endpoint: str) -> CircuitBreaker:
+        key = self._breaker_key(method, endpoint)
+        br = self._breakers.get(key)
+        if br is not None:
+            return br
+        cfg = self._endpoint_breaker_cfgs.get(key, self._default_breaker_config)
+        br = CircuitBreaker(cfg)
+        self._breakers[key] = br
+        return br
+
     async def _make_request(
         self,
         method: str,
@@ -117,8 +134,9 @@ class RouterHTTPClient:
         url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
         headers = self._get_headers()
 
-        # Circuit breaker pre-check
-        if not await self._circuit_breaker.should_allow_request():
+        # Circuit breaker pre-check (per-endpoint)
+        breaker = self._get_breaker_for(method, endpoint)
+        if not await breaker.should_allow_request():
             logger.error("Circuit breaker open for RouterHTTPClient")
             return {"error": "circuit_breaker_open", "status": 503}
 
@@ -133,7 +151,7 @@ class RouterHTTPClient:
                 ) as response:
                     if response.status == 200:
                         payload = await response.json()
-                        await self._circuit_breaker.record_success()
+                        await breaker.record_success()
                         return payload
                     if response.status in (418, 429):
                         # Throttling or banned; do not count towards breaker failures
@@ -144,26 +162,26 @@ class RouterHTTPClient:
                         return {"error": "throttled", "status": response.status}
                     if response.status == 404:
                         logger.warning(f"Endpoint not found: {endpoint}")
-                        await self._circuit_breaker.record_failure()
+                        await breaker.record_failure()
                         return {"error": "endpoint_not_found", "status": 404}
                     if response.status >= 400:
                         error_text = await response.text()
                         logger.error(f"HTTP {response.status} error: {error_text}")
-                        await self._circuit_breaker.record_failure()
+                        await breaker.record_failure()
                         return {"error": error_text, "status": response.status}
 
             except TimeoutError:
                 logger.warning(
                     f"Request timeout for {method} {endpoint} (attempt {attempt + 1})",
                 )
-                await self._circuit_breaker.record_failure()
+                await breaker.record_failure()
                 if attempt == self.retry_attempts - 1:
                     raise
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
 
             except Exception as e:
                 logger.error(f"Request error for {method} {endpoint}: {e}")
-                await self._circuit_breaker.record_failure()
+                await breaker.record_failure()
                 if attempt == self.retry_attempts - 1:
                     raise
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
