@@ -21,6 +21,7 @@ import uvicorn
 
 from .adapters import RedisAdapter, RouterHTTPClient, TimescaleDBAdapter
 from .bus import set_event_bus
+from .core.health import build_system_health
 from .decision.service import DecisionEngine, RiskManager
 from .features.feature_service import FeatureService
 from .ingest.ingest_service import IngestService
@@ -417,6 +418,34 @@ async def get_metrics() -> MetricsResponse:
         raise HTTPException(
             status_code=500,
             detail=f"Metrics collection failed: {e!s}",
+        )
+
+
+# System health endpoint including per-endpoint breaker metrics
+@app.get("/health/system")
+async def get_system_health() -> Any:
+    try:
+        health = await build_system_health(services)
+        body: dict[str, Any] = {
+            "status": health.status.value,
+            "message": health.message,
+            "timestamp": health.timestamp,
+            "latency_ms": health.latency_ms,
+            "components": {},
+        }
+        for name, comp in health.components.items():
+            body["components"][name] = {
+                "status": comp.status.value,
+                "message": comp.message,
+                "latency_ms": comp.latency_ms,
+                "details": comp.details,
+            }
+        return JSONResponse(content=body, status_code=200)
+    except Exception as e:
+        logger.error(f"system health error: {e}")
+        return JSONResponse(
+            content={"status": "unhealthy", "message": f"system health error: {e!s}"},
+            status_code=503,
         )
 
 
