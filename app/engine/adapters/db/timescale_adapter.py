@@ -56,7 +56,10 @@ class TimescaleDBAdapter:
         self.max_overflow = max_overflow
         self.pool_timeout = pool_timeout
 
-        self._pool: Pool | None = None
+        # Backward-compatible single pool (write) and split pools
+        self._pool: Pool | None = None  # write pool (legacy accessor)
+        self._read_pool: Pool | None = None
+        self._write_pool: Pool | None = None
         self._initialized = False
 
         logger.info(f"TimescaleDBAdapter configured for {host}:{port}/{database}")
@@ -67,8 +70,8 @@ class TimescaleDBAdapter:
             return
 
         try:
-            # Create connection pool
-            self._pool = await asyncpg.create_pool(
+            # Create write pool (higher timeout)
+            self._write_pool = await asyncpg.create_pool(
                 host=self.host,
                 port=self.port,
                 database=self.database,
@@ -77,6 +80,22 @@ class TimescaleDBAdapter:
                 min_size=1,
                 max_size=self.pool_size,
                 command_timeout=self.pool_timeout,
+                statement_cache_size=1000,
+            )
+            # Keep legacy reference for get_connection
+            self._pool = self._write_pool
+
+            # Create read pool (tighter timeout)
+            self._read_pool = await asyncpg.create_pool(
+                host=self.host,
+                port=self.port,
+                database=self.database,
+                user=self.username,
+                password=self.password,
+                min_size=1,
+                max_size=self.pool_size,
+                command_timeout=5,  # tightened for reads
+                statement_cache_size=1000,
             )
 
             # Create tables and hypertables
@@ -93,11 +112,15 @@ class TimescaleDBAdapter:
 
     async def close(self) -> None:
         """Close the database connection pool"""
-        if self._pool:
-            await self._pool.close()
-            self._pool = None
-            self._initialized = False
-            logger.info("TimescaleDB adapter closed")
+        if self._read_pool:
+            await self._read_pool.close()
+            self._read_pool = None
+        if self._write_pool:
+            await self._write_pool.close()
+            self._write_pool = None
+        self._pool = None
+        self._initialized = False
+        logger.info("TimescaleDB adapter closed")
 
     @asynccontextmanager
     async def get_connection(self) -> AsyncIterator[asyncpg.Connection]:
@@ -106,6 +129,22 @@ class TimescaleDBAdapter:
             raise RuntimeError("Database not initialized")
 
         async with self._pool.acquire() as connection:  # connection: asyncpg.Connection
+            yield connection
+
+    @asynccontextmanager
+    async def get_read_connection(self) -> AsyncIterator[asyncpg.Connection]:
+        """Acquire a connection from the read pool."""
+        if not self._read_pool:
+            raise RuntimeError("Database not initialized")
+        async with self._read_pool.acquire() as connection:
+            yield connection
+
+    @asynccontextmanager
+    async def get_write_connection(self) -> AsyncIterator[asyncpg.Connection]:
+        """Acquire a connection from the write pool."""
+        if not self._write_pool:
+            raise RuntimeError("Database not initialized")
+        async with self._write_pool.acquire() as connection:
             yield connection
 
     # ============================================================================
@@ -346,7 +385,7 @@ class TimescaleDBAdapter:
     async def insert_candle(self, candle: Candle) -> bool:
         """Insert a single candle"""
         try:
-            async with self.get_connection() as conn:
+            async with self.get_write_connection() as conn:
                 await conn.execute(
                     """
                     INSERT INTO candles (
@@ -390,7 +429,14 @@ class TimescaleDBAdapter:
             return 0
 
         try:
-            async with self.get_connection() as conn:
+            # Choose COPY for large batches by threshold (env configurable)
+            import os
+
+            threshold = int(os.getenv("TIMESCALE_COPY_THRESHOLD", "1000"))
+            if len(candles) >= threshold:
+                return await self.insert_candles_copy(candles)
+
+            async with self.get_write_connection() as conn:
                 records = [
                     (
                         c.open_time,
@@ -427,6 +473,53 @@ class TimescaleDBAdapter:
             logger.error(f"Error inserting candles batch: {e}")
             return 0
 
+    async def insert_candles_copy(self, candles: list[Candle]) -> int:
+        """Insert multiple candles using COPY for high throughput."""
+        try:
+            async with self.get_write_connection() as conn:
+                columns = [
+                    "timestamp",
+                    "symbol",
+                    "timeframe",
+                    "open_price",
+                    "high_price",
+                    "low_price",
+                    "close_price",
+                    "volume",
+                    "quote_volume",
+                    "trades",
+                    "taker_buy_base_volume",
+                    "taker_buy_quote_volume",
+                ]
+                records = [
+                    (
+                        c.open_time,
+                        c.symbol,
+                        c.timeframe.value,
+                        str(c.open_price),
+                        str(c.high_price),
+                        str(c.low_price),
+                        str(c.close_price),
+                        str(c.volume),
+                        str(c.quote_volume),
+                        int(c.trades),
+                        str(c.taker_buy_base_volume),
+                        str(c.taker_buy_quote_volume),
+                    )
+                    for c in candles
+                ]
+
+                # asyncpg supports copy_records_to_table on connections
+                await conn.copy_records_to_table(
+                    "candles",
+                    records=records,
+                    columns=columns,
+                )
+                return len(candles)
+        except Exception as e:
+            logger.error(f"Error inserting candles via COPY: {e}")
+            return 0
+
     async def get_latest_candle(
         self,
         symbol: str,
@@ -455,7 +548,7 @@ class TimescaleDBAdapter:
     ) -> list[Candle]:
         """Retrieve candles for a symbol and timeframe"""
         try:
-            async with self.get_connection() as conn:
+            async with self.get_read_connection() as conn:
                 query = """
                     SELECT timestamp, symbol, timeframe, open_price, high_price, low_price,
                            close_price, volume, quote_volume, trades,
