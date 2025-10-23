@@ -4,9 +4,7 @@ Telegram delivery service for chart snapshots and trading signals.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
-from datetime import datetime
-from decimal import Decimal
+from typing import Any
 
 import aiohttp
 from aiohttp import FormData
@@ -20,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TelegramDelivery:
     """Handles delivery of trading signals and chart snapshots to Telegram."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize Telegram delivery service.
 
         Args:
@@ -45,12 +43,12 @@ class TelegramDelivery:
         retest_map = {
             "support_retest": ("🔵", "Support Retest", "BUY"),
             "resistance_retest": ("🔴", "Resistance Retest", "SELL"),
-            "zone_retest": ("🟢", "Zone Retest", "NEUTRAL")
+            "zone_retest": ("🟢", "Zone Retest", "NEUTRAL"),
         }
 
         emoji, retest_display, direction = retest_map.get(
             signal.retest_type,
-            ("⚪", signal.retest_type, "UNKNOWN")
+            ("⚪", signal.retest_type, "UNKNOWN"),
         )
 
         # Basic info
@@ -78,7 +76,7 @@ class TelegramDelivery:
                 "demand_zone": "Demand Zone",
                 "supply_zone": "Supply Zone",
                 "trend_alignment": "Trend Alignment",
-                "volume_spike": "Volume Spike"
+                "volume_spike": "Volume Spike",
             }
 
             for factor in signal.confluence_factors:
@@ -88,7 +86,7 @@ class TelegramDelivery:
         # Timestamp
         lines.extend([
             "",
-            f"🕐 {signal.timestamp.strftime('%Y-%m-%d %H:%M UTC')}"
+            f"🕐 {signal.timestamp.strftime('%Y-%m-%d %H:%M UTC')}",
         ])
 
         return "\n".join(lines)
@@ -97,8 +95,8 @@ class TelegramDelivery:
         self,
         image_data: bytes,
         caption: str,
-        signal_event: Optional[RetestSignalEvent] = None
-    ) -> Dict[str, Any]:
+        signal_event: RetestSignalEvent | None = None,
+    ) -> dict[str, Any]:
         """Send chart snapshot to Telegram.
 
         Args:
@@ -113,10 +111,10 @@ class TelegramDelivery:
 
         # Prepare multipart form data
         form = FormData()
-        form.add_field('chat_id', str(self.chat_id))
-        form.add_field('photo', image_data, filename='chart.png', content_type='image/png')
-        form.add_field('caption', caption)
-        form.add_field('parse_mode', 'Markdown')
+        form.add_field("chat_id", str(self.chat_id))
+        form.add_field("photo", image_data, filename="chart.png", content_type="image/png")
+        form.add_field("caption", caption)
+        form.add_field("parse_mode", "Markdown")
 
         # Retry logic
         for attempt in range(self.max_retries):
@@ -125,7 +123,7 @@ class TelegramDelivery:
                     async with session.post(
                         url,
                         data=form,
-                        timeout=aiohttp.ClientTimeout(total=self.timeout)
+                        timeout=aiohttp.ClientTimeout(total=self.timeout),
                     ) as response:
                         result = await response.json()
 
@@ -134,7 +132,7 @@ class TelegramDelivery:
                             record_snapshot_delivery("telegram")
                             return {
                                 "success": True,
-                                "message_id": result["result"]["message_id"]
+                                "message_id": result["result"]["message_id"],
                             }
 
                         # Handle specific errors
@@ -147,10 +145,10 @@ class TelegramDelivery:
                             await asyncio.sleep(min(retry_after, 60))
                             continue
 
-                        elif error_code == 400:
+                        if error_code == 400:
                             if "chat not found" in error_desc:
                                 return {"success": False, "error": "Chat not found"}
-                            elif "message is too long" in error_desc:
+                            if "message is too long" in error_desc:
                                 # Truncate caption and retry
                                 caption = caption[:1000] + "..."
                                 continue
@@ -164,7 +162,7 @@ class TelegramDelivery:
                         # Other errors - retry
                         logger.error(f"Telegram API error: {error_code} - {error_desc}")
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error(f"Telegram timeout on attempt {attempt + 1}")
             except aiohttp.ClientError as e:
                 logger.error(f"Network error on attempt {attempt + 1}: {e}")
@@ -177,7 +175,7 @@ class TelegramDelivery:
 
         return {"success": False, "error": "Max retries exceeded"}
 
-    async def send_text_alert(self, message: str) -> Dict[str, Any]:
+    async def send_text_alert(self, message: str) -> dict[str, Any]:
         """Send text-only alert to Telegram.
 
         Args:
@@ -192,25 +190,24 @@ class TelegramDelivery:
             "chat_id": self.chat_id,
             "text": message,
             "parse_mode": "Markdown",
-            "disable_notification": False
+            "disable_notification": False,
         }
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url,
-                    json=data,
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as response:
-                    result = await response.json()
+            async with aiohttp.ClientSession() as session, session.post(
+                url,
+                json=data,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as response:
+                result = await response.json()
 
-                    if response.status == 200 and result.get("ok"):
-                        return {"success": True}
+                if response.status == 200 and result.get("ok"):
+                    return {"success": True}
 
-                    return {
-                        "success": False,
-                        "error": result.get("description", "Unknown error")
-                    }
+                return {
+                    "success": False,
+                    "error": result.get("description", "Unknown error"),
+                }
 
         except Exception as e:
             logger.error(f"Failed to send text alert: {e}")

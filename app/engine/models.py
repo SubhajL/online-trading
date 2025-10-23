@@ -7,13 +7,13 @@ the trading platform, including events, market data, signals, and decisions.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 import enum as _enum
-import uuid
 from typing import Any
+import uuid
 
-from pydantic import BaseModel, Field, field_validator, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 from pydantic.config import ConfigDict
 
 UUID = uuid.UUID
@@ -150,10 +150,10 @@ class BaseEvent(BaseModel):
     model_config = ConfigDict()
 
     @field_serializer("timestamp")
-    def _ser_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_ts(self, v: datetime) -> str:
         # Ensure timezone-aware ISO string
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
@@ -208,7 +208,7 @@ class Candle(BaseModel):
         "taker_buy_base_volume",
         "taker_buy_quote_volume",
     )
-    def _ser_decimal(self, v: Decimal) -> str:  # noqa: D401
+    def _ser_decimal(self, v: Decimal) -> str:
         return str(v)
 
 
@@ -248,13 +248,13 @@ class Ticker(BaseModel):
         "volume",
         "quote_volume",
     )
-    def _ser_ticker_decimals(self, v: Decimal) -> str:  # noqa: D401
+    def _ser_ticker_decimals(self, v: Decimal) -> str:
         return str(v)
 
     @field_serializer("open_time", "close_time")
-    def _ser_ticker_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_ticker_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
@@ -310,13 +310,13 @@ class TechnicalIndicators(BaseModel):
         "bb_width",
         "bb_percent",
     )
-    def _ser_ti_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+    def _ser_ti_decimals(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
 
     @field_serializer("timestamp")
-    def _ser_ti_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_ti_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
@@ -337,7 +337,7 @@ class PivotPoint(BaseModel):
     volume_profile: Decimal | None = None
 
     @field_serializer("price", "volume_profile")
-    def _ser_pp_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+    def _ser_pp_decimals(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
 
 
@@ -358,7 +358,7 @@ class SupplyDemandZone(BaseModel):
     tested_at: datetime | None = None
 
     @field_serializer("top_price", "bottom_price", "volume_profile")
-    def _ser_zone_decimals(self, v: Decimal) -> str:  # noqa: D401
+    def _ser_zone_decimals(self, v: Decimal) -> str:
         return str(v)
 
 
@@ -374,13 +374,13 @@ class MarketStructure(BaseModel):
     trend_direction: str | None = None  # "bullish", "bearish", "neutral"
 
     @field_serializer("price")
-    def _ser_ms_price(self, v: Decimal) -> str:  # noqa: D401
+    def _ser_ms_price(self, v: Decimal) -> str:
         return str(v)
 
     @field_serializer("timestamp")
-    def _ser_ms_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_ms_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
@@ -406,13 +406,13 @@ class SMCSignal(BaseModel):
     reasoning: str
 
     @field_serializer("timestamp")
-    def _ser_sig_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_sig_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
     @field_serializer("entry_price", "stop_loss", "take_profit", "confidence")
-    def _ser_signal_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+    def _ser_signal_decimals(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
 
 
@@ -465,13 +465,13 @@ class RetestSignal(BaseModel):
     confluence_factors: list[str] = Field(default_factory=list)
 
     @field_serializer("timestamp")
-    def _ser_rt_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_rt_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
     @field_serializer("level_price", "success_probability")
-    def _ser_retest_decimals(self, v: Decimal) -> str:  # noqa: D401
+    def _ser_retest_decimals(self, v: Decimal) -> str:
         return str(v)
 
 
@@ -539,9 +539,9 @@ class TradingDecision(BaseModel):
     risk_reward_ratio: Decimal | None = None
 
     @field_serializer("timestamp")
-    def _ser_td_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_td_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
     @field_serializer(
@@ -552,7 +552,7 @@ class TradingDecision(BaseModel):
         "confidence",
         "risk_reward_ratio",
     )
-    def _ser_td_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+    def _ser_td_decimals(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
 
     # Guards and filters
@@ -676,7 +676,7 @@ class OrderFilledEvent(BaseEvent):
     fill_timestamp: datetime
 
     @field_serializer("fill_price", "fill_quantity")
-    def _ser_fill_decimals(self, v: Decimal) -> str:  # noqa: D401
+    def _ser_fill_decimals(self, v: Decimal) -> str:
         return str(v)
 
 
@@ -712,9 +712,9 @@ class HealthStatus(BaseModel):
     response_time_ms: float | None = None
 
     @field_serializer("timestamp")
-    def _ser_health_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_health_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
@@ -732,9 +732,9 @@ class SystemMetrics(BaseModel):
     uptime_seconds: float
 
     @field_serializer("timestamp")
-    def _ser_sys_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_sys_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
@@ -766,13 +766,13 @@ class TradingMetrics(BaseModel):
         "largest_win",
         "largest_loss",
     )
-    def _ser_tm_decimals(self, v: Decimal | None) -> str | None:  # noqa: D401
+    def _ser_tm_decimals(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
 
     @field_serializer("timestamp")
-    def _ser_tm_ts(self, v: datetime) -> str:  # noqa: D401
+    def _ser_tm_ts(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
@@ -870,7 +870,7 @@ def kline_to_candle(data: dict[str, Any], venue: str) -> Candle:
 
 
 def rest_kline_to_candle(
-    data: list[Any], symbol: str, timeframe: str, venue: str
+    data: list[Any], symbol: str, timeframe: str, venue: str,
 ) -> Candle:
     """
     Convert Binance REST API kline array to Candle model.

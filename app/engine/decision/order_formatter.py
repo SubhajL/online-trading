@@ -8,9 +8,8 @@ Ensures all orders meet exchange requirements:
 - Values within min/max bounds
 """
 
-from decimal import Decimal
 from dataclasses import dataclass
-from typing import Dict, Tuple, Optional
+from decimal import Decimal
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,14 +36,14 @@ class ExchangeInfo:
     min_notional: Decimal
 
     # Optional futures-specific
-    contract_size: Optional[Decimal] = None
-    max_leverage: Optional[int] = None
+    contract_size: Decimal | None = None
+    max_leverage: int | None = None
 
 
 class OrderFormatter:
     """Formats orders to meet exchange requirements."""
 
-    def __init__(self, exchange_info: Dict[str, ExchangeInfo]):
+    def __init__(self, exchange_info: dict[str, ExchangeInfo]):
         self.exchange_info = exchange_info
 
     def round_price(self, symbol: str, price: Decimal) -> Decimal:
@@ -58,7 +57,7 @@ class OrderFormatter:
 
         # Round down to nearest tick
         quotient = price / info.price_tick_size
-        rounded = quotient.to_integral_value(rounding='ROUND_DOWN')
+        rounded = quotient.to_integral_value(rounding="ROUND_DOWN")
         return rounded * info.price_tick_size
 
     def round_quantity(self, symbol: str, quantity: Decimal) -> Decimal:
@@ -72,10 +71,10 @@ class OrderFormatter:
 
         # Round down to nearest step
         quotient = quantity / info.qty_step_size
-        rounded = quotient.to_integral_value(rounding='ROUND_DOWN')
+        rounded = quotient.to_integral_value(rounding="ROUND_DOWN")
         return rounded * info.qty_step_size
 
-    def validate_price(self, symbol: str, price: Decimal) -> Tuple[bool, str]:
+    def validate_price(self, symbol: str, price: Decimal) -> tuple[bool, str]:
         """Validate price is within bounds."""
         if symbol not in self.exchange_info:
             return False, f"Unknown symbol: {symbol}"
@@ -96,7 +95,7 @@ class OrderFormatter:
 
         return True, "Price valid"
 
-    def validate_quantity(self, symbol: str, quantity: Decimal) -> Tuple[bool, str]:
+    def validate_quantity(self, symbol: str, quantity: Decimal) -> tuple[bool, str]:
         """Validate quantity is within bounds."""
         if symbol not in self.exchange_info:
             return False, f"Unknown symbol: {symbol}"
@@ -117,7 +116,7 @@ class OrderFormatter:
 
         return True, "Quantity valid"
 
-    def validate_notional(self, symbol: str, price: Decimal, quantity: Decimal) -> Tuple[bool, str]:
+    def validate_notional(self, symbol: str, price: Decimal, quantity: Decimal) -> tuple[bool, str]:
         """Validate order meets minimum notional value."""
         if symbol not in self.exchange_info:
             return False, f"Unknown symbol: {symbol}"
@@ -143,7 +142,7 @@ class OrderFormatter:
             min_qty_for_notional = info.min_notional / price
             # Round up to step size
             quotient = min_qty_for_notional / info.qty_step_size
-            rounded_up = quotient.to_integral_value(rounding='ROUND_UP')
+            rounded_up = quotient.to_integral_value(rounding="ROUND_UP")
             adjusted_qty = rounded_up * info.qty_step_size
 
             # Ensure we don't exceed max quantity
@@ -151,23 +150,23 @@ class OrderFormatter:
 
         return quantity
 
-    def format_order(self, order: Dict) -> Dict:
+    def format_order(self, order: dict) -> dict:
         """Format a complete order to meet exchange requirements."""
         symbol = order["symbol"]
 
         # Round price and quantity
         formatted = order.copy()
 
-        if "price" in order and order["price"]:
+        if order.get("price"):
             formatted["price"] = self.round_price(symbol, order["price"])
 
-        if "quantity" in order and order["quantity"]:
+        if order.get("quantity"):
             formatted["quantity"] = self.round_quantity(symbol, order["quantity"])
 
-        if "stop_loss" in order and order["stop_loss"]:
+        if order.get("stop_loss"):
             formatted["stop_loss"] = self.round_price(symbol, order["stop_loss"])
 
-        if "take_profit" in order and order["take_profit"]:
+        if order.get("take_profit"):
             formatted["take_profit"] = self.round_price(symbol, order["take_profit"])
 
         # Adjust quantity for min notional if needed (only for limit orders)
@@ -175,7 +174,7 @@ class OrderFormatter:
             adjusted_qty = self.adjust_quantity_for_notional(
                 symbol,
                 formatted["price"],
-                formatted["quantity"]
+                formatted["quantity"],
             )
             if adjusted_qty != formatted["quantity"]:
                 logger.info(f"Adjusted quantity from {formatted['quantity']} to {adjusted_qty} for min notional")
@@ -183,7 +182,7 @@ class OrderFormatter:
 
         return formatted
 
-    def format_futures_order(self, order: Dict) -> Dict:
+    def format_futures_order(self, order: dict) -> dict:
         """Format a futures order with leverage."""
         # Start with standard formatting
         formatted = self.format_order(order)
@@ -197,7 +196,7 @@ class OrderFormatter:
 
         return formatted
 
-    def validate_order(self, order: Dict) -> Tuple[bool, list]:
+    def validate_order(self, order: dict) -> tuple[bool, list]:
         """Validate complete order meets all exchange requirements."""
         errors = []
         symbol = order.get("symbol")
@@ -225,13 +224,13 @@ class OrderFormatter:
                 errors.append(f"Notional: {reason}")
 
         # Validate stop loss
-        if "stop_loss" in order and order["stop_loss"]:
+        if order.get("stop_loss"):
             is_valid, reason = self.validate_price(symbol, order["stop_loss"])
             if not is_valid:
                 errors.append(f"Stop loss: {reason}")
 
         # Validate take profit
-        if "take_profit" in order and order["take_profit"]:
+        if order.get("take_profit"):
             is_valid, reason = self.validate_price(symbol, order["take_profit"])
             if not is_valid:
                 errors.append(f"Take profit: {reason}")
@@ -255,5 +254,5 @@ class OrderFormatter:
         min_required = max(min_from_qty, min_from_notional)
 
         quotient = min_required / info.qty_step_size
-        rounded_up = quotient.to_integral_value(rounding='ROUND_UP')
+        rounded_up = quotient.to_integral_value(rounding="ROUND_UP")
         return rounded_up * info.qty_step_size

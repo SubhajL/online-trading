@@ -9,31 +9,27 @@ This module provides a paper trading broker that:
 5. Publishes order_update.v1 events like live trading
 """
 
-import json
-import logging
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
+import logging
+from typing import Any
+import uuid
 
-import asyncio
+import asyncpg
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_serializer
-import asyncpg
 
-from ..models import Candle, TimeFrame
 from ..backtest.costs import CostCalculator
 from ..backtest.fills import FillEngine
 from ..backtest.types import (
-    OrderType,
+    BacktestFill,
+    BacktestOrder,
+    FillReason,
     OrderSide,
     OrderStatus,
-    FillReason,
-    ExitReason,
-    BacktestOrder,
-    BacktestFill,
-    BacktestPosition,
+    OrderType,
 )
+from ..models import Candle
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +43,8 @@ class PlaceBracketRequest(BaseModel):
     symbol: str
     side: str  # BUY or SELL
     quantity: Decimal
-    entry_price: Decimal = Field(default=Decimal("0"))
-    take_profit_prices: List[Decimal]
+    entry_price: Decimal = Field(default=Decimal(0))
+    take_profit_prices: list[Decimal]
     stop_loss_price: Decimal
     order_type: str = "MARKET"  # LIMIT or MARKET
     is_futures: bool = False
@@ -56,7 +52,7 @@ class PlaceBracketRequest(BaseModel):
 
 class ClientOrderIDs(BaseModel):
     main: str
-    take_profits: List[str]
+    take_profits: list[str]
     stop_loss: str
 
 
@@ -68,27 +64,27 @@ class PlaceBracketResponse(BaseModel):
     quantity: Decimal
     created_at: datetime
     partial_failure: bool = False
-    errors: List[str] = []
+    errors: list[str] = []
 
     @field_serializer("quantity")
-    def _ser_qty(self, v: Decimal) -> str:  # noqa: D401
+    def _ser_qty(self, v: Decimal) -> str:
         return str(v)
 
     @field_serializer("created_at")
-    def _ser_created(self, v: datetime) -> str:  # noqa: D401
+    def _ser_created(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
 class CancelRequest(BaseModel):
     symbol: str
-    order_id: Optional[int] = None
-    client_order_id: Optional[str] = None
+    order_id: int | None = None
+    client_order_id: str | None = None
 
 
 class CloseAllRequest(BaseModel):
-    symbol: Optional[str] = None
+    symbol: str | None = None
     is_futures: bool = False
 
 
@@ -106,16 +102,16 @@ class OrderUpdate(BaseModel):
     quantity: Decimal
     executed_qty: Decimal
     update_time: datetime
-    reason: Optional[str] = None
+    reason: str | None = None
 
     @field_serializer("price", "quantity", "executed_qty")
-    def _ser_decimals(self, v: Decimal) -> str:  # noqa: D401
+    def _ser_decimals(self, v: Decimal) -> str:
         return str(v)
 
     @field_serializer("update_time")
-    def _ser_update_time(self, v: datetime) -> str:  # noqa: D401
+    def _ser_update_time(self, v: datetime) -> str:
         if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
+            v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
 
@@ -130,13 +126,13 @@ class PaperPosition:
     def __init__(self, symbol: str, is_futures: bool = False):
         self.symbol = symbol
         self.is_futures = is_futures
-        self.net_quantity = Decimal("0")  # Positive = long, negative = short
-        self.avg_entry_price = Decimal("0")
-        self.unrealized_pnl = Decimal("0")
-        self.total_fees = Decimal("0")
-        self.total_funding = Decimal("0")
-        self.created_at = datetime.now(timezone.utc)
-        self.updated_at = datetime.now(timezone.utc)
+        self.net_quantity = Decimal(0)  # Positive = long, negative = short
+        self.avg_entry_price = Decimal(0)
+        self.unrealized_pnl = Decimal(0)
+        self.total_fees = Decimal(0)
+        self.total_funding = Decimal(0)
+        self.created_at = datetime.now(UTC)
+        self.updated_at = datetime.now(UTC)
 
     def update_position(self, fill: BacktestFill, current_price: Decimal):
         """Update position with new fill"""
@@ -146,22 +142,21 @@ class PaperPosition:
             # Opening new position
             self.net_quantity = fill_qty
             self.avg_entry_price = fill.price
+        elif (self.net_quantity > 0 and fill_qty > 0) or (
+            self.net_quantity < 0 and fill_qty < 0
+        ):
+            # Adding to position
+            total_value = (self.net_quantity * self.avg_entry_price) + (
+                fill_qty * fill.price
+            )
+            self.net_quantity += fill_qty
+            if not self.net_quantity.is_zero():
+                self.avg_entry_price = total_value / self.net_quantity
         else:
-            if (self.net_quantity > 0 and fill_qty > 0) or (
-                self.net_quantity < 0 and fill_qty < 0
-            ):
-                # Adding to position
-                total_value = (self.net_quantity * self.avg_entry_price) + (
-                    fill_qty * fill.price
-                )
-                self.net_quantity += fill_qty
-                if not self.net_quantity.is_zero():
-                    self.avg_entry_price = total_value / self.net_quantity
-            else:
-                # Reducing or closing position
-                self.net_quantity += fill_qty
-                if self.net_quantity.is_zero():
-                    self.avg_entry_price = Decimal("0")
+            # Reducing or closing position
+            self.net_quantity += fill_qty
+            if self.net_quantity.is_zero():
+                self.avg_entry_price = Decimal(0)
 
         # Update fees
         self.total_fees += fill.fee
@@ -174,12 +169,12 @@ class PaperPosition:
                 ) * self.net_quantity
             else:
                 self.unrealized_pnl = (self.avg_entry_price - current_price) * abs(
-                    self.net_quantity
+                    self.net_quantity,
                 )
         else:
-            self.unrealized_pnl = Decimal("0")
+            self.unrealized_pnl = Decimal(0)
 
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
 
 # ============================================================================
@@ -201,9 +196,9 @@ class PaperBroker:
     def __init__(
         self,
         database_url: str,
-        cost_calculator: Optional[CostCalculator] = None,
-        fill_engine: Optional[FillEngine] = None,
-        event_publisher: Optional[Any] = None,  # Event bus for publishing order updates
+        cost_calculator: CostCalculator | None = None,
+        fill_engine: FillEngine | None = None,
+        event_publisher: Any | None = None,  # Event bus for publishing order updates
     ):
         self.database_url = database_url
         self.cost_calculator = cost_calculator or CostCalculator()
@@ -211,23 +206,23 @@ class PaperBroker:
         self.event_publisher = event_publisher
 
         # In-memory state
-        self.active_orders: Dict[str, BacktestOrder] = {}  # client_order_id -> order
-        self.positions: Dict[str, PaperPosition] = {}  # symbol -> position
-        self.bracket_orders: Dict[str, List[str]] = {}  # bracket_id -> [order_ids]
+        self.active_orders: dict[str, BacktestOrder] = {}  # client_order_id -> order
+        self.positions: dict[str, PaperPosition] = {}  # symbol -> position
+        self.bracket_orders: dict[str, list[str]] = {}  # bracket_id -> [order_ids]
 
         # Database pool
-        self.db_pool: Optional[asyncpg.Pool] = None
+        self.db_pool: asyncpg.Pool | None = None
 
         # Current market data cache
-        self.current_prices: Dict[str, Decimal] = {}
-        self.latest_candles: Dict[str, Candle] = {}
+        self.current_prices: dict[str, Decimal] = {}
+        self.latest_candles: dict[str, Candle] = {}
 
         logger.info("Paper broker initialized")
 
     async def initialize(self):
         """Initialize database connection and load state"""
         self.db_pool = await asyncpg.create_pool(
-            self.database_url, min_size=2, max_size=10
+            self.database_url, min_size=2, max_size=10,
         )
         await self._load_state_from_db()
         logger.info("Paper broker database initialized")
@@ -271,7 +266,7 @@ class PaperBroker:
                 self.positions[pos_row["symbol"]] = position
 
         logger.info(
-            f"Loaded {len(self.active_orders)} orders and {len(self.positions)} positions"
+            f"Loaded {len(self.active_orders)} orders and {len(self.positions)} positions",
         )
 
     def _order_from_db_row(self, row) -> BacktestOrder:
@@ -282,8 +277,8 @@ class PaperBroker:
             side=OrderSide(row["side"]),
             type=OrderType(row["type"]),
             quantity=row["quantity"],
-            price=row["price"] if row["price"] else Decimal("0"),
-            stop_price=row["stop_price"] if row["stop_price"] else Decimal("0"),
+            price=row["price"] if row["price"] else Decimal(0),
+            stop_price=row["stop_price"] if row["stop_price"] else Decimal(0),
             client_order_id=row["client_order_id"],
             status=OrderStatus(row["status"]),
             created_at=row["created_at"],
@@ -322,7 +317,7 @@ class PaperBroker:
             is_maker=(order.type == OrderType.LIMIT),
         )
         slippage = self.cost_calculator.calculate_slippage(
-            order.quantity, candle.volume
+            order.quantity, candle.volume,
         )
 
         # Create fill
@@ -342,12 +337,12 @@ class PaperBroker:
         order.status = OrderStatus.FILLED
         order.filled_quantity = order.quantity
         order.fill_price = fill_price
-        order.updated_at = datetime.now(timezone.utc)
+        order.updated_at = datetime.now(UTC)
 
         # Update position
         if order.symbol not in self.positions:
             self.positions[order.symbol] = PaperPosition(
-                order.symbol, is_futures=order.symbol.endswith("USDT")
+                order.symbol, is_futures=order.symbol.endswith("USDT"),
             )
 
         self.positions[order.symbol].update_position(fill, candle.close_price)
@@ -364,7 +359,7 @@ class PaperBroker:
         del self.active_orders[order.client_order_id]
 
         logger.info(
-            f"Filled order {order.client_order_id}: {order.quantity} {order.symbol} @ {fill_price}"
+            f"Filled order {order.client_order_id}: {order.quantity} {order.symbol} @ {fill_price}",
         )
 
     async def _save_fill_to_db(self, fill: BacktestFill):
@@ -457,7 +452,7 @@ class PaperBroker:
     # ============================================================================
 
     async def place_bracket_order(
-        self, request: PlaceBracketRequest
+        self, request: PlaceBracketRequest,
     ) -> PlaceBracketResponse:
         """Place bracket order with entry, TPs, and SL"""
         bracket_id = str(uuid.uuid4())
@@ -484,11 +479,11 @@ class PaperBroker:
                 quantity=request.quantity,
                 price=request.entry_price
                 if request.order_type == "LIMIT"
-                else Decimal("0"),
+                else Decimal(0),
                 client_order_id=client_order_ids.main,
                 bracket_order_id=bracket_id,
                 status=OrderStatus.PENDING,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             orders.append(entry_order)
 
@@ -505,7 +500,7 @@ class PaperBroker:
                     client_order_id=client_order_ids.take_profits[i],
                     bracket_order_id=bracket_id,
                     status=OrderStatus.PENDING_TRIGGER,  # Will activate after entry fills
-                    created_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
                 )
                 orders.append(tp_order)
 
@@ -520,7 +515,7 @@ class PaperBroker:
                 client_order_id=client_order_ids.stop_loss,
                 bracket_order_id=bracket_id,
                 status=OrderStatus.PENDING_TRIGGER,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             orders.append(sl_order)
 
@@ -545,7 +540,7 @@ class PaperBroker:
                 symbol=request.symbol,
                 side=request.side,
                 quantity=request.quantity,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 partial_failure=len(errors) > 0,
                 errors=errors,
             )
@@ -581,14 +576,14 @@ class PaperBroker:
                 order.updated_at,
             )
 
-    async def cancel_order(self, request: CancelRequest) -> Dict[str, str]:
+    async def cancel_order(self, request: CancelRequest) -> dict[str, str]:
         """Cancel an order"""
         try:
             client_order_id = request.client_order_id
             if not client_order_id and request.order_id:
                 # Find by order_id (not implemented in this simple version)
                 raise HTTPException(
-                    status_code=400, detail="Cancel by order_id not implemented"
+                    status_code=400, detail="Cancel by order_id not implemented",
                 )
 
             if client_order_id not in self.active_orders:
@@ -596,7 +591,7 @@ class PaperBroker:
 
             order = self.active_orders[client_order_id]
             order.status = OrderStatus.CANCELLED
-            order.updated_at = datetime.now(timezone.utc)
+            order.updated_at = datetime.now(UTC)
 
             # Update in database
             await self._update_order_in_db(order)
@@ -614,7 +609,7 @@ class PaperBroker:
             logger.error(f"Error canceling order: {e}")
             raise HTTPException(status_code=400, detail=str(e))
 
-    async def close_all_positions(self, request: CloseAllRequest) -> Dict[str, str]:
+    async def close_all_positions(self, request: CloseAllRequest) -> dict[str, str]:
         """Close all positions"""
         try:
             symbols_to_close = []
@@ -641,7 +636,7 @@ class PaperBroker:
                     quantity=abs(position.net_quantity),
                     client_order_id=f"paper_close_{uuid.uuid4().hex[:8]}",
                     status=OrderStatus.PENDING,
-                    created_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
                 )
 
                 # Save and activate order
@@ -704,7 +699,7 @@ def create_paper_broker_app(broker: PaperBroker) -> FastAPI:
                         "avg_price": str(pos.avg_entry_price),
                         "unrealized_pnl": str(pos.unrealized_pnl),
                         "side": "LONG" if pos.net_quantity > 0 else "SHORT",
-                    }
+                    },
                 )
         return {"positions": positions}
 
@@ -722,7 +717,7 @@ def create_paper_broker_app(broker: PaperBroker) -> FastAPI:
                     "price": str(order.price),
                     "status": order.status.value,
                     "client_order_id": order.client_order_id,
-                }
+                },
             )
         return {"orders": orders}
 

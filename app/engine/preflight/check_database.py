@@ -12,12 +12,11 @@ database. Exits non‑zero and prints a clear, actionable error on failure.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import os
 import sys
-from dataclasses import dataclass
 
 import asyncpg
-
 
 REQUIRED_ENV = [
     ("DB_HOST", "localhost"),
@@ -82,7 +81,7 @@ async def check_db_connectivity(timeout_seconds: float = 5.0) -> None:
             "Missing required database environment variables:\n"
             + "\n".join(f"  - {k}" for k in missing)
             + "\n\nSet them, for example:\n"
-            + exports
+            + exports,
         )
     assert env is not None
 
@@ -98,14 +97,14 @@ async def check_db_connectivity(timeout_seconds: float = 5.0) -> None:
 
     try:
         await _try_connect(server_dsn)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise RuntimeError(
             "Unable to connect to Postgres server with provided credentials.\n"
             f"Host: {env.host}\nPort: {env.port}\nUser: {env.user}\n"
             f"Error: {e}\n\n"
             "Ensure the database is running and credentials are correct.\n"
             "If using Docker Compose, start with:\n"
-            "  docker compose -f docker-compose.dev.yml up -d postgres\n"
+            "  docker compose -f docker-compose.dev.yml up -d postgres\n",
         ) from e
 
     # 2) Connect to test database to verify it is reachable (it may be created by fixtures)
@@ -119,12 +118,12 @@ async def check_db_connectivity(timeout_seconds: float = 5.0) -> None:
     }
     try:
         await _try_connect(test_dsn)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise RuntimeError(
             "Connected to server, but the test database is not accessible.\n"
             f"Database: {env.database}\nError: {e}\n\n"
             "If running integration tests, the suite will create/apply migrations.\n"
-            "Alternatively, create the database manually or run migrations.\n"
+            "Alternatively, create the database manually or run migrations.\n",
         ) from e
 
 

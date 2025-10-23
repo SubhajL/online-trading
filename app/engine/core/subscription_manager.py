@@ -7,7 +7,7 @@ import asyncio
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -44,7 +44,7 @@ class EventSubscription:
     retry_count: int = 0
     last_error: str | None = None
     is_active: bool = True
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def __lt__(self, other: "EventSubscription") -> bool:
         """Compare by priority for sorting (higher priority first)."""
@@ -321,7 +321,7 @@ class SubscriptionManager:
             subscription.last_error = None
 
     async def get_subscription_by_id(
-        self, subscription_id: str
+        self, subscription_id: str,
     ) -> EventSubscription | None:
         """Get a subscription by its ID (read-only access)."""
         async with self._lock:

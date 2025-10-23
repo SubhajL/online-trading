@@ -8,12 +8,12 @@ like initializing the pool, upserting candles/orders, and querying data.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 from app.engine.adapters.db.connection_pool import ConnectionPool, DBConfig
-from app.engine.models import Candle, TimeFrame, TechnicalIndicators, SupplyDemandZone
+from app.engine.models import Candle, SupplyDemandZone, TechnicalIndicators, TimeFrame
 
 # Default venue used by module-level DAL
 _DEFAULT_VENUE = "binance"
@@ -41,7 +41,7 @@ def get_pool() -> ConnectionPool:
 
 
 @asynccontextmanager
-async def acquire_connection():  # noqa: D401
+async def acquire_connection():
     pool = get_pool()
     async with pool.acquire() as conn:
         yield conn
@@ -69,8 +69,8 @@ async def upsert_candle(candle: Candle) -> bool:
             taker_buy_quote_volume = EXCLUDED.taker_buy_quote_volume
         """
     try:
-        ot = (candle.open_time.replace(tzinfo=timezone.utc).timestamp() if candle.open_time.tzinfo is None else candle.open_time.timestamp())
-        ct = (candle.close_time.replace(tzinfo=timezone.utc).timestamp() if candle.close_time.tzinfo is None else candle.close_time.timestamp())
+        ot = (candle.open_time.replace(tzinfo=UTC).timestamp() if candle.open_time.tzinfo is None else candle.open_time.timestamp())
+        ct = (candle.close_time.replace(tzinfo=UTC).timestamp() if candle.close_time.tzinfo is None else candle.close_time.timestamp())
         async with acquire_connection() as conn:
             await conn.execute(
                 query,
@@ -142,8 +142,8 @@ def _to_epoch_seconds(dt: datetime) -> float:
     Treats naive datetimes as UTC; if tz-aware, converts to UTC first.
     """
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc).timestamp()
-    return dt.astimezone(timezone.utc).timestamp()
+        return dt.replace(tzinfo=UTC).timestamp()
+    return dt.astimezone(UTC).timestamp()
 
 
 async def upsert_indicator(ind: TechnicalIndicators) -> bool:

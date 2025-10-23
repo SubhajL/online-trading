@@ -4,7 +4,7 @@ Funding Rate Monitor for USD-M Futures
 Blocks trading when predicted funding payment exceeds threshold.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 import logging
 from typing import Any
@@ -33,8 +33,8 @@ class FundingRateData:
         # Short positions receive funding when rate is positive
         if position_side == "LONG":
             return self.predicted_rate
-        else:  # SHORT
-            return -self.predicted_rate
+        # SHORT
+        return -self.predicted_rate
 
 
 async def get_funding_rate(
@@ -47,7 +47,7 @@ async def get_funding_rate(
         # Example: response = await exchange_client.futures_funding_rate(symbol=symbol)
 
         # For now, return mock data
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         next_funding = current_time.replace(minute=0, second=0, microsecond=0)
 
         # Round to next 8-hour funding interval
@@ -88,7 +88,7 @@ def is_funding_safe(
 
 def calculate_hours_until_funding(funding_time: datetime) -> float:
     """Calculate hours until next funding."""
-    current_time = datetime.now(timezone.utc)
+    current_time = datetime.now(UTC)
     time_diff = funding_time - current_time
     return max(0, time_diff.total_seconds() / 3600)
 
@@ -166,7 +166,7 @@ class FundingMonitor:
         funding_data = await get_funding_rate(symbol, self.exchange_client)
 
         if funding_data:
-            self._cache[symbol] = (funding_data, datetime.now(timezone.utc))
+            self._cache[symbol] = (funding_data, datetime.now(UTC))
 
         return funding_data
 
@@ -183,7 +183,7 @@ class FundingMonitor:
             max_age_seconds = self._cache_ttl_seconds
 
         _, cache_time = self._cache[symbol]
-        age_seconds = (datetime.now(timezone.utc) - cache_time).total_seconds()
+        age_seconds = (datetime.now(UTC) - cache_time).total_seconds()
 
         return age_seconds < max_age_seconds
 
@@ -199,7 +199,7 @@ class FundingMonitor:
 
             if funding_data:
                 hours_until = calculate_hours_until_funding(
-                    funding_data.next_funding_time
+                    funding_data.next_funding_time,
                 )
 
                 results[symbol] = {
@@ -208,13 +208,13 @@ class FundingMonitor:
                     "next_funding_time": funding_data.next_funding_time.isoformat(),
                     "hours_until_funding": hours_until,
                     "long_payment": float(
-                        funding_data.get_predicted_payment_rate("LONG")
+                        funding_data.get_predicted_payment_rate("LONG"),
                     ),
                     "short_payment": float(
-                        funding_data.get_predicted_payment_rate("SHORT")
+                        funding_data.get_predicted_payment_rate("SHORT"),
                     ),
                     "near_funding": should_block_near_funding(
-                        hours_until, self.blackout_hours_before
+                        hours_until, self.blackout_hours_before,
                     ),
                 }
             else:

@@ -6,13 +6,11 @@ import logging
 from pathlib import Path
 import re
 import time
-from dataclasses import dataclass
-from pathlib import Path
+from typing import Any
 
 from asyncpg import Connection
 
 from .connection_pool import ConnectionPool
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +232,7 @@ class MigrationRunner:
 
         # Compute the contiguous plan starting after the current version
         migrations_to_apply = self.compute_contiguous_plan(
-            available_migrations, start_version=current_version + 1, target_version=target_version
+            available_migrations, start_version=current_version + 1, target_version=target_version,
         )
 
         if not migrations_to_apply:

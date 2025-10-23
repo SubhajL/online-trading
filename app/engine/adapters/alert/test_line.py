@@ -1,12 +1,11 @@
-import pytest
-from unittest.mock import Mock, patch, AsyncMock
-import asyncio
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from app.engine.adapters.alert.line import LineAlertAdapter
-from typing import Any
-
 
 
 class TestLineAlertAdapter:
@@ -96,7 +95,7 @@ class TestLineAlertAdapter:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
-            "entry_price": Decimal("42000"),
+            "entry_price": Decimal(42000),
             "timestamp": datetime.now(),
         }
 

@@ -7,22 +7,21 @@ Classifies market into TREND/RANGE/SHOCK regimes using:
 - ADX percentiles
 """
 
-from datetime import datetime, timezone
+from collections import deque
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
 import logging
 from typing import Any
-from collections import deque
-import numpy as np
 
 from ..bus import get_event_bus
 from ..models import (
     BaseEvent,
-    EventType,
-    TimeFrame,
     Candle,
-    TechnicalIndicators,
+    EventType,
     FeaturesCalculatedEvent,
+    TechnicalIndicators,
+    TimeFrame,
 )
 
 logger = logging.getLogger(__name__)
@@ -82,8 +81,7 @@ def calculate_volatility_metrics(
     lookback_period: int,
 ) -> dict[str, Decimal]:
     """Compute ATR, BB-width, ADX percentiles over lookback period."""
-    if len(candles) < lookback_period:
-        lookback_period = len(candles)
+    lookback_period = min(lookback_period, len(candles))
 
     # Calculate ATR
     atr_values = calculate_atr_series(candles, 14)
@@ -95,10 +93,10 @@ def calculate_volatility_metrics(
         ]
         current_atr_norm = atr_normalized[-1] if atr_normalized else 0
         atr_percentile = Decimal(
-            str(calculate_percentile(atr_normalized, current_atr_norm))
+            str(calculate_percentile(atr_normalized, current_atr_norm)),
         )
     else:
-        atr_percentile = Decimal("50")
+        atr_percentile = Decimal(50)
 
     # Calculate BB width
     bb_width_values = calculate_bb_width_series(candles, 20)
@@ -106,10 +104,10 @@ def calculate_volatility_metrics(
         bb_width_normalized = [float(w) for w in bb_width_values[-lookback_period:]]
         current_bb_width = bb_width_normalized[-1] if bb_width_normalized else 0
         bb_width_percentile = Decimal(
-            str(calculate_percentile(bb_width_normalized, current_bb_width))
+            str(calculate_percentile(bb_width_normalized, current_bb_width)),
         )
     else:
-        bb_width_percentile = Decimal("50")
+        bb_width_percentile = Decimal(50)
 
     # Calculate ADX
     adx_values = calculate_adx_series(candles, 14)
@@ -118,7 +116,7 @@ def calculate_volatility_metrics(
         current_adx = adx_list[-1] if adx_list else 0
         adx_percentile = Decimal(str(calculate_percentile(adx_list, current_adx)))
     else:
-        adx_percentile = Decimal("50")
+        adx_percentile = Decimal(50)
 
     return {
         "atr_percentile": atr_percentile,
@@ -163,7 +161,7 @@ def calculate_bb_width_series(candles: list[Any], period: int = 20) -> list[Deci
         mean = sum(window) / len(window)
         variance = sum((x - mean) ** 2 for x in window) / len(window)
         std_dev = variance ** Decimal("0.5")
-        bb_width = (std_dev * 2) / mean if mean > 0 else Decimal("0")
+        bb_width = (std_dev * 2) / mean if mean > 0 else Decimal(0)
         bb_width_values.append(bb_width)
 
     return bb_width_values
@@ -249,7 +247,7 @@ async def emit_regime_event(
     try:
         event = BaseEvent(
             event_type=EventType.REGIME_UPDATE,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             symbol=symbol,
             timeframe=TimeFrame(timeframe),
             metadata={
@@ -345,7 +343,7 @@ class RegimeVolEngine:
 
             # Calculate percentiles
             metrics = await self._calculate_percentiles(
-                features.symbol, features.timeframe.value
+                features.symbol, features.timeframe.value,
             )
 
             # Classify regime
@@ -362,7 +360,7 @@ class RegimeVolEngine:
             # Store regime history
             if key not in self._regime_history:
                 self._regime_history[key] = deque(maxlen=1000)
-            self._regime_history[key].append((datetime.now(timezone.utc), regime))
+            self._regime_history[key].append((datetime.now(UTC), regime))
 
             # Emit regime event
             await emit_regime_event(
@@ -387,9 +385,9 @@ class RegimeVolEngine:
 
         if not candles:
             return {
-                "atr_percentile": Decimal("50"),
-                "bb_width_percentile": Decimal("50"),
-                "adx_percentile": Decimal("50"),
+                "atr_percentile": Decimal(50),
+                "bb_width_percentile": Decimal(50),
+                "adx_percentile": Decimal(50),
             }
 
         # Convert candles to dict format for calculation
@@ -405,7 +403,7 @@ class RegimeVolEngine:
         ]
 
         return calculate_volatility_metrics(
-            candles=candle_dicts, lookback_period=self.lookback_periods
+            candles=candle_dicts, lookback_period=self.lookback_periods,
         )
 
     def get_current_regime(self, symbol: str, timeframe: str) -> MarketRegime | None:

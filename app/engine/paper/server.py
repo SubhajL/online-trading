@@ -7,14 +7,14 @@ Can be started alongside or instead of the real router for paper trading.
 
 import argparse
 import asyncio
+from contextlib import asynccontextmanager
 import logging
+from pathlib import Path
 import signal
 import sys
-from pathlib import Path
 
 import uvicorn
 import yaml
-from contextlib import asynccontextmanager
 
 from ..backtest.costs import CostCalculator
 from ..backtest.fills import FillEngine
@@ -23,7 +23,7 @@ from .broker import PaperBroker, create_paper_broker_app
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,11 @@ class PaperBrokerServer:
     def _load_config(self) -> dict:
         """Load configuration from YAML"""
         try:
-            with open(self.config_path, 'r') as file:
+            with open(self.config_path) as file:
                 config = yaml.safe_load(file)
 
             # Validate required config
-            required = ['database_url', 'server']
+            required = ["database_url", "server"]
             for key in required:
                 if key not in config:
                     raise ValueError(f"Missing required config: {key}")
@@ -58,11 +58,11 @@ class PaperBrokerServer:
     async def initialize(self):
         """Initialize broker and FastAPI app"""
         # Create cost calculator from config
-        backtest_config = self.config.get('backtest', {})
+        backtest_config = self.config.get("backtest", {})
         cost_calc = CostCalculator(
-            spot_fee_rate=backtest_config.get('fee_bps_spot', 10) / 10000,
-            futures_fee_rate=backtest_config.get('fee_bps_futures', 4) / 10000,
-            slippage_bps=backtest_config.get('slippage_bps', 2)
+            spot_fee_rate=backtest_config.get("fee_bps_spot", 10) / 10000,
+            futures_fee_rate=backtest_config.get("fee_bps_futures", 4) / 10000,
+            slippage_bps=backtest_config.get("slippage_bps", 2),
         )
 
         # Create fill engine
@@ -70,9 +70,9 @@ class PaperBrokerServer:
 
         # Create broker
         self.broker = PaperBroker(
-            database_url=self.config['database_url'],
+            database_url=self.config["database_url"],
             cost_calculator=cost_calc,
-            fill_engine=fill_engine
+            fill_engine=fill_engine,
         )
 
         await self.broker.initialize()
@@ -86,9 +86,9 @@ class PaperBrokerServer:
         """Start the server"""
         await self.initialize()
 
-        server_config = self.config['server']
-        host = server_config.get('host', '0.0.0.0')
-        port = server_config.get('port', 8001)
+        server_config = self.config["server"]
+        host = server_config.get("host", "0.0.0.0")
+        port = server_config.get("port", 8001)
 
         # Create lifespan context manager
         @asynccontextmanager
@@ -110,7 +110,7 @@ class PaperBrokerServer:
             host=host,
             port=port,
             log_level="info",
-            access_log=True
+            access_log=True,
         )
 
         server = uvicorn.Server(config)
@@ -135,32 +135,32 @@ class PaperBrokerServer:
 
 def main():
     """CLI entry point"""
-    parser = argparse.ArgumentParser(description='Paper Broker Server')
+    parser = argparse.ArgumentParser(description="Paper Broker Server")
     parser.add_argument(
-        '--config',
+        "--config",
         required=True,
-        help='Path to config.yaml file'
+        help="Path to config.yaml file",
     )
     parser.add_argument(
-        '--host',
-        default='0.0.0.0',
-        help='Server host (default: 0.0.0.0)'
+        "--host",
+        default="0.0.0.0",
+        help="Server host (default: 0.0.0.0)",
     )
     parser.add_argument(
-        '--port',
+        "--port",
         type=int,
         default=8001,
-        help='Server port (default: 8001)'
+        help="Server port (default: 8001)",
     )
 
     args = parser.parse_args()
 
     # Override config with CLI args
     server = PaperBrokerServer(args.config)
-    if 'server' not in server.config:
-        server.config['server'] = {}
-    server.config['server']['host'] = args.host
-    server.config['server']['port'] = args.port
+    if "server" not in server.config:
+        server.config["server"] = {}
+    server.config["server"]["host"] = args.host
+    server.config["server"]["port"] = args.port
 
     try:
         asyncio.run(server.start())

@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Any
 
 """
 Plugin manager for loading and managing trading engine plugins.

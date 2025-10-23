@@ -1,8 +1,7 @@
 """Tool to fix imports from config module to models module."""
 
-import re
 from pathlib import Path
-from typing import List, Set, Tuple
+import re
 
 
 class ConfigImportFixer:
@@ -10,24 +9,24 @@ class ConfigImportFixer:
 
     # Model types that should be imported from models, not config
     MODEL_TYPES = {
-        'BaseEvent', 'EventType', 'Candle', 'CandleUpdateEvent',
-        'TimeFrame', 'OrderSide', 'OrderType', 'OrderStatus',
-        'MarketRegime', 'PivotPoint', 'PivotType', 'SMCSignal',
-        'SMCSignalEvent', 'SupplyDemandZone', 'ZoneType',
-        'RetestSignal', 'RetestSignalEvent', 'DecisionEvent',
-        'TradingDecision', 'Order', 'OrderUpdate', 'OrderFilledEvent',
-        'Position', 'PositionUpdateEvent', 'FeaturesCalculatedEvent',
-        'TechnicalIndicators', 'MarketCondition', 'SignalType',
-        'SignalStrength', 'RawSignal', 'RawSignalEvent',
-        'RegimeUpdateEvent', 'VolatilityRegime',
+        "BaseEvent", "EventType", "Candle", "CandleUpdateEvent",
+        "TimeFrame", "OrderSide", "OrderType", "OrderStatus",
+        "MarketRegime", "PivotPoint", "PivotType", "SMCSignal",
+        "SMCSignalEvent", "SupplyDemandZone", "ZoneType",
+        "RetestSignal", "RetestSignalEvent", "DecisionEvent",
+        "TradingDecision", "Order", "OrderUpdate", "OrderFilledEvent",
+        "Position", "PositionUpdateEvent", "FeaturesCalculatedEvent",
+        "TechnicalIndicators", "MarketCondition", "SignalType",
+        "SignalStrength", "RawSignal", "RawSignalEvent",
+        "RegimeUpdateEvent", "VolatilityRegime",
     }
 
     # Config types that should remain in config
     CONFIG_TYPES = {
-        'EventBusConfig', 'DatabaseConfig', 'RedisConfig',
-        'IngestConfig', 'DecisionConfig', 'BacktestConfig',
-        'PaperTradingConfig', 'SMCConfig', 'FeatureConfig',
-        'AlertConfig', 'MonitoringConfig',
+        "EventBusConfig", "DatabaseConfig", "RedisConfig",
+        "IngestConfig", "DecisionConfig", "BacktestConfig",
+        "PaperTradingConfig", "SMCConfig", "FeatureConfig",
+        "AlertConfig", "MonitoringConfig",
     }
 
     @staticmethod
@@ -36,7 +35,7 @@ class ConfigImportFixer:
         if not content.strip():
             return content
 
-        lines = content.split('\n')
+        lines = content.split("\n")
         result_lines = []
         i = 0
 
@@ -44,18 +43,18 @@ class ConfigImportFixer:
             line = lines[i]
 
             # Check for multi-line import from config
-            if re.match(r'^from \.\.config import \($', line):
+            if re.match(r"^from \.\.config import \($", line):
                 import_lines = [line]
                 config_imports = []
                 model_imports = []
                 i += 1
 
                 # Collect all imports until closing parenthesis
-                while i < len(lines) and ')' not in lines[i]:
+                while i < len(lines) and ")" not in lines[i]:
                     import_line = lines[i].strip()
-                    if import_line and not import_line.startswith('#'):
+                    if import_line and not import_line.startswith("#"):
                         # Remove trailing comma
-                        import_name = import_line.rstrip(',').strip()
+                        import_name = import_line.rstrip(",").strip()
                         if import_name in ConfigImportFixer.MODEL_TYPES:
                             model_imports.append(import_name)
                         else:
@@ -68,27 +67,27 @@ class ConfigImportFixer:
 
                 # Add the imports back
                 if config_imports:
-                    result_lines.append('from ..config import (')
+                    result_lines.append("from ..config import (")
                     for imp in config_imports[:-1]:
-                        result_lines.append(f'    {imp},')
+                        result_lines.append(f"    {imp},")
                     if config_imports:
-                        result_lines.append(f'    {config_imports[-1]},')
-                    result_lines.append(')')
+                        result_lines.append(f"    {config_imports[-1]},")
+                    result_lines.append(")")
 
                 if model_imports:
-                    result_lines.append('from ..models import (')
+                    result_lines.append("from ..models import (")
                     for imp in model_imports[:-1]:
-                        result_lines.append(f'    {imp},')
+                        result_lines.append(f"    {imp},")
                     if model_imports:
-                        result_lines.append(f'    {model_imports[-1]},')
-                    result_lines.append(')')
+                        result_lines.append(f"    {model_imports[-1]},")
+                    result_lines.append(")")
 
             # Check for single-line import from config
-            elif re.match(r'^from \.\.config import ', line):
-                match = re.match(r'^from \.\.config import (.+)$', line)
+            elif re.match(r"^from \.\.config import ", line):
+                match = re.match(r"^from \.\.config import (.+)$", line)
                 if match:
                     imports_str = match.group(1)
-                    imports = [imp.strip() for imp in imports_str.split(',')]
+                    imports = [imp.strip() for imp in imports_str.split(",")]
 
                     config_imports = []
                     model_imports = []
@@ -109,39 +108,39 @@ class ConfigImportFixer:
                 result_lines.append(line)
                 i += 1
 
-        return '\n'.join(result_lines)
+        return "\n".join(result_lines)
 
     @staticmethod
     def fix_file(file_path: str) -> None:
         """Fix config imports in a file."""
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             content = f.read()
 
         fixed_content = ConfigImportFixer.fix_config_imports(content)
 
         if fixed_content != content:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.write(fixed_content)
 
     @staticmethod
-    def get_files_with_config_import_errors(directory: str) -> List[str]:
+    def get_files_with_config_import_errors(directory: str) -> list[str]:
         """Find all Python files with incorrect config imports."""
         files_with_errors = []
 
-        for py_file in Path(directory).rglob('*.py'):
+        for py_file in Path(directory).rglob("*.py"):
             # Skip virtual environment
-            if '.venv' in py_file.parts or 'venv' in py_file.parts:
+            if ".venv" in py_file.parts or "venv" in py_file.parts:
                 continue
 
             try:
-                with open(py_file, 'r') as f:
+                with open(py_file) as f:
                     content = f.read()
 
                 # Check if file imports model types from config
-                if re.search(r'from \.\.config import', content):
+                if re.search(r"from \.\.config import", content):
                     # Parse the imports to see if any are model types
                     for model_type in ConfigImportFixer.MODEL_TYPES:
-                        if re.search(rf'\b{model_type}\b', content):
+                        if re.search(rf"\b{model_type}\b", content):
                             files_with_errors.append(str(py_file))
                             break
             except Exception:

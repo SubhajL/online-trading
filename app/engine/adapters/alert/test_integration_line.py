@@ -1,17 +1,16 @@
 import asyncio
+from datetime import UTC, datetime
 import os
-from unittest import mock
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+from typing import Any
+from unittest.mock import AsyncMock, patch
 
-from app.engine.adapters.alert.line import LineAlertAdapter
-from app.engine.adapters.alert.alert_formatter import AlertFormatter
+import pytest
+
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
+from app.engine.adapters.alert.line import LineAlertAdapter
 from app.engine.models import Position, TradingDecisionEvent
 from app.engine.paper.broker import OrderUpdate
-from typing import Any
-
 
 
 class TestLineIntegration:
@@ -33,7 +32,7 @@ class TestLineIntegration:
         adapter = LineAlertAdapter(
             access_token=access_token,
             formatter=formatter,
-            deduplicator=deduplicator
+            deduplicator=deduplicator,
         )
         return adapter
 
@@ -48,10 +47,10 @@ class TestLineIntegration:
             executed_qty=0.002,
             executed_price=44800.0,
             venue="USD_M",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -78,10 +77,10 @@ class TestLineIntegration:
             venue="USD_M",
             pnl=500.0,
             pnl_percent=10.0,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -106,10 +105,10 @@ class TestLineIntegration:
             type="MARKET",
             confidence=0.95,
             reason="A" * 2000,  # Very long reason to exceed limit
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -131,10 +130,10 @@ class TestLineIntegration:
             status="NEW",
             quantity=1.0,
             venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
+        with patch("aiohttp.ClientSession.post") as mock_post:
             mock_response = AsyncMock()
             mock_response.json = AsyncMock(return_value={"status": 200, "message": "ok"})
             mock_response.status = 200
@@ -144,9 +143,9 @@ class TestLineIntegration:
 
             # Verify authorization header
             mock_post.assert_called_once()
-            headers = mock_post.call_args[1]['headers']
-            assert 'Authorization' in headers
-            assert headers['Authorization'].startswith('Bearer ')
+            headers = mock_post.call_args[1]["headers"]
+            assert "Authorization" in headers
+            assert headers["Authorization"].startswith("Bearer ")
 
     @pytest.mark.asyncio
     async def test_rate_limit_handling(self, line_adapter: Any) -> None:
@@ -160,12 +159,12 @@ class TestLineIntegration:
                 status="NEW",
                 quantity=0.001,
                 venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             )
             for i in range(5)
         ]
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             # Simulate rate limit response on 3rd request
             responses = [
                 {"status": 200, "message": "ok"},
@@ -206,10 +205,10 @@ class TestLineIntegration:
             quantity=1.0,
             venue="USD_M",
             error="ACCOUNT_SUSPENDED",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -235,10 +234,10 @@ class TestLineIntegration:
             price=2400.0,
             confidence=0.92,
             chart_url="https://example.com/chart.png",  # Hypothetical
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -250,7 +249,7 @@ class TestLineIntegration:
             mock_send.assert_called_once()
             message = mock_send.call_args[0][0]
             assert "ETHUSDT" in message
-            if hasattr(decision, 'chart_url'):
+            if hasattr(decision, "chart_url"):
                 assert "chart" in message.lower() or "https://" in message
 
     @pytest.mark.asyncio
@@ -263,19 +262,19 @@ class TestLineIntegration:
             status="NEW",
             quantity=0.001,
             venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         async def mock_timeout(*args: Any, **kwargs: Any) -> None:
             await asyncio.sleep(0.1)
-            raise asyncio.TimeoutError("Connection timeout")
+            raise TimeoutError("Connection timeout")
 
-        with patch.object(line_adapter, '_send_line_message', side_effect=mock_timeout):
-            with patch.object(line_adapter, 'timeout_seconds', 0.05):
+        with patch.object(line_adapter, "_send_line_message", side_effect=mock_timeout):
+            with patch.object(line_adapter, "timeout_seconds", 0.05):
                 # Should handle timeout gracefully
                 try:
                     await line_adapter.send_alert(order)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass  # Expected
 
     @pytest.mark.asyncio
@@ -291,10 +290,10 @@ class TestLineIntegration:
             venue="SPOT",
             pnl=20.0,
             pnl_percent=4.0,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -318,7 +317,7 @@ class TestLineIntegration:
             venue="USD_M",
             pnl=-5000.0,
             pnl_percent=-10.0,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         # Low priority - small position update
@@ -331,10 +330,10 @@ class TestLineIntegration:
             venue="SPOT",
             pnl=1.0,
             pnl_percent=1.0,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})
@@ -360,10 +359,10 @@ class TestLineIntegration:
             "winning_trades": 10,
             "total_pnl": 523.45,
             "win_rate": 0.67,
-            "date": datetime.now(timezone.utc).date()
+            "date": datetime.now(UTC).date(),
         }
 
-        with patch.object(line_adapter, '_send_line_message') as mock_send:
+        with patch.object(line_adapter, "_send_line_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"status": 200, "message": "ok"})

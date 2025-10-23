@@ -1,8 +1,7 @@
 """Fix await operations on potentially non-awaitable values."""
 
-import re
 from pathlib import Path
-from typing import List
+import re
 
 
 class AwaitFixer:
@@ -14,15 +13,15 @@ class AwaitFixer:
         if not content.strip():
             return content
 
-        lines = content.split('\n')
+        lines = content.split("\n")
         result_lines = []
         counter = 1
 
         for i, line in enumerate(lines):
             # Check for await on Redis operations
-            if 'await' in line and '_redis' in line:
+            if "await" in line and "_redis" in line:
                 modified = AwaitFixer._fix_redis_await(
-                    line, lines, i, result_lines, counter
+                    line, lines, i, result_lines, counter,
                 )
                 if modified:
                     counter += 1
@@ -30,28 +29,28 @@ class AwaitFixer:
 
             result_lines.append(line)
 
-        return '\n'.join(result_lines)
+        return "\n".join(result_lines)
 
     @staticmethod
     def _fix_redis_await(
         line: str,
-        lines: List[str],
+        lines: list[str],
         line_idx: int,
-        result_lines: List[str],
-        counter: int
+        result_lines: list[str],
+        counter: int,
     ) -> bool:
         """Fix a Redis await operation."""
         # Get indentation from the original line
         indent = len(line) - len(line.lstrip())
-        spaces = ' ' * indent
+        spaces = " " * indent
 
         # Handle counter for unique variable names
-        suffix = '' if counter == 1 else str(counter)
+        suffix = "" if counter == 1 else str(counter)
 
         # Pattern 1: variable = await self._redis.method(...)
         match = re.match(
-            r'(\s*)(\w+)\s*=\s*await\s+(self\._redis\.\w+\([^)]*\))',
-            line
+            r"(\s*)(\w+)\s*=\s*await\s+(self\._redis\.\w+\([^)]*\))",
+            line,
         )
         if match:
             var_name = match.group(2)
@@ -66,8 +65,8 @@ class AwaitFixer:
 
         # Pattern 2: await self._redis.method(...) without assignment
         match = re.match(
-            r'(\s*)await\s+(self\._redis\.\w+\([^)]*\))',
-            line
+            r"(\s*)await\s+(self\._redis\.\w+\([^)]*\))",
+            line,
         )
         if match:
             redis_call = match.group(2)
@@ -81,8 +80,8 @@ class AwaitFixer:
 
         # Pattern 3: Complex expressions like len(await self._redis.keys(...))
         match = re.match(
-            r'(\s*)(.+?)\(await\s+(self\._redis\.\w+\([^)]*\))\)',
-            line
+            r"(\s*)(.+?)\(await\s+(self\._redis\.\w+\([^)]*\))\)",
+            line,
         )
         if match:
             prefix = match.group(2)
@@ -101,21 +100,21 @@ class AwaitFixer:
     @staticmethod
     def fix_file(file_path: str) -> None:
         """Fix await compatibility issues in a single file."""
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             content = f.read()
 
         fixed_content = AwaitFixer.fix_content(content)
 
         if fixed_content != content:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.write(fixed_content)
 
     @staticmethod
-    def get_files_with_await_errors() -> List[str]:
+    def get_files_with_await_errors() -> list[str]:
         """Get list of files that have await compatibility errors."""
         # Only Redis adapter has these specific errors
         return [
-            'app/engine/adapters/redis/redis_adapter.py',
+            "app/engine/adapters/redis/redis_adapter.py",
         ]
 
     @staticmethod

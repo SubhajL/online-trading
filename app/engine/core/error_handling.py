@@ -7,11 +7,12 @@ following best practices for resilient distributed systems.
 
 from abc import ABC, abstractmethod
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 import logging
-from typing import Any, Callable
+from typing import Any
 from uuid import UUID, uuid4
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class ErrorContext:
     """Rich context information for errors."""
 
     error_id: str = field(default_factory=lambda: str(uuid4()))
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     category: ErrorCategory = ErrorCategory.PROCESSING
     severity: ErrorSeverity = ErrorSeverity.MEDIUM
     component: str = ""
@@ -69,14 +70,14 @@ class EventBusError(Exception):
         self.message = message
         self.context = context or ErrorContext()
         self.cause = cause
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = datetime.now(UTC)
 
 
 class SubscriptionError(EventBusError):
     """Error related to subscription management."""
 
     def __init__(
-        self, message: str, subscription_id: str | None = None, **kwargs: Any
+        self, message: str, subscription_id: str | None = None, **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.SUBSCRIPTION
@@ -89,7 +90,7 @@ class ProcessingError(EventBusError):
     """Error during event processing."""
 
     def __init__(
-        self, message: str, event_id: UUID | None = None, **kwargs: Any
+        self, message: str, event_id: UUID | None = None, **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.PROCESSING
@@ -102,7 +103,7 @@ class QueueError(EventBusError):
     """Error related to queue operations."""
 
     def __init__(
-        self, message: str, queue_size: int | None = None, **kwargs: Any
+        self, message: str, queue_size: int | None = None, **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.QUEUE
@@ -115,7 +116,7 @@ class ConfigurationError(EventBusError):
     """Error in system configuration."""
 
     def __init__(
-        self, message: str, config_key: str | None = None, **kwargs: Any
+        self, message: str, config_key: str | None = None, **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CONFIGURATION
@@ -129,7 +130,7 @@ class TimeoutError(EventBusError):
     """Error due to operation timeout."""
 
     def __init__(
-        self, message: str, timeout_seconds: float | None = None, **kwargs: Any
+        self, message: str, timeout_seconds: float | None = None, **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.TIMEOUT
@@ -157,7 +158,7 @@ class ErrorStats:
     errors_by_severity: dict[ErrorSeverity, int] = field(default_factory=dict)
     recent_errors: list[ErrorContext] = field(default_factory=list)
     error_rate_per_minute: float = 0.0
-    last_reset: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_reset: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class ErrorHandler(ABC):
@@ -260,7 +261,7 @@ class MetricsErrorHandler(ErrorHandler):
 
     async def _update_error_rate(self) -> None:
         """Update error rate calculation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         minute_ago = now - timedelta(minutes=1)
 
         recent_count = sum(
@@ -490,7 +491,7 @@ class error_boundary:
 
         def sync_wrapper(*args: Any, **kwargs: Any) -> None:
             with self:
-                return
+                return func(*args, **kwargs)
 
         return sync_wrapper
 

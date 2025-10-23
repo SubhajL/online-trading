@@ -9,25 +9,23 @@ Requirements:
 - RSI 40-55 bounce for longs
 """
 
-from datetime import datetime, timezone
+from collections import deque
+from datetime import UTC, datetime
 from decimal import Decimal
 import logging
 from typing import Any, NewType
-import uuid
-from collections import deque
 
 from ..bus import get_event_bus
 from ..models import (
-    BaseEvent,
-    EventType,
-    TimeFrame,
     Candle,
-    TechnicalIndicators,
+    CandleUpdateEvent,
+    EventType,
+    FeaturesCalculatedEvent,
     RetestSignal,
     RetestSignalEvent,
-    CandleUpdateEvent,
-    FeaturesCalculatedEvent,
     SMCSignalEvent,
+    TechnicalIndicators,
+    TimeFrame,
 )
 
 logger = logging.getLogger(__name__)
@@ -146,9 +144,7 @@ def has_confirmation(
     """Validate close direction or micro-BOS confirmation."""
     # Check micro-BOS confirmation first
     if micro_bos:
-        if direction == "LONG" and micro_bos.get("type") == "BULLISH_BOS":
-            return True
-        elif direction == "SHORT" and micro_bos.get("type") == "BEARISH_BOS":
+        if (direction == "LONG" and micro_bos.get("type") == "BULLISH_BOS") or (direction == "SHORT" and micro_bos.get("type") == "BEARISH_BOS"):
             return True
 
     # Check candle confirmation
@@ -156,9 +152,9 @@ def has_confirmation(
         if direction == "LONG":
             # For long, need bullish close (close > open)
             return candle["close"] > candle["open"]
-        else:  # SHORT
-            # For short, need bearish close (close < open)
-            return candle["close"] < candle["open"]
+        # SHORT
+        # For short, need bearish close (close < open)
+        return candle["close"] < candle["open"]
 
     return False
 
@@ -173,13 +169,13 @@ def check_momentum_indicators(
     if direction == "LONG":
         # For long: MACD histogram improving (uptick) and RSI in bounce range 40-55
         macd_improving = macd_hist > macd_hist_prev
-        rsi_in_range = Decimal("40") <= rsi <= Decimal("55")
+        rsi_in_range = Decimal(40) <= rsi <= Decimal(55)
         return macd_improving and rsi_in_range
-    else:  # SHORT
-        # For short: MACD histogram declining (downtick) and RSI in resistance range 45-60
-        macd_declining = macd_hist < macd_hist_prev
-        rsi_in_range = Decimal("45") <= rsi <= Decimal("60")
-        return macd_declining and rsi_in_range
+    # SHORT
+    # For short: MACD histogram declining (downtick) and RSI in resistance range 45-60
+    macd_declining = macd_hist < macd_hist_prev
+    rsi_in_range = Decimal(45) <= rsi <= Decimal(60)
+    return macd_declining and rsi_in_range
 
 
 def generate_entry_levels(
@@ -208,12 +204,12 @@ def generate_entry_levels(
     # Calculate take profit levels
     if direction == "LONG":
         tp1 = entry + (risk * Decimal("1.5"))
-        tp2 = entry + (risk * Decimal("2"))
-        tp3 = entry + (risk * Decimal("3"))
+        tp2 = entry + (risk * Decimal(2))
+        tp3 = entry + (risk * Decimal(3))
     else:  # SHORT
         tp1 = entry - (risk * Decimal("1.5"))
-        tp2 = entry - (risk * Decimal("2"))
-        tp3 = entry - (risk * Decimal("3"))
+        tp2 = entry - (risk * Decimal(2))
+        tp3 = entry - (risk * Decimal(3))
 
     return {
         "entry": entry,
@@ -342,7 +338,7 @@ class RetestEngine:
                         ),
                         "level": signal.entry_price,
                         "strength": signal.confidence * 10,  # Convert to 1-10 scale
-                    }
+                    },
                 )
 
             # Store zones
@@ -358,7 +354,7 @@ class RetestEngine:
                         "bottom_price": signal.zone.bottom_price,
                         "created_at": signal.zone.created_at,
                         "strength": signal.zone.strength,
-                    }
+                    },
                 )
 
         except Exception as e:
@@ -385,10 +381,10 @@ class RetestEngine:
             zones=zones,
             bos_events=bos_events,
             features={
-                "atr": features.atr_14 or Decimal("0"),
-                "macd_hist": features.macd_histogram or Decimal("0"),
-                "macd_hist_prev": Decimal("0"),  # Would need to track previous
-                "rsi": features.rsi_14 or Decimal("50"),
+                "atr": features.atr_14 or Decimal(0),
+                "macd_hist": features.macd_histogram or Decimal(0),
+                "macd_hist_prev": Decimal(0),  # Would need to track previous
+                "rsi": features.rsi_14 or Decimal(50),
             },
         )
 
@@ -421,7 +417,7 @@ class RetestEngine:
             )
 
             event = RetestSignalEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=signal.symbol,
                 timeframe=signal.timeframe,
                 signal=signal,
@@ -429,7 +425,7 @@ class RetestEngine:
 
             await self.event_bus.publish(event, priority=8)
             logger.info(
-                f"Published retest signal for {signal.symbol} at {signal.level_price}"
+                f"Published retest signal for {signal.symbol} at {signal.level_price}",
             )
 
         except Exception as e:

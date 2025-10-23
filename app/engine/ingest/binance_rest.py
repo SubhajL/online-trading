@@ -6,7 +6,7 @@ via Binance REST API.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import hashlib
 import hmac
@@ -318,7 +318,7 @@ class BinanceRestClient:
         Returns:
             List[Any] of Candle objects
         """
-        end_time = datetime.now(timezone.utc)
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=days_back)
 
         all_candles = []

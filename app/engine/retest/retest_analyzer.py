@@ -6,11 +6,10 @@ Generates signals when price successfully retests important levels.
 """
 
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 import logging
 from typing import Any
-
 
 from ..bus import get_event_bus
 from ..models import (
@@ -353,7 +352,7 @@ class RetestAnalyzer:
         """Publish retest signal event"""
         try:
             event = RetestSignalEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=signal.symbol,
                 timeframe=signal.timeframe,
                 signal=signal,
@@ -386,7 +385,7 @@ class RetestAnalyzer:
                 "price": price,
                 "type": level_type,  # 'support' or 'resistance'
                 "strength": strength,
-                "created_at": created_at or datetime.now(timezone.utc),
+                "created_at": created_at or datetime.now(UTC),
                 "test_count": 0,
             }
 

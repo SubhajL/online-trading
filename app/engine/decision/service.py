@@ -5,12 +5,12 @@ This wraps the functional decision engine to provide the class-based
 interface expected by main.py.
 """
 
-from typing import Any
 import logging
+from typing import Any
 
+from ..adapters import RouterHTTPClient
 from .engine import fuse_signals, generate_decision
 from .risk_guards import RiskGuardManager
-from ..adapters import RouterHTTPClient
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class DecisionEngine:
         signal: dict[str, Any],
         current_positions: list[dict[str, Any]],
         news_window: dict[str, Any] | None = None,
-        funding_window: dict[str, Any] | None = None
+        funding_window: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Make trading decision based on signal and current state.
 
@@ -71,7 +71,7 @@ class DecisionEngine:
             Trading decision or None if no action
         """
         # Check risk guards
-        symbol = signal.get('symbol', 'UNKNOWN')
+        symbol = signal.get("symbol", "UNKNOWN")
         account_balance = self.risk_manager.get_account_balance()
         can_trade, reasons = self.risk_manager.can_trade(symbol, account_balance)
 
@@ -85,7 +85,7 @@ class DecisionEngine:
             self.risk_manager.get_account_balance(),
             current_positions,
             news_window,
-            funding_window
+            funding_window,
         )
 
 
@@ -94,7 +94,6 @@ class RiskManager:
 
     def __init__(self, risk_params):
         """Initialize with RiskParameters and create RiskGuardManager."""
-        from decimal import Decimal
         from .risk_guards import RiskGuardConfig
 
         # Map RiskParameters to RiskGuardConfig
@@ -103,7 +102,7 @@ class RiskManager:
             max_positions=risk_params.max_open_positions,
             max_correlated_positions=max(1, risk_params.max_open_positions // 2),
             max_drawdown_pct=risk_params.max_drawdown,
-            correlation_threshold=risk_params.max_correlation
+            correlation_threshold=risk_params.max_correlation,
         )
 
         # Create the actual risk guard manager

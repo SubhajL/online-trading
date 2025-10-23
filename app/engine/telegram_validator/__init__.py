@@ -1,15 +1,15 @@
 """Telegram Signal Validator Module"""
 
 from .telegram_signal_validator import (
-    TelegramSignalValidator,
+    SignalParser,
     TelegramSignal,
+    TelegramSignalValidator,
     ValidationResult,
-    SignalParser
 )
 
 __all__ = [
-    'TelegramSignalValidator',
-    'TelegramSignal',
-    'ValidationResult',
-    'SignalParser'
+    "SignalParser",
+    "TelegramSignal",
+    "TelegramSignalValidator",
+    "ValidationResult",
 ]

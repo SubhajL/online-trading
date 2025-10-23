@@ -5,10 +5,8 @@ For cases where you copy-paste signals from Telegram for validation.
 """
 
 import asyncio
-from datetime import datetime, timezone
-from decimal import Decimal
 
-from .telegram_signal_validator import TelegramSignalValidator, SignalParser
+from .telegram_signal_validator import SignalParser, TelegramSignalValidator
 
 
 class ManualSignalValidator:
@@ -33,13 +31,13 @@ class ManualSignalValidator:
         signal = SignalParser.parse_message(
             message_text,
             source,
-            message_id=0  # No ID for manual
+            message_id=0,  # No ID for manual
         )
 
         if not signal:
             return {
                 "error": "Could not parse signal from message",
-                "message": message_text
+                "message": message_text,
             }
 
         # Validate against your system
@@ -53,7 +51,7 @@ class ManualSignalValidator:
                 "entry": str(signal.entry_price),
                 "stop_loss": str(signal.stop_loss),
                 "take_profits": [str(tp) for tp in signal.take_profits],
-                "reasoning": signal.reasoning
+                "reasoning": signal.reasoning,
             },
             "validation": {
                 "overall_score": result.overall_score,
@@ -61,21 +59,20 @@ class ManualSignalValidator:
                 "entry_match": result.entry_within_tolerance,
                 "sl_match": result.sl_within_tolerance,
                 "smc_pattern_match": result.smc_pattern_match,
-                "our_signal": result.our_signal
+                "our_signal": result.our_signal,
             },
-            "recommendation": self._get_recommendation(result)
+            "recommendation": self._get_recommendation(result),
         }
 
     def _get_recommendation(self, result) -> str:
         """Get trading recommendation based on validation"""
         if result.overall_score >= 80:
             return "HIGH CONFIDENCE - Signals strongly align"
-        elif result.overall_score >= 60:
+        if result.overall_score >= 60:
             return "MODERATE - Partial alignment, verify key levels"
-        elif result.overall_score >= 40:
+        if result.overall_score >= 40:
             return "LOW - Significant differences, use caution"
-        else:
-            return "MISMATCH - Signals don't align, investigate why"
+        return "MISMATCH - Signals don't align, investigate why"
 
     def get_validation_summary(self) -> dict:
         """Get summary of all validated signals"""
@@ -86,7 +83,7 @@ class ManualSignalValidator:
             "total_validated": len(self.results),
             "average_score": sum(r.overall_score for r in self.results) / len(self.results),
             "high_confidence": sum(1 for r in self.results if r.overall_score >= 80),
-            "direction_accuracy": sum(1 for r in self.results if r.direction_match) / len(self.results) * 100
+            "direction_accuracy": sum(1 for r in self.results if r.direction_match) / len(self.results) * 100,
         }
 
 
@@ -137,7 +134,7 @@ async def validate_telegram_signals():
         Stop Loss: 95
 
         4H CHOCH + FVG fill
-        """
+        """,
     ]
 
     # Validate each message
@@ -152,7 +149,7 @@ async def validate_telegram_signals():
         print(f"Score: {result['validation']['overall_score']}%")
         print(f"Recommendation: {result['recommendation']}")
 
-        if result['validation']['our_signal']:
+        if result["validation"]["our_signal"]:
             print(f"Our system: {result['validation']['our_signal']['direction']} at {result['validation']['our_signal']['entry']}")
         else:
             print("Our system: No signal")
@@ -168,5 +165,5 @@ async def validate_telegram_signals():
     print(f"Direction accuracy: {summary['direction_accuracy']:.1f}%")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(validate_telegram_signals())

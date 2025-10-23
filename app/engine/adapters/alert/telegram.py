@@ -1,16 +1,14 @@
 """Telegram alert adapter for sending trading notifications."""
 
-import asyncio
-import logging
-from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
+import logging
 import os
+from typing import Any
 
 import aiohttp
 
-from .alert_formatter import AlertFormatter
 from .alert_deduplicator import AlertDeduplicator
-
+from .alert_formatter import AlertFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +29,7 @@ class TelegramAlertAdapter:
         self.rate_limit_per_minute = rate_limit_per_minute
 
         self.base_url = f"https://api.telegram.org/bot{bot_token}"
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
         self.formatter = AlertFormatter()
         self.deduplicator = AlertDeduplicator()
 
@@ -55,43 +53,41 @@ class TelegramAlertAdapter:
             await self.session.close()
         logger.info("Telegram alert adapter stopped")
 
-    async def _get_snapshot_url(self, signal_id: str) -> Optional[str]:
+    async def _get_snapshot_url(self, signal_id: str) -> str | None:
         """Fetch snapshot URL from BFF API."""
         try:
             # Get BFF URL from environment
-            bff_url = os.getenv('BFF_URL', 'http://localhost:3000')
-            api_key = os.getenv('INTERNAL_API_KEY', '')
+            bff_url = os.getenv("BFF_URL", "http://localhost:3000")
+            api_key = os.getenv("INTERNAL_API_KEY", "")
 
             url = f"{bff_url}/api/signals/{signal_id}/snapshot"
-            headers = {'Authorization': f'Bearer {api_key}'}
+            headers = {"Authorization": f"Bearer {api_key}"}
 
             async with self.session.get(url, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data.get('imageUrl')
-                else:
-                    logger.warning(f"Failed to get snapshot URL: {response.status}")
-                    return None
+                    return data.get("imageUrl")
+                logger.warning(f"Failed to get snapshot URL: {response.status}")
+                return None
 
         except Exception as e:
             logger.error(f"Error fetching snapshot URL: {e}")
             return None
 
-    async def _download_snapshot(self, snapshot_url: str) -> Optional[bytes]:
+    async def _download_snapshot(self, snapshot_url: str) -> bytes | None:
         """Download snapshot image data."""
         try:
             async with self.session.get(snapshot_url) as response:
                 if response.status == 200:
                     return await response.read()
-                else:
-                    logger.warning(f"Failed to download snapshot: {response.status}")
-                    return None
+                logger.warning(f"Failed to download snapshot: {response.status}")
+                return None
 
         except Exception as e:
             logger.error(f"Error downloading snapshot: {e}")
             return None
 
-    async def _handle_decision(self, event: Dict[str, Any]) -> None:
+    async def _handle_decision(self, event: dict[str, Any]) -> None:
         """Handle trading decision events."""
         try:
             # Check for duplicate
@@ -104,7 +100,7 @@ class TelegramAlertAdapter:
             message = self.formatter.format_decision(event)
 
             # Check if there's a snapshot available
-            signal_id = event.get('signal_id')
+            signal_id = event.get("signal_id")
             snapshot_sent = False
 
             if signal_id:
@@ -129,7 +125,7 @@ class TelegramAlertAdapter:
         except Exception as e:
             logger.error(f"Error handling decision event: {e}", exc_info=True)
 
-    async def _handle_order_update(self, event: Dict[str, Any]) -> None:
+    async def _handle_order_update(self, event: dict[str, Any]) -> None:
         """Handle order update events."""
         try:
             # Only alert on important status changes
@@ -143,7 +139,7 @@ class TelegramAlertAdapter:
         except Exception as e:
             logger.error(f"Error handling order update: {e}", exc_info=True)
 
-    async def _handle_guard_alert(self, event: Dict[str, Any]) -> None:
+    async def _handle_guard_alert(self, event: dict[str, Any]) -> None:
         """Handle risk guard alerts."""
         try:
             message = self.formatter.format_guard_alert(event)
@@ -187,8 +183,7 @@ class TelegramAlertAdapter:
                     if data.get("ok"):
                         logger.debug("Telegram alert sent successfully")
                         return True
-                    else:
-                        logger.error(f"Telegram API error: {data}")
+                    logger.error(f"Telegram API error: {data}")
                 else:
                     text = await response.text()
                     logger.error(f"Telegram HTTP error {response.status}: {text}")
@@ -209,10 +204,10 @@ class TelegramAlertAdapter:
 
             # Create multipart form data
             data = aiohttp.FormData()
-            data.add_field('chat_id', self.chat_id)
-            data.add_field('parse_mode', 'HTML')
-            data.add_field('caption', caption)
-            data.add_field('photo', image_data, filename='signal.png', content_type='image/png')
+            data.add_field("chat_id", self.chat_id)
+            data.add_field("parse_mode", "HTML")
+            data.add_field("caption", caption)
+            data.add_field("photo", image_data, filename="signal.png", content_type="image/png")
 
             async with self.session.post(url, data=data) as response:
                 if response.status == 200:
@@ -220,8 +215,7 @@ class TelegramAlertAdapter:
                     if result.get("ok"):
                         logger.debug("Telegram photo alert sent successfully")
                         return True
-                    else:
-                        logger.error(f"Telegram API error: {result}")
+                    logger.error(f"Telegram API error: {result}")
                 else:
                     text = await response.text()
                     logger.error(f"Telegram HTTP error {response.status}: {text}")

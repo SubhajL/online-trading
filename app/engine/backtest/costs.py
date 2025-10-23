@@ -4,7 +4,6 @@ Cost modeling for backtesting: fees, slippage, and funding.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from .types import BacktestFill, OrderSide
 
@@ -16,9 +15,9 @@ class CostCalculator:
 
     def __init__(
         self,
-        fee_bps_spot: Decimal = Decimal("10"),      # 0.10% for spot
-        fee_bps_futures: Decimal = Decimal("4"),    # 0.04% for futures
-        funding_model: str = "disabled"
+        fee_bps_spot: Decimal = Decimal(10),      # 0.10% for spot
+        fee_bps_futures: Decimal = Decimal(4),    # 0.04% for futures
+        funding_model: str = "disabled",
     ):
         """
         Initialize cost calculator.
@@ -33,14 +32,14 @@ class CostCalculator:
         self.funding_model = funding_model
 
         # Convert basis points to decimal
-        self.spot_fee_rate = fee_bps_spot / Decimal("10000")
-        self.futures_fee_rate = fee_bps_futures / Decimal("10000")
+        self.spot_fee_rate = fee_bps_spot / Decimal(10000)
+        self.futures_fee_rate = fee_bps_futures / Decimal(10000)
 
     def calculate_trading_fee(
         self,
         notional: Decimal,
         is_futures: bool = False,
-        is_maker: bool = False
+        is_maker: bool = False,
     ) -> Decimal:
         """
         Calculate trading fee based on notional value.
@@ -81,7 +80,7 @@ class CostCalculator:
         position_side: str,  # "LONG" or "SHORT"
         mark_price: Decimal,
         funding_rate: Decimal,
-        funding_interval_hours: int = 8
+        funding_interval_hours: int = 8,
     ) -> Decimal:
         """
         Calculate funding payment for futures position.
@@ -97,7 +96,7 @@ class CostCalculator:
             Funding payment (positive = pay, negative = receive)
         """
         if self.funding_model == "disabled":
-            return Decimal("0")
+            return Decimal(0)
 
         notional_value = position_size * mark_price
 
@@ -105,13 +104,13 @@ class CostCalculator:
         # Short positions receive positive funding rates
         if position_side == "LONG":
             return notional_value * funding_rate
-        else:  # SHORT
-            return -notional_value * funding_rate
+        # SHORT
+        return -notional_value * funding_rate
 
     def get_funding_rate(
         self,
         symbol: str,
-        timestamp: datetime
+        timestamp: datetime,
     ) -> Decimal:
         """
         Get funding rate for symbol at given time.
@@ -124,7 +123,7 @@ class CostCalculator:
             Funding rate (can be positive or negative)
         """
         if self.funding_model == "disabled":
-            return Decimal("0")
+            return Decimal(0)
 
         if self.funding_model == "constant":
             # Use a constant funding rate for testing
@@ -137,12 +136,12 @@ class CostCalculator:
             # Simple oscillating funding rate
             return Decimal("0.0001") if (timestamp.day % 2) == 0 else Decimal("-0.0001")
 
-        return Decimal("0")
+        return Decimal(0)
 
     def should_charge_funding(
         self,
         timestamp: datetime,
-        position_opened_at: datetime
+        position_opened_at: datetime,
     ) -> bool:
         """
         Determine if funding should be charged at this timestamp.
@@ -165,7 +164,7 @@ class CostCalculator:
             hour=timestamp.hour - (timestamp.hour % 8),
             minute=0,
             second=0,
-            microsecond=0
+            microsecond=0,
         )
 
         return (timestamp.hour in funding_hours and
@@ -175,9 +174,9 @@ class CostCalculator:
     def calculate_total_trade_cost(
         self,
         entry_fill: BacktestFill,
-        exit_fill: Optional[BacktestFill],
+        exit_fill: BacktestFill | None,
         funding_payments: list[Decimal],
-        is_futures: bool = False
+        is_futures: bool = False,
     ) -> dict[str, Decimal]:
         """
         Calculate total cost breakdown for a trade.
@@ -194,13 +193,13 @@ class CostCalculator:
         costs = {
             "entry_fee": self.calculate_fill_fee(entry_fill, is_futures),
             "entry_slippage": entry_fill.slippage,
-            "exit_fee": Decimal("0"),
-            "exit_slippage": Decimal("0"),
+            "exit_fee": Decimal(0),
+            "exit_slippage": Decimal(0),
             "funding": sum(funding_payments),
-            "total_fees": Decimal("0"),
-            "total_slippage": Decimal("0"),
+            "total_fees": Decimal(0),
+            "total_slippage": Decimal(0),
             "total_funding": sum(funding_payments),
-            "total_cost": Decimal("0")
+            "total_cost": Decimal(0),
         }
 
         if exit_fill:
@@ -220,7 +219,7 @@ class CostCalculator:
         entry_price: Decimal,
         entry_side: OrderSide,
         entry_size: Decimal,
-        is_futures: bool = False
+        is_futures: bool = False,
     ) -> Decimal:
         """
         Calculate breakeven price including fees.
@@ -248,14 +247,14 @@ class CostCalculator:
         if entry_side == OrderSide.BUY:
             # Long position: need price to rise by fee amount
             return entry_price + fee_per_unit
-        else:  # SELL (short)
-            # Short position: need price to fall by fee amount
-            return entry_price - fee_per_unit
+        # SELL (short)
+        # Short position: need price to fall by fee amount
+        return entry_price - fee_per_unit
 
     def estimate_daily_funding_impact(
         self,
         position_value: Decimal,
-        average_funding_rate: Decimal = Decimal("0.0001")
+        average_funding_rate: Decimal = Decimal("0.0001"),
     ) -> Decimal:
         """
         Estimate daily funding impact for position sizing.
@@ -268,7 +267,7 @@ class CostCalculator:
             Estimated daily funding cost
         """
         if self.funding_model == "disabled":
-            return Decimal("0")
+            return Decimal(0)
 
         # 3 funding periods per day (every 8 hours)
         daily_funding_rate = average_funding_rate * 3

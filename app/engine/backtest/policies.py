@@ -5,9 +5,8 @@ Enforces same rules as live Decision engine.
 
 from datetime import datetime, time, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Set
 
-from ..models import Candle, TechnicalIndicators
+from ..models import TechnicalIndicators
 
 
 class SessionPolicy:
@@ -18,7 +17,7 @@ class SessionPolicy:
     def __init__(
         self,
         enabled: bool = True,
-        exclude_periods: Optional[List[str]] = None
+        exclude_periods: list[str] | None = None,
     ):
         """
         Initialize session policy.
@@ -45,11 +44,11 @@ class SessionPolicy:
             Tuple of start and end time objects
         """
         # Remove 'Z' suffix if present
-        clean_range = time_range.rstrip('Z')
-        start_str, end_str = clean_range.split('-')
+        clean_range = time_range.rstrip("Z")
+        start_str, end_str = clean_range.split("-")
 
-        start_parts = start_str.split(':')
-        end_parts = end_str.split(':')
+        start_parts = start_str.split(":")
+        end_parts = end_str.split(":")
 
         start_time = time(int(start_parts[0]), int(start_parts[1]))
         end_time = time(int(end_parts[0]), int(end_parts[1]))
@@ -77,10 +76,9 @@ class SessionPolicy:
                 # Same day range
                 if start_time <= current_time <= end_time:
                     return False
-            else:
-                # Cross-midnight range
-                if current_time >= start_time or current_time <= end_time:
-                    return False
+            # Cross-midnight range
+            elif current_time >= start_time or current_time <= end_time:
+                return False
 
         return True
 
@@ -94,7 +92,7 @@ class NewsGuardPolicy:
         self,
         enabled: bool = True,
         before_minutes: int = 15,
-        after_minutes: int = 15
+        after_minutes: int = 15,
     ):
         """
         Initialize news guard policy.
@@ -113,7 +111,7 @@ class NewsGuardPolicy:
         self,
         timestamp: datetime,
         impact: str = "HIGH",
-        currency: str = "USD"
+        currency: str = "USD",
     ):
         """
         Add a news event to the calendar.
@@ -126,7 +124,7 @@ class NewsGuardPolicy:
         self.news_events.append({
             "timestamp": timestamp,
             "impact": impact,
-            "currency": currency
+            "currency": currency,
         })
 
     def is_news_block_active(self, timestamp: datetime, symbol: str) -> bool:
@@ -179,7 +177,7 @@ class FundingGuardPolicy:
         enabled: bool = True,
         funding_threshold_pct: Decimal = Decimal("0.05"),  # 0.05%
         block_minutes_before: int = 10,
-        block_minutes_after: int = 10
+        block_minutes_after: int = 10,
     ):
         """
         Initialize funding guard policy.
@@ -191,14 +189,14 @@ class FundingGuardPolicy:
             block_minutes_after: Minutes to block after funding
         """
         self.enabled = enabled
-        self.funding_threshold = funding_threshold_pct / Decimal("100")
+        self.funding_threshold = funding_threshold_pct / Decimal(100)
         self.block_minutes_before = block_minutes_before
         self.block_minutes_after = block_minutes_after
 
     def is_funding_block_active(
         self,
         timestamp: datetime,
-        current_funding_rate: Decimal
+        current_funding_rate: Decimal,
     ) -> bool:
         """
         Check if funding block is active.
@@ -228,7 +226,7 @@ class FundingGuardPolicy:
                 hour=funding_hour,
                 minute=0,
                 second=0,
-                microsecond=0
+                microsecond=0,
             )
 
             # Handle day rollover
@@ -262,7 +260,7 @@ class RegimeFilter:
         self,
         regime: str,
         signal_direction: str,
-        indicators: TechnicalIndicators
+        indicators: TechnicalIndicators,
     ) -> bool:
         """
         Check if current regime is favorable for signal direction.
@@ -283,7 +281,7 @@ class RegimeFilter:
             # Trending markets favor directional trades
             return True
 
-        elif regime == "ranging":
+        if regime == "ranging":
             # Ranging markets favor mean reversion
             # Could check if signal aligns with range boundaries
             if indicators.rsi is not None:
@@ -307,10 +305,10 @@ class TradingPolicyManager:
 
     def __init__(
         self,
-        session_policy: Optional[SessionPolicy] = None,
-        news_guard: Optional[NewsGuardPolicy] = None,
-        funding_guard: Optional[FundingGuardPolicy] = None,
-        regime_filter: Optional[RegimeFilter] = None
+        session_policy: SessionPolicy | None = None,
+        news_guard: NewsGuardPolicy | None = None,
+        funding_guard: FundingGuardPolicy | None = None,
+        regime_filter: RegimeFilter | None = None,
     ):
         """
         Initialize policy manager.
@@ -330,11 +328,11 @@ class TradingPolicyManager:
         self,
         timestamp: datetime,
         symbol: str,
-        signal_direction: Optional[str] = None,
-        regime: Optional[str] = None,
-        indicators: Optional[TechnicalIndicators] = None,
-        funding_rate: Optional[Decimal] = None
-    ) -> tuple[bool, List[str]]:
+        signal_direction: str | None = None,
+        regime: str | None = None,
+        indicators: TechnicalIndicators | None = None,
+        funding_rate: Decimal | None = None,
+    ) -> tuple[bool, list[str]]:
         """
         Check if trading is allowed considering all policies.
 
@@ -372,7 +370,7 @@ class TradingPolicyManager:
         is_allowed = len(blocking_reasons) == 0
         return is_allowed, blocking_reasons
 
-    def get_policy_status(self, timestamp: datetime, symbol: str) -> Dict[str, bool]:
+    def get_policy_status(self, timestamp: datetime, symbol: str) -> dict[str, bool]:
         """
         Get status of all policies at given timestamp.
 
@@ -387,7 +385,7 @@ class TradingPolicyManager:
             "session_allowed": self.session_policy.is_trading_allowed(timestamp),
             "news_block_active": self.news_guard.is_news_block_active(timestamp, symbol),
             "funding_block_active": self.funding_guard.is_funding_block_active(
-                timestamp, Decimal("0.001")  # Sample funding rate
+                timestamp, Decimal("0.001"),  # Sample funding rate
             ),
-            "regime_filter_enabled": self.regime_filter.enabled
+            "regime_filter_enabled": self.regime_filter.enabled,
         }

@@ -6,21 +6,20 @@ Automatically adds missing type parameters to generic types like dict, list, tup
 
 import ast
 import re
-from typing import List, Dict, Any, Optional, Set
-
+from typing import Any
 
 # Common generic types that need parameters
-BUILTIN_GENERICS = {'dict', 'list', 'tuple', 'set', 'frozenset'}
-TYPING_GENERICS = {'Dict', 'List', 'Tuple', 'Set', 'FrozenSet', 'Deque', 'DefaultDict', 'OrderedDict', 'Counter'}
-COLLECTIONS_GENERICS = {'deque', 'defaultdict', 'OrderedDict', 'Counter'}
-ASYNCIO_GENERICS = {'Task', 'Future', 'Queue'}
-QUEUE_GENERICS = {'Queue', 'PriorityQueue', 'LifoQueue', 'SimpleQueue'}
-OTHER_GENERICS = {'Callable', 'Optional', 'Union', 'Type', 'Iterable', 'Iterator', 'Generator'}
+BUILTIN_GENERICS = {"dict", "list", "tuple", "set", "frozenset"}
+TYPING_GENERICS = {"Dict", "List", "Tuple", "Set", "FrozenSet", "Deque", "DefaultDict", "OrderedDict", "Counter"}
+COLLECTIONS_GENERICS = {"deque", "defaultdict", "OrderedDict", "Counter"}
+ASYNCIO_GENERICS = {"Task", "Future", "Queue"}
+QUEUE_GENERICS = {"Queue", "PriorityQueue", "LifoQueue", "SimpleQueue"}
+OTHER_GENERICS = {"Callable", "Optional", "Union", "Type", "Iterable", "Iterator", "Generator"}
 
 ALL_GENERICS = BUILTIN_GENERICS | TYPING_GENERICS | COLLECTIONS_GENERICS | ASYNCIO_GENERICS | QUEUE_GENERICS | OTHER_GENERICS
 
 
-def detect_missing_generic_parameters(code: str) -> List[Dict[str, Any]]:
+def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
     """
     Detect generic types that are missing type parameters
 
@@ -31,61 +30,61 @@ def detect_missing_generic_parameters(code: str) -> List[Dict[str, Any]]:
         List of generic types missing parameters with context
     """
     missing_generics = []
-    lines = code.split('\n')
+    lines = code.split("\n")
 
     for line_idx, line in enumerate(lines):
         # Skip comments and strings
-        if line.strip().startswith('#') or '"""' in line or "'''" in line:
+        if line.strip().startswith("#") or '"""' in line or "'''" in line:
             continue
 
         # Look for generic types without brackets
         for generic_type in ALL_GENERICS:
             # Pattern to match bare generic type (not followed by [)
             # Must be word boundary to avoid matching partial names
-            pattern = rf'\b{re.escape(generic_type)}\b(?!\s*\[)'
+            pattern = rf"\b{re.escape(generic_type)}\b(?!\s*\[)"
 
             for match in re.finditer(pattern, line):
                 # Check context to avoid false positives
                 start_pos = match.start()
 
                 # Skip if it's part of an import statement (we don't parameterize imports)
-                if 'import' in line[:start_pos]:
+                if "import" in line[:start_pos]:
                     continue
 
                 # Skip if it's a class definition
-                if re.match(r'^\s*class\s+' + generic_type, line):
+                if re.match(r"^\s*class\s+" + generic_type, line):
                     continue
 
                 # Skip if it's a function call (e.g., list(), dict())
-                if match.end() < len(line) and line[match.end():match.end()+1] == '(':
+                if match.end() < len(line) and line[match.end():match.end()+1] == "(":
                     continue
 
                 # Determine context (return type, argument, variable annotation, etc.)
-                context = 'unknown'
-                within_union = 'Union[' in line and match.start() > line.find('Union[')
-                within_optional = 'Optional[' in line and match.start() > line.find('Optional[')
+                context = "unknown"
+                within_union = "Union[" in line and match.start() > line.find("Union[")
+                within_optional = "Optional[" in line and match.start() > line.find("Optional[")
 
-                if '->' in line and match.start() > line.find('->'):
-                    context = 'return'
-                elif ':' in line[:match.start()] and '=' not in line[:match.start()]:
-                    context = 'argument'
-                elif ':' in line[:match.start()] and '=' in line[match.start():]:
-                    context = 'variable'
+                if "->" in line and match.start() > line.find("->"):
+                    context = "return"
+                elif ":" in line[:match.start()] and "=" not in line[:match.start()]:
+                    context = "argument"
+                elif ":" in line[:match.start()] and "=" in line[match.start():]:
+                    context = "variable"
 
                 missing_generics.append({
-                    'type_name': generic_type,
-                    'line': line_idx,
-                    'column': match.start(),
-                    'context': context,
-                    'within_union': within_union,
-                    'within_optional': within_optional,
-                    'full_line': line
+                    "type_name": generic_type,
+                    "line": line_idx,
+                    "column": match.start(),
+                    "context": context,
+                    "within_union": within_union,
+                    "within_optional": within_optional,
+                    "full_line": line,
                 })
 
     return missing_generics
 
 
-def infer_generic_parameters(code: str, type_name: str, function_name: Optional[str], line_num: int) -> str:
+def infer_generic_parameters(code: str, type_name: str, function_name: str | None, line_num: int) -> str:
     """
     Try to infer the generic parameters based on usage
 
@@ -100,33 +99,33 @@ def infer_generic_parameters(code: str, type_name: str, function_name: Optional[
     """
     # Default parameters for each generic type
     defaults = {
-        'dict': '[Any, Any]',
-        'Dict': '[Any, Any]',
-        'list': '[Any]',
-        'List': '[Any]',
-        'tuple': '[Any, ...]',
-        'Tuple': '[Any, ...]',
-        'set': '[Any]',
-        'Set': '[Any]',
-        'frozenset': '[Any]',
-        'FrozenSet': '[Any]',
-        'deque': '[Any]',
-        'Deque': '[Any]',
-        'defaultdict': '[Any, Any]',
-        'DefaultDict': '[Any, Any]',
-        'OrderedDict': '[Any, Any]',
-        'Counter': '[Any]',
-        'Queue': '[Any]',
-        'PriorityQueue': '[Any]',
-        'LifoQueue': '[Any]',
-        'SimpleQueue': '[Any]',
-        'Task': '[Any]',
-        'Future': '[Any]',
-        'Callable': '[..., Any]',
-        'Type': '[Any]',
-        'Iterable': '[Any]',
-        'Iterator': '[Any]',
-        'Generator': '[Any, None, None]',
+        "dict": "[Any, Any]",
+        "Dict": "[Any, Any]",
+        "list": "[Any]",
+        "List": "[Any]",
+        "tuple": "[Any, ...]",
+        "Tuple": "[Any, ...]",
+        "set": "[Any]",
+        "Set": "[Any]",
+        "frozenset": "[Any]",
+        "FrozenSet": "[Any]",
+        "deque": "[Any]",
+        "Deque": "[Any]",
+        "defaultdict": "[Any, Any]",
+        "DefaultDict": "[Any, Any]",
+        "OrderedDict": "[Any, Any]",
+        "Counter": "[Any]",
+        "Queue": "[Any]",
+        "PriorityQueue": "[Any]",
+        "LifoQueue": "[Any]",
+        "SimpleQueue": "[Any]",
+        "Task": "[Any]",
+        "Future": "[Any]",
+        "Callable": "[..., Any]",
+        "Type": "[Any]",
+        "Iterable": "[Any]",
+        "Iterator": "[Any]",
+        "Generator": "[Any, None, None]",
     }
 
     # Try to parse the code and look for return statements or usage
@@ -134,7 +133,7 @@ def infer_generic_parameters(code: str, type_name: str, function_name: Optional[
         tree = ast.parse(code)
 
         # For dict/Dict types, try to infer from dict literals
-        if type_name.lower() == 'dict' and function_name:
+        if type_name.lower() == "dict" and function_name:
             class DictInferrer(ast.NodeVisitor):
                 def __init__(self):
                     self.in_target_function = False
@@ -159,23 +158,23 @@ def infer_generic_parameters(code: str, type_name: str, function_name: Optional[
                             for key in node.value.keys:
                                 if isinstance(key, ast.Constant):
                                     if isinstance(key.value, str):
-                                        self.key_types.add('str')
+                                        self.key_types.add("str")
                                     elif isinstance(key.value, int):
-                                        self.key_types.add('int')
+                                        self.key_types.add("int")
                             # For mixed values, use Any
                             if node.value.values:
-                                self.value_types.add('Any')
+                                self.value_types.add("Any")
                     self.generic_visit(node)
 
             inferrer = DictInferrer()
             inferrer.visit(tree)
 
             if inferrer.key_types:
-                key_type = 'str' if 'str' in inferrer.key_types else 'Any'
-                return f'[{key_type}, Any]'
+                key_type = "str" if "str" in inferrer.key_types else "Any"
+                return f"[{key_type}, Any]"
 
         # For list/List types, try to infer from list literals
-        elif type_name.lower() == 'list' and function_name:
+        elif type_name.lower() == "list" and function_name:
             class ListInferrer(ast.NodeVisitor):
                 def __init__(self):
                     self.in_target_function = False
@@ -193,11 +192,11 @@ def infer_generic_parameters(code: str, type_name: str, function_name: Optional[
                             for elt in node.value.elts:
                                 if isinstance(elt, ast.Constant):
                                     if isinstance(elt.value, int):
-                                        self.element_types.add('int')
+                                        self.element_types.add("int")
                                     elif isinstance(elt.value, str):
-                                        self.element_types.add('str')
+                                        self.element_types.add("str")
                                     elif isinstance(elt.value, float):
-                                        self.element_types.add('float')
+                                        self.element_types.add("float")
                     self.generic_visit(node)
 
             inferrer = ListInferrer()
@@ -205,10 +204,10 @@ def infer_generic_parameters(code: str, type_name: str, function_name: Optional[
 
             if inferrer.element_types:
                 if len(inferrer.element_types) == 1:
-                    return f'[{inferrer.element_types.pop()}]'
+                    return f"[{inferrer.element_types.pop()}]"
 
         # For tuple/Tuple types
-        elif type_name.lower() == 'tuple' and function_name:
+        elif type_name.lower() == "tuple" and function_name:
             class TupleInferrer(ast.NodeVisitor):
                 def __init__(self):
                     self.in_target_function = False
@@ -227,13 +226,13 @@ def infer_generic_parameters(code: str, type_name: str, function_name: Optional[
                             for elt in node.value.elts:
                                 if isinstance(elt, ast.Constant):
                                     if isinstance(elt.value, int):
-                                        types.append('int')
+                                        types.append("int")
                                     elif isinstance(elt.value, str):
-                                        types.append('str')
+                                        types.append("str")
                                     else:
-                                        types.append('Any')
+                                        types.append("Any")
                                 else:
-                                    types.append('Any')
+                                    types.append("Any")
                             if types:
                                 self.tuple_types = types
                     self.generic_visit(node)
@@ -248,7 +247,7 @@ def infer_generic_parameters(code: str, type_name: str, function_name: Optional[
         pass
 
     # Return default parameters
-    return defaults.get(type_name, '[Any]')
+    return defaults.get(type_name, "[Any]")
 
 
 def add_generic_type_parameters(code: str) -> str:
@@ -265,32 +264,32 @@ def add_generic_type_parameters(code: str) -> str:
     if not missing:
         return code
 
-    lines = code.split('\n')
+    lines = code.split("\n")
     modified_lines = lines.copy()
     needs_any = False
 
     # Group by line number and process in reverse order
     lines_to_process = {}
     for item in missing:
-        line_idx = item['line']
+        line_idx = item["line"]
         if line_idx not in lines_to_process:
             lines_to_process[line_idx] = []
         lines_to_process[line_idx].append(item)
 
     # Process each line with missing generics
     for line_idx in sorted(lines_to_process.keys(), reverse=True):
-        items = sorted(lines_to_process[line_idx], key=lambda x: x['column'], reverse=True)
+        items = sorted(lines_to_process[line_idx], key=lambda x: x["column"], reverse=True)
         line = modified_lines[line_idx]
 
         for item in items:
-            type_name = item['type_name']
+            type_name = item["type_name"]
 
             # Try to infer parameters
             func_name = None
-            if item['context'] == 'return':
+            if item["context"] == "return":
                 # Extract function name from the line above
                 for i in range(line_idx - 1, max(0, line_idx - 10), -1):
-                    func_match = re.match(r'^\s*(?:async\s+)?def\s+(\w+)', lines[i])
+                    func_match = re.match(r"^\s*(?:async\s+)?def\s+(\w+)", lines[i])
                     if func_match:
                         func_name = func_match.group(1)
                         break
@@ -298,14 +297,14 @@ def add_generic_type_parameters(code: str) -> str:
             params = infer_generic_parameters(code, type_name, func_name, line_idx)
 
             # Add the parameters
-            pattern = rf'\b{re.escape(type_name)}\b'
+            pattern = rf"\b{re.escape(type_name)}\b"
 
             # Find all matches and replace from right to left
             matches = list(re.finditer(pattern, line))
             for match in reversed(matches):
-                if match.start() == item['column']:
+                if match.start() == item["column"]:
                     line = line[:match.end()] + params + line[match.end():]
-                    if 'Any' in params:
+                    if "Any" in params:
                         needs_any = True
                     break
 
@@ -317,12 +316,12 @@ def add_generic_type_parameters(code: str) -> str:
 
         # Check for existing typing imports
         for i, line in enumerate(modified_lines):
-            if line.startswith('from typing import') and 'Any' not in line:
-                match = re.match(r'from typing import (.+)', line)
+            if line.startswith("from typing import") and "Any" not in line:
+                match = re.match(r"from typing import (.+)", line)
                 if match:
                     imports = match.group(1).strip()
-                    new_imports = f'{imports}, Any'
-                    modified_lines[i] = f'from typing import {new_imports}'
+                    new_imports = f"{imports}, Any"
+                    modified_lines[i] = f"from typing import {new_imports}"
                     import_added = True
                     break
 
@@ -332,31 +331,30 @@ def add_generic_type_parameters(code: str) -> str:
             has_imports = False
 
             for i, line in enumerate(modified_lines):
-                if line.startswith(('import ', 'from ')):
+                if line.startswith(("import ", "from ")):
                     has_imports = True
                     insert_idx = i + 1
-                elif has_imports and line.strip() and not line.startswith('#'):
+                elif has_imports and line.strip() and not line.startswith("#"):
                     break
 
             if has_imports:
-                modified_lines.insert(insert_idx, 'from typing import Any')
+                modified_lines.insert(insert_idx, "from typing import Any")
                 if insert_idx < len(modified_lines) - 1 and modified_lines[insert_idx + 1].strip():
-                    modified_lines.insert(insert_idx + 1, '')
+                    modified_lines.insert(insert_idx + 1, "")
+            # Add at the beginning
+            elif modified_lines[0].strip().startswith('"""'):
+                # Find end of docstring
+                for i in range(1, len(modified_lines)):
+                    if '"""' in modified_lines[i]:
+                        modified_lines.insert(i + 1, "")
+                        modified_lines.insert(i + 2, "from typing import Any")
+                        modified_lines.insert(i + 3, "")
+                        break
             else:
-                # Add at the beginning
-                if modified_lines[0].strip().startswith('"""'):
-                    # Find end of docstring
-                    for i in range(1, len(modified_lines)):
-                        if '"""' in modified_lines[i]:
-                            modified_lines.insert(i + 1, '')
-                            modified_lines.insert(i + 2, 'from typing import Any')
-                            modified_lines.insert(i + 3, '')
-                            break
-                else:
-                    modified_lines.insert(0, 'from typing import Any')
-                    modified_lines.insert(1, '')
+                modified_lines.insert(0, "from typing import Any")
+                modified_lines.insert(1, "")
 
-    return '\n'.join(modified_lines)
+    return "\n".join(modified_lines)
 
 
 def fix_generic_type_parameters(code: str) -> str:
@@ -383,13 +381,13 @@ def fix_file_generic_types(file_path: str) -> bool:
         True if file was modified, False otherwise
     """
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             original_code = f.read()
 
         fixed_code = fix_generic_type_parameters(original_code)
 
         if fixed_code != original_code:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.write(fixed_code)
             return True
         return False

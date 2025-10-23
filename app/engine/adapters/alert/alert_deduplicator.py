@@ -1,10 +1,8 @@
 """Alert deduplication using Redis to prevent duplicate notifications."""
 
 import logging
-from typing import Optional
 
 import redis
-
 
 logger = logging.getLogger(__name__)
 

@@ -172,7 +172,7 @@ def calculate_position_size(signal: TradingSignal, account: AccountInfo) -> Deci
     qty_step = Decimal(str(filters.get("qty_step", Decimal("0.00001"))))
 
     # Round down to nearest step
-    if qty_step > Decimal("0"):
+    if qty_step > Decimal(0):
         final_size = (final_size // qty_step) * qty_step
 
     return final_size

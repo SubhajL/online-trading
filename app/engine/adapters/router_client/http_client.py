@@ -5,12 +5,11 @@ HTTP client for communicating with the router service for order execution,
 position management, and account operations.
 """
 
-from typing import Any
-
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 import logging
+from typing import Any
 from urllib.parse import urljoin
 
 from aiohttp import ClientSession, ClientTimeout
@@ -20,7 +19,6 @@ from ...resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
 )
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -451,7 +449,7 @@ class RouterHTTPClient:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
     async def get_service_status(self) -> dict[str, Any]:
@@ -465,7 +463,7 @@ class RouterHTTPClient:
             return {
                 "status": "error",
                 "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
     # ============================================================================

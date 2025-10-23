@@ -95,8 +95,8 @@ class TestMypyProgress:
                 files_needing_any[error.file] = []
             files_needing_any[error.file].append(error.line)
 
-        # Currently expecting many files to need Any import
-        assert len(files_needing_any) > 0  # Will change to == 0 when fixed
+        # After import fixer, no files should need Any import
+        assert len(files_needing_any) == 0
 
         # Print summary for fixing
         print(f"\nFiles needing 'Any' import: {len(files_needing_any)}")
@@ -110,9 +110,9 @@ class TestMypyProgress:
 
         files_needing_callable = set(e.file for e in callable_errors)
 
-        # Currently expecting some files to need Callable
-        assert len(files_needing_callable) > 0  # Will change to == 0 when fixed
-        print(f"\nFiles needing 'Callable' import: {len(files_needing_callable)}")
+        # After import fixer, no files should need Callable
+        assert len(files_needing_callable) == 0
+        print("\nFiles needing 'Callable' import: 0")
 
     def test_type_annotation_errors(self) -> None:
         """Track missing type annotations."""

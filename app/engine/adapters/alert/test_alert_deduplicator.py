@@ -1,11 +1,9 @@
-import pytest
-from unittest.mock import Mock, patch
-from datetime import datetime, timedelta
 import asyncio
+from typing import Any
+from unittest.mock import Mock, patch
 
 from alert_deduplicator import AlertDeduplicator
-from typing import Any
-
+import pytest
 
 
 class TestAlertDeduplicator:

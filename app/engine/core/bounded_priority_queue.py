@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import heapq
-from typing import Generic, TypeVar, Any
+from typing import Generic, TypeVar
 
 from app.engine.core.clock import Clock, SystemClock
 

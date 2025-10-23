@@ -6,12 +6,11 @@ Loads major economic events (CPI/NFP/FOMC) from:
 - Google Sheets (optional)
 """
 
-from datetime import datetime, timedelta, timezone
+import csv
+from datetime import UTC, datetime, timedelta
 import logging
 from pathlib import Path
 from typing import Any
-
-import csv
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +46,9 @@ async def load_calendar_events(
     """Load events from CSV or Google Sheets."""
     if source_type == "csv":
         return parse_csv_events(Path(source_path))
-    elif source_type == "google_sheets":
+    if source_type == "google_sheets":
         return await load_google_sheets_events(source_path)
-    else:
-        raise ValueError(f"Unknown source type: {source_type}")
+    raise ValueError(f"Unknown source type: {source_type}")
 
 
 def parse_csv_events(file_path: Path) -> list[EconomicEvent]:
@@ -62,7 +60,7 @@ def parse_csv_events(file_path: Path) -> list[EconomicEvent]:
         return events
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 # Expected columns: event_type, timestamp, impact, currency
@@ -135,11 +133,11 @@ class CalendarManager:
         try:
             if self.source_type == "csv":
                 self._events = await load_calendar_events(
-                    self.csv_path, source_type="csv"
+                    self.csv_path, source_type="csv",
                 )
             elif self.source_type == "google_sheets":
                 self._events = await load_calendar_events(
-                    self.google_sheets_id, source_type="google_sheets"
+                    self.google_sheets_id, source_type="google_sheets",
                 )
 
             # Filter for tracked event types
@@ -151,7 +149,7 @@ class CalendarManager:
             if self.config.get("high_impact_only", True):
                 self._events = filter_high_impact_events(self._events)
 
-            self._last_loaded = datetime.now(timezone.utc)
+            self._last_loaded = datetime.now(UTC)
             logger.info(f"Loaded {len(self._events)} calendar events")
 
         except Exception as e:
@@ -167,7 +165,7 @@ class CalendarManager:
             return
 
         age_hours = (
-            datetime.now(timezone.utc) - self._last_loaded
+            datetime.now(UTC) - self._last_loaded
         ).total_seconds() / 3600
         if age_hours > max_age_hours:
             await self.load_events()
@@ -177,7 +175,7 @@ class CalendarManager:
         hours_ahead: int = 48,
     ) -> list[EconomicEvent]:
         """Get events in the next N hours."""
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         cutoff_time = current_time + timedelta(hours=hours_ahead)
 
         upcoming = [
@@ -197,7 +195,7 @@ class CalendarManager:
     ) -> bool:
         """Check if currently in any news blackout window."""
         if current_time is None:
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now(UTC)
 
         for event in self._events:
             if event.is_in_blackout_window(current_time):

@@ -9,12 +9,11 @@ Can consume from:
 """
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, List
 
-from ..models import Candle, TimeFrame
-from ..backtest.dataset import create_dataset, StreamingDataset
+from ..backtest.dataset import StreamingDataset, create_dataset
+from ..models import TimeFrame
 from .broker import PaperBroker
 
 logger = logging.getLogger(__name__)
@@ -30,8 +29,8 @@ class MarketDataFeeder:
     def __init__(
         self,
         broker: PaperBroker,
-        symbols: List[str],
-        timeframes: List[TimeFrame],
+        symbols: list[str],
+        timeframes: list[TimeFrame],
         data_source: str = "timescale",
         **data_source_kwargs,
     ):
@@ -42,8 +41,8 @@ class MarketDataFeeder:
         self.data_source_kwargs = data_source_kwargs
 
         self.is_running = False
-        self.datasets: Dict[str, StreamingDataset] = {}
-        self.tasks: List[asyncio.Task] = []
+        self.datasets: dict[str, StreamingDataset] = {}
+        self.tasks: list[asyncio.Task] = []
 
         logger.info(f"Market data feeder configured for {len(symbols)} symbols")
 
@@ -62,14 +61,14 @@ class MarketDataFeeder:
                     key = f"{symbol}_{timeframe.value}"
 
                     dataset = create_dataset(
-                        self.data_source, **self.data_source_kwargs
+                        self.data_source, **self.data_source_kwargs,
                     )
                     streaming_dataset = StreamingDataset(dataset)
                     self.datasets[key] = streaming_dataset
 
                     # Start streaming task
                     task = asyncio.create_task(
-                        self._stream_candles(symbol, timeframe, streaming_dataset)
+                        self._stream_candles(symbol, timeframe, streaming_dataset),
                     )
                     self.tasks.append(task)
 
@@ -81,7 +80,7 @@ class MarketDataFeeder:
             raise
 
     async def start_historical_feed(
-        self, start_date: datetime, end_date: datetime, speed_multiplier: float = 1.0
+        self, start_date: datetime, end_date: datetime, speed_multiplier: float = 1.0,
     ):
         """Start historical data feed for testing"""
         if self.is_running:
@@ -96,8 +95,8 @@ class MarketDataFeeder:
                 for timeframe in self.timeframes:
                     task = asyncio.create_task(
                         self._stream_historical_candles(
-                            symbol, timeframe, start_date, end_date, speed_multiplier
-                        )
+                            symbol, timeframe, start_date, end_date, speed_multiplier,
+                        ),
                     )
                     self.tasks.append(task)
 
@@ -109,7 +108,7 @@ class MarketDataFeeder:
             raise
 
     async def _stream_candles(
-        self, symbol: str, timeframe: TimeFrame, streaming_dataset: StreamingDataset
+        self, symbol: str, timeframe: TimeFrame, streaming_dataset: StreamingDataset,
     ):
         """Stream live candles for a symbol/timeframe"""
         logger.info(f"Starting live stream for {symbol} {timeframe.value}")
@@ -117,7 +116,7 @@ class MarketDataFeeder:
         try:
             # For live data, we'd typically connect to WebSocket
             # For now, simulate by streaming recent data
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             start_time = end_time - timedelta(days=1)  # Last 24 hours
 
             streaming_dataset.start_stream(symbol, timeframe, start_time, end_time)
@@ -127,7 +126,7 @@ class MarketDataFeeder:
                 if candle:
                     await self.broker.update_market_data(candle)
                     logger.debug(
-                        f"Fed candle: {symbol} {timeframe.value} @ {candle.close_price}"
+                        f"Fed candle: {symbol} {timeframe.value} @ {candle.close_price}",
                     )
 
                 # Wait for next candle interval
@@ -160,7 +159,7 @@ class MarketDataFeeder:
                 if candle:
                     await self.broker.update_market_data(candle)
                     logger.debug(
-                        f"Fed historical candle: {symbol} @ {candle.close_price}"
+                        f"Fed historical candle: {symbol} @ {candle.close_price}",
                     )
 
                 await asyncio.sleep(interval_seconds)
@@ -225,7 +224,7 @@ class MarketDataFeeder:
             self.datasets[key] = streaming_dataset
 
             task = asyncio.create_task(
-                self._stream_candles(symbol, timeframe, streaming_dataset)
+                self._stream_candles(symbol, timeframe, streaming_dataset),
             )
             self.tasks.append(task)
 
@@ -268,7 +267,7 @@ class MockLiveDataFeeder:
     def __init__(
         self,
         broker: PaperBroker,
-        symbols: List[str],
+        symbols: list[str],
         timeframe: TimeFrame = TimeFrame.M1,
         lookback_hours: int = 24,
     ):
@@ -296,7 +295,7 @@ class MockLiveDataFeeder:
             )
 
             # Stream recent data as "live" feed
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             start_time = end_time - timedelta(hours=self.lookback_hours)
 
             await feeder.start_historical_feed(

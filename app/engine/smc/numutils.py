@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from decimal import Decimal
-from typing import Iterable, Tuple
 
 import numpy as np
 
@@ -10,7 +10,7 @@ from ..models import Candle
 
 def to_float_ohlc_arrays(
     candles: Iterable[Candle],
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Convert an iterable of Candle models to contiguous float64 OHLC arrays.
 
     Returns (open, high, low, close) arrays with dtype float64 and identical length.

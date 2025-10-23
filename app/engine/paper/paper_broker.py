@@ -2,11 +2,10 @@
 Paper trading broker for simulation.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import uuid4
 from typing import Any
-
+from uuid import uuid4
 
 from ..bus import EventBus
 from ..models import (
@@ -58,7 +57,7 @@ class PaperBroker:
             price=decision.entry_price,
             stop_price=decision.stop_loss,
             status=OrderStatus.NEW,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             decision_id=decision.decision_id,
         )
 
@@ -98,7 +97,7 @@ class PaperBroker:
         order.status = OrderStatus.FILLED
         order.filled_quantity = order.quantity
         order.average_fill_price = fill_price
-        order.updated_at = datetime.now(timezone.utc)
+        order.updated_at = datetime.now(UTC)
 
         # Update or create position
         await self._update_position(order, fill_price)
@@ -107,12 +106,12 @@ class PaperBroker:
         await self.event_bus.publish(
             OrderFilledEvent(
                 event_type=EventType.ORDER_FILLED,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=order.symbol,
                 order=order,
                 fill_price=fill_price,
                 fill_quantity=order.quantity,
-                fill_timestamp=datetime.now(timezone.utc),
+                fill_timestamp=datetime.now(UTC),
             ),
         )
 
@@ -134,8 +133,8 @@ class PaperBroker:
                 current_price=fill_price,
                 unrealized_pnl=Decimal(0),
                 margin_used=order.filled_quantity * fill_price,
-                opened_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                opened_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
                 decision_id=order.decision_id,
             )
         else:
@@ -166,14 +165,14 @@ class PaperBroker:
                 position.realized_pnl += partial_pnl
                 position.size -= order.filled_quantity
 
-            position.updated_at = datetime.now(timezone.utc)
+            position.updated_at = datetime.now(UTC)
 
         # Emit position update
         if symbol in self.positions:
             await self.event_bus.publish(
                 PositionUpdateEvent(
                     event_type=EventType.POSITION_UPDATE,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.now(UTC),
                     symbol=symbol,
                     position=self.positions[symbol],
                 ),
@@ -203,7 +202,7 @@ class PaperBroker:
                 position = self.positions[symbol]
                 position.current_price = price
                 position.unrealized_pnl = self._calculate_pnl(position, price)
-                position.updated_at = datetime.now(timezone.utc)
+                position.updated_at = datetime.now(UTC)
 
     def get_account_summary(self) -> dict[Any, Any]:
         """
@@ -232,7 +231,7 @@ class PaperBroker:
             order = self.orders[client_order_id]
             if order.status == OrderStatus.NEW:
                 order.status = OrderStatus.CANCELED
-                order.updated_at = datetime.now(timezone.utc)
+                order.updated_at = datetime.now(UTC)
                 return True
         return False
 
@@ -252,7 +251,7 @@ class PaperBroker:
                 quantity=position.size,
                 price=position.current_price,
                 status=OrderStatus.NEW,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             await self._fill_market_order(close_order)

@@ -6,7 +6,7 @@ the shared math library, writes to the database, and publishes feature events.
 """
 
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 import logging
 from typing import Any, cast
@@ -131,7 +131,7 @@ class FeatureEngine:
                 return
 
             # Cast to CandleUpdateEvent to access candle attribute
-            candle_event = cast(CandleUpdateEvent, event)
+            candle_event = cast("CandleUpdateEvent", event)
             await self.process_candle(candle_event.candle)
 
         except Exception as e:
@@ -372,7 +372,7 @@ class FeatureEngine:
         """Publish a features calculated event"""
         try:
             event = FeaturesCalculatedEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=indicators.symbol,
                 timeframe=indicators.timeframe,
                 features=indicators,

@@ -5,7 +5,7 @@ Following TDD - these tests are written before implementation.
 
 import asyncio
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 
@@ -17,11 +17,14 @@ class TestSystemClock:
         from app.engine.core.clock import SystemClock
 
         clock = SystemClock()
-        before = datetime.utcnow()
+        before = datetime.now(timezone.utc)
         result = clock.now()
-        after = datetime.utcnow()
+        after = datetime.now(timezone.utc)
 
         assert before <= result <= after
+        # result should be timezone-aware UTC
+        assert result.tzinfo is not None
+        assert result.tzinfo.utcoffset(result) == timedelta(0)
         assert isinstance(result, datetime)
 
     @pytest.mark.asyncio

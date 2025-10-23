@@ -6,9 +6,10 @@ emits only closed candles, handles reconnection with backfill.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 import json
 import logging
+from typing import Any
 
 import aiohttp
 import websockets
@@ -17,7 +18,6 @@ from websockets.exceptions import ConnectionClosed
 from ..adapters.db import TimescaleDBAdapter
 from ..bus import EventBus, publish_event
 from ..models import Candle, TimeFrame, kline_to_candle, rest_kline_to_candle
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +232,7 @@ class BinanceSpotIngester:
                         last_time = latest_candle.close_time
                     else:
                         # Default to 24 hours ago if no data
-                        last_time = datetime.now(timezone.utc) - timedelta(hours=24)
+                        last_time = datetime.now(UTC) - timedelta(hours=24)
 
                 # Create backfill task
                 task = self._backfill_missing_candles(symbol, tf, last_time)
@@ -279,7 +279,7 @@ class BinanceSpotIngester:
 
         # Calculate start and end times
         start_ts = int(start_time.timestamp() * 1000)
-        end_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
+        end_ts = int(datetime.now(UTC).timestamp() * 1000)
 
         # Binance limit is 1000 candles per request
         max_candles = 1000

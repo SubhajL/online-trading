@@ -4,30 +4,30 @@ Fix incorrectly placed 'from typing import Any' inside multi-line imports
 """
 
 import os
-import re
 from pathlib import Path
+import re
 
 
 def fix_multiline_import_errors(file_path: str) -> bool:
     """Fix incorrect Any imports inside multi-line imports"""
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             content = f.read()
 
         original_content = content
 
         # Pattern to find multi-line imports with incorrect Any import
-        pattern = r'(from\s+[^\s]+\s+import\s+\(\s*\nfrom typing import Any\s*\n)'
+        pattern = r"(from\s+[^\s]+\s+import\s+\(\s*\nfrom typing import Any\s*\n)"
 
         # Replace by removing the incorrect import line
-        content = re.sub(pattern, r'from \g<1>'.replace(r'\g<1>', '').replace('from typing import Any\n', ''), content)
+        content = re.sub(pattern, r"from \g<1>".replace(r"\g<1>", "").replace("from typing import Any\n", ""), content)
 
         # More specific pattern
-        pattern = r'(from\s+[\w.]+\s+import\s+\()\s*\nfrom typing import Any\s*\n'
-        content = re.sub(pattern, r'\1\n', content)
+        pattern = r"(from\s+[\w.]+\s+import\s+\()\s*\nfrom typing import Any\s*\n"
+        content = re.sub(pattern, r"\1\n", content)
 
         if content != original_content:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.write(content)
             return True
         return False

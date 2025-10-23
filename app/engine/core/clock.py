@@ -2,13 +2,11 @@
 Clock abstraction for testable time-dependent code.
 """
 
-from typing import Any
-
 from abc import ABC, abstractmethod
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 
@@ -32,8 +30,8 @@ class SystemClock(Clock):
     """Real system clock implementation."""
 
     def now(self) -> datetime:
-        """Get current UTC datetime."""
-        return datetime.now(timezone.utc)
+        """Get current timezone-aware UTC datetime."""
+        return datetime.now(UTC)
 
     async def sleep(self, seconds: float) -> None:
         """Sleep using asyncio."""
@@ -57,7 +55,7 @@ class FakeClock(Clock):
 
     def __init__(self, initial_time: datetime | None = None):
         """Initialize with optional starting time."""
-        self._current_time = initial_time or datetime.now(timezone.utc)
+        self._current_time = initial_time or datetime.now(UTC)
         self._monotonic_start = 0.0
         self._monotonic_current = 0.0
         self._scheduled: list[ScheduledCallback] = []

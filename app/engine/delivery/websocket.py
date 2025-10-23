@@ -3,13 +3,11 @@ WebSocket delivery service for real-time UI notifications.
 """
 
 import asyncio
+from datetime import datetime
 import json
 import logging
-from typing import Any, Dict, List, Optional, Set
-from datetime import datetime
-import time
+from typing import Any
 
-import aiohttp
 import websockets
 from websockets.exceptions import ConnectionClosed, WebSocketException
 
@@ -28,12 +26,12 @@ class WebSocketDelivery:
             server_url: WebSocket server URL (e.g., ws://localhost:8002/ws)
         """
         self.server_url = server_url
-        self.websocket: Optional[websockets.WebSocketClientProtocol] = None
+        self.websocket: websockets.WebSocketClientProtocol | None = None
         self.connected = False
         self.reconnect_delay = 5
         self.heartbeat_interval = 30
-        self._heartbeat_task: Optional[asyncio.Task] = None
-        self._reconnect_task: Optional[asyncio.Task] = None
+        self._heartbeat_task: asyncio.Task | None = None
+        self._reconnect_task: asyncio.Task | None = None
 
     async def connect(self, auto_reconnect: bool = True) -> bool:
         """Connect to WebSocket server.
@@ -82,7 +80,7 @@ class WebSocketDelivery:
             await self.websocket.close()
             self.websocket = None
 
-    async def notify_snapshot(self, snapshot_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def notify_snapshot(self, snapshot_data: dict[str, Any]) -> dict[str, Any]:
         """Send snapshot notification to UI.
 
         Args:
@@ -99,7 +97,7 @@ class WebSocketDelivery:
             message = {
                 "type": "chart_snapshot",
                 "timestamp": datetime.now().isoformat(),
-                "data": snapshot_data
+                "data": snapshot_data,
             }
 
             # Send to WebSocket
@@ -121,7 +119,7 @@ class WebSocketDelivery:
             logger.error(f"Failed to send snapshot notification: {e}")
             return {"success": False, "error": str(e)}
 
-    async def broadcast_alert(self, alert: Dict[str, Any]) -> Dict[str, Any]:
+    async def broadcast_alert(self, alert: dict[str, Any]) -> dict[str, Any]:
         """Broadcast general alert to UI.
 
         Args:
@@ -137,7 +135,7 @@ class WebSocketDelivery:
             message = {
                 "type": "alert",
                 "timestamp": datetime.now().isoformat(),
-                "data": alert
+                "data": alert,
             }
 
             await self.websocket.send(json.dumps(message))
@@ -157,7 +155,7 @@ class WebSocketDelivery:
                     await asyncio.wait_for(pong_waiter, timeout=10)
                 await asyncio.sleep(self.heartbeat_interval)
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Heartbeat timeout")
                 self.connected = False
                 break
@@ -173,7 +171,7 @@ class WebSocketDelivery:
                 if self.websocket:
                     # Try to receive data (will fail if disconnected)
                     await asyncio.wait_for(self.websocket.recv(), timeout=0.1)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Normal timeout, connection still alive
                 pass
             except (ConnectionClosed, WebSocketException):
@@ -208,8 +206,8 @@ class WebSocketManager:
 
     def __init__(self):
         """Initialize WebSocket manager."""
-        self.active_connections: List[Any] = []
-        self.channel_subscriptions: Dict[str, Set[str]] = {}
+        self.active_connections: list[Any] = []
+        self.channel_subscriptions: dict[str, set[str]] = {}
 
     async def connect_client(self, websocket: Any, client_id: str):
         """Register new client connection.
@@ -250,7 +248,7 @@ class WebSocketManager:
         self.channel_subscriptions[channel].add(client_id)
         logger.info(f"Client {client_id} subscribed to channel: {channel}")
 
-    async def broadcast(self, message: Dict[str, Any], exclude: Optional[Set[str]] = None):
+    async def broadcast(self, message: dict[str, Any], exclude: set[str] | None = None):
         """Broadcast message to all connected clients.
 
         Args:
@@ -261,7 +259,7 @@ class WebSocketManager:
         disconnected = []
 
         for connection in self.active_connections:
-            if hasattr(connection, 'id') and connection.id in exclude:
+            if hasattr(connection, "id") and connection.id in exclude:
                 continue
 
             try:
@@ -274,7 +272,7 @@ class WebSocketManager:
         for conn in disconnected:
             self.active_connections.remove(conn)
 
-    async def broadcast_to_channel(self, channel: str, message: Dict[str, Any]):
+    async def broadcast_to_channel(self, channel: str, message: dict[str, Any]):
         """Broadcast message to channel subscribers.
 
         Args:
@@ -287,7 +285,7 @@ class WebSocketManager:
         # Find connections for subscribers
         target_connections = [
             conn for conn in self.active_connections
-            if hasattr(conn, 'id') and conn.id in subscribers
+            if hasattr(conn, "id") and conn.id in subscribers
         ]
 
         await self.broadcast(message, exclude=set())

@@ -1,9 +1,8 @@
 """Tool to fix 'No return value expected' errors in Python files."""
 
 import ast
-import re
 from pathlib import Path
-from typing import List, Set, Tuple, Optional
+import re
 
 
 class ReturnNoneFixer:
@@ -20,7 +19,7 @@ class ReturnNoneFixer:
         except SyntaxError:
             return content
 
-        lines = content.split('\n')
+        lines = content.split("\n")
         fixes = []
 
         class ReturnFinder(ast.NodeVisitor):
@@ -46,24 +45,24 @@ class ReturnNoneFixer:
 
                 # Check if function has -> None return annotation
                 if node.returns:
-                    return_type = ast.unparse(node.returns) if hasattr(ast, 'unparse') else None
+                    return_type = ast.unparse(node.returns) if hasattr(ast, "unparse") else None
 
                     # Special case for __hash__ method
-                    if node.name == '__hash__' and return_type == 'None':
+                    if node.name == "__hash__" and return_type == "None":
                         # Fix __hash__ to return int
                         fixes.append({
-                            'line': node.returns.lineno - 1,
-                            'type': 'fix_hash_return_type'
+                            "line": node.returns.lineno - 1,
+                            "type": "fix_hash_return_type",
                         })
-                    elif return_type == 'None':
+                    elif return_type == "None":
                         # Find all return statements with values
                         for child in ast.walk(node):
                             if isinstance(child, ast.Return) and child.value is not None:
                                 # Don't process returns in nested functions
                                 if self._is_in_current_function(child, node):
                                     fixes.append({
-                                        'line': child.lineno - 1,
-                                        'type': 'remove_return_value'
+                                        "line": child.lineno - 1,
+                                        "type": "remove_return_value",
                                     })
 
                 self.generic_visit(node)
@@ -78,69 +77,66 @@ class ReturnNoneFixer:
         finder.visit(tree)
 
         # Apply fixes in reverse order to avoid line number issues
-        fixes.sort(key=lambda x: x['line'], reverse=True)
+        fixes.sort(key=lambda x: x["line"], reverse=True)
 
         for fix in fixes:
-            line_idx = fix['line']
-            if fix['type'] == 'fix_hash_return_type':
+            line_idx = fix["line"]
+            if fix["type"] == "fix_hash_return_type":
                 # Replace -> None with -> int for __hash__ methods
                 if line_idx < len(lines):
-                    lines[line_idx] = re.sub(r'def __hash__\(self\)\s*->\s*None:',
-                                           'def __hash__(self) -> int:',
+                    lines[line_idx] = re.sub(r"def __hash__\(self\)\s*->\s*None:",
+                                           "def __hash__(self) -> int:",
                                            lines[line_idx])
-            elif fix['type'] == 'remove_return_value':
+            elif fix["type"] == "remove_return_value":
                 # Remove the return statement or just the value
                 if line_idx < len(lines):
                     line = lines[line_idx]
                     # Check if it's a simple return statement
-                    if re.match(r'^\s*return\s+\S', line):
+                    if re.match(r"^\s*return\s+\S", line):
                         # Get the indentation
-                        indent_match = re.match(r'^(\s*)', line)
-                        indent = indent_match.group(1) if indent_match else ''
+                        indent_match = re.match(r"^(\s*)", line)
+                        indent = indent_match.group(1) if indent_match else ""
                         # Remove the entire line if it's just a return statement
                         # Check if the previous line can stand alone
                         if line_idx > 0:
                             prev_line = lines[line_idx - 1].rstrip()
                             # If previous line ends with : or is empty, keep return
-                            if prev_line.endswith(':') or not prev_line.strip():
+                            if prev_line.endswith(":") or not prev_line.strip():
                                 lines[line_idx] = f"{indent}return"
                             else:
                                 # Remove the line entirely
                                 lines.pop(line_idx)
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     @staticmethod
     def fix_file(file_path: str) -> None:
         """Fix return None errors in a file."""
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             content = f.read()
 
         fixed_content = ReturnNoneFixer.fix_return_none_errors(content)
 
         if fixed_content != content:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.write(fixed_content)
 
     @staticmethod
-    def get_files_with_return_none_errors(directory: str) -> List[str]:
+    def get_files_with_return_none_errors(directory: str) -> list[str]:
         """Find all Python files with return None errors."""
         files_with_errors = []
 
-        for py_file in Path(directory).rglob('*.py'):
+        for py_file in Path(directory).rglob("*.py"):
             # Skip virtual environment
-            if '.venv' in py_file.parts or 'venv' in py_file.parts:
+            if ".venv" in py_file.parts or "venv" in py_file.parts:
                 continue
 
             try:
-                with open(py_file, 'r') as f:
+                with open(py_file) as f:
                     content = f.read()
 
                 # Look for functions with -> None that have return statements with values
-                if '-> None:' in content and re.search(r'return\s+[^:\s]', content):
-                    files_with_errors.append(str(py_file))
-                # Also check for __hash__ -> None
-                elif re.search(r'def __hash__\(self\)\s*->\s*None:', content):
+                if ("-> None:" in content and re.search(r"return\s+[^:\s]", content)) or re.search(r"def __hash__\(self\)\s*->\s*None:", content):
                     files_with_errors.append(str(py_file))
             except Exception:
                 # Skip files that can't be read

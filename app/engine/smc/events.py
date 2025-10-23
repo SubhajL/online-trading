@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ..bus import get_event_bus
@@ -17,7 +17,7 @@ def create_smc_event(
 ) -> BaseEvent:
     return BaseEvent(
         event_type=EventType.SMC_SIGNAL,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         symbol=symbol,
         timeframe=timeframe,
         metadata={
@@ -48,7 +48,7 @@ def create_zone_event(
 ) -> BaseEvent:
     return BaseEvent(
         event_type=EventType.SMC_SIGNAL,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         symbol=zone.symbol,
         timeframe=zone.timeframe,
         metadata={

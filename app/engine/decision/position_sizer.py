@@ -4,11 +4,9 @@ Position sizing module for risk management.
 CRITICAL: This module ensures we never risk more than 0.5% per trade.
 """
 
-from decimal import Decimal
 from dataclasses import dataclass
-from typing import Optional
+from decimal import Decimal
 import logging
-
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +19,7 @@ class PositionSizeConfig:
     atr_multiplier: Decimal = Decimal("1.5")         # ATR multiplier for stops
     min_position_size: Decimal = Decimal("0.001")    # Minimum position
     confidence_scaling: bool = True                   # Scale by confidence
-    max_leverage: Decimal = Decimal("3")             # Max leverage for futures
+    max_leverage: Decimal = Decimal(3)             # Max leverage for futures
 
 
 class PositionSizer:
@@ -91,7 +89,7 @@ class PositionSizer:
             f"balance=${account_balance}, entry=${entry_price}, "
             f"stop=${stop_loss} ({stop_pct:.2%}), "
             f"confidence={confidence:.2f}, "
-            f"position={position_size}"
+            f"position={position_size}",
         )
 
         return position_size
@@ -170,7 +168,7 @@ class PositionSizer:
 
         logger.debug(
             f"Futures position: size={position_size}, "
-            f"leverage={leverage}x, margin=${margin_required:.2f}"
+            f"leverage={leverage}x, margin=${margin_required:.2f}",
         )
 
         return position_size
@@ -179,7 +177,7 @@ class PositionSizer:
         self,
         entry_price: Decimal,
         stop_loss: Decimal,
-        take_profit: Optional[Decimal] = None,
+        take_profit: Decimal | None = None,
     ) -> bool:
         """
         Validate position parameters are sensible.

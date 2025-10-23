@@ -6,12 +6,11 @@ Implements various pivot detection algorithms with configurable sensitivity.
 """
 
 from collections import deque
-from decimal import Decimal
 from datetime import datetime
 import logging
+from typing import Any
 
 from ..models import Candle, PivotPoint
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

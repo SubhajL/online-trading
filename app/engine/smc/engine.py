@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import logging
-from datetime import datetime
 from decimal import Decimal
+import logging
 from typing import Any
 
 from ..bus import get_event_bus
-from ..models import BaseEvent, Candle, CandleUpdateEvent, EventType, TimeFrame
+from ..models import Candle, CandleUpdateEvent, EventType, TimeFrame
 from ..smc_types import StructureState, StructureTracker, Zone
+from .atr import atr
 from .events import create_smc_event, create_zone_event, publish_events
+from .numutils import to_float_ohlc_arrays
 from .pivots import PivotMethod, detect_n_bar_pivots, detect_zigzag_pivots
 from .structure import detect_bos, detect_choch, get_key_levels, update_structure_state
 from .zones import detect_fair_value_gap, detect_order_block, expire_old_zones
-from .atr import atr
-from .numutils import to_float_ohlc_arrays
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ class SMCEngine:
         self._running = False
 
         logger.info(
-            f"SMCEngine initialized with method={pivot_method.value}, n={pivot_n}"
+            f"SMCEngine initialized with method={pivot_method.value}, n={pivot_n}",
         )
 
     async def start(self) -> None:
@@ -112,7 +111,7 @@ class SMCEngine:
             tracker.state = choch_event.to_state  # Update state on CHOCH
             key_levels = get_key_levels(tracker)
             event = create_smc_event(
-                candle.symbol, candle.timeframe, choch_event, tracker.state, key_levels
+                candle.symbol, candle.timeframe, choch_event, tracker.state, key_levels,
             )
             events_to_publish.append(event)
 
@@ -125,30 +124,29 @@ class SMCEngine:
                         # Look for last bearish candle
                         if c.close_price < c.open_price:
                             ob_zone = detect_order_block(
-                                c, choch_event, candle.timeframe
+                                c, choch_event, candle.timeframe,
                             )
                             if ob_zone:
                                 self._add_zone(key, ob_zone)
                                 zone_event = create_zone_event(ob_zone, "created")
                                 events_to_publish.append(zone_event)
                             break
-                    else:
-                        # Look for last bullish candle
-                        if c.close_price > c.open_price:
-                            ob_zone = detect_order_block(
-                                c, choch_event, candle.timeframe
-                            )
-                            if ob_zone:
-                                self._add_zone(key, ob_zone)
-                                zone_event = create_zone_event(ob_zone, "created")
-                                events_to_publish.append(zone_event)
-                            break
+                    # Look for last bullish candle
+                    elif c.close_price > c.open_price:
+                        ob_zone = detect_order_block(
+                            c, choch_event, candle.timeframe,
+                        )
+                        if ob_zone:
+                            self._add_zone(key, ob_zone)
+                            zone_event = create_zone_event(ob_zone, "created")
+                            events_to_publish.append(zone_event)
+                        break
 
         bos_event = detect_bos(tracker, close_price, close_bar_index, timestamp)
         if bos_event:
             key_levels = get_key_levels(tracker)
             event = create_smc_event(
-                candle.symbol, candle.timeframe, bos_event, tracker.state, key_levels
+                candle.symbol, candle.timeframe, bos_event, tracker.state, key_levels,
             )
             events_to_publish.append(event)
 
@@ -165,7 +163,7 @@ class SMCEngine:
         if len(candles) >= 3:
             recent_candles = candles[-3:]
             fvg_zone = detect_fair_value_gap(
-                recent_candles, candle.symbol, candle.timeframe
+                recent_candles, candle.symbol, candle.timeframe,
             )
             if fvg_zone:
                 self._add_zone(key, fvg_zone)
@@ -204,7 +202,7 @@ class SMCEngine:
         self._trackers[key] = StructureTracker(symbol=symbol, timeframe=timeframe)
         self._candle_history[key] = []
         self._zones[key] = []
-        self._atr_values[key] = Decimal("0")
+        self._atr_values[key] = Decimal(0)
 
     def _store_candle(self, key: tuple[str, TimeFrame], candle: Candle) -> None:
         candles = self._candle_history[key]
@@ -225,13 +223,13 @@ class SMCEngine:
     def _detect_pivots(self, candles: list[Candle]) -> list[Any]:
         if self.pivot_method == PivotMethod.N_BAR:
             return detect_n_bar_pivots(candles, n=self.pivot_n)
-        else:  # ZIGZAG
-            atr = self._atr_values.get(
-                (candles[0].symbol, candles[0].timeframe), Decimal("1.0")
-            )
-            return detect_zigzag_pivots(
-                candles, atr, min_reversal_factor=self.atr_reversal_factor
-            )
+        # ZIGZAG
+        atr = self._atr_values.get(
+            (candles[0].symbol, candles[0].timeframe), Decimal("1.0"),
+        )
+        return detect_zigzag_pivots(
+            candles, atr, min_reversal_factor=self.atr_reversal_factor,
+        )
 
     def _add_zone(self, key: tuple[str, TimeFrame], zone: Zone) -> None:
         zones = self._zones[key]
@@ -243,14 +241,14 @@ class SMCEngine:
             self._zones[key] = zones[-self.max_zones_per_symbol :]
 
     def get_structure_state(
-        self, symbol: str, timeframe: TimeFrame
+        self, symbol: str, timeframe: TimeFrame,
     ) -> StructureState | None:
         key = (symbol, timeframe)
         tracker = self._trackers.get(key)
         return tracker.state if tracker else None
 
     def get_zones(
-        self, symbol: str, timeframe: TimeFrame, zone_type: str | None = None
+        self, symbol: str, timeframe: TimeFrame, zone_type: str | None = None,
     ) -> list[Zone]:
         key = (symbol, timeframe)
         zones = self._zones.get(key, [])

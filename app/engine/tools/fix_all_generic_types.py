@@ -4,10 +4,10 @@ Script to fix all generic type parameter errors by running mypy and applying fix
 """
 
 import os
-import subprocess
-import re
-import sys
 from pathlib import Path
+import re
+import subprocess
+
 from generic_type_fixer import fix_file_generic_types
 
 
@@ -17,7 +17,7 @@ def extract_generic_type_errors(mypy_output: str) -> list[str]:
 
     # Pattern for generic type errors - missing type parameters
     patterns = [
-        r'(.+\.py):\d+: error: Missing type parameters for generic type',
+        r"(.+\.py):\d+: error: Missing type parameters for generic type",
         r'(.+\.py):\d+: error: "dict" expects \d+ type argument',
         r'(.+\.py):\d+: error: "list" expects \d+ type argument',
         r'(.+\.py):\d+: error: "tuple" expects at least \d+ type argument',
@@ -49,8 +49,8 @@ def main():
     # Run mypy
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine", "--show-error-codes"],
-        capture_output=True,
-        text=True
+        check=False, capture_output=True,
+        text=True,
     )
 
     # Extract files with generic type errors
@@ -67,9 +67,9 @@ def main():
         print(f"Fixing {file_path}...")
         if fix_file_generic_types(file_path):
             fixed_count += 1
-            print(f"  ✓ Fixed")
+            print("  ✓ Fixed")
         else:
-            print(f"  - No changes needed")
+            print("  - No changes needed")
 
     print(f"\n✅ Fixed {fixed_count} files")
 
@@ -77,8 +77,8 @@ def main():
     print("\nRunning mypy again to verify fixes...")
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine", "--show-error-codes"],
-        capture_output=True,
-        text=True
+        check=False, capture_output=True,
+        text=True,
     )
 
     # Count remaining generic type errors

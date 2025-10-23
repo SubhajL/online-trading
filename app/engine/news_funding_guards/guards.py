@@ -5,10 +5,9 @@ Risk guards that monitor news events and funding rates to prevent
 trading during high-risk periods.
 """
 
-from typing import Any
-
 from decimal import Decimal
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,6 @@ class NewsGuard:
 
     def add_news_event(self, event: dict[str, Any]) -> None:
         """Add a news event to monitor"""
-        pass
 
 
 class FundingRateGuard:

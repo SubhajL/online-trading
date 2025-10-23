@@ -4,14 +4,13 @@ Metrics collection framework for EventBus observability.
 Provides thread-safe metrics collection with Prometheus export support.
 """
 
-from typing import Any
-
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 import threading
 import time
+from typing import Any
 
 
 class MetricType(Enum):

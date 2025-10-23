@@ -1,15 +1,14 @@
 """LINE alert adapter for sending trading notifications."""
 
 import asyncio
-import logging
-from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
+import logging
+from typing import Any
 
 import aiohttp
 
-from .alert_formatter import AlertFormatter
 from .alert_deduplicator import AlertDeduplicator
-
+from .alert_formatter import AlertFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +32,12 @@ class LineAlertAdapter:
         self.rate_limit_per_minute = rate_limit_per_minute
 
         self.base_url = "https://api.line.me/v2/bot"
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
         self.formatter = AlertFormatter()
         self.deduplicator = AlertDeduplicator()
 
         # Rate limiting
-        self._message_times: List[datetime] = []
+        self._message_times: list[datetime] = []
 
     async def start(self) -> None:
         """Initialize the adapter and subscribe to events."""
@@ -57,7 +56,7 @@ class LineAlertAdapter:
             await self.session.close()
         logger.info("LINE alert adapter stopped")
 
-    async def _handle_decision(self, event: Dict[str, Any]) -> None:
+    async def _handle_decision(self, event: dict[str, Any]) -> None:
         """Handle trading decision events."""
         try:
             # Check for duplicate
@@ -76,7 +75,7 @@ class LineAlertAdapter:
         except Exception as e:
             logger.error(f"Error handling decision event: {e}", exc_info=True)
 
-    async def _handle_order_update(self, event: Dict[str, Any]) -> None:
+    async def _handle_order_update(self, event: dict[str, Any]) -> None:
         """Handle order update events."""
         try:
             # Only alert on important status changes
@@ -90,7 +89,7 @@ class LineAlertAdapter:
         except Exception as e:
             logger.error(f"Error handling order update: {e}", exc_info=True)
 
-    async def _handle_guard_alert(self, event: Dict[str, Any]) -> None:
+    async def _handle_guard_alert(self, event: dict[str, Any]) -> None:
         """Handle risk guard alerts."""
         try:
             message = self.formatter.format_guard_alert(event)
@@ -115,24 +114,24 @@ class LineAlertAdapter:
         self._message_times.append(now)
         return True
 
-    def _split_message(self, message: str) -> List[str]:
+    def _split_message(self, message: str) -> list[str]:
         """Split long messages to fit LINE's limit."""
         if len(message) <= LINE_MESSAGE_LIMIT:
             return [message]
 
         # Split by lines first
-        lines = message.split('\n')
+        lines = message.split("\n")
         chunks = []
         current_chunk = []
         current_length = 0
 
         for line in lines:
             line_length = len(line) + 1  # +1 for newline
-            
+
             if current_length + line_length > LINE_MESSAGE_LIMIT:
                 # Start new chunk
                 if current_chunk:
-                    chunks.append('\n'.join(current_chunk))
+                    chunks.append("\n".join(current_chunk))
                 current_chunk = [line]
                 current_length = line_length
             else:
@@ -140,7 +139,7 @@ class LineAlertAdapter:
                 current_length += line_length
 
         if current_chunk:
-            chunks.append('\n'.join(current_chunk))
+            chunks.append("\n".join(current_chunk))
 
         return chunks
 
@@ -166,7 +165,7 @@ class LineAlertAdapter:
                         {
                             "type": "text",
                             "text": chunk,
-                        }
+                        },
                     ],
                 }
 

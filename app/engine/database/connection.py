@@ -1,6 +1,5 @@
-from typing import Any
-
 import os
+from typing import Any
 
 import asyncpg
 from asyncpg import Pool

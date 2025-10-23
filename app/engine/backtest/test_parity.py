@@ -8,12 +8,12 @@ These tests load the same candle data through both live and backtest
 pipelines and verify identical outputs at every step.
 """
 
-import pytest
-import numpy as np
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Dict, Any
-import json
+from typing import Any
+
+import numpy as np
+import pytest
 
 from ..models import Candle, TimeFrame
 from .simulator import BacktestSimulator
@@ -38,38 +38,38 @@ class ParityTestFramework:
             return False
         return True
 
-    def compare_arrays(self, live_array: List[Decimal], backtest_array: List[Decimal], name: str) -> bool:
+    def compare_arrays(self, live_array: list[Decimal], backtest_array: list[Decimal], name: str) -> bool:
         """Compare two arrays of decimal values"""
         if len(live_array) != len(backtest_array):
             print(f"PARITY FAILURE - {name}: length mismatch live={len(live_array)}, backtest={len(backtest_array)}")
             return False
 
-        for i, (live_val, backtest_val) in enumerate(zip(live_array, backtest_array)):
+        for i, (live_val, backtest_val) in enumerate(zip(live_array, backtest_array, strict=False)):
             if not self.compare_decimals(live_val, backtest_val, f"{name}[{i}]"):
                 return False
 
         return True
 
-    def create_test_candles(self, count: int = 100) -> List[Candle]:
+    def create_test_candles(self, count: int = 100) -> list[Candle]:
         """Create synthetic test candles with realistic price action"""
         candles = []
-        base_price = Decimal("50000")
+        base_price = Decimal(50000)
         base_time = datetime(2024, 1, 1, 12, 0)
 
         for i in range(count):
             # Simulate random walk with realistic volatility
             price_change = Decimal(str(np.random.normal(0, 0.005)))  # 0.5% std dev
-            base_price *= (Decimal("1") + price_change)
+            base_price *= (Decimal(1) + price_change)
 
             # Create realistic OHLC
             open_price = base_price
-            close_price = base_price * (Decimal("1") + Decimal(str(np.random.normal(0, 0.002))))
-            high_price = max(open_price, close_price) * (Decimal("1") + Decimal(str(abs(np.random.normal(0, 0.001)))))
-            low_price = min(open_price, close_price) * (Decimal("1") - Decimal(str(abs(np.random.normal(0, 0.001)))))
+            close_price = base_price * (Decimal(1) + Decimal(str(np.random.normal(0, 0.002))))
+            high_price = max(open_price, close_price) * (Decimal(1) + Decimal(str(abs(np.random.normal(0, 0.001)))))
+            low_price = min(open_price, close_price) * (Decimal(1) - Decimal(str(abs(np.random.normal(0, 0.001)))))
 
             # Realistic volume
             volume = Decimal(str(np.random.uniform(50, 200)))
-            quote_volume = volume * (high_price + low_price) / Decimal("2")
+            quote_volume = volume * (high_price + low_price) / Decimal(2)
 
             candle = Candle(
                 symbol="BTCUSDT",
@@ -84,7 +84,7 @@ class ParityTestFramework:
                 quote_volume=quote_volume,
                 trades=int(np.random.uniform(80, 150)),
                 taker_buy_base_volume=volume * Decimal(str(np.random.uniform(0.4, 0.6))),
-                taker_buy_quote_volume=quote_volume * Decimal(str(np.random.uniform(0.4, 0.6)))
+                taker_buy_quote_volume=quote_volume * Decimal(str(np.random.uniform(0.4, 0.6))),
             )
 
             candles.append(candle)
@@ -108,8 +108,8 @@ class TestIndicatorParity:
         # For now, we'll test internal consistency
 
         # Simulate EMA calculation (simplified version)
-        def calculate_ema(prices: List[Decimal], period: int) -> List[Decimal]:
-            alpha = Decimal("2") / (Decimal(str(period)) + Decimal("1"))
+        def calculate_ema(prices: list[Decimal], period: int) -> list[Decimal]:
+            alpha = Decimal(2) / (Decimal(str(period)) + Decimal(1))
             ema_values = []
 
             # Initialize with first price
@@ -117,7 +117,7 @@ class TestIndicatorParity:
             ema_values.append(ema)
 
             for price in prices[1:]:
-                ema = alpha * price + (Decimal("1") - alpha) * ema
+                ema = alpha * price + (Decimal(1) - alpha) * ema
                 ema_values.append(ema)
 
             return ema_values
@@ -133,9 +133,9 @@ class TestIndicatorParity:
     @pytest.mark.parity
     def test_rsi_parity(self):
         """Test RSI calculations are identical"""
-        def calculate_rsi(prices: List[Decimal], period: int = 14) -> List[Decimal]:
+        def calculate_rsi(prices: list[Decimal], period: int = 14) -> list[Decimal]:
             if len(prices) < period + 1:
-                return [Decimal("50")] * len(prices)
+                return [Decimal(50)] * len(prices)
 
             rsi_values = []
             gains = []
@@ -146,20 +146,20 @@ class TestIndicatorParity:
                 change = prices[i] - prices[i-1]
                 if change > 0:
                     gains.append(change)
-                    losses.append(Decimal("0"))
+                    losses.append(Decimal(0))
                 else:
-                    gains.append(Decimal("0"))
+                    gains.append(Decimal(0))
                     losses.append(abs(change))
 
             # Calculate initial averages
             if len(gains) < period:
-                return [Decimal("50")] * len(prices)
+                return [Decimal(50)] * len(prices)
 
             avg_gain = sum(gains[:period]) / Decimal(str(period))
             avg_loss = sum(losses[:period]) / Decimal(str(period))
 
             # Add initial RSI values
-            rsi_values.extend([Decimal("50")] * (period + 1))
+            rsi_values.extend([Decimal(50)] * (period + 1))
 
             # Calculate RSI for remaining periods
             for i in range(period, len(gains)):
@@ -167,10 +167,10 @@ class TestIndicatorParity:
                 avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(str(period))
 
                 if avg_loss == 0:
-                    rsi = Decimal("100")
+                    rsi = Decimal(100)
                 else:
                     rs = avg_gain / avg_loss
-                    rsi = Decimal("100") - (Decimal("100") / (Decimal("1") + rs))
+                    rsi = Decimal(100) - (Decimal(100) / (Decimal(1) + rs))
 
                 rsi_values.append(rsi)
 
@@ -188,9 +188,9 @@ class TestIndicatorParity:
     @pytest.mark.parity
     def test_atr_parity(self):
         """Test ATR calculations are identical"""
-        def calculate_atr(candles: List[Candle], period: int = 14) -> List[Decimal]:
+        def calculate_atr(candles: list[Candle], period: int = 14) -> list[Decimal]:
             if len(candles) < 2:
-                return [Decimal("0")] * len(candles)
+                return [Decimal(0)] * len(candles)
 
             true_ranges = []
 
@@ -207,9 +207,9 @@ class TestIndicatorParity:
                 true_ranges.append(true_range)
 
             if len(true_ranges) < period:
-                return [Decimal("0")] * len(candles)
+                return [Decimal(0)] * len(candles)
 
-            atr_values = [Decimal("0")]  # First candle has no ATR
+            atr_values = [Decimal(0)]  # First candle has no ATR
 
             # Initial ATR (simple average)
             initial_atr = sum(true_ranges[:period]) / Decimal(str(period))
@@ -243,7 +243,7 @@ class TestSMCParity:
     @pytest.mark.parity
     def test_pivot_detection_parity(self):
         """Test pivot detection consistency"""
-        def find_pivots(candles: List[Candle], lookback: int = 5) -> Dict[str, List[int]]:
+        def find_pivots(candles: list[Candle], lookback: int = 5) -> dict[str, list[int]]:
             highs = []
             lows = []
 
@@ -281,7 +281,7 @@ class TestSMCParity:
     def test_structure_break_parity(self):
         """Test structure break detection consistency"""
         # Simplified structure break detection
-        def detect_structure_breaks(candles: List[Candle]) -> List[Dict[str, Any]]:
+        def detect_structure_breaks(candles: list[Candle]) -> list[dict[str, Any]]:
             breaks = []
 
             # Look for significant breaks in structure
@@ -297,7 +297,7 @@ class TestSMCParity:
                     breaks.append({
                         "index": i,
                         "type": "bullish_break",
-                        "level": recent_high
+                        "level": recent_high,
                     })
 
                 # Bearish break
@@ -305,7 +305,7 @@ class TestSMCParity:
                     breaks.append({
                         "index": i,
                         "type": "bearish_break",
-                        "level": recent_low
+                        "level": recent_low,
                     })
 
             return breaks
@@ -314,7 +314,7 @@ class TestSMCParity:
         breaks2 = detect_structure_breaks(self.test_candles)
 
         assert len(breaks1) == len(breaks2)
-        for b1, b2 in zip(breaks1, breaks2):
+        for b1, b2 in zip(breaks1, breaks2, strict=False):
             assert b1["index"] == b2["index"]
             assert b1["type"] == b2["type"]
             assert abs(b1["level"] - b2["level"]) < self.parity_framework.tolerance
@@ -330,7 +330,7 @@ class TestSignalParity:
     @pytest.mark.parity
     def test_signal_generation_consistency(self):
         """Test that signals are generated consistently"""
-        def generate_simple_signals(candles: List[Candle]) -> List[Dict[str, Any]]:
+        def generate_simple_signals(candles: list[Candle]) -> list[dict[str, Any]]:
             signals = []
 
             # Simple moving average crossover signals
@@ -345,8 +345,8 @@ class TestSignalParity:
                 fast_sum = sum(c.close_price for c in candles[i-9:i+1])  # 10 period
                 slow_sum = sum(c.close_price for c in candles[i-19:i+1])  # 20 period
 
-                sma_fast.append(fast_sum / Decimal("10"))
-                sma_slow.append(slow_sum / Decimal("20"))
+                sma_fast.append(fast_sum / Decimal(10))
+                sma_slow.append(slow_sum / Decimal(20))
 
             # Find crossovers
             for i in range(1, len(sma_fast)):
@@ -358,7 +358,7 @@ class TestSignalParity:
                     signals.append({
                         "index": i + 49,  # Adjust for lookback
                         "type": "bullish_crossover",
-                        "strength": float((curr_fast - curr_slow) / curr_slow)
+                        "strength": float((curr_fast - curr_slow) / curr_slow),
                     })
 
                 # Bearish crossover
@@ -366,7 +366,7 @@ class TestSignalParity:
                     signals.append({
                         "index": i + 49,
                         "type": "bearish_crossover",
-                        "strength": float((curr_slow - curr_fast) / curr_fast)
+                        "strength": float((curr_slow - curr_fast) / curr_fast),
                     })
 
             return signals
@@ -375,7 +375,7 @@ class TestSignalParity:
         signals2 = generate_simple_signals(self.test_candles)
 
         assert len(signals1) == len(signals2)
-        for s1, s2 in zip(signals1, signals2):
+        for s1, s2 in zip(signals1, signals2, strict=False):
             assert s1["index"] == s2["index"]
             assert s1["type"] == s2["type"]
             assert abs(s1["strength"] - s2["strength"]) < float(self.parity_framework.tolerance)
@@ -394,26 +394,26 @@ class TestPositionSizingParity:
             account_balance: Decimal,
             risk_per_trade: Decimal,
             entry_price: Decimal,
-            stop_loss_price: Decimal
+            stop_loss_price: Decimal,
         ) -> Decimal:
             """Calculate position size using fixed fractional method"""
             if stop_loss_price <= 0 or entry_price <= 0:
-                return Decimal("0")
+                return Decimal(0)
 
             risk_amount = account_balance * risk_per_trade
             price_risk = abs(entry_price - stop_loss_price)
 
             if price_risk <= 0:
-                return Decimal("0")
+                return Decimal(0)
 
             position_size = risk_amount / price_risk
             return position_size
 
         # Test parameters
-        balance = Decimal("10000")
+        balance = Decimal(10000)
         risk = Decimal("0.02")  # 2%
-        entry = Decimal("50000")
-        stop = Decimal("49000")
+        entry = Decimal(50000)
+        stop = Decimal(49000)
 
         size1 = calculate_position_size(balance, risk, entry, stop)
         size2 = calculate_position_size(balance, risk, entry, stop)
@@ -427,11 +427,11 @@ class TestPositionSizingParity:
             account_balance: Decimal,
             risk_per_trade: Decimal,
             atr: Decimal,
-            atr_multiplier: Decimal = Decimal("2")
+            atr_multiplier: Decimal = Decimal(2),
         ) -> Decimal:
             """Calculate position size using ATR-based stop loss"""
             if atr <= 0:
-                return Decimal("0")
+                return Decimal(0)
 
             risk_amount = account_balance * risk_per_trade
             stop_distance = atr * atr_multiplier
@@ -439,9 +439,9 @@ class TestPositionSizingParity:
             position_size = risk_amount / stop_distance
             return position_size
 
-        balance = Decimal("10000")
+        balance = Decimal(10000)
         risk = Decimal("0.015")  # 1.5%
-        atr = Decimal("500")  # $500 ATR
+        atr = Decimal(500)  # $500 ATR
         multiplier = Decimal("1.5")
 
         size1 = calculate_atr_position_size(balance, risk, atr, multiplier)
@@ -460,14 +460,14 @@ class TestBacktestSystemParity:
     def test_full_backtest_reproducibility(self):
         """Test that identical inputs produce identical backtest results"""
         config = BacktestConfig(
-            fee_bps_spot=Decimal("10"),
-            slippage_bps=Decimal("2"),
-            funding_model="disabled"
+            fee_bps_spot=Decimal(10),
+            slippage_bps=Decimal(2),
+            funding_model="disabled",
         )
 
         # Run same backtest twice
-        simulator1 = BacktestSimulator(config, Decimal("10000"))
-        simulator2 = BacktestSimulator(config, Decimal("10000"))
+        simulator1 = BacktestSimulator(config, Decimal(10000))
+        simulator2 = BacktestSimulator(config, Decimal(10000))
 
         test_candles = self.parity_framework.create_test_candles(100)
 
@@ -479,7 +479,7 @@ class TestBacktestSystemParity:
         # Compare final states
         assert len(simulator1.equity_history) == len(simulator2.equity_history)
 
-        for (time1, equity1), (time2, equity2) in zip(simulator1.equity_history, simulator2.equity_history):
+        for (time1, equity1), (time2, equity2) in zip(simulator1.equity_history, simulator2.equity_history, strict=False):
             assert time1 == time2
             assert self.parity_framework.compare_decimals(equity1, equity2, f"equity_{time1}")
 
@@ -498,8 +498,8 @@ class TestBacktestSystemParity:
             symbol="BTCUSDT",
             side=OrderSide.BUY,
             type=OrderType.LIMIT,
-            quantity=Decimal("1"),
-            price=Decimal("49950")
+            quantity=Decimal(1),
+            price=Decimal(49950),
         )
 
         candle = self.parity_framework.create_test_candles(1)[0]
@@ -528,7 +528,7 @@ def run_parity_test_suite():
         "-v",
         "-m", "parity",
         "--tb=short",
-        "--capture=no"
+        "--capture=no",
     ])
 
     if exit_code == 0:

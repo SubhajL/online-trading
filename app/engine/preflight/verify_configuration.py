@@ -2,8 +2,8 @@
 
 import asyncio
 import os
-import re
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -71,7 +71,7 @@ def substitute_env_vars(content: str) -> str:
         return os.environ.get(var_name, default_value)
 
     # Pattern matches ${VAR:-default} format
-    pattern = r'\$\{([A-Z_][A-Z0-9_]*):-(.*?)\}'
+    pattern = r"\$\{([A-Z_][A-Z0-9_]*):-(.*?)\}"
     return re.sub(pattern, replacer, content)
 
 
@@ -85,7 +85,7 @@ def validate_yaml_configs() -> CheckResult:
     found_files = set()  # Use set to avoid duplicates
     for pattern in CONFIG_PATTERNS:
         if pattern.endswith(".yaml") or pattern.endswith(".yml"):
-            found_files.update(Path(".").glob(pattern))
+            found_files.update(Path().glob(pattern))
         elif pattern == ".env" and Path(".env").exists():
             # Skip .env as it's not YAML
             continue
@@ -139,12 +139,11 @@ def validate_yaml_configs() -> CheckResult:
             message=f"Found {len(invalid_files)} invalid configuration files",
             details=details,
         )
-    else:
-        return CheckResult(
-            status=CheckStatus.PASSED,
-            message="All configuration files are valid",
-            details=details,
-        )
+    return CheckResult(
+        status=CheckStatus.PASSED,
+        message="All configuration files are valid",
+        details=details,
+    )
 
 
 async def check_database_schema() -> CheckResult:
@@ -212,12 +211,11 @@ async def check_database_schema() -> CheckResult:
                 message=f"Missing {len(missing_required)} required tables",
                 details=details,
             )
-        else:
-            return CheckResult(
-                status=CheckStatus.PASSED,
-                message="Database schema is properly configured",
-                details=details,
-            )
+        return CheckResult(
+            status=CheckStatus.PASSED,
+            message="Database schema is properly configured",
+            details=details,
+        )
 
     except Exception as e:
         return CheckResult(
@@ -305,18 +303,17 @@ async def verify_service_connectivity() -> CheckResult:
             message=f"Cannot reach {len(unreachable_required)} required services",
             details=details,
         )
-    elif unreachable_optional:
+    if unreachable_optional:
         return CheckResult(
             status=CheckStatus.WARNING,
-            message=f"Some optional services are unreachable",
+            message="Some optional services are unreachable",
             details=details,
         )
-    else:
-        return CheckResult(
-            status=CheckStatus.PASSED,
-            message="All services are reachable",
-            details=details,
-        )
+    return CheckResult(
+        status=CheckStatus.PASSED,
+        message="All services are reachable",
+        details=details,
+    )
 
 
 # Synchronous wrappers for async functions

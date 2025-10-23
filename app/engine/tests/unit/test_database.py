@@ -244,8 +244,9 @@ class TestTransactionContext:
 
 class TestOptimisticLockMixin:
     @pytest.fixture
-    def optimistic_lock_mixin(self) -> None:
-        return
+    def optimistic_lock_mixin(self) -> OptimisticLockMixin:
+        # Provide a concrete instance for testing mixin methods
+        return OptimisticLockMixin()
 
     @pytest.mark.asyncio
     async def test_update_with_version_success(self, optimistic_lock_mixin) -> None:

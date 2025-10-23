@@ -5,18 +5,16 @@ Main service that orchestrates pivot detection, zone identification, and signal 
 for Smart Money Concepts analysis. Integrates with the event bus for real-time processing.
 """
 
-from datetime import datetime, timedelta, timezone
-import logging
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import logging
 from typing import Any
-
 
 from ..bus import get_event_bus
 from ..models import (
-    BaseEvent,
-    EventType,
     Candle,
     CandleUpdateEvent,
+    EventType,
     OrderSide,
     PivotPoint,
     SMCSignal,
@@ -542,7 +540,7 @@ class SMCService:
 
             # Create and publish event
             event = SMCSignalEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=signal.symbol,
                 timeframe=signal.timeframe,
                 signal=signal,
@@ -562,8 +560,8 @@ class SMCService:
     def _cleanup_old_signals(self) -> None:
         """Remove old signals that have expired"""
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(
-                hours=self.signal_timeout_hours
+            cutoff_time = datetime.now(UTC) - timedelta(
+                hours=self.signal_timeout_hours,
             )
             self._active_signals = [
                 signal

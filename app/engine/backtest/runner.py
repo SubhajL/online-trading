@@ -3,25 +3,24 @@ Single backtest runner with CLI interface.
 """
 
 import argparse
+from datetime import UTC, datetime
+from decimal import Decimal
 import hashlib
 import json
 import logging
+from pathlib import Path
 import subprocess
 import time
-from datetime import datetime, timezone
-from decimal import Decimal
-from pathlib import Path
-from typing import Dict, Any
 
 import yaml
 
 from ..models import TimeFrame
-from .types import BacktestConfig, BacktestResult
-from .simulator import BacktestSimulator
-from .dataset import create_dataset, StreamingDataset
-from .metrics import MetricsCalculator
 from .charts import ChartGenerator
+from .dataset import StreamingDataset, create_dataset
+from .metrics import MetricsCalculator
 from .serializers import ResultSerializer
+from .simulator import BacktestSimulator
+from .types import BacktestConfig, BacktestResult
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,7 +44,7 @@ class BacktestRunner:
     def _load_config(self) -> BacktestConfig:
         """Load configuration from YAML file."""
         try:
-            with open(self.config_path, "r") as file:
+            with open(self.config_path) as file:
                 data = yaml.safe_load(file)
 
             backtest_data = data.get("backtest", {})
@@ -57,10 +56,10 @@ class BacktestRunner:
                 session_enabled=backtest_data.get("session", {}).get("enabled", True),
                 session_exclude=backtest_data.get("session", {}).get("exclude", []),
                 news_block_before_min=backtest_data.get("news_block", {}).get(
-                    "before_min", 15
+                    "before_min", 15,
                 ),
                 news_block_after_min=backtest_data.get("news_block", {}).get(
-                    "after_min", 15
+                    "after_min", 15,
                 ),
                 tp_ladder=backtest_data.get("rr", {}).get(
                     "tp_ladder",
@@ -71,7 +70,7 @@ class BacktestRunner:
                     ],
                 ),
                 move_to_breakeven_on=backtest_data.get("rr", {}).get(
-                    "move_to_breakeven_on", "TP1"
+                    "move_to_breakeven_on", "TP1",
                 ),
                 trail_after=backtest_data.get("rr", {}).get("trail_after", "TP2"),
                 train_days=backtest_data.get("wfo", {}).get("train_days", 90),
@@ -88,7 +87,7 @@ class BacktestRunner:
         timeframe: str,
         start_date: str,
         end_date: str,
-        initial_balance: Decimal = Decimal("10000"),
+        initial_balance: Decimal = Decimal(10000),
         data_source: str = "timescale",
         **data_source_kwargs,
     ) -> BacktestResult:
@@ -109,7 +108,7 @@ class BacktestRunner:
         """
         start_time = time.time()
         logger.info(
-            f"Starting backtest: {symbol} {timeframe} {start_date} to {end_date}"
+            f"Starting backtest: {symbol} {timeframe} {start_date} to {end_date}",
         )
 
         # Parse parameters
@@ -215,12 +214,12 @@ class BacktestRunner:
 
         if result.equity_curve:
             chart_generator.create_equity_chart(
-                result.equity_curve, str(artifacts_dir / "equity.png")
+                result.equity_curve, str(artifacts_dir / "equity.png"),
             )
 
         if result.drawdown_curve:
             chart_generator.create_drawdown_chart(
-                result.drawdown_curve, str(artifacts_dir / "drawdown.png")
+                result.drawdown_curve, str(artifacts_dir / "drawdown.png"),
             )
 
         if result.trades:
@@ -239,7 +238,7 @@ class BacktestRunner:
                 "git_sha": result.git_sha,
                 "config_hash": result.config_hash,
                 "runtime_ms": result.metrics.runtime_ms,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
             },
             "config": {
                 "fee_bps_spot": float(result.config.fee_bps_spot),
@@ -340,7 +339,7 @@ class BacktestRunner:
                         if trade.exit_reason
                         else "",
                         "duration_minutes": trade.duration_minutes or "",
-                    }
+                    },
                 )
 
     def _get_git_sha(self) -> str:
@@ -348,7 +347,7 @@ class BacktestRunner:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                capture_output=True,
+                check=False, capture_output=True,
                 text=True,
                 cwd=self.config_path.parent,
             )
@@ -359,7 +358,7 @@ class BacktestRunner:
     def _calculate_config_hash(self) -> str:
         """Calculate config hash for reproducibility."""
         try:
-            with open(self.config_path, "r") as file:
+            with open(self.config_path) as file:
                 content = file.read()
             return hashlib.sha256(content.encode()).hexdigest()[:16]
         except Exception:
@@ -370,7 +369,7 @@ def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(description="Run single backtest")
     parser.add_argument(
-        "--symbol", required=True, help="Trading symbol (e.g., BTCUSDT)"
+        "--symbol", required=True, help="Trading symbol (e.g., BTCUSDT)",
     )
     parser.add_argument("--tf", required=True, help="Timeframe (e.g., 15m, 1h)")
     parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
@@ -386,10 +385,10 @@ def main():
     parser.add_argument("--data-dir", help="Data directory for CSV source")
     parser.add_argument("--database-url", help="Database URL for TimescaleDB")
     parser.add_argument(
-        "--output-dir", default="artifacts/backtest", help="Output directory"
+        "--output-dir", default="artifacts/backtest", help="Output directory",
     )
     parser.add_argument(
-        "--save-db", action="store_true", help="Save results to database"
+        "--save-db", action="store_true", help="Save results to database",
     )
 
     args = parser.parse_args()
@@ -423,14 +422,14 @@ def main():
 
         # Save results
         artifacts_path = runner.save_results(
-            result, args.symbol, args.tf, args.start, args.end, args.output_dir
+            result, args.symbol, args.tf, args.start, args.end, args.output_dir,
         )
 
         # Optionally save to database
         if args.save_db:
             serializer = ResultSerializer()
             serializer.save_to_database(
-                result, args.symbol, args.tf, args.start, args.end
+                result, args.symbol, args.tf, args.start, args.end,
             )
 
         print(f"\n{'=' * 50}")
@@ -438,7 +437,7 @@ def main():
         print(f"{'=' * 50}")
         print(f"Results saved to: {artifacts_path}")
         print(
-            f"Total PnL: {result.metrics.total_pnl} ({result.metrics.total_pnl_pct:.2f}%)"
+            f"Total PnL: {result.metrics.total_pnl} ({result.metrics.total_pnl_pct:.2f}%)",
         )
         print(f"Total Trades: {result.metrics.total_trades}")
         print(f"Win Rate: {result.metrics.hit_rate_pct:.1f}%")

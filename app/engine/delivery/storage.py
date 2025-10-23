@@ -2,10 +2,8 @@
 Storage backends for chart snapshots.
 """
 
-import os
-import logging
-from typing import Optional
 from datetime import datetime, timedelta
+import logging
 from pathlib import Path
 
 import aiofiles
@@ -24,7 +22,7 @@ logger = logging.getLogger(__name__)
 class SnapshotStorage:
     """Base class for snapshot storage backends."""
 
-    def __init__(self, cdn_url: Optional[str] = None, bucket: Optional[str] = None):
+    def __init__(self, cdn_url: str | None = None, bucket: str | None = None):
         """Initialize storage backend.
 
         Args:
@@ -49,8 +47,8 @@ class SnapshotStorage:
     def get_snapshot_url(
         self,
         signal_id: str,
-        ttl: Optional[int] = None,
-        signed: bool = False
+        ttl: int | None = None,
+        signed: bool = False,
     ) -> str:
         """Get URL for a stored snapshot.
 
@@ -109,7 +107,7 @@ class LocalSnapshotStorage(SnapshotStorage):
         file_path = full_dir / filename
 
         try:
-            async with aiofiles.open(file_path, 'wb') as f:
+            async with aiofiles.open(file_path, "wb") as f:
                 await f.write(image_data)
 
             logger.info(f"Stored snapshot locally: {file_path}")
@@ -144,7 +142,7 @@ class S3SnapshotStorage(SnapshotStorage):
         bucket: str,
         prefix: str = "signals/",
         region: str = "us-east-1",
-        cdn_url: Optional[str] = None
+        cdn_url: str | None = None,
     ):
         """Initialize S3 storage.
 
@@ -156,7 +154,7 @@ class S3SnapshotStorage(SnapshotStorage):
         """
         if not HAS_S3_SUPPORT:
             raise ImportError(
-                "S3 support requires aiobotocore. Install with: pip install aiobotocore"
+                "S3 support requires aiobotocore. Install with: pip install aiobotocore",
             )
 
         super().__init__(cdn_url, bucket)
@@ -181,20 +179,20 @@ class S3SnapshotStorage(SnapshotStorage):
 
         try:
             async with self.session.create_client(
-                's3',
-                region_name=self.region
+                "s3",
+                region_name=self.region,
             ) as client:
                 # Upload to S3
                 result = await client.put_object(
                     Bucket=self.bucket,
                     Key=key,
                     Body=image_data,
-                    ContentType='image/png',
-                    CacheControl='max-age=31536000',  # Cache for 1 year
+                    ContentType="image/png",
+                    CacheControl="max-age=31536000",  # Cache for 1 year
                     Metadata={
-                        'signal_id': signal_id,
-                        'uploaded_at': datetime.now().isoformat()
-                    }
+                        "signal_id": signal_id,
+                        "uploaded_at": datetime.now().isoformat(),
+                    },
                 )
 
                 logger.info(f"Stored snapshot to S3: s3://{self.bucket}/{key}")
@@ -202,8 +200,7 @@ class S3SnapshotStorage(SnapshotStorage):
                 # Return CDN URL if configured, otherwise S3 URL
                 if self.cdn_url:
                     return f"{self.cdn_url}/{key}"
-                else:
-                    return f"https://{self.bucket}.s3.{self.region}.amazonaws.com/{key}"
+                return f"https://{self.bucket}.s3.{self.region}.amazonaws.com/{key}"
 
         except ClientError as e:
             logger.error(f"S3 upload failed: {e}")
@@ -212,7 +209,7 @@ class S3SnapshotStorage(SnapshotStorage):
     async def generate_presigned_url(
         self,
         signal_id: str,
-        ttl: int = 3600
+        ttl: int = 3600,
     ) -> str:
         """Generate presigned URL for secure access.
 
@@ -230,16 +227,16 @@ class S3SnapshotStorage(SnapshotStorage):
 
         try:
             async with self.session.create_client(
-                's3',
-                region_name=self.region
+                "s3",
+                region_name=self.region,
             ) as client:
                 url = await client.generate_presigned_url(
-                    'get_object',
+                    "get_object",
                     Params={
-                        'Bucket': self.bucket,
-                        'Key': key
+                        "Bucket": self.bucket,
+                        "Key": key,
                     },
-                    ExpiresIn=ttl
+                    ExpiresIn=ttl,
                 )
 
                 return url
@@ -248,7 +245,7 @@ class S3SnapshotStorage(SnapshotStorage):
             logger.error(f"Failed to generate presigned URL: {e}")
             raise
 
-    async def _find_signal_key(self, signal_id: str) -> Optional[str]:
+    async def _find_signal_key(self, signal_id: str) -> str | None:
         """Find S3 key for a signal ID.
 
         Args:
@@ -259,19 +256,19 @@ class S3SnapshotStorage(SnapshotStorage):
         """
         try:
             async with self.session.create_client(
-                's3',
-                region_name=self.region
+                "s3",
+                region_name=self.region,
             ) as client:
                 # List objects with the signal_id
-                paginator = client.get_paginator('list_objects_v2')
+                paginator = client.get_paginator("list_objects_v2")
 
                 async for page in paginator.paginate(
                     Bucket=self.bucket,
-                    Prefix=self.prefix
+                    Prefix=self.prefix,
                 ):
-                    for obj in page.get('Contents', []):
-                        if signal_id in obj['Key']:
-                            return obj['Key']
+                    for obj in page.get("Contents", []):
+                        if signal_id in obj["Key"]:
+                            return obj["Key"]
 
                 return None
 

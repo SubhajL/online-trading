@@ -5,14 +5,13 @@ Real-time data ingestion from Binance WebSocket streams.
 Handles kline/candlestick data, ticker updates, and order book streams.
 """
 
-from typing import Any
-
 import asyncio
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 import json
 import logging
+from typing import Any
 from urllib.parse import urlparse
 
 import websockets
@@ -20,7 +19,6 @@ from websockets.exceptions import ConnectionClosed, InvalidStatusCode
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +129,7 @@ class BinanceWebSocketClient:
         logger.info("WebSocket client stopped")
 
     async def subscribe_klines(
-        self, symbols: list[str], timeframes: list[TimeFrame]
+        self, symbols: list[str], timeframes: list[TimeFrame],
     ) -> None:
         """
         Subscribe to kline/candlestick streams
@@ -256,7 +254,7 @@ class BinanceWebSocketClient:
             # Build WebSocket URL using Binance combined stream format
             if self._subscriptions:
                 url = build_combined_stream_url(
-                    self.base_url, sorted(self._subscriptions)
+                    self.base_url, sorted(self._subscriptions),
                 )
             else:
                 # Use a dummy stream for initial connection
@@ -354,7 +352,7 @@ class BinanceWebSocketClient:
 
             # Create and publish candle update event
             event = CandleUpdateEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=candle.symbol,
                 timeframe=candle.timeframe,
                 candle=candle,

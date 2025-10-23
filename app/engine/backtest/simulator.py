@@ -3,23 +3,27 @@ Event-driven backtesting simulator.
 Reuses exact same math as live trading system with no lookahead.
 """
 
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
-from uuid import uuid4
+import logging
 
-from ..models import Candle, TechnicalIndicators
-from ..features.indicators import TechnicalIndicatorsCalculator
-from ..smc.engine import SMCEngine
 from ..decision.engine import DecisionEngine
-from .types import (
-    BacktestConfig, BacktestOrder, BacktestPosition, BacktestTrade,
-    OrderStatus, OrderType, OrderSide, ExitReason
-)
-from .fills import FillEngine
+from ..features.indicators import TechnicalIndicatorsCalculator
+from ..models import Candle, TechnicalIndicators
+from ..smc.engine import SMCEngine
 from .costs import CostCalculator
+from .fills import FillEngine
 from .policies import TradingPolicyManager
+from .types import (
+    BacktestConfig,
+    BacktestOrder,
+    BacktestPosition,
+    BacktestTrade,
+    ExitReason,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +37,7 @@ class BacktestSimulator:
     def __init__(
         self,
         config: BacktestConfig,
-        initial_balance: Decimal = Decimal("10000")
+        initial_balance: Decimal = Decimal(10000),
     ):
         """
         Initialize backtest simulator.
@@ -55,23 +59,23 @@ class BacktestSimulator:
         self.fill_engine = FillEngine(config.slippage_bps)
         self.cost_calculator = CostCalculator(
             fee_bps_spot=config.fee_bps_spot,
-            funding_model=config.funding_model
+            funding_model=config.funding_model,
         )
         self.policy_manager = TradingPolicyManager()
 
         # State tracking
-        self.current_time: Optional[datetime] = None
-        self.active_orders: List[BacktestOrder] = []
-        self.positions: Dict[str, BacktestPosition] = {}
-        self.completed_trades: List[BacktestTrade] = []
-        self.equity_history: List[Tuple[datetime, Decimal]] = []
-        self.drawdown_history: List[Tuple[datetime, Decimal]] = []
+        self.current_time: datetime | None = None
+        self.active_orders: list[BacktestOrder] = []
+        self.positions: dict[str, BacktestPosition] = {}
+        self.completed_trades: list[BacktestTrade] = []
+        self.equity_history: list[tuple[datetime, Decimal]] = []
+        self.drawdown_history: list[tuple[datetime, Decimal]] = []
 
         # Performance tracking
         self.peak_balance = initial_balance
-        self.total_fees = Decimal("0")
-        self.total_slippage = Decimal("0")
-        self.total_funding = Decimal("0")
+        self.total_fees = Decimal(0)
+        self.total_slippage = Decimal(0)
+        self.total_funding = Decimal(0)
 
     def process_candle(self, candle: Candle) -> None:
         """
@@ -112,7 +116,7 @@ class BacktestSimulator:
                 symbol,
                 signal.get("direction"),
                 signal.get("regime"),
-                indicators
+                indicators,
             )
 
             if allowed:
@@ -126,7 +130,7 @@ class BacktestSimulator:
         # 9. Check for position management (TP/SL adjustments)
         self._manage_positions(candle)
 
-    def _calculate_indicators(self, candles: List[Candle]) -> Optional[TechnicalIndicators]:
+    def _calculate_indicators(self, candles: list[Candle]) -> TechnicalIndicators | None:
         """
         Calculate technical indicators using the same calculator as live trading.
 
@@ -156,7 +160,7 @@ class BacktestSimulator:
                 macd_signal=9,
                 bb_period=20,
                 bb_std=2.0,
-                atr_period=14
+                atr_period=14,
             )
 
         except Exception as e:
@@ -200,7 +204,7 @@ class BacktestSimulator:
         order.remaining_quantity -= fill.quantity
         order.fill_time = fill.fill_time
 
-        if order.remaining_quantity <= Decimal("0"):
+        if order.remaining_quantity <= Decimal(0):
             order.status = OrderStatus.FILLED
             self.active_orders.remove(order)
         else:
@@ -226,7 +230,7 @@ class BacktestSimulator:
             # Create new position
             position = BacktestPosition(
                 symbol=symbol,
-                opened_at=fill.fill_time
+                opened_at=fill.fill_time,
             )
             self.positions[symbol] = position
 
@@ -240,24 +244,23 @@ class BacktestSimulator:
             else:
                 # Opening/adding to long position
                 position.side = "LONG"
-                old_value = position.quantity * position.entry_price if position.quantity > 0 else Decimal("0")
+                old_value = position.quantity * position.entry_price if position.quantity > 0 else Decimal(0)
                 new_quantity = position.quantity + fill.quantity
                 new_value = old_value + fill_value
-                position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal("0")
+                position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal(0)
                 position.quantity = new_quantity
 
-        else:  # SELL
-            if position.side == "LONG":
-                # Closing long position
-                self._close_position_partially(position, fill.quantity, fill.price)
-            else:
-                # Opening/adding to short position
-                position.side = "SHORT"
-                old_value = position.quantity * position.entry_price if position.quantity > 0 else Decimal("0")
-                new_quantity = position.quantity + fill.quantity
-                new_value = old_value + fill_value
-                position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal("0")
-                position.quantity = new_quantity
+        elif position.side == "LONG":
+            # Closing long position
+            self._close_position_partially(position, fill.quantity, fill.price)
+        else:
+            # Opening/adding to short position
+            position.side = "SHORT"
+            old_value = position.quantity * position.entry_price if position.quantity > 0 else Decimal(0)
+            new_quantity = position.quantity + fill.quantity
+            new_value = old_value + fill_value
+            position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal(0)
+            position.quantity = new_quantity
 
         position.mark_price = candle.close_price
         position.total_fees += fill.fee
@@ -266,7 +269,7 @@ class BacktestSimulator:
         self,
         position: BacktestPosition,
         close_quantity: Decimal,
-        close_price: Decimal
+        close_price: Decimal,
     ) -> None:
         """
         Partially or fully close a position.
@@ -286,7 +289,7 @@ class BacktestSimulator:
             self._record_completed_trade(position, close_price)
 
             # Reset position
-            position.quantity = Decimal("0")
+            position.quantity = Decimal(0)
             position.side = None
         else:
             # Partial close
@@ -299,7 +302,7 @@ class BacktestSimulator:
     def _calculate_position_pnl(
         self,
         position: BacktestPosition,
-        current_price: Decimal
+        current_price: Decimal,
     ) -> Decimal:
         """
         Calculate position PnL at current price.
@@ -311,15 +314,15 @@ class BacktestSimulator:
         Returns:
             PnL amount
         """
-        if position.quantity == Decimal("0") or not position.side:
-            return Decimal("0")
+        if position.quantity == Decimal(0) or not position.side:
+            return Decimal(0)
 
         price_diff = current_price - position.entry_price
 
         if position.side == "LONG":
             return position.quantity * price_diff
-        else:  # SHORT
-            return position.quantity * -price_diff
+        # SHORT
+        return position.quantity * -price_diff
 
     def _update_positions(self, candle: Candle) -> None:
         """
@@ -345,7 +348,7 @@ class BacktestSimulator:
             return
 
         for symbol, position in self.positions.items():
-            if position.quantity == Decimal("0") or not position.side:
+            if position.quantity == Decimal(0) or not position.side:
                 continue
 
             if not position.opened_at:
@@ -358,7 +361,7 @@ class BacktestSimulator:
                     position.quantity,
                     position.side,
                     position.mark_price,
-                    funding_rate
+                    funding_rate,
                 )
 
                 position.total_funding += funding_payment
@@ -370,8 +373,8 @@ class BacktestSimulator:
     def _generate_trading_signal(
         self,
         candle: Candle,
-        indicators: TechnicalIndicators
-    ) -> Optional[Dict]:
+        indicators: TechnicalIndicators,
+    ) -> dict | None:
         """
         Generate trading signal using decision engine.
 
@@ -395,9 +398,9 @@ class BacktestSimulator:
                 "take_profits": [
                     {"price": candle.close_price * Decimal("1.015"), "size": Decimal("0.4")},
                     {"price": candle.close_price * Decimal("1.02"), "size": Decimal("0.3")},
-                    {"price": candle.close_price * Decimal("1.03"), "size": Decimal("0.3")}
+                    {"price": candle.close_price * Decimal("1.03"), "size": Decimal("0.3")},
                 ],
-                "regime": "trending"
+                "regime": "trending",
             }
         except Exception as e:
             logger.error(f"Error generating signal: {e}")
@@ -405,9 +408,9 @@ class BacktestSimulator:
 
     def _execute_signal(
         self,
-        signal: Dict,
+        signal: dict,
         candle: Candle,
-        indicators: TechnicalIndicators
+        indicators: TechnicalIndicators,
     ) -> None:
         """
         Execute a trading signal by placing orders.
@@ -424,7 +427,7 @@ class BacktestSimulator:
         # Calculate position size (simplified)
         risk_per_trade = self.current_balance * Decimal("0.01")  # 1% risk
         stop_distance = abs(entry_price - signal["stop_loss"])
-        position_size = risk_per_trade / stop_distance if stop_distance > 0 else Decimal("100")
+        position_size = risk_per_trade / stop_distance if stop_distance > 0 else Decimal(100)
 
         # Place entry order
         entry_order = BacktestOrder(
@@ -432,7 +435,7 @@ class BacktestSimulator:
             side=OrderSide.BUY if direction == "long" else OrderSide.SELL,
             type=OrderType.MARKET,
             quantity=position_size,
-            order_time=candle.close_time
+            order_time=candle.close_time,
         )
 
         self.active_orders.append(entry_order)
@@ -454,8 +457,7 @@ class BacktestSimulator:
         self.equity_history.append((self.current_time, current_equity))
 
         # Update peak and drawdown
-        if current_equity > self.peak_balance:
-            self.peak_balance = current_equity
+        self.peak_balance = max(self.peak_balance, current_equity)
 
         drawdown = (self.peak_balance - current_equity) / self.peak_balance
         self.drawdown_history.append((self.current_time, drawdown))
@@ -471,12 +473,11 @@ class BacktestSimulator:
         # - Move to breakeven at TP1
         # - Trailing stops after TP2
         # - Partial exits at TP levels
-        pass
 
     def _record_completed_trade(
         self,
         position: BacktestPosition,
-        exit_price: Decimal
+        exit_price: Decimal,
     ) -> None:
         """
         Record a completed trade.
@@ -498,7 +499,7 @@ class BacktestSimulator:
             size=position.quantity,
             fees=position.total_fees,
             funding=position.total_funding,
-            exit_reason=ExitReason.MANUAL  # TODO: Determine actual reason
+            exit_reason=ExitReason.MANUAL,  # TODO: Determine actual reason
         )
 
         # Calculate PnL
@@ -513,7 +514,7 @@ class BacktestSimulator:
 
         self.completed_trades.append(trade)
 
-    def get_current_state(self) -> Dict:
+    def get_current_state(self) -> dict:
         """
         Get current simulator state for debugging/monitoring.
 
@@ -529,5 +530,5 @@ class BacktestSimulator:
             "total_fees": self.total_fees,
             "total_slippage": self.total_slippage,
             "total_funding": self.total_funding,
-            "current_equity": self.current_balance + sum(p.unrealized_pnl for p in self.positions.values())
+            "current_equity": self.current_balance + sum(p.unrealized_pnl for p in self.positions.values()),
         }

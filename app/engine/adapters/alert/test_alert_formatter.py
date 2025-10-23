@@ -1,6 +1,6 @@
-import pytest
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
+
 from app.engine.adapters.alert.alert_formatter import AlertFormatter
 
 
@@ -107,9 +107,9 @@ class TestAlertFormatter:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
-            "entry_price": Decimal("42000"),
-            "stop_loss": Decimal("41000"),
-            "take_profit": Decimal("44000"),
+            "entry_price": Decimal(42000),
+            "stop_loss": Decimal(41000),
+            "take_profit": Decimal(44000),
             "quantity": Decimal("0.025"),
             "confidence": 0.85,
             "reasons": [],

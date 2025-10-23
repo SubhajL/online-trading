@@ -5,7 +5,7 @@ from decimal import Decimal
 import numpy as np
 
 from ..models import Candle
-from ..smc_types import Pivot, PivotMethod, SwingType
+from ..smc_types import Pivot, SwingType
 
 
 def detect_n_bar_pivots(candles: list[Candle], n: int = 3) -> list[Pivot]:
@@ -58,7 +58,7 @@ def detect_n_bar_pivots(candles: list[Candle], n: int = 3) -> list[Pivot]:
                 min_excl = np.inf
             else:
                 min_excl = min(
-                    np.min(win_lows[: i - w_start]), np.min(win_lows[i - w_start + 1 :])
+                    np.min(win_lows[: i - w_start]), np.min(win_lows[i - w_start + 1 :]),
                 )
             if lows[i] <= min_excl:
                 pivots.append(
@@ -115,7 +115,7 @@ def detect_zigzag_pivots(
                             is_high=False,
                             strength=int(min_reversal_factor),
                             bar_index=candles[current_low_idx].bar_index,
-                        )
+                        ),
                     )
                     last_pivot_is_high = False
                     current_low = candle.low_price
@@ -129,7 +129,7 @@ def detect_zigzag_pivots(
                             is_high=True,
                             strength=int(min_reversal_factor),
                             bar_index=candles[current_high_idx].bar_index,
-                        )
+                        ),
                     )
                     last_pivot_is_high = True
                     current_high = candle.high_price
@@ -153,7 +153,7 @@ def detect_zigzag_pivots(
                             is_high=False,
                             strength=int(min_reversal_factor),
                             bar_index=candles[current_low_idx].bar_index,
-                        )
+                        ),
                     )
                     last_pivot_is_high = False
                     current_high = candle.high_price
@@ -181,7 +181,7 @@ def detect_zigzag_pivots(
                             is_high=True,
                             strength=int(min_reversal_factor),
                             bar_index=candles[current_high_idx].bar_index,
-                        )
+                        ),
                     )
                     last_pivot_is_high = True
                     current_low = candle.low_price
@@ -332,5 +332,4 @@ def classify_pivot_relationship(
 
     if prev_pivot.is_high:
         return SwingType.HH if price_diff > 0 else SwingType.LH
-    else:
-        return SwingType.HL if price_diff > 0 else SwingType.LL
+    return SwingType.HL if price_diff > 0 else SwingType.LL

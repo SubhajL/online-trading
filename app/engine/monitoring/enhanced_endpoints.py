@@ -1,6 +1,7 @@
 """Enhanced health monitoring endpoints with dependency checking."""
 
 from typing import Any
+
 from fastapi import APIRouter, Response, status
 
 from .enhanced_health import EnhancedHealthChecker, HealthConfig
@@ -47,18 +48,18 @@ def create_enhanced_health_endpoints(
                 "components": {
                     name: {
                         "status": comp.status.value,
-                        "message": comp.message
+                        "message": comp.message,
                     }
                     for name, comp in report.components.items()
                 },
                 "dependencies": {
                     name: {
                         "status": dep.status.value,
-                        "critical": dep.critical
+                        "critical": dep.critical,
                     }
                     for name, dep in report.dependencies.items()
-                }
-            }
+                },
+            },
         }
 
     @router.get("/status")
@@ -87,7 +88,7 @@ def create_enhanced_health_endpoints(
                     "message": comp.message,
                     "latency_ms": comp.latency_ms,
                     "details": comp.details,
-                    "last_check": comp.last_check.isoformat()
+                    "last_check": comp.last_check.isoformat(),
                 }
                 for name, comp in report.components.items()
             },
@@ -99,10 +100,10 @@ def create_enhanced_health_endpoints(
                     "message": dep.message,
                     "latency_ms": dep.latency_ms,
                     "details": dep.details,
-                    "last_check": dep.last_check.isoformat()
+                    "last_check": dep.last_check.isoformat(),
                 }
                 for name, dep in report.dependencies.items()
-            }
+            },
         }
 
     @router.post("/check")
@@ -119,8 +120,8 @@ def create_enhanced_health_endpoints(
             "results": {
                 "components": len(report.components),
                 "dependencies": len(report.dependencies),
-                "all_critical_healthy": report.all_critical_healthy
-            }
+                "all_critical_healthy": report.all_critical_healthy,
+            },
         }
 
     @router.get("/dependencies")
@@ -150,10 +151,10 @@ def create_enhanced_health_endpoints(
                     "status": dep.status.value,
                     "critical": dep.critical,
                     "message": dep.message,
-                    "latency_ms": dep.latency_ms
+                    "latency_ms": dep.latency_ms,
                 }
                 for name, dep in dependencies.items()
-            }
+            },
         }
 
     return router
@@ -164,7 +165,7 @@ def setup_enhanced_health_monitoring(
     database_url: str,
     redis_url: str,
     event_bus: Any,
-    router_url: str | None = None
+    router_url: str | None = None,
 ) -> EnhancedHealthChecker:
     """Setup enhanced health monitoring with dependency checking."""
     # Create enhanced health checker
@@ -178,24 +179,24 @@ def setup_enhanced_health_monitoring(
     health_checker.register_component(
         "database",
         health_checker.check_database_health,
-        database_url
+        database_url,
     )
     health_checker.register_component(
         "redis",
         health_checker.check_redis_health,
-        redis_url
+        redis_url,
     )
     health_checker.register_component(
         "event_bus",
         health_checker.check_event_bus_health,
-        event_bus
+        event_bus,
     )
 
     # Register service dependencies
     health_checker.register_dependency(
         "router",
         f"{config.router_url}{config.router_health_path}",
-        critical=True
+        critical=True,
     )
 
     # Add endpoints to app

@@ -6,7 +6,6 @@ import os
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Any
 
 
 class EventBusConfig(BaseModel):

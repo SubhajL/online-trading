@@ -1,9 +1,9 @@
 """Verify system dependencies and requirements."""
 
+from pathlib import Path
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 from typing import Any
 
 from .check_results import CheckResult, CheckStatus
@@ -53,12 +53,11 @@ def check_python_version() -> CheckResult:
             message=f"Python {current_str} meets minimum requirement of {min_str}",
             details=details,
         )
-    else:
-        return CheckResult(
-            status=CheckStatus.FAILED,
-            message=f"Python {current_str} is below minimum requirement of {min_str}",
-            details=details,
-        )
+    return CheckResult(
+        status=CheckStatus.FAILED,
+        message=f"Python {current_str} is below minimum requirement of {min_str}",
+        details=details,
+    )
 
 
 def check_python_packages() -> CheckResult:
@@ -158,18 +157,17 @@ def check_python_packages() -> CheckResult:
             message=f"Missing {len(missing_packages)} required packages",
             details=details,
         )
-    elif version_mismatches:
+    if version_mismatches:
         return CheckResult(
             status=CheckStatus.WARNING,
             message=f"All packages installed but {len(version_mismatches)} have version mismatches",
             details=details,
         )
-    else:
-        return CheckResult(
-            status=CheckStatus.PASSED,
-            message="All required packages are installed",
-            details=details,
-        )
+    return CheckResult(
+        status=CheckStatus.PASSED,
+        message="All required packages are installed",
+        details=details,
+    )
 
 
 def check_system_commands() -> CheckResult:
@@ -207,15 +205,14 @@ def check_system_commands() -> CheckResult:
             message=f"Missing {len(missing_commands)} required system commands",
             details=details,
         )
-    elif optional_missing:
+    if optional_missing:
         return CheckResult(
             status=CheckStatus.WARNING,
             message="All required system commands are available (some optional missing)",
             details=details,
         )
-    else:
-        return CheckResult(
-            status=CheckStatus.PASSED,
-            message="All required system commands are available",
-            details=details,
-        )
+    return CheckResult(
+        status=CheckStatus.PASSED,
+        message="All required system commands are available",
+        details=details,
+    )

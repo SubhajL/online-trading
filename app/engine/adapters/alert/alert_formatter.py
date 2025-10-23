@@ -1,13 +1,13 @@
 """Formatter for creating consistent alert messages across platforms."""
 
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class AlertFormatter:
     """Format trading alerts for external messaging platforms."""
 
-    def format_decision(self, decision: Dict[str, Any]) -> str:
+    def format_decision(self, decision: dict[str, Any]) -> str:
         """Format a trading decision into an alert message."""
         symbol = decision["symbol"]
         side = decision["side"]
@@ -51,7 +51,7 @@ class AlertFormatter:
 
         return "\n".join(lines)
 
-    def format_order_update(self, order: Dict[str, Any]) -> str:
+    def format_order_update(self, order: dict[str, Any]) -> str:
         """Format an order update into an alert message."""
         symbol = order["symbol"]
         side = order["side"]
@@ -81,7 +81,7 @@ class AlertFormatter:
 
         return "\n".join(lines)
 
-    def format_guard_alert(self, guard: Dict[str, Any]) -> str:
+    def format_guard_alert(self, guard: dict[str, Any]) -> str:
         """Format a guard/risk alert message."""
         guard_type = guard["type"]
         symbol = guard["symbol"]
@@ -93,7 +93,7 @@ class AlertFormatter:
         type_display = guard_type.replace("_", " ").title()
 
         lines = [
-            f"⚠️ Guard Triggered",
+            "⚠️ Guard Triggered",
             f"{symbol}",
             f"{type_display}: {current:.2%}",
             f"Threshold: {threshold:.2%}",
@@ -135,7 +135,7 @@ class AlertFormatter:
             return f"{sign}{formatted}"
         return formatted
 
-    def format_daily_summary(self, summary: Dict[str, Any]) -> str:
+    def format_daily_summary(self, summary: dict[str, Any]) -> str:
         """Format daily trading summary."""
         lines = [
             "📊 Daily Trading Summary",

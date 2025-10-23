@@ -1,6 +1,6 @@
 import os
-from urllib.parse import urlparse, urlunparse
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 
 def get_test_database_url() -> str:

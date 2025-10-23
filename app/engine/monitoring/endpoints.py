@@ -74,7 +74,10 @@ def create_metrics_endpoints() -> APIRouter:
     async def prometheus_metrics() -> Response:
         """Prometheus metrics endpoint"""
         try:
-            from app.engine.monitoring.metrics import get_metrics, get_metrics_content_type
+            from app.engine.monitoring.metrics import (
+                get_metrics,
+                get_metrics_content_type,
+            )
 
             # Get metrics from our Prometheus registry
             metrics_data = get_metrics()
@@ -94,6 +97,7 @@ def create_metrics_endpoints() -> APIRouter:
 
             # Add actual process metrics
             import os
+
             import psutil
 
             process = psutil.Process(os.getpid())

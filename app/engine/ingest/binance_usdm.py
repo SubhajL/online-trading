@@ -6,9 +6,10 @@ emits only closed candles, handles reconnection with backfill.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 import json
 import logging
+from typing import Any
 
 import aiohttp
 import websockets
@@ -17,7 +18,6 @@ from websockets.exceptions import ConnectionClosed
 from ..adapters.db import TimescaleDBAdapter
 from ..bus import EventBus, publish_event
 from ..models import Candle, TimeFrame, kline_to_candle, rest_kline_to_candle
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +235,7 @@ class BinanceUSDMIngester:
                         last_time = latest_candle.close_time
                     else:
                         # Default to 24 hours ago if no data
-                        last_time = datetime.now(timezone.utc) - timedelta(hours=24)
+                        last_time = datetime.now(UTC) - timedelta(hours=24)
 
                 # Create backfill task
                 task = self._backfill_missing_candles(symbol, tf, last_time)
@@ -282,7 +282,7 @@ class BinanceUSDMIngester:
 
         # Calculate start and end times
         start_ts = int(start_time.timestamp() * 1000)
-        end_ts = int(datetime.now(timezone.utc).timestamp() * 1000)
+        end_ts = int(datetime.now(UTC).timestamp() * 1000)
 
         # Binance limit is 1500 candles per request for futures
         max_candles = 1500
@@ -297,7 +297,7 @@ class BinanceUSDMIngester:
                     break
 
                 # Build request URL with recvWindow for time sync
-                timestamp = int(datetime.now(timezone.utc).timestamp() * 1000)
+                timestamp = int(datetime.now(UTC).timestamp() * 1000)
                 url = (
                     f"{self.rest_base_url}/fapi/v1/klines?"
                     f"symbol={symbol}&interval={timeframe}"
@@ -409,7 +409,7 @@ class BinanceUSDMIngester:
             logger.info("5. Ensure stable network latency to Binance servers")
 
         # Log current system time vs expected
-        system_time = datetime.now(timezone.utc)
+        system_time = datetime.now(UTC)
         logger.info(f"Current system UTC time: {system_time.isoformat()}")
         logger.info("You can check time offset at: https://www.time.is/")
 

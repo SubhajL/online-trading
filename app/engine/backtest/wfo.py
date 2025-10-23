@@ -10,24 +10,22 @@ Implements walk-forward analysis for strategy validation:
 This prevents overfitting by ensuring parameters work on unseen data.
 """
 
-import itertools
-import logging
-import math
-import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from decimal import Decimal
+import itertools
+import logging
+import multiprocessing as mp
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Iterator
+from typing import Any
 
 import numpy as np
 import yaml
 
-from ..models import TimeFrame
-from .types import BacktestConfig, BacktestResult, BacktestMetrics
-from .runner import BacktestRunner
-from .metrics import MetricsCalculator
 from .charts import ChartGenerator
+from .metrics import MetricsCalculator
+from .runner import BacktestRunner
+from .types import BacktestConfig, BacktestMetrics, BacktestResult
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +39,7 @@ class WFOWindow:
         train_start: datetime,
         train_end: datetime,
         test_start: datetime,
-        test_end: datetime
+        test_end: datetime,
     ):
         self.window_id = window_id
         self.train_start = train_start
@@ -58,16 +56,16 @@ class WFOWindow:
 class ParameterGrid:
     """Parameter grid generator for optimization"""
 
-    def __init__(self, parameter_ranges: Dict[str, List]):
+    def __init__(self, parameter_ranges: dict[str, list]):
         self.parameter_ranges = parameter_ranges
 
-    def generate_combinations(self) -> Iterator[Dict[str, Any]]:
+    def generate_combinations(self) -> Iterator[dict[str, Any]]:
         """Generate all parameter combinations"""
         keys = list(self.parameter_ranges.keys())
         values = list(self.parameter_ranges.values())
 
         for combination in itertools.product(*values):
-            yield dict(zip(keys, combination))
+            yield dict(zip(keys, combination, strict=False))
 
     def count_combinations(self) -> int:
         """Count total parameter combinations"""
@@ -81,14 +79,14 @@ class WFOResult:
     """Walk-forward optimization result"""
 
     def __init__(self):
-        self.windows: List[WFOWindow] = []
-        self.training_results: List[BacktestResult] = []
-        self.testing_results: List[BacktestResult] = []
-        self.best_parameters: List[Dict[str, Any]] = []
-        self.aggregate_metrics: Optional[BacktestMetrics] = None
-        self.parameter_stability: Dict[str, float] = {}
+        self.windows: list[WFOWindow] = []
+        self.training_results: list[BacktestResult] = []
+        self.testing_results: list[BacktestResult] = []
+        self.best_parameters: list[dict[str, Any]] = []
+        self.aggregate_metrics: BacktestMetrics | None = None
+        self.parameter_stability: dict[str, float] = {}
         self.total_runtime_ms: int = 0
-        self.optimization_summary: Dict[str, Any] = {}
+        self.optimization_summary: dict[str, Any] = {}
 
     def get_test_only_metrics(self) -> BacktestMetrics:
         """Get metrics from test periods only (true out-of-sample performance)"""
@@ -109,14 +107,14 @@ class WFOResult:
             return BacktestMetrics()
 
         # Calculate aggregate metrics
-        initial_balance = Decimal("10000")  # Should match config
+        initial_balance = Decimal(10000)  # Should match config
         metrics_calc = MetricsCalculator(initial_balance)
 
         return metrics_calc.calculate_metrics(
             all_trades,
             all_equity_points,
             all_drawdown_points,
-            self.total_runtime_ms
+            self.total_runtime_ms,
         )
 
 
@@ -133,15 +131,15 @@ class WFORunner:
         self.config = self._load_config()
         self.base_runner = BacktestRunner(config_path)
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """Load WFO configuration"""
         try:
-            with open(self.config_path, 'r') as file:
+            with open(self.config_path) as file:
                 config = yaml.safe_load(file)
 
             # Validate WFO specific config
-            wfo_config = config.get('wfo', {})
-            required = ['train_days', 'test_days', 'step_days']
+            wfo_config = config.get("wfo", {})
+            required = ["train_days", "test_days", "step_days"]
             for key in required:
                 if key not in wfo_config:
                     logger.warning(f"Missing WFO config: {key}, using default")
@@ -158,8 +156,8 @@ class WFORunner:
         end_date: datetime,
         train_days: int = 90,
         test_days: int = 30,
-        step_days: int = 30
-    ) -> List[WFOWindow]:
+        step_days: int = 30,
+    ) -> list[WFOWindow]:
         """
         Generate walk-forward windows.
 
@@ -204,11 +202,11 @@ class WFORunner:
         timeframe: str,
         start_date: str,
         end_date: str,
-        parameter_ranges: Dict[str, List],
-        initial_balance: Decimal = Decimal("10000"),
+        parameter_ranges: dict[str, list],
+        initial_balance: Decimal = Decimal(10000),
         data_source: str = "timescale",
-        max_workers: Optional[int] = None,
-        **data_source_kwargs
+        max_workers: int | None = None,
+        **data_source_kwargs,
     ) -> WFOResult:
         """
         Run walk-forward optimization.
@@ -235,10 +233,10 @@ class WFORunner:
         end_dt = datetime.fromisoformat(end_date)
 
         # Get WFO parameters
-        wfo_config = self.config.get('wfo', {})
-        train_days = wfo_config.get('train_days', 90)
-        test_days = wfo_config.get('test_days', 30)
-        step_days = wfo_config.get('step_days', 30)
+        wfo_config = self.config.get("wfo", {})
+        train_days = wfo_config.get("train_days", 90)
+        test_days = wfo_config.get("test_days", 30)
+        step_days = wfo_config.get("step_days", 30)
 
         # Generate windows
         windows = self.generate_windows(start_dt, end_dt, train_days, test_days, step_days)
@@ -267,7 +265,7 @@ class WFORunner:
             # 1. Optimization phase (training data)
             best_params, best_training_result = self._optimize_window(
                 window, symbol, timeframe, parameter_ranges,
-                initial_balance, data_source, max_workers, **data_source_kwargs
+                initial_balance, data_source, max_workers, **data_source_kwargs,
             )
 
             result.best_parameters.append(best_params)
@@ -276,7 +274,7 @@ class WFORunner:
             # 2. Validation phase (test data with best parameters)
             test_result = self._validate_window(
                 window, symbol, timeframe, best_params,
-                initial_balance, data_source, **data_source_kwargs
+                initial_balance, data_source, **data_source_kwargs,
             )
 
             result.testing_results.append(test_result)
@@ -299,19 +297,19 @@ class WFORunner:
         window: WFOWindow,
         symbol: str,
         timeframe: str,
-        parameter_ranges: Dict[str, List],
+        parameter_ranges: dict[str, list],
         initial_balance: Decimal,
         data_source: str,
         max_workers: int,
-        **data_source_kwargs
-    ) -> Tuple[Dict[str, Any], BacktestResult]:
+        **data_source_kwargs,
+    ) -> tuple[dict[str, Any], BacktestResult]:
         """Optimize parameters for a single window"""
         param_grid = ParameterGrid(parameter_ranges)
 
         # Run backtests for all parameter combinations
         best_result = None
         best_params = None
-        best_score = float('-inf')
+        best_score = float("-inf")
 
         # For now, run sequentially (can parallelize later)
         for params in param_grid.generate_combinations():
@@ -327,11 +325,11 @@ class WFORunner:
                 result = temp_runner.run_backtest(
                     symbol=symbol,
                     timeframe=timeframe,
-                    start_date=window.train_start.strftime('%Y-%m-%d'),
-                    end_date=window.train_end.strftime('%Y-%m-%d'),
+                    start_date=window.train_start.strftime("%Y-%m-%d"),
+                    end_date=window.train_end.strftime("%Y-%m-%d"),
                     initial_balance=initial_balance,
                     data_source=data_source,
-                    **data_source_kwargs
+                    **data_source_kwargs,
                 )
 
                 # Score result (using Sharpe ratio as primary metric)
@@ -356,10 +354,10 @@ class WFORunner:
         window: WFOWindow,
         symbol: str,
         timeframe: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         initial_balance: Decimal,
         data_source: str,
-        **data_source_kwargs
+        **data_source_kwargs,
     ) -> BacktestResult:
         """Validate parameters on test data"""
         # Update config with best parameters
@@ -373,24 +371,24 @@ class WFORunner:
         return temp_runner.run_backtest(
             symbol=symbol,
             timeframe=timeframe,
-            start_date=window.test_start.strftime('%Y-%m-%d'),
-            end_date=window.test_end.strftime('%Y-%m-%d'),
+            start_date=window.test_start.strftime("%Y-%m-%d"),
+            end_date=window.test_end.strftime("%Y-%m-%d"),
             initial_balance=initial_balance,
             data_source=data_source,
-            **data_source_kwargs
+            **data_source_kwargs,
         )
 
-    def _update_config_with_params(self, params: Dict[str, Any]) -> BacktestConfig:
+    def _update_config_with_params(self, params: dict[str, Any]) -> BacktestConfig:
         """Update base config with optimization parameters"""
         # Start with base config
         config = self.base_runner.config
 
         # Update with parameters - this would be strategy-specific
         # For now, just handle common parameters
-        if 'fee_bps_spot' in params:
-            config.fee_bps_spot = Decimal(str(params['fee_bps_spot']))
-        if 'slippage_bps' in params:
-            config.slippage_bps = Decimal(str(params['slippage_bps']))
+        if "fee_bps_spot" in params:
+            config.fee_bps_spot = Decimal(str(params["fee_bps_spot"]))
+        if "slippage_bps" in params:
+            config.slippage_bps = Decimal(str(params["slippage_bps"]))
 
         # Add parameter mapping for strategy-specific parameters
         # This would be extended based on actual strategy parameters
@@ -414,7 +412,7 @@ class WFORunner:
 
         return score
 
-    def _analyze_parameter_stability(self, parameter_sets: List[Dict[str, Any]]) -> Dict[str, float]:
+    def _analyze_parameter_stability(self, parameter_sets: list[dict[str, Any]]) -> dict[str, float]:
         """Analyze parameter stability across windows"""
         if not parameter_sets:
             return {}
@@ -429,7 +427,7 @@ class WFORunner:
                 # Numerical parameter - calculate coefficient of variation
                 mean_val = np.mean(values)
                 std_val = np.std(values)
-                cv = std_val / mean_val if mean_val != 0 else float('inf')
+                cv = std_val / mean_val if mean_val != 0 else float("inf")
                 stability[param_name] = 1 / (1 + cv)  # Higher is more stable
             else:
                 # Categorical parameter - calculate mode frequency
@@ -439,7 +437,7 @@ class WFORunner:
 
         return stability
 
-    def _create_optimization_summary(self, result: WFOResult) -> Dict[str, Any]:
+    def _create_optimization_summary(self, result: WFOResult) -> dict[str, Any]:
         """Create optimization summary statistics"""
         if not result.testing_results:
             return {}
@@ -453,11 +451,11 @@ class WFORunner:
             "std_test_return": float(np.std(test_returns)),
             "avg_train_return": float(np.mean(train_returns)),
             "std_train_return": float(np.std(train_returns)),
-            "overfitting_ratio": float(np.mean(train_returns)) / float(np.mean(test_returns)) if np.mean(test_returns) != 0 else float('inf'),
+            "overfitting_ratio": float(np.mean(train_returns)) / float(np.mean(test_returns)) if np.mean(test_returns) != 0 else float("inf"),
             "win_rate": len([r for r in test_returns if r > 0]) / len(test_returns) if test_returns else 0,
             "best_test_window": int(np.argmax(test_returns)) + 1,
             "worst_test_window": int(np.argmin(test_returns)) + 1,
-            "parameter_stability": result.parameter_stability
+            "parameter_stability": result.parameter_stability,
         }
 
     def save_wfo_results(
@@ -467,7 +465,7 @@ class WFORunner:
         timeframe: str,
         start_date: str,
         end_date: str,
-        output_dir: str = "artifacts/wfo"
+        output_dir: str = "artifacts/wfo",
     ) -> str:
         """Save WFO results to files"""
         # Create output directory
@@ -506,25 +504,25 @@ class WFORunner:
                 "profit_factor": float(test_metrics.profit_factor) if test_metrics.profit_factor else None,
                 "sharpe_ratio": float(test_metrics.sharpe_ratio) if test_metrics.sharpe_ratio else None,
                 "max_drawdown_pct": float(test_metrics.max_drawdown_pct),
-                "avg_r": float(test_metrics.avg_r)
+                "avg_r": float(test_metrics.avg_r),
             },
             "parameter_stability": result.parameter_stability,
-            "runtime_ms": result.total_runtime_ms
+            "runtime_ms": result.total_runtime_ms,
         }
 
         import json
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             json.dump(report, f, indent=2, default=str)
 
     def _save_window_results(self, result: WFOResult, path: Path):
         """Save detailed window results to CSV"""
         import csv
 
-        with open(path, 'w', newline='') as f:
+        with open(path, "w", newline="") as f:
             fieldnames = [
-                'window_id', 'train_start', 'train_end', 'test_start', 'test_end',
-                'best_parameters', 'train_pnl_pct', 'test_pnl_pct',
-                'train_trades', 'test_trades', 'train_hit_rate', 'test_hit_rate'
+                "window_id", "train_start", "train_end", "test_start", "test_end",
+                "best_parameters", "train_pnl_pct", "test_pnl_pct",
+                "train_trades", "test_trades", "train_hit_rate", "test_hit_rate",
             ]
 
             writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -536,18 +534,18 @@ class WFORunner:
                 best_params = result.best_parameters[i] if i < len(result.best_parameters) else {}
 
                 writer.writerow({
-                    'window_id': window.window_id,
-                    'train_start': window.train_start.strftime('%Y-%m-%d'),
-                    'train_end': window.train_end.strftime('%Y-%m-%d'),
-                    'test_start': window.test_start.strftime('%Y-%m-%d'),
-                    'test_end': window.test_end.strftime('%Y-%m-%d'),
-                    'best_parameters': str(best_params),
-                    'train_pnl_pct': float(train_result.metrics.total_pnl_pct) if train_result else 0,
-                    'test_pnl_pct': float(test_result.metrics.total_pnl_pct) if test_result else 0,
-                    'train_trades': train_result.metrics.total_trades if train_result else 0,
-                    'test_trades': test_result.metrics.total_trades if test_result else 0,
-                    'train_hit_rate': float(train_result.metrics.hit_rate_pct) if train_result else 0,
-                    'test_hit_rate': float(test_result.metrics.hit_rate_pct) if test_result else 0
+                    "window_id": window.window_id,
+                    "train_start": window.train_start.strftime("%Y-%m-%d"),
+                    "train_end": window.train_end.strftime("%Y-%m-%d"),
+                    "test_start": window.test_start.strftime("%Y-%m-%d"),
+                    "test_end": window.test_end.strftime("%Y-%m-%d"),
+                    "best_parameters": str(best_params),
+                    "train_pnl_pct": float(train_result.metrics.total_pnl_pct) if train_result else 0,
+                    "test_pnl_pct": float(test_result.metrics.total_pnl_pct) if test_result else 0,
+                    "train_trades": train_result.metrics.total_trades if train_result else 0,
+                    "test_trades": test_result.metrics.total_trades if test_result else 0,
+                    "train_hit_rate": float(train_result.metrics.hit_rate_pct) if train_result else 0,
+                    "test_hit_rate": float(test_result.metrics.hit_rate_pct) if test_result else 0,
                 })
 
     def _save_parameter_analysis(self, result: WFOResult, path: Path):
@@ -557,10 +555,10 @@ class WFORunner:
         analysis = {
             "parameter_stability": result.parameter_stability,
             "parameter_history": result.best_parameters,
-            "optimization_summary": result.optimization_summary
+            "optimization_summary": result.optimization_summary,
         }
 
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             json.dump(analysis, f, indent=2, default=str)
 
     def _generate_wfo_charts(self, result: WFOResult, output_dir: Path):
@@ -586,17 +584,17 @@ class WFORunner:
 
         fig, ax = plt.subplots(figsize=(12, 6))
 
-        ax.bar([w - 0.2 for w in windows], train_returns, 0.4, label='Training', alpha=0.7)
-        ax.bar([w + 0.2 for w in windows], test_returns, 0.4, label='Testing', alpha=0.7)
+        ax.bar([w - 0.2 for w in windows], train_returns, 0.4, label="Training", alpha=0.7)
+        ax.bar([w + 0.2 for w in windows], test_returns, 0.4, label="Testing", alpha=0.7)
 
-        ax.set_xlabel('WFO Window')
-        ax.set_ylabel('Return (%)')
-        ax.set_title('Train vs Test Performance by Window')
+        ax.set_xlabel("WFO Window")
+        ax.set_ylabel("Return (%)")
+        ax.set_title("Train vs Test Performance by Window")
         ax.legend()
         ax.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.savefig(path, dpi=300, bbox_inches="tight")
         plt.close()
 
     def _create_rolling_performance_chart(self, result: WFOResult, path: Path):
@@ -608,16 +606,16 @@ class WFORunner:
 
         fig, ax = plt.subplots(figsize=(12, 6))
 
-        ax.plot(windows, test_returns, marker='o', linewidth=2, markersize=6)
-        ax.axhline(y=0, color='red', linestyle='--', alpha=0.7)
+        ax.plot(windows, test_returns, marker="o", linewidth=2, markersize=6)
+        ax.axhline(y=0, color="red", linestyle="--", alpha=0.7)
 
-        ax.set_xlabel('WFO Window')
-        ax.set_ylabel('Test Return (%)')
-        ax.set_title('Rolling Out-of-Sample Performance')
+        ax.set_xlabel("WFO Window")
+        ax.set_ylabel("Test Return (%)")
+        ax.set_title("Rolling Out-of-Sample Performance")
         ax.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.savefig(path, dpi=300, bbox_inches="tight")
         plt.close()
 
     def _create_parameter_stability_chart(self, result: WFOResult, path: Path):
@@ -633,20 +631,20 @@ class WFORunner:
         fig, ax = plt.subplots(figsize=(10, 6))
 
         bars = ax.bar(params, stability_scores)
-        ax.set_ylabel('Stability Score')
-        ax.set_title('Parameter Stability Across WFO Windows')
+        ax.set_ylabel("Stability Score")
+        ax.set_title("Parameter Stability Across WFO Windows")
         ax.set_ylim(0, 1)
 
         # Color bars by stability level
-        for bar, score in zip(bars, stability_scores):
+        for bar, score in zip(bars, stability_scores, strict=False):
             if score >= 0.8:
-                bar.set_color('green')
+                bar.set_color("green")
             elif score >= 0.6:
-                bar.set_color('orange')
+                bar.set_color("orange")
             else:
-                bar.set_color('red')
+                bar.set_color("red")
 
         plt.xticks(rotation=45)
         plt.tight_layout()
-        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.savefig(path, dpi=300, bbox_inches="tight")
         plt.close()

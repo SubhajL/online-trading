@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 import logging
 import threading
 import time
+from typing import Any
 
 import numpy as np
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

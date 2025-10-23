@@ -5,12 +5,11 @@ Redis adapter for caching, session management, and real-time data storage.
 Provides high-performance caching for trading data and coordination between services.
 """
 
-from typing import Any
-
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 import json
 import logging
+from typing import Any
 
 import redis.asyncio as redis
 from redis.asyncio import Redis
@@ -120,6 +119,7 @@ class RedisAdapter:
                 )
 
             # Test connection
+            assert self._redis is not None
             await self._redis.ping()
 
             self._initialized = True
@@ -188,14 +188,11 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, key)
             serialized_value = self._serialize_value(value)
 
+            assert self._redis is not None
             if expire:
-                assert self._redis is not None
-                _result3 = self._redis.setex(redis_key, expire, serialized_value)
-                result = await _result3 if hasattr(_result3, "__await__") else _result3
+                result = await self._redis.setex(redis_key, expire, serialized_value)
             else:
-                assert self._redis is not None
-                _result4 = self._redis.set(redis_key, serialized_value)
-                result = await _result4 if hasattr(_result4, "__await__") else _result4
+                result = await self._redis.set(redis_key, serialized_value)
 
             return bool(result)
 
@@ -210,8 +207,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
-            _result5 = self._redis.get(redis_key)
-            value = await _result5 if hasattr(_result5, "__await__") else _result5
+            value = await self._redis.get(redis_key)
 
             if value is None:
                 return None
@@ -231,8 +227,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
-            _result6 = self._redis.delete(redis_key)
-            result = await _result6 if hasattr(_result6, "__await__") else _result6
+            result = await self._redis.delete(redis_key)
             return bool(result)
 
         except Exception as e:
@@ -246,8 +241,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
-            _result7 = self._redis.exists(redis_key)
-            result = await _result7 if hasattr(_result7, "__await__") else _result7
+            result = await self._redis.exists(redis_key)
             return bool(result)
 
         except Exception as e:
@@ -261,8 +255,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, key)
             assert self._redis is not None
-            _result8 = self._redis.expire(redis_key, seconds)
-            result = await _result8 if hasattr(_result8, "__await__") else _result8
+            result = await self._redis.expire(redis_key, seconds)
             return bool(result)
 
         except Exception as e:
@@ -287,8 +280,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, hash_key)
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
-            _result9 = self._redis.hset(redis_key, field, serialized_value)
-            result = await _result9 if hasattr(_result9, "__await__") else _result9
+            result = await self._redis.hset(redis_key, field, serialized_value)
             return bool(result)
 
         except Exception as e:
@@ -307,8 +299,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            _result10 = self._redis.hget(redis_key, field)
-            value = await _result10 if hasattr(_result10, "__await__") else _result10
+            value = await self._redis.hget(redis_key, field)
 
             if value is None:
                 return None
@@ -328,8 +319,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            _result11 = self._redis.hgetall(redis_key)
-            result = await _result11 if hasattr(_result11, "__await__") else _result11
+            result = await self._redis.hgetall(redis_key)
 
             if not result:
                 return {}
@@ -354,8 +344,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            _result12 = self._redis.hdel(redis_key, field)
-            result = await _result12 if hasattr(_result12, "__await__") else _result12
+            result = await self._redis.hdel(redis_key, field)
             return bool(result)
 
         except Exception as e:
@@ -734,7 +723,7 @@ class RedisAdapter:
                 "connected_clients": info.get("connected_clients", 0),
                 "total_commands_processed": info.get("total_commands_processed", 0),
                 "uptime_seconds": info.get("uptime_in_seconds", 0),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
         except Exception as e:
@@ -742,7 +731,7 @@ class RedisAdapter:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
     async def get_key_count(self, pattern: str = "*") -> int:
@@ -777,14 +766,13 @@ class RedisAdapter:
                     )
                     return int(deleted)
                 return 0
-            else:
-                # Clear entire database
-                assert self._redis is not None
-                _result27 = self._redis.flushdb()
-                result = (
-                    await _result27 if hasattr(_result27, "__await__") else _result27
-                )
-                return 1 if result else 0
+            # Clear entire database
+            assert self._redis is not None
+            _result27 = self._redis.flushdb()
+            result = (
+                await _result27 if hasattr(_result27, "__await__") else _result27
+            )
+            return 1 if result else 0
 
         except Exception as e:
             logger.error(f"Error clearing cache: {e}")

@@ -11,7 +11,7 @@ from .redis.redis_adapter import RedisAdapter
 from .router_client.http_client import RouterHTTPClient
 
 __all__ = [
-    "TimescaleDBAdapter",
     "RedisAdapter",
-    "RouterHTTPClient"
+    "RouterHTTPClient",
+    "TimescaleDBAdapter",
 ]

@@ -3,11 +3,10 @@ Dataset adapters for backtesting: TimescaleDB fetcher and CSV loader.
 """
 
 import csv
-import logging
 from datetime import datetime
 from decimal import Decimal
+import logging
 from pathlib import Path
-from typing import List, Optional, Iterator
 
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -25,15 +24,14 @@ class CandleDataset:
 
     def __init__(self):
         """Initialize dataset."""
-        pass
 
     def load_candles(
         self,
         symbol: str,
         timeframe: TimeFrame,
         start_time: datetime,
-        end_time: datetime
-    ) -> List[Candle]:
+        end_time: datetime,
+    ) -> list[Candle]:
         """
         Load candles for the specified time range.
 
@@ -48,7 +46,7 @@ class CandleDataset:
         """
         raise NotImplementedError
 
-    def get_available_symbols(self) -> List[str]:
+    def get_available_symbols(self) -> list[str]:
         """Get list of available symbols."""
         raise NotImplementedError
 
@@ -78,8 +76,8 @@ class TimescaleDataset(CandleDataset):
         symbol: str,
         timeframe: TimeFrame,
         start_time: datetime,
-        end_time: datetime
-    ) -> List[Candle]:
+        end_time: datetime,
+    ) -> list[Candle]:
         """
         Load candles from TimescaleDB.
 
@@ -118,10 +116,10 @@ class TimescaleDataset(CandleDataset):
                 """)
 
                 result = session.execute(query, {
-                    'symbol': symbol,
-                    'timeframe': timeframe.value,
-                    'start_time': start_time,
-                    'end_time': end_time
+                    "symbol": symbol,
+                    "timeframe": timeframe.value,
+                    "start_time": start_time,
+                    "end_time": end_time,
                 })
 
                 candles = []
@@ -139,7 +137,7 @@ class TimescaleDataset(CandleDataset):
                         quote_volume=Decimal(str(row.quote_volume)),
                         trades=row.trades,
                         taker_buy_base_volume=Decimal(str(row.taker_buy_volume)),
-                        taker_buy_quote_volume=Decimal(str(row.taker_buy_quote_volume))
+                        taker_buy_quote_volume=Decimal(str(row.taker_buy_quote_volume)),
                     )
                     candles.append(candle)
 
@@ -150,7 +148,7 @@ class TimescaleDataset(CandleDataset):
             logger.error(f"Error loading candles from TimescaleDB: {e}")
             return []
 
-    def get_available_symbols(self) -> List[str]:
+    def get_available_symbols(self) -> list[str]:
         """Get list of available symbols."""
         try:
             with self.Session() as session:
@@ -168,7 +166,7 @@ class TimescaleDataset(CandleDataset):
                     SELECT MIN(open_time), MAX(open_time)
                     FROM candles
                     WHERE symbol = :symbol AND tf = :timeframe
-                """), {'symbol': symbol, 'timeframe': timeframe.value})
+                """), {"symbol": symbol, "timeframe": timeframe.value})
 
                 row = result.first()
                 if row and row[0] and row[1]:
@@ -215,8 +213,8 @@ class CSVDataset(CandleDataset):
         symbol: str,
         timeframe: TimeFrame,
         start_time: datetime,
-        end_time: datetime
-    ) -> List[Candle]:
+        end_time: datetime,
+    ) -> list[Candle]:
         """
         Load candles from CSV file.
 
@@ -238,18 +236,18 @@ class CSVDataset(CandleDataset):
         try:
             candles = []
 
-            with open(csv_path, 'r') as file:
+            with open(csv_path) as file:
                 reader = csv.DictReader(file)
 
                 for row in reader:
                     # Parse timestamp - handle different formats
-                    timestamp_str = row.get('timestamp') or row.get('open_time')
+                    timestamp_str = row.get("timestamp") or row.get("open_time")
                     if not timestamp_str:
                         continue
 
                     try:
                         # Try ISO format first
-                        open_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        open_time = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
                     except ValueError:
                         # Try Unix timestamp
                         try:
@@ -270,15 +268,15 @@ class CSVDataset(CandleDataset):
                         timeframe=timeframe,
                         open_time=open_time,
                         close_time=close_time,
-                        open_price=Decimal(row['open']),
-                        high_price=Decimal(row['high']),
-                        low_price=Decimal(row['low']),
-                        close_price=Decimal(row['close']),
-                        volume=Decimal(row['volume']),
-                        quote_volume=Decimal(row.get('quote_volume', '0')),
-                        trades=int(row.get('trades', '0')),
-                        taker_buy_base_volume=Decimal(row.get('taker_buy_volume', '0')),
-                        taker_buy_quote_volume=Decimal(row.get('taker_buy_quote_volume', '0'))
+                        open_price=Decimal(row["open"]),
+                        high_price=Decimal(row["high"]),
+                        low_price=Decimal(row["low"]),
+                        close_price=Decimal(row["close"]),
+                        volume=Decimal(row["volume"]),
+                        quote_volume=Decimal(row.get("quote_volume", "0")),
+                        trades=int(row.get("trades", "0")),
+                        taker_buy_base_volume=Decimal(row.get("taker_buy_volume", "0")),
+                        taker_buy_quote_volume=Decimal(row.get("taker_buy_quote_volume", "0")),
                     )
                     candles.append(candle)
 
@@ -308,13 +306,13 @@ class CSVDataset(CandleDataset):
             TimeFrame.M30: 30,
             TimeFrame.H1: 60,
             TimeFrame.H4: 240,
-            TimeFrame.D1: 1440
+            TimeFrame.D1: 1440,
         }
 
         minutes = timeframe_minutes.get(timeframe, 5)  # Default to 5 minutes
         return open_time + pd.Timedelta(minutes=minutes)
 
-    def get_available_symbols(self) -> List[str]:
+    def get_available_symbols(self) -> list[str]:
         """Get list of available symbols from CSV files."""
         if not self.data_directory.exists():
             return []
@@ -322,7 +320,7 @@ class CSVDataset(CandleDataset):
         symbols = set()
         for csv_file in self.data_directory.glob("*.csv"):
             # Extract symbol from filename (e.g., "btcusdt_15m.csv" -> "BTCUSDT")
-            name_parts = csv_file.stem.split('_')
+            name_parts = csv_file.stem.split("_")
             if len(name_parts) >= 2:
                 symbol = name_parts[0].upper()
                 symbols.add(symbol)
@@ -338,7 +336,7 @@ class CSVDataset(CandleDataset):
 
         try:
             # Read first and last rows to get date range
-            with open(csv_path, 'r') as file:
+            with open(csv_path) as file:
                 reader = csv.DictReader(file)
                 rows = list(reader)
 
@@ -349,15 +347,15 @@ class CSVDataset(CandleDataset):
                 last_row = rows[-1]
 
                 # Parse timestamps
-                first_time_str = first_row.get('timestamp') or first_row.get('open_time')
-                last_time_str = last_row.get('timestamp') or last_row.get('open_time')
+                first_time_str = first_row.get("timestamp") or first_row.get("open_time")
+                last_time_str = last_row.get("timestamp") or last_row.get("open_time")
 
                 if not first_time_str or not last_time_str:
                     return datetime(2020, 1, 1), datetime.now()
 
                 try:
-                    first_time = datetime.fromisoformat(first_time_str.replace('Z', '+00:00'))
-                    last_time = datetime.fromisoformat(last_time_str.replace('Z', '+00:00'))
+                    first_time = datetime.fromisoformat(first_time_str.replace("Z", "+00:00"))
+                    last_time = datetime.fromisoformat(last_time_str.replace("Z", "+00:00"))
                 except ValueError:
                     # Try Unix timestamp
                     first_time = datetime.fromtimestamp(int(first_time_str) / 1000)
@@ -383,7 +381,7 @@ class StreamingDataset:
             dataset: Underlying dataset to stream from
         """
         self.dataset = dataset
-        self.current_candles: List[Candle] = []
+        self.current_candles: list[Candle] = []
         self.current_index = 0
 
     def start_stream(
@@ -391,7 +389,7 @@ class StreamingDataset:
         symbol: str,
         timeframe: TimeFrame,
         start_time: datetime,
-        end_time: datetime
+        end_time: datetime,
     ) -> None:
         """
         Start streaming candles for the specified range.
@@ -403,12 +401,12 @@ class StreamingDataset:
             end_time: End time
         """
         self.current_candles = self.dataset.load_candles(
-            symbol, timeframe, start_time, end_time
+            symbol, timeframe, start_time, end_time,
         )
         self.current_index = 0
         logger.info(f"Started streaming {len(self.current_candles)} candles")
 
-    def next_candle(self) -> Optional[Candle]:
+    def next_candle(self) -> Candle | None:
         """
         Get next candle in stream.
 
@@ -451,20 +449,19 @@ def create_dataset(source: str, **kwargs) -> CandleDataset:
             raise ValueError("database_url required for TimescaleDB dataset")
         return TimescaleDataset(database_url)
 
-    elif source.lower() == "csv":
+    if source.lower() == "csv":
         data_directory = kwargs.get("data_directory")
         if not data_directory:
             raise ValueError("data_directory required for CSV dataset")
         return CSVDataset(data_directory)
 
-    else:
-        raise ValueError(f"Unknown dataset source: {source}")
+    raise ValueError(f"Unknown dataset source: {source}")
 
 
 def export_candles_to_csv(
-    candles: List[Candle],
+    candles: list[Candle],
     output_path: str,
-    include_headers: bool = True
+    include_headers: bool = True,
 ) -> None:
     """
     Export candles to CSV format.
@@ -474,10 +471,10 @@ def export_candles_to_csv(
         output_path: Output CSV file path
         include_headers: Whether to include column headers
     """
-    with open(output_path, 'w', newline='') as file:
+    with open(output_path, "w", newline="") as file:
         fieldnames = [
-            'timestamp', 'open', 'high', 'low', 'close', 'volume',
-            'quote_volume', 'trades', 'taker_buy_volume', 'taker_buy_quote_volume'
+            "timestamp", "open", "high", "low", "close", "volume",
+            "quote_volume", "trades", "taker_buy_volume", "taker_buy_quote_volume",
         ]
 
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -487,16 +484,16 @@ def export_candles_to_csv(
 
         for candle in candles:
             writer.writerow({
-                'timestamp': candle.open_time.isoformat(),
-                'open': str(candle.open_price),
-                'high': str(candle.high_price),
-                'low': str(candle.low_price),
-                'close': str(candle.close_price),
-                'volume': str(candle.volume),
-                'quote_volume': str(candle.quote_volume),
-                'trades': candle.trades,
-                'taker_buy_volume': str(candle.taker_buy_base_volume),
-                'taker_buy_quote_volume': str(candle.taker_buy_quote_volume)
+                "timestamp": candle.open_time.isoformat(),
+                "open": str(candle.open_price),
+                "high": str(candle.high_price),
+                "low": str(candle.low_price),
+                "close": str(candle.close_price),
+                "volume": str(candle.volume),
+                "quote_volume": str(candle.quote_volume),
+                "trades": candle.trades,
+                "taker_buy_volume": str(candle.taker_buy_base_volume),
+                "taker_buy_quote_volume": str(candle.taker_buy_quote_volume),
             })
 
     logger.info(f"Exported {len(candles)} candles to {output_path}")

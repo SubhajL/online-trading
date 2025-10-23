@@ -1,5 +1,6 @@
 """Tests for create_future fixer."""
 
+import asyncio
 import pytest
 from app.engine.tools.create_future_fixer import CreateFutureFixer
 

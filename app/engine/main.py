@@ -5,15 +5,13 @@ Main FastAPI application for the trading engine with health endpoints,
 metrics, and service management.
 """
 
-from typing import Any
-from decimal import Decimal
-
-
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from decimal import Decimal
 import logging
 import os
 import signal
+from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +20,7 @@ from pydantic import BaseModel
 import uvicorn
 
 from .adapters import RedisAdapter, RouterHTTPClient, TimescaleDBAdapter
-from .bus import EventBus, set_event_bus
+from .bus import set_event_bus
 from .decision.service import DecisionEngine, RiskManager
 from .features.feature_service import FeatureService
 from .ingest.ingest_service import IngestService
@@ -118,7 +116,7 @@ app.add_middleware(
 )
 
 # Track startup time
-startup_time = datetime.now(timezone.utc)
+startup_time = datetime.now(UTC)
 
 
 def init_tracing_from_env() -> None:
@@ -247,8 +245,11 @@ async def initialize_services(config: EngineConfig) -> None:
 
         ingest_service = IngestService(
             binance_config={
-                "api_key": config.binance.api_key,
-                "api_secret": config.binance.api_secret,
+                "spot": {
+                    "api_key": config.binance.api_key,
+                    "api_secret": config.binance.api_secret,
+                },
+                # Optionally extend with futures if present in env/config later
                 "testnet": config.binance.testnet,
             },
             symbols=symbols,
@@ -351,11 +352,11 @@ async def health_check() -> HealthResponse:
                 service_health[service_name] = {"status": "error", "error": str(e)}
                 overall_status = "unhealthy"
 
-        uptime = (datetime.now(timezone.utc) - startup_time).total_seconds()
+        uptime = (datetime.now(UTC) - startup_time).total_seconds()
 
         return HealthResponse(
             status=overall_status,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             services=service_health,
             uptime_seconds=uptime,
         )
@@ -368,7 +369,7 @@ async def health_check() -> HealthResponse:
 @app.get("/health/simple")
 async def simple_health_check() -> dict[str, Any]:
     """Simple health check for load balancers"""
-    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"status": "ok", "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.get("/metrics", response_model=MetricsResponse)
@@ -393,7 +394,7 @@ async def get_metrics() -> MetricsResponse:
                 metrics[service_name] = {"error": str(e)}
 
         return MetricsResponse(
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             event_bus=metrics.get("event_bus", {}),
             ingest=metrics.get("ingest", {}),
             features=metrics.get("features", {}),
@@ -516,9 +517,9 @@ async def get_status() -> dict[str, Any]:
                 status[service_name] = {"error": str(e)}
 
         return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "uptime_seconds": (
-                datetime.now(timezone.utc) - startup_time
+                datetime.now(UTC) - startup_time
             ).total_seconds(),
             "services": status,
         }
@@ -536,7 +537,7 @@ async def get_info() -> dict[str, Any]:
         "version": "1.0.0",
         "environment": os.getenv("ENVIRONMENT", "development"),
         "startup_time": startup_time.isoformat(),
-        "uptime_seconds": (datetime.now(timezone.utc) - startup_time).total_seconds(),
+        "uptime_seconds": (datetime.now(UTC) - startup_time).total_seconds(),
         "services": list(services.keys()),
     }
 
@@ -551,7 +552,7 @@ async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse
         content={
             "error": "Internal server error",
             "message": str(exc),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
     )
 

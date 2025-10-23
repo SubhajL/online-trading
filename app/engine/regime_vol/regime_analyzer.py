@@ -5,14 +5,10 @@ Analyzes market regime (trending/ranging) and volatility conditions
 to provide context for trading decisions.
 """
 
-import logging
-from datetime import datetime
-from decimal import Decimal
 from collections import deque
 from decimal import Decimal
 import logging
 from typing import Any
-
 
 from ..bus import get_event_bus
 from ..models import (

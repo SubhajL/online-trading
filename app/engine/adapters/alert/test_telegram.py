@@ -1,12 +1,11 @@
-import pytest
-from unittest.mock import Mock, patch, AsyncMock
-import asyncio
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from app.engine.adapters.alert.telegram import TelegramAlertAdapter
-from typing import Any
-
 
 
 class TestTelegramAlertAdapter:
@@ -71,7 +70,7 @@ class TestTelegramAlertAdapter:
 
             assert result is True
             mock_post.assert_called_once_with(
-                f"https://api.telegram.org/bottest_token/sendMessage",
+                "https://api.telegram.org/bottest_token/sendMessage",
                 json={"chat_id": "test_chat", "text": "Test message", "parse_mode": "HTML"},
             )
 
@@ -92,7 +91,7 @@ class TestTelegramAlertAdapter:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
-            "entry_price": Decimal("42000"),
+            "entry_price": Decimal(42000),
             "timestamp": datetime.now(),
         }
 

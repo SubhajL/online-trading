@@ -6,7 +6,7 @@ Uses dependency injection for subscription management and event processing.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import logging
 from typing import Any
 
@@ -180,7 +180,7 @@ class EventBus:
             # Add to processing queue respecting queue mode
             if self._use_priority_queue:
                 await self._event_queue.put(
-                    (-priority, asyncio.get_event_loop().time(), event)
+                    (-priority, asyncio.get_event_loop().time(), event),
                 )
             else:
                 await self._event_queue.put(event)
@@ -306,7 +306,7 @@ class EventBus:
                 # Get event from queue with timeout
                 if self._use_priority_queue:
                     _prio, _ts, event = await asyncio.wait_for(
-                        self._event_queue.get(), timeout=1.0
+                        self._event_queue.get(), timeout=1.0,
                     )
                 else:
                     event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
@@ -334,7 +334,7 @@ class EventBus:
                 # Warn if processing exceeds configured threshold
                 try:
                     threshold_ms = getattr(
-                        self._config, "slow_event_warning_threshold_ms", 100
+                        self._config, "slow_event_warning_threshold_ms", 100,
                     )
                 except Exception:
                     threshold_ms = 100
@@ -377,7 +377,7 @@ class EventBus:
         if obs is not None:
             try:
                 obs.update_queue_metrics(
-                    queue_size=self._event_queue.qsize(), processing_lag=processing_lag
+                    queue_size=self._event_queue.qsize(), processing_lag=processing_lag,
                 )
             except Exception:
                 # Metrics should never break processing
@@ -436,7 +436,7 @@ class EventBus:
         try:
             event.metadata["dead_letter_reason"] = reason
             event.metadata["dead_letter_timestamp"] = datetime.now(
-                timezone.utc
+                UTC,
             ).isoformat()
             await self._dead_letter_queue.put(event)
         except asyncio.QueueFull:
@@ -460,14 +460,14 @@ class EventBus:
         return events
 
     async def get_subscription_status(
-        self, subscription_id: str
+        self, subscription_id: str,
     ) -> dict[str, Any] | None:
         """Get subscription status including circuit breaker state."""
         sub = await self._subscription_manager.get_subscription_by_id(subscription_id)
         if not sub:
             return None
         cb_state = await self._event_processor.get_circuit_breaker_state(
-            sub.subscriber_id
+            sub.subscriber_id,
         )
         return {
             "subscription_id": subscription_id,
@@ -526,7 +526,7 @@ def get_event_bus() -> EventBus:
     """
     if _global_event_bus is None:
         raise RuntimeError(
-            "No event bus has been set[Any]. Call set_event_bus() first."
+            "No event bus has been set[Any]. Call set_event_bus() first.",
         )
     return _global_event_bus
 
@@ -552,7 +552,7 @@ async def publish_event(topic: str, data: dict[str, Any]) -> bool:
             if topic == "candles.v1"
             else EventType.CANDLE_UPDATE
         ),
-        timestamp=data.get("timestamp", datetime.now(timezone.utc)),
+        timestamp=data.get("timestamp", datetime.now(UTC)),
         data=data,
     )
     return await bus.publish(event)

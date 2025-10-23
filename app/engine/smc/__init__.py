@@ -10,34 +10,38 @@ Implements Smart Money Concepts including:
 - Zone management and expiration
 """
 
+# Import types for easier access
+from ..smc_types import (
+    Pivot,
+    PivotMethod,
+    SMCEvent,
+    SMCEventKind,
+    StructureState,
+    StructureTracker,
+    SwingType,
+    Zone,
+    ZoneSide,
+)
 from .engine import SMCEngine
 from .events import create_smc_event, create_zone_event, publish_events
+
+# Legacy imports (kept for backwards compatibility)
+from .pivot_detector import PivotDetector
 from .pivots import (
     PivotMethod,
     classify_pivot_relationship,
     detect_n_bar_pivots,
     detect_zigzag_pivots,
 )
-from .structure import detect_bos, detect_choch, get_key_levels, update_structure_state
-from .zones import detect_fair_value_gap, detect_order_block, expire_old_zones, zone_to_dict
-
-# Import types for easier access
-from ..smc_types import (
-    PivotMethod,
-    StructureState,
-    SMCEventKind,
-    SwingType,
-    ZoneSide,
-    Pivot,
-    SMCEvent,
-    Zone,
-    StructureTracker,
-)
-
-# Legacy imports (kept for backwards compatibility)
-from .pivot_detector import PivotDetector
 from .smc_service import SMCService
+from .structure import detect_bos, detect_choch, get_key_levels, update_structure_state
 from .zone_identifier import ZoneIdentifier
+from .zones import (
+    detect_fair_value_gap,
+    detect_order_block,
+    expire_old_zones,
+    zone_to_dict,
+)
 
 __all__ = [
     # New implementation

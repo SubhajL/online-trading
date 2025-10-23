@@ -1,7 +1,6 @@
 """Main orchestrator for preflight checks."""
 
 import time
-from typing import Any
 
 from .check_results import CheckResult, CheckStatus, PreflightResults
 from .verify_configuration import (
@@ -70,7 +69,7 @@ def run_all_checks(fail_fast: bool = False) -> PreflightResults:
             # Handle unexpected errors
             checks[check_name] = CheckResult(
                 status=CheckStatus.FAILED,
-                message=f"Check failed with error: {str(e)}",
+                message=f"Check failed with error: {e!s}",
                 details={"error": str(e), "type": type(e).__name__},
             )
             overall_status = CheckStatus.FAILED
@@ -114,7 +113,7 @@ def generate_preflight_report(results: PreflightResults) -> str:
 
     lines.append(
         f"\nOverall Status: {status_symbol[results.overall_status]} "
-        f"{results.overall_status.value.upper()}"
+        f"{results.overall_status.value.upper()}",
     )
     lines.append(f"Total Time: {results.total_time_seconds:.2f}s")
 
@@ -137,10 +136,10 @@ def generate_preflight_report(results: PreflightResults) -> str:
 
         # Show details for failures and warnings
         if result.status != CheckStatus.PASSED:
-            if "missing" in result.details and result.details["missing"]:
+            if result.details.get("missing"):
                 lines.append(f"   Missing: {', '.join(result.details['missing'])}")
 
-            if "invalid" in result.details and result.details["invalid"]:
+            if result.details.get("invalid"):
                 lines.append("   Invalid:")
                 for key, msg in result.details["invalid"].items():
                     lines.append(f"     - {key}: {msg}")
@@ -148,7 +147,7 @@ def generate_preflight_report(results: PreflightResults) -> str:
             if "error" in result.details:
                 lines.append(f"   Error: {result.details['error']}")
 
-            if "missing_commands" in result.details and result.details["missing_commands"]:
+            if result.details.get("missing_commands"):
                 lines.append(f"   Missing commands: {', '.join(result.details['missing_commands'])}")
 
             if "version_mismatches" in result.details:
@@ -156,7 +155,7 @@ def generate_preflight_report(results: PreflightResults) -> str:
                 for pkg, versions in result.details["version_mismatches"].items():
                     lines.append(
                         f"     - {pkg}: required={versions['required']}, "
-                        f"installed={versions['installed']}"
+                        f"installed={versions['installed']}",
                     )
 
     # Recommendations

@@ -1,21 +1,19 @@
 """Tests for enhanced health monitoring system."""
 
 import asyncio
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-import asyncpg
-import pytest
-import redis.asyncio as redis
+
 from aiohttp import ClientError, ClientTimeout
+import pytest
 
 from app.engine.monitoring.enhanced_health import (
-    EnhancedHealthChecker,
-    HealthReport,
-    ServiceDependency,
-    DependencyStatus,
-    HealthStatus,
     ComponentHealth,
-    HealthConfig
+    DependencyStatus,
+    EnhancedHealthChecker,
+    HealthConfig,
+    HealthReport,
+    HealthStatus,
+    ServiceDependency,
 )
 
 
@@ -29,7 +27,7 @@ def health_config():
         recovery_threshold=2,
         include_details=True,
         router_url="http://localhost:8080",
-        router_health_path="/healthz"
+        router_health_path="/healthz",
     )
 
 
@@ -43,7 +41,7 @@ def mock_event_bus():
     bus.get_event_metrics = MagicMock(return_value={
         "events_published": 1000,
         "events_processed": 995,
-        "processing_lag_ms": 50
+        "processing_lag_ms": 50,
     })
     return bus
 
@@ -119,10 +117,10 @@ class TestEnhancedHealthChecker:
         checker.register_dependency("router", "http://localhost:8080/healthz", critical=True)
         checker.register_dependency("external_api", "https://api.example.com/health", critical=False)
 
-        with patch.object(checker, 'check_service_dependency') as mock_check:
+        with patch.object(checker, "check_service_dependency") as mock_check:
             mock_check.side_effect = [
                 ServiceDependency("router", DependencyStatus.AVAILABLE, "Healthy", 10),
-                ServiceDependency("external_api", DependencyStatus.UNAVAILABLE, "Connection error", 0)
+                ServiceDependency("external_api", DependencyStatus.UNAVAILABLE, "Connection error", 0),
             ]
 
             results = await checker.check_all_dependencies()
@@ -140,7 +138,7 @@ class TestEnhancedHealthChecker:
         mock_event_bus.get_event_metrics.return_value = {
             "events_published": 10000,
             "events_processed": 8000,
-            "processing_lag_ms": 5000  # 5 second lag
+            "processing_lag_ms": 5000,  # 5 second lag
         }
 
         result = await checker.check_event_bus_health(mock_event_bus)
@@ -180,7 +178,7 @@ class TestEnhancedHealthChecker:
             1,  # SELECT 1
             104857600,  # Database size (100MB)
             5,  # Active connections
-            15  # Replication lag in seconds
+            15,  # Replication lag in seconds
         ]
 
         with patch("asyncpg.connect", return_value=mock_conn):
@@ -205,17 +203,17 @@ class TestEnhancedHealthChecker:
         # Mock health check results
         with patch.multiple(checker,
             check_database_health=AsyncMock(return_value=ComponentHealth(
-                name="database", status=HealthStatus.HEALTHY, message="OK", latency_ms=10
+                name="database", status=HealthStatus.HEALTHY, message="OK", latency_ms=10,
             )),
             check_redis_health=AsyncMock(return_value=ComponentHealth(
-                name="redis", status=HealthStatus.HEALTHY, message="OK", latency_ms=5
+                name="redis", status=HealthStatus.HEALTHY, message="OK", latency_ms=5,
             )),
             check_event_bus_health=AsyncMock(return_value=ComponentHealth(
-                name="event_bus", status=HealthStatus.HEALTHY, message="OK", latency_ms=1
+                name="event_bus", status=HealthStatus.HEALTHY, message="OK", latency_ms=1,
             )),
             check_service_dependency=AsyncMock(return_value=ServiceDependency(
-                service="router", status=DependencyStatus.AVAILABLE, message="OK", latency_ms=20
-            ))
+                service="router", status=DependencyStatus.AVAILABLE, message="OK", latency_ms=20,
+            )),
         ):
             report = await checker.get_comprehensive_health()
 
@@ -237,11 +235,11 @@ class TestEnhancedHealthChecker:
 
         with patch.multiple(checker,
             check_database_health=AsyncMock(return_value=ComponentHealth(
-                name="database", status=HealthStatus.HEALTHY, message="OK", latency_ms=10
+                name="database", status=HealthStatus.HEALTHY, message="OK", latency_ms=10,
             )),
             check_service_dependency=AsyncMock(return_value=ServiceDependency(
-                service="router", status=DependencyStatus.UNAVAILABLE, message="Connection refused", latency_ms=0
-            ))
+                service="router", status=DependencyStatus.UNAVAILABLE, message="Connection refused", latency_ms=0,
+            )),
         ):
             report = await checker.get_comprehensive_health()
 

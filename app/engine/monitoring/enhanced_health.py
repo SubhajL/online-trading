@@ -2,16 +2,18 @@
 
 import asyncio
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional, Dict, List, Callable
+from typing import Any
 
 import aiohttp
 import asyncpg
 import redis.asyncio as redis
 
-from .health import HealthStatus, ComponentHealth, HealthConfig as BaseHealthConfig
+from .health import ComponentHealth, HealthStatus
+from .health import HealthConfig as BaseHealthConfig
 
 
 class DependencyStatus(Enum):
@@ -30,7 +32,7 @@ class ServiceDependency:
     message: str = ""
     latency_ms: float = 0
     critical: bool = False
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
     last_check: datetime = field(default_factory=datetime.now)
 
 
@@ -51,10 +53,10 @@ class HealthReport:
     overall_status: HealthStatus
     message: str
     timestamp: datetime
-    components: Dict[str, ComponentHealth]
-    dependencies: Dict[str, ServiceDependency]
+    components: dict[str, ComponentHealth]
+    dependencies: dict[str, ServiceDependency]
     all_critical_healthy: bool
-    performance_metrics: Dict[str, Any] = field(default_factory=dict)
+    performance_metrics: dict[str, Any] = field(default_factory=dict)
 
 
 class EnhancedHealthChecker:
@@ -62,10 +64,10 @@ class EnhancedHealthChecker:
 
     def __init__(self, config: HealthConfig):
         self.config = config
-        self.components: Dict[str, tuple[Callable, tuple]] = {}
-        self.dependencies: Dict[str, tuple[str, bool]] = {}  # url, is_critical
-        self.health_history: Dict[str, deque] = {}
-        self._monitor_tasks: Dict[str, asyncio.Task] = {}
+        self.components: dict[str, tuple[Callable, tuple]] = {}
+        self.dependencies: dict[str, tuple[str, bool]] = {}  # url, is_critical
+        self.health_history: dict[str, deque] = {}
+        self._monitor_tasks: dict[str, asyncio.Task] = {}
         self._running = False
 
     def register_component(self, name: str, check_func: Callable, *args):
@@ -108,7 +110,7 @@ class EnhancedHealthChecker:
                         status=status,
                         message=message,
                         latency_ms=latency_ms,
-                        details=details
+                        details=details,
                     )
 
         except aiohttp.ClientTimeout:
@@ -116,17 +118,17 @@ class EnhancedHealthChecker:
                 service=service,
                 status=DependencyStatus.TIMEOUT,
                 message=f"Health check timeout after {self.config.dependency_timeout}s",
-                latency_ms=self.config.dependency_timeout * 1000
+                latency_ms=self.config.dependency_timeout * 1000,
             )
         except Exception as e:
             return ServiceDependency(
                 service=service,
                 status=DependencyStatus.UNAVAILABLE,
                 message=str(e),
-                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000
+                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000,
             )
 
-    async def check_all_dependencies(self) -> Dict[str, ServiceDependency]:
+    async def check_all_dependencies(self) -> dict[str, ServiceDependency]:
         """Check all registered service dependencies."""
         results = {}
 
@@ -152,7 +154,7 @@ class EnhancedHealthChecker:
                     name="event_bus",
                     status=HealthStatus.UNHEALTHY,
                     message="Event bus is not running",
-                    latency_ms=0
+                    latency_ms=0,
                 )
 
             details = {}
@@ -180,7 +182,7 @@ class EnhancedHealthChecker:
                         status=HealthStatus.DEGRADED,
                         message=f"High processing lag: {processing_lag}ms",
                         latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000,
-                        details=details
+                        details=details,
                     )
 
             latency_ms = (asyncio.get_event_loop().time() - start_time) * 1000
@@ -190,15 +192,15 @@ class EnhancedHealthChecker:
                 status=HealthStatus.HEALTHY,
                 message="Event bus is operational",
                 latency_ms=latency_ms,
-                details=details
+                details=details,
             )
 
         except Exception as e:
             return ComponentHealth(
                 name="event_bus",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Event bus error: {str(e)}",
-                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000
+                message=f"Event bus error: {e!s}",
+                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000,
             )
 
     async def check_database_health(self, connection_string: str) -> ComponentHealth:
@@ -217,13 +219,13 @@ class EnhancedHealthChecker:
 
                 # Check database size
                 db_size = await conn.fetchval(
-                    "SELECT pg_database_size(current_database())"
+                    "SELECT pg_database_size(current_database())",
                 )
                 details["database_size_mb"] = db_size / (1024 * 1024)
 
                 # Check active connections
                 active_conns = await conn.fetchval(
-                    "SELECT count(*) FROM pg_stat_activity WHERE state = 'active'"
+                    "SELECT count(*) FROM pg_stat_activity WHERE state = 'active'",
                 )
                 details["active_connections"] = active_conns
 
@@ -231,7 +233,7 @@ class EnhancedHealthChecker:
                 try:
                     lag_bytes = await conn.fetchval(
                         "SELECT pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) "
-                        "FROM pg_stat_replication"
+                        "FROM pg_stat_replication",
                     )
                     if lag_bytes:
                         # Estimate lag in seconds (rough approximation)
@@ -244,7 +246,7 @@ class EnhancedHealthChecker:
                                 status=HealthStatus.DEGRADED,
                                 message=f"High replication lag: {lag_seconds:.1f}s",
                                 latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000,
-                                details=details
+                                details=details,
                             )
                 except Exception:
                     # Not a replica or no permission
@@ -257,7 +259,7 @@ class EnhancedHealthChecker:
                     status=HealthStatus.HEALTHY,
                     message="Database is responsive",
                     latency_ms=latency_ms,
-                    details=details
+                    details=details,
                 )
 
             finally:
@@ -267,8 +269,8 @@ class EnhancedHealthChecker:
             return ComponentHealth(
                 name="database",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Database error: {str(e)}",
-                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000
+                message=f"Database error: {e!s}",
+                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000,
             )
 
     async def check_redis_health(self, redis_url: str) -> ComponentHealth:
@@ -294,7 +296,7 @@ class EnhancedHealthChecker:
                     status=HealthStatus.HEALTHY,
                     message="Redis is responsive",
                     latency_ms=latency_ms,
-                    details=details
+                    details=details,
                 )
             finally:
                 await client.aclose()
@@ -303,8 +305,8 @@ class EnhancedHealthChecker:
             return ComponentHealth(
                 name="redis",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Redis error: {str(e)}",
-                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000
+                message=f"Redis error: {e!s}",
+                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000,
             )
 
     async def get_comprehensive_health(self) -> HealthReport:
@@ -319,13 +321,13 @@ class EnhancedHealthChecker:
                 self.health_history[name].append({
                     "timestamp": datetime.now(),
                     "status": result.status,
-                    "latency_ms": result.latency_ms
+                    "latency_ms": result.latency_ms,
                 })
             except Exception as e:
                 component_results[name] = ComponentHealth(
                     name=name,
                     status=HealthStatus.UNHEALTHY,
-                    message=f"Check failed: {str(e)}"
+                    message=f"Check failed: {e!s}",
                 )
 
         # Check all dependencies
@@ -360,7 +362,7 @@ class EnhancedHealthChecker:
         # Calculate performance metrics
         perf_metrics = {
             "avg_component_latency_ms": sum(c.latency_ms or 0 for c in component_results.values()) / len(component_results) if component_results else 0,
-            "avg_dependency_latency_ms": sum(d.latency_ms for d in dependency_results.values()) / len(dependency_results) if dependency_results else 0
+            "avg_dependency_latency_ms": sum(d.latency_ms for d in dependency_results.values()) / len(dependency_results) if dependency_results else 0,
         }
 
         return HealthReport(
@@ -370,7 +372,7 @@ class EnhancedHealthChecker:
             components=component_results,
             dependencies=dependency_results,
             all_critical_healthy=critical_deps_healthy,
-            performance_metrics=perf_metrics
+            performance_metrics=perf_metrics,
         )
 
     async def start_monitoring(self):
@@ -385,7 +387,7 @@ class EnhancedHealthChecker:
                     self.health_history[name].append({
                         "timestamp": datetime.now(),
                         "status": result.status,
-                        "latency_ms": result.latency_ms
+                        "latency_ms": result.latency_ms,
                     })
                 except asyncio.CancelledError:
                     break

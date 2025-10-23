@@ -1,17 +1,16 @@
 import asyncio
+from datetime import UTC, datetime
 import os
-from unittest import mock
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+from typing import Any
+from unittest.mock import patch
 
-from app.engine.adapters.alert.telegram import TelegramAlertAdapter
-from app.engine.adapters.alert.alert_formatter import AlertFormatter
+import pytest
+
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
+from app.engine.adapters.alert.telegram import TelegramAlertAdapter
 from app.engine.models import Position, TradingDecisionEvent
 from app.engine.paper.broker import OrderUpdate
-from typing import Any
-
 
 
 class TestTelegramIntegration:
@@ -35,7 +34,7 @@ class TestTelegramIntegration:
             bot_token=bot_token,
             chat_id=chat_id,
             formatter=formatter,
-            deduplicator=deduplicator
+            deduplicator=deduplicator,
         )
         return adapter
 
@@ -50,10 +49,10 @@ class TestTelegramIntegration:
             executed_qty=0.001,
             executed_price=45000.0,
             venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 123}})
@@ -80,10 +79,10 @@ class TestTelegramIntegration:
             venue="USD_M",
             pnl=150.0,
             pnl_percent=4.0,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 124}})
@@ -107,10 +106,10 @@ class TestTelegramIntegration:
             venue="SPOT",
             type="MARKET",
             confidence=0.85,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 125}})
@@ -133,7 +132,7 @@ class TestTelegramIntegration:
             status="NEW",
             quantity=0.001,
             venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         call_count = 0
@@ -143,9 +142,9 @@ class TestTelegramIntegration:
             if call_count < 3:
                 raise Exception("Network error")
 
-        with patch.object(telegram_adapter, '_send_telegram_message', side_effect=mock_send_with_retry):
-            with patch.object(telegram_adapter, 'retry_count', 3):
-                with patch.object(telegram_adapter, 'retry_delay', 0.01):  # Fast retry for tests
+        with patch.object(telegram_adapter, "_send_telegram_message", side_effect=mock_send_with_retry):
+            with patch.object(telegram_adapter, "retry_count", 3):
+                with patch.object(telegram_adapter, "retry_delay", 0.01):  # Fast retry for tests
                     await telegram_adapter.send_alert(order)
                     assert call_count == 3  # Should retry until success
 
@@ -160,18 +159,18 @@ class TestTelegramIntegration:
                 status="NEW",
                 quantity=0.001,
                 venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             )
             for i in range(10)
         ]
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 127}})
 
             # Set rate limit to 3 messages per second
-            with patch.object(telegram_adapter, 'rate_limit_per_second', 3):
+            with patch.object(telegram_adapter, "rate_limit_per_second", 3):
                 start_time = asyncio.get_event_loop().time()
 
                 # Send all alerts
@@ -197,10 +196,10 @@ class TestTelegramIntegration:
             executed_qty=0.001,
             executed_price=45000.0,
             venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 128}})
@@ -223,7 +222,7 @@ class TestTelegramIntegration:
                 status="NEW",
                 quantity=0.001,
                 venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             TradingDecisionEvent(
                 symbol="ETHUSDT",
@@ -233,7 +232,7 @@ class TestTelegramIntegration:
                 type="LIMIT",
                 price=2500.0,
                 confidence=0.90,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             Position(
                 symbol="BNBUSDT",
@@ -244,11 +243,11 @@ class TestTelegramIntegration:
                 venue="USD_M",
                 pnl=50.0,
                 pnl_percent=1.67,
-                timestamp=datetime.now(timezone.utc)
-            )
+                timestamp=datetime.now(UTC),
+            ),
         ]
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 129}})
@@ -277,10 +276,10 @@ class TestTelegramIntegration:
             quantity=0.001,
             venue="SPOT",
             error="Insufficient balance",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 130}})
@@ -305,12 +304,12 @@ class TestTelegramIntegration:
                 status="NEW",
                 quantity=0.001,
                 venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             )
             for i in range(5)
         ]
 
-        with patch.object(telegram_adapter, '_send_telegram_message') as mock_send:
+        with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
             mock_send.return_value.set_result({"ok": True, "result": {"message_id": 131}})

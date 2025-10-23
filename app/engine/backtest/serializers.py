@@ -2,12 +2,11 @@
 Result serializers for backtesting: S3/MinIO upload and database storage.
 """
 
+from datetime import UTC, datetime
+from decimal import Decimal
 import json
 import logging
-from datetime import datetime, timezone
-from decimal import Decimal
 from pathlib import Path
-from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import create_engine, text
@@ -24,7 +23,7 @@ class ResultSerializer:
     """
 
     def __init__(
-        self, database_url: Optional[str] = None, s3_config: Optional[dict] = None
+        self, database_url: str | None = None, s3_config: dict | None = None,
     ):
         """
         Initialize result serializer.
@@ -80,7 +79,7 @@ class ResultSerializer:
         start_date: str,
         end_date: str,
         run_type: str = "backtest",
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Save backtest result to database.
 
@@ -212,7 +211,7 @@ class ResultSerializer:
                                 "signal_confidence": trade.signal_confidence,
                                 "regime": trade.regime,
                                 "market_conditions": json.dumps(
-                                    trade.market_conditions
+                                    trade.market_conditions,
                                 ),
                             },
                         )
@@ -226,7 +225,7 @@ class ResultSerializer:
             return None
 
     def upload_to_s3(
-        self, local_path: str, s3_key: str, bucket: Optional[str] = None
+        self, local_path: str, s3_key: str, bucket: str | None = None,
     ) -> bool:
         """
         Upload file to S3/MinIO.
@@ -253,11 +252,10 @@ class ResultSerializer:
             if local_file.is_dir():
                 # Upload entire directory
                 return self._upload_directory(local_path, s3_key, bucket)
-            else:
-                # Upload single file
-                self.s3_client.upload_file(local_path, bucket, s3_key)
-                logger.info(f"Uploaded {local_path} to s3://{bucket}/{s3_key}")
-                return True
+            # Upload single file
+            self.s3_client.upload_file(local_path, bucket, s3_key)
+            logger.info(f"Uploaded {local_path} to s3://{bucket}/{s3_key}")
+            return True
 
         except Exception as e:
             logger.error(f"Error uploading to S3: {e}")
@@ -283,7 +281,7 @@ class ResultSerializer:
                         logger.error(f"Failed to upload {file_path}: {e}")
 
             logger.info(
-                f"Uploaded {success_count}/{total_files} files from {local_dir}"
+                f"Uploaded {success_count}/{total_files} files from {local_dir}",
             )
             return success_count == total_files
 
@@ -306,9 +304,9 @@ class ResultSerializer:
             """Custom serializer for Decimal and datetime objects."""
             if isinstance(obj, Decimal):
                 return float(obj)
-            elif isinstance(obj, datetime):
+            if isinstance(obj, datetime):
                 return obj.isoformat()
-            elif hasattr(obj, "value"):  # Enum objects
+            if hasattr(obj, "value"):  # Enum objects
                 return obj.value
             raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
@@ -316,7 +314,7 @@ class ResultSerializer:
             "metadata": {
                 "git_sha": result.git_sha,
                 "config_hash": result.config_hash,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
                 "artifacts_path": result.artifacts_path,
             },
             "config": {
@@ -419,7 +417,7 @@ class ResultSerializer:
         # Save to database
         if save_to_db and self.database_url:
             report_id = self.save_to_database(
-                result, symbol, timeframe, start_date, end_date
+                result, symbol, timeframe, start_date, end_date,
             )
             if report_id:
                 status["database"] = True
@@ -427,7 +425,7 @@ class ResultSerializer:
 
         # Upload to S3
         if upload_to_s3 and result.artifacts_path and self.s3_client:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             s3_key = f"backtests/{symbol}/{timeframe}/{timestamp}"
 
             if self.upload_to_s3(result.artifacts_path, s3_key):

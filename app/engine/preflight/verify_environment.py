@@ -1,9 +1,10 @@
 """Verify environment configuration and prerequisites."""
 
 import os
+from pathlib import Path
 import socket
 from typing import Any
-from pathlib import Path
+
 from dotenv import load_dotenv
 
 from .check_results import CheckResult, CheckStatus
@@ -154,12 +155,11 @@ def check_port_availability() -> CheckResult:
             message="All required services are running",
             details=port_status,
         )
-    else:
-        return CheckResult(
-            status=CheckStatus.FAILED,
-            message="Required services are not running",
-            details=port_status,
-        )
+    return CheckResult(
+        status=CheckStatus.FAILED,
+        message="Required services are not running",
+        details=port_status,
+    )
 
 
 def check_file_permissions() -> CheckResult:
@@ -176,11 +176,10 @@ def check_file_permissions() -> CheckResult:
                 except Exception as e:
                     missing_dirs.append(f"{path} (failed to create: {e})")
                     continue
-            else:
-                # For files, just check if they exist
-                if not os.path.exists(path):
-                    missing_dirs.append(path)
-                    continue
+            # For files, just check if they exist
+            elif not os.path.exists(path):
+                missing_dirs.append(path)
+                continue
 
         # Check each permission
         if required_perms & os.R_OK and not os.access(path, os.R_OK):

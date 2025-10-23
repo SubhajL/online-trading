@@ -3,14 +3,13 @@ Performance metrics calculation for backtesting.
 Computes comprehensive trading performance statistics.
 """
 
-import math
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
-from typing import List, Tuple, Optional
+import math
 
 import numpy as np
 
-from .types import BacktestTrade, BacktestMetrics
+from .types import BacktestMetrics, BacktestTrade
 
 
 class MetricsCalculator:
@@ -18,7 +17,7 @@ class MetricsCalculator:
     Calculates comprehensive backtesting performance metrics.
     """
 
-    def __init__(self, initial_balance: Decimal = Decimal("10000")):
+    def __init__(self, initial_balance: Decimal = Decimal(10000)):
         """
         Initialize metrics calculator.
 
@@ -29,10 +28,10 @@ class MetricsCalculator:
 
     def calculate_metrics(
         self,
-        trades: List[BacktestTrade],
-        equity_curve: List[Tuple[datetime, Decimal]],
-        drawdown_curve: List[Tuple[datetime, Decimal]],
-        runtime_ms: int = 0
+        trades: list[BacktestTrade],
+        equity_curve: list[tuple[datetime, Decimal]],
+        drawdown_curve: list[tuple[datetime, Decimal]],
+        runtime_ms: int = 0,
     ) -> BacktestMetrics:
         """
         Calculate comprehensive performance metrics.
@@ -68,8 +67,8 @@ class MetricsCalculator:
 
     def _calculate_trade_stats(
         self,
-        trades: List[BacktestTrade],
-        metrics: BacktestMetrics
+        trades: list[BacktestTrade],
+        metrics: BacktestMetrics,
     ) -> None:
         """
         Calculate basic trade statistics.
@@ -93,7 +92,7 @@ class MetricsCalculator:
         # Hit rate
         if metrics.total_trades > 0:
             metrics.hit_rate_pct = (Decimal(metrics.winning_trades) /
-                                   Decimal(metrics.total_trades)) * Decimal("100")
+                                   Decimal(metrics.total_trades)) * Decimal(100)
 
         # R multiples
         if winning_trades:
@@ -116,9 +115,9 @@ class MetricsCalculator:
 
     def _calculate_pnl_metrics(
         self,
-        trades: List[BacktestTrade],
-        equity_curve: List[Tuple[datetime, Decimal]],
-        metrics: BacktestMetrics
+        trades: list[BacktestTrade],
+        equity_curve: list[tuple[datetime, Decimal]],
+        metrics: BacktestMetrics,
     ) -> None:
         """
         Calculate PnL and return metrics.
@@ -134,7 +133,7 @@ class MetricsCalculator:
         # Total PnL
         final_equity = equity_curve[-1][1]
         metrics.total_pnl = final_equity - self.initial_balance
-        metrics.total_pnl_pct = (metrics.total_pnl / self.initial_balance) * Decimal("100")
+        metrics.total_pnl_pct = (metrics.total_pnl / self.initial_balance) * Decimal(100)
 
         # Profit factor
         gross_wins = sum(t.net_pnl for t in trades if t.net_pnl and t.net_pnl > 0)
@@ -145,9 +144,9 @@ class MetricsCalculator:
 
     def _calculate_risk_metrics(
         self,
-        equity_curve: List[Tuple[datetime, Decimal]],
-        drawdown_curve: List[Tuple[datetime, Decimal]],
-        metrics: BacktestMetrics
+        equity_curve: list[tuple[datetime, Decimal]],
+        drawdown_curve: list[tuple[datetime, Decimal]],
+        metrics: BacktestMetrics,
     ) -> None:
         """
         Calculate risk-related metrics.
@@ -162,7 +161,7 @@ class MetricsCalculator:
 
         # Maximum drawdown
         max_dd = max(dd for _, dd in drawdown_curve)
-        metrics.max_drawdown_pct = max_dd * Decimal("100")
+        metrics.max_drawdown_pct = max_dd * Decimal(100)
 
         # Maximum drawdown duration
         metrics.max_drawdown_duration_hours = self._calculate_max_dd_duration(drawdown_curve)
@@ -171,13 +170,13 @@ class MetricsCalculator:
         if equity_curve and len(equity_curve) > 1:
             total_time = equity_curve[-1][0] - equity_curve[0][0]
             # Simplified: assume always in market for now
-            metrics.exposure_pct = Decimal("100")  # TODO: Calculate actual exposure
+            metrics.exposure_pct = Decimal(100)  # TODO: Calculate actual exposure
 
     def _calculate_advanced_ratios(
         self,
-        equity_curve: List[Tuple[datetime, Decimal]],
-        trades: List[BacktestTrade],
-        metrics: BacktestMetrics
+        equity_curve: list[tuple[datetime, Decimal]],
+        trades: list[BacktestTrade],
+        metrics: BacktestMetrics,
     ) -> None:
         """
         Calculate advanced performance ratios.
@@ -216,8 +215,8 @@ class MetricsCalculator:
 
     def _calculate_returns(
         self,
-        equity_curve: List[Tuple[datetime, Decimal]]
-    ) -> List[Decimal]:
+        equity_curve: list[tuple[datetime, Decimal]],
+    ) -> list[Decimal]:
         """
         Calculate period returns from equity curve.
 
@@ -243,7 +242,7 @@ class MetricsCalculator:
 
     def _calculate_max_dd_duration(
         self,
-        drawdown_curve: List[Tuple[datetime, Decimal]]
+        drawdown_curve: list[tuple[datetime, Decimal]],
     ) -> int:
         """
         Calculate maximum drawdown duration in hours.
@@ -266,12 +265,11 @@ class MetricsCalculator:
                 if dd_start is None:
                     dd_start = timestamp
                 current_duration = int((timestamp - dd_start).total_seconds() / 3600)
-            else:
-                # Out of drawdown
-                if dd_start is not None:
-                    max_duration = max(max_duration, current_duration)
-                    dd_start = None
-                    current_duration = 0
+            # Out of drawdown
+            elif dd_start is not None:
+                max_duration = max(max_duration, current_duration)
+                dd_start = None
+                current_duration = 0
 
         # Check if still in drawdown at end
         if dd_start is not None:
@@ -281,7 +279,7 @@ class MetricsCalculator:
 
     def calculate_trade_distribution(
         self,
-        trades: List[BacktestTrade]
+        trades: list[BacktestTrade],
     ) -> dict:
         """
         Calculate trade distribution statistics.
@@ -315,8 +313,8 @@ class MetricsCalculator:
                 "25th": float(np.percentile(pnl_array, 25)),
                 "50th": float(np.percentile(pnl_array, 50)),
                 "75th": float(np.percentile(pnl_array, 75)),
-                "95th": float(np.percentile(pnl_array, 95))
-            }
+                "95th": float(np.percentile(pnl_array, 95)),
+            },
         }
 
         if len(r_array) > 0:
@@ -329,8 +327,8 @@ class MetricsCalculator:
                     "25th": float(np.percentile(r_array, 25)),
                     "50th": float(np.percentile(r_array, 50)),
                     "75th": float(np.percentile(r_array, 75)),
-                    "95th": float(np.percentile(r_array, 95))
-                }
+                    "95th": float(np.percentile(r_array, 95)),
+                },
             })
 
         return distribution
@@ -361,8 +359,8 @@ class MetricsCalculator:
 
     def calculate_monthly_returns(
         self,
-        equity_curve: List[Tuple[datetime, Decimal]]
-    ) -> List[Tuple[str, Decimal]]:
+        equity_curve: list[tuple[datetime, Decimal]],
+    ) -> list[tuple[str, Decimal]]:
         """
         Calculate monthly returns.
 
@@ -387,7 +385,7 @@ class MetricsCalculator:
                 if current_month is not None and month_start_equity is not None:
                     # Calculate previous month return
                     prev_equity = month_start_equity
-                    month_return = (equity - prev_equity) / prev_equity * Decimal("100")
+                    month_return = (equity - prev_equity) / prev_equity * Decimal(100)
                     monthly_returns.append((current_month, month_return))
 
                 current_month = month_key

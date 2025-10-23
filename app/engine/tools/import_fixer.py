@@ -3,9 +3,9 @@ Automatic import fixer for mypy errors.
 Fixes missing imports from typing module.
 """
 
-import re
 from collections import defaultdict
 from pathlib import Path
+import re
 
 
 def detect_missing_imports(mypy_output: str) -> dict[Path, set[str]]:
@@ -20,17 +20,17 @@ def detect_missing_imports(mypy_output: str) -> dict[Path, set[str]]:
     # Name "Any" is not defined  [name-defined]
     error_pattern = re.compile(
         r'^(.+?):(\d+):\s*error:\s*Name\s*"(\w+)"\s*is\s*not\s*defined\s*'
-        r'\[name-defined\]'
+        r'\[name-defined\]',
     )
 
     # Track which types are from typing module
     typing_types = {
-        'Any', 'Callable', 'Optional', 'Union', 'List', 'Dict', 'Tuple',
-        'Set', 'Type', 'TypeVar', 'Generic', 'Protocol', 'Literal',
-        'Final', 'TypedDict', 'Annotated', 'TypeAlias'
+        "Any", "Callable", "Optional", "Union", "List", "Dict", "Tuple",
+        "Set", "Type", "TypeVar", "Generic", "Protocol", "Literal",
+        "Final", "TypedDict", "Annotated", "TypeAlias",
     }
 
-    lines = mypy_output.strip().split('\n')
+    lines = mypy_output.strip().split("\n")
 
     for i, line in enumerate(lines):
         match = error_pattern.match(line)
@@ -44,7 +44,7 @@ def detect_missing_imports(mypy_output: str) -> dict[Path, set[str]]:
             elif i + 1 < len(lines):
                 # Check next line for suggestion
                 next_line = lines[i + 1]
-                if 'typing' in next_line and type_name in next_line:
+                if "typing" in next_line and type_name in next_line:
                     result[file_path].add(type_name)
 
     return dict(result)  # Convert defaultdict to regular dict
@@ -59,12 +59,12 @@ def add_missing_imports(file_path: Path, imports_needed: set[str]) -> bool:
         return False
 
     content = file_path.read_text()
-    lines = content.split('\n')
+    lines = content.split("\n")
 
     # Find existing typing imports
     existing_imports = set()
     typing_import_line_idx = -1
-    typing_import_pattern = re.compile(r'^\s*from\s+typing\s+import\s+(.+)$')
+    typing_import_pattern = re.compile(r"^\s*from\s+typing\s+import\s+(.+)$")
 
     for i, line in enumerate(lines):
         match = typing_import_pattern.match(line)
@@ -73,10 +73,10 @@ def add_missing_imports(file_path: Path, imports_needed: set[str]) -> bool:
             # Parse existing imports
             imports_str = match.group(1)
             # Handle multi-line imports by removing line continuations
-            imports_str = (imports_str.replace('\\', '')
-                           .replace('(', '').replace(')', ''))
+            imports_str = (imports_str.replace("\\", "")
+                           .replace("(", "").replace(")", ""))
             # Split by comma and strip whitespace
-            for imp in imports_str.split(','):
+            for imp in imports_str.split(","):
                 imp = imp.strip()
                 if imp:
                     existing_imports.add(imp)
@@ -101,9 +101,9 @@ def add_missing_imports(file_path: Path, imports_needed: set[str]) -> bool:
 
         for i, line in enumerate(lines):
             stripped = line.strip()
-            if stripped.startswith('from __future__'):
+            if stripped.startswith("from __future__"):
                 future_idx = i
-            elif (stripped and not stripped.startswith('#')
+            elif (stripped and not stripped.startswith("#")
                   and not stripped.startswith('"""')):
                 if first_code_idx == -1:
                     first_code_idx = i
@@ -143,7 +143,7 @@ def add_missing_imports(file_path: Path, imports_needed: set[str]) -> bool:
             lines.append(new_import_line)
 
     # Write back
-    file_path.write_text('\n'.join(lines))
+    file_path.write_text("\n".join(lines))
     return True
 
 
@@ -162,10 +162,10 @@ def fix_all_import_errors(engine_path: Path) -> tuple[int, int]:
         "mypy",
         str(engine_path),
         f"--config-file={engine_path / 'mypy.ini'}",
-        "--no-error-summary"
+        "--no-error-summary",
     ]
 
-    result = subprocess.run(mypy_cmd, capture_output=True, text=True)
+    result = subprocess.run(mypy_cmd, check=False, capture_output=True, text=True)
     mypy_output = result.stdout
 
     # Detect missing imports

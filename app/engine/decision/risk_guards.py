@@ -4,15 +4,13 @@ Risk management guards to prevent catastrophic losses.
 CRITICAL: These guards are the last line of defense against account destruction.
 """
 
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from decimal import Decimal
 import json
 import logging
-from decimal import Decimal
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional
-from collections import defaultdict
 from pathlib import Path
-
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +33,7 @@ class RiskGuardConfig:
     correlation_threshold: Decimal = Decimal("0.7")
 
     # State persistence
-    state_file: Optional[Path] = None
+    state_file: Path | None = None
 
 
 class DailyLossGuard:
@@ -44,17 +42,17 @@ class DailyLossGuard:
     def __init__(self, config: dict) -> None:
         self.max_daily_loss_pct = config["max_daily_loss_pct"]
         self.lookback_hours = config.get("lookback_hours", 24)
-        self.trades: List[Dict] = []
+        self.trades: list[dict] = []
 
     def add_trade_result(self, pnl: Decimal, timestamp: datetime) -> None:
         """Record a trade result."""
         self.trades.append({
             "pnl": pnl,
-            "timestamp": timestamp
+            "timestamp": timestamp,
         })
         self._cleanup_old_trades()
 
-    def can_trade(self, account_balance: Decimal) -> Tuple[bool, str]:
+    def can_trade(self, account_balance: Decimal) -> tuple[bool, str]:
         """Check if trading is allowed based on daily losses."""
         self._cleanup_old_trades()
 
@@ -89,8 +87,8 @@ class MaxPositionsGuard:
     def __init__(self, config: dict) -> None:
         self.max_positions = config["max_positions"]
         self.max_correlated_positions = config["max_correlated_positions"]
-        self.open_positions: Dict[str, str] = {}  # symbol -> correlation_group
-        self.correlation_groups: Dict[str, List[str]] = defaultdict(list)
+        self.open_positions: dict[str, str] = {}  # symbol -> correlation_group
+        self.correlation_groups: dict[str, list[str]] = defaultdict(list)
 
     def add_position(self, symbol: str, correlation_group: str) -> None:
         """Add an open position."""
@@ -107,7 +105,7 @@ class MaxPositionsGuard:
             if not self.correlation_groups[group]:
                 del self.correlation_groups[group]
 
-    def can_open_position(self, symbol: str, correlation_group: str) -> Tuple[bool, str]:
+    def can_open_position(self, symbol: str, correlation_group: str) -> tuple[bool, str]:
         """Check if a new position can be opened."""
         # Check total positions
         if len(self.open_positions) >= self.max_positions:
@@ -131,14 +129,14 @@ class DrawdownGuard:
     def __init__(self, config: dict) -> None:
         self.max_drawdown_pct = config["max_drawdown_pct"]
         self.lookback_days = config.get("lookback_days", 30)
-        self.balance_history: List[Dict] = []
-        self.peak_balance = Decimal("0")
+        self.balance_history: list[dict] = []
+        self.peak_balance = Decimal(0)
 
     def update_balance(self, balance: Decimal, timestamp: datetime) -> None:
         """Update balance history and track peak."""
         self.balance_history.append({
             "balance": balance,
-            "timestamp": timestamp
+            "timestamp": timestamp,
         })
         self._cleanup_old_history()
 
@@ -147,7 +145,7 @@ class DrawdownGuard:
             self.peak_balance = balance
             logger.info(f"New peak balance: ${self.peak_balance:,.2f}")
 
-    def can_trade(self, current_balance: Decimal) -> Tuple[bool, str]:
+    def can_trade(self, current_balance: Decimal) -> tuple[bool, str]:
         """Check if trading allowed based on drawdown."""
         if self.peak_balance == 0:
             # No history yet
@@ -178,7 +176,7 @@ class CorrelationGuard:
     def __init__(self, config: dict) -> None:
         self.max_correlation = config["max_correlation"]
         self.lookback_periods = config.get("lookback_periods", 20)
-        self.open_positions: List[str] = []
+        self.open_positions: list[str] = []
 
     def add_position(self, symbol: str) -> None:
         """Add an open position."""
@@ -190,7 +188,7 @@ class CorrelationGuard:
         if symbol in self.open_positions:
             self.open_positions.remove(symbol)
 
-    def can_open_position(self, symbol: str) -> Tuple[bool, str]:
+    def can_open_position(self, symbol: str) -> tuple[bool, str]:
         """Check if position can be opened based on correlation."""
         for existing_symbol in self.open_positions:
             correlation = self.get_correlation(symbol, existing_symbol)
@@ -230,22 +228,22 @@ class RiskGuardManager:
         # Initialize guards
         self.daily_loss_guard = DailyLossGuard({
             "max_daily_loss_pct": config.daily_loss_limit_pct,
-            "lookback_hours": 24
+            "lookback_hours": 24,
         })
 
         self.positions_guard = MaxPositionsGuard({
             "max_positions": config.max_positions,
-            "max_correlated_positions": config.max_correlated_positions
+            "max_correlated_positions": config.max_correlated_positions,
         })
 
         self.drawdown_guard = DrawdownGuard({
             "max_drawdown_pct": config.max_drawdown_pct,
-            "lookback_days": config.lookback_days
+            "lookback_days": config.lookback_days,
         })
 
         self.correlation_guard = CorrelationGuard({
             "max_correlation": config.correlation_threshold,
-            "lookback_periods": 20
+            "lookback_periods": 20,
         })
 
         # Emergency stop flag
@@ -253,13 +251,13 @@ class RiskGuardManager:
         self.emergency_reason = ""
 
         # Account balance tracking
-        self._account_balance = Decimal("100000")  # Default starting balance
+        self._account_balance = Decimal(100000)  # Default starting balance
 
         # Load saved state if available
         if config.state_file:
             self.load_state()
 
-    def can_trade(self, symbol: str, account_balance: Decimal) -> Tuple[bool, List[str]]:
+    def can_trade(self, symbol: str, account_balance: Decimal) -> tuple[bool, list[str]]:
         """Check if trading is allowed by ALL guards."""
         reasons = []
         can_trade = True
@@ -355,7 +353,7 @@ class RiskGuardManager:
             "daily_trades": [
                 {
                     "pnl": str(t["pnl"]),
-                    "timestamp": t["timestamp"].isoformat()
+                    "timestamp": t["timestamp"].isoformat(),
                 }
                 for t in self.daily_loss_guard.trades
             ],
@@ -363,10 +361,10 @@ class RiskGuardManager:
             "peak_balance": str(self.drawdown_guard.peak_balance),
             "emergency_stop": self.emergency_stop,
             "emergency_reason": self.emergency_reason,
-            "saved_at": datetime.now().isoformat()
+            "saved_at": datetime.now().isoformat(),
         }
 
-        with open(self.config.state_file, 'w') as f:
+        with open(self.config.state_file, "w") as f:
             json.dump(state, f, indent=2)
 
         logger.debug(f"Risk guard state saved to {self.config.state_file}")
@@ -377,14 +375,14 @@ class RiskGuardManager:
             return
 
         try:
-            with open(self.config.state_file, 'r') as f:
+            with open(self.config.state_file) as f:
                 state = json.load(f)
 
             # Restore daily trades
             self.daily_loss_guard.trades = [
                 {
                     "pnl": Decimal(t["pnl"]),
-                    "timestamp": datetime.fromisoformat(t["timestamp"])
+                    "timestamp": datetime.fromisoformat(t["timestamp"]),
                 }
                 for t in state.get("daily_trades", [])
             ]
@@ -415,8 +413,8 @@ class RiskGuardManager:
             "daily_loss_limit": float(self.config.daily_loss_limit_pct),
             "max_drawdown": float(self.config.max_drawdown_pct),
             "guards": {
-                "daily_loss": self.daily_loss_guard.can_trade(Decimal("100000"))[0],
+                "daily_loss": self.daily_loss_guard.can_trade(Decimal(100000))[0],
                 "positions": self.positions_guard.can_open_position("TEST", "default")[0],
-                "drawdown": self.drawdown_guard.can_trade(Decimal("100000"))[0],
-            }
+                "drawdown": self.drawdown_guard.can_trade(Decimal(100000))[0],
+            },
         }

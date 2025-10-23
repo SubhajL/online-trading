@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
 from decimal import Decimal
+import uuid
 
 from ..models import Candle, TimeFrame
 from ..smc_types import SMCEvent, SMCEventKind, Zone, ZoneSide
@@ -71,7 +70,7 @@ def detect_order_block(
         return None
 
     candle_body = abs(
-        last_opposite_candle.close_price - last_opposite_candle.open_price
+        last_opposite_candle.close_price - last_opposite_candle.open_price,
     )
     body_ratio = float(candle_body / candle_range)
 

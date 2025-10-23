@@ -3,14 +3,15 @@ Orchestrates delivery of trading signals and snapshots to multiple channels.
 """
 
 import asyncio
-import logging
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+import logging
+from typing import Any
 
 from app.engine.models import RetestSignalEvent
+
+from .storage import SnapshotStorage
 from .telegram import TelegramDelivery
 from .websocket import WebSocketDelivery
-from .storage import SnapshotStorage
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,8 @@ class DeliveryOrchestrator:
 
     def __init__(self):
         """Initialize delivery orchestrator."""
-        self.channels: Dict[str, Any] = {}
-        self.storage: Optional[SnapshotStorage] = None
+        self.channels: dict[str, Any] = {}
+        self.storage: SnapshotStorage | None = None
         self._initialize_channels()
 
     def _initialize_channels(self):
@@ -37,7 +38,7 @@ class DeliveryOrchestrator:
                 "chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
                 "api_url": os.getenv("TELEGRAM_API_URL", "https://api.telegram.org"),
                 "timeout": int(os.getenv("TELEGRAM_TIMEOUT", "30")),
-                "max_retries": int(os.getenv("TELEGRAM_MAX_RETRIES", "3"))
+                "max_retries": int(os.getenv("TELEGRAM_MAX_RETRIES", "3")),
             }
             self.channels["telegram"] = TelegramDelivery(telegram_config)
             logger.info("Telegram delivery channel initialized")
@@ -55,20 +56,20 @@ class DeliveryOrchestrator:
             self.storage = S3SnapshotStorage(
                 bucket=os.getenv("S3_BUCKET", "trading-snapshots"),
                 prefix=os.getenv("S3_PREFIX", "signals/"),
-                region=os.getenv("AWS_REGION", "us-east-1")
+                region=os.getenv("AWS_REGION", "us-east-1"),
             )
         else:
             from .storage import LocalSnapshotStorage
             self.storage = LocalSnapshotStorage(
-                base_path=os.getenv("SNAPSHOT_PATH", "./snapshots")
+                base_path=os.getenv("SNAPSHOT_PATH", "./snapshots"),
             )
 
     async def deliver_snapshot(
         self,
         signal_event: RetestSignalEvent,
         snapshot_data: bytes,
-        channels: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        channels: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Deliver snapshot to specified channels.
 
         Args:
@@ -103,7 +104,7 @@ class DeliveryOrchestrator:
             if channel_name not in self.channels:
                 results[channel_name] = {
                     "success": False,
-                    "error": f"Channel {channel_name} not configured"
+                    "error": f"Channel {channel_name} not configured",
                 }
                 continue
 
@@ -114,7 +115,7 @@ class DeliveryOrchestrator:
             if channel_name == "telegram" and isinstance(channel, TelegramDelivery):
                 caption = channel._format_signal_caption(signal_event.signal)
                 task = asyncio.create_task(
-                    self._deliver_to_telegram(channel, snapshot_data, caption, signal_event)
+                    self._deliver_to_telegram(channel, snapshot_data, caption, signal_event),
                 )
                 tasks.append((channel_name, task))
 
@@ -128,17 +129,17 @@ class DeliveryOrchestrator:
                     "snapshot": {
                         "url": snapshot_url or "/api/snapshots/latest",
                         "width": 1200,
-                        "height": 600
+                        "height": 600,
                     },
                     "signal_data": {
                         "level_price": float(signal_event.signal.level_price),
                         "success_probability": float(signal_event.signal.success_probability),
                         "volume_confirmation": signal_event.signal.volume_confirmation,
-                        "confluence_factors": signal_event.signal.confluence_factors
-                    }
+                        "confluence_factors": signal_event.signal.confluence_factors,
+                    },
                 }
                 task = asyncio.create_task(
-                    self._deliver_to_websocket(channel, ws_data)
+                    self._deliver_to_websocket(channel, ws_data),
                 )
                 tasks.append((channel_name, task))
 
@@ -146,7 +147,7 @@ class DeliveryOrchestrator:
         if tasks:
             task_results = await asyncio.gather(
                 *[task for _, task in tasks],
-                return_exceptions=True
+                return_exceptions=True,
             )
 
             # Process results
@@ -156,7 +157,7 @@ class DeliveryOrchestrator:
                 if isinstance(result, Exception):
                     results[channel_name] = {
                         "success": False,
-                        "error": str(result)
+                        "error": str(result),
                     }
                 else:
                     results[channel_name] = result
@@ -171,7 +172,7 @@ class DeliveryOrchestrator:
             "delivered": success_count,
             "total": total_channels,
             "snapshot_url": snapshot_url,
-            **results
+            **results,
         }
 
     async def _deliver_to_telegram(
@@ -179,8 +180,8 @@ class DeliveryOrchestrator:
         channel: TelegramDelivery,
         image_data: bytes,
         caption: str,
-        signal_event: RetestSignalEvent
-    ) -> Dict[str, Any]:
+        signal_event: RetestSignalEvent,
+    ) -> dict[str, Any]:
         """Deliver to Telegram with error handling.
 
         Args:
@@ -201,8 +202,8 @@ class DeliveryOrchestrator:
     async def _deliver_to_websocket(
         self,
         channel: WebSocketDelivery,
-        notification_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        notification_data: dict[str, Any],
+    ) -> dict[str, Any]:
         """Deliver to WebSocket with error handling.
 
         Args:
@@ -226,8 +227,8 @@ class DeliveryOrchestrator:
         self,
         message: str,
         priority: str = "normal",
-        channels: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        channels: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Send text alert to specified channels.
 
         Args:
@@ -255,15 +256,15 @@ class DeliveryOrchestrator:
 
             channel = self.channels[channel_name]
 
-            if channel_name == "telegram" and hasattr(channel, 'send_text_alert'):
+            if channel_name == "telegram" and hasattr(channel, "send_text_alert"):
                 task = asyncio.create_task(channel.send_text_alert(message))
                 tasks.append((channel_name, task))
 
-            elif channel_name == "websocket" and hasattr(channel, 'broadcast_alert'):
+            elif channel_name == "websocket" and hasattr(channel, "broadcast_alert"):
                 alert_data = {
                     "message": message,
                     "priority": priority,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
                 }
                 task = asyncio.create_task(channel.broadcast_alert(alert_data))
                 tasks.append((channel_name, task))
@@ -272,7 +273,7 @@ class DeliveryOrchestrator:
         if tasks:
             task_results = await asyncio.gather(
                 *[task for _, task in tasks],
-                return_exceptions=True
+                return_exceptions=True,
             )
 
             for i, (channel_name, _) in enumerate(tasks):
@@ -290,7 +291,7 @@ class DeliveryOrchestrator:
 
         tasks = []
         for channel_name, channel in self.channels.items():
-            if hasattr(channel, 'disconnect'):
+            if hasattr(channel, "disconnect"):
                 tasks.append(channel.disconnect())
 
         if tasks:

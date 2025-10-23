@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
 import logging
-from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Any
 
 from ...database import KyselyDatabase, Transaction
@@ -33,7 +32,7 @@ async def write_swing_points(
                     "is_high": pivot.is_high,
                     "strength": pivot.strength,
                     "bar_index": pivot.bar_index,
-                }
+                },
             )
 
         await db.insert_into("swing_points").values(values).execute()
@@ -77,9 +76,9 @@ async def write_smc_events(
                             "reference_bar_index": event.reference_pivot.bar_index
                             if event.reference_pivot
                             else None,
-                        }
+                        },
                     ),
-                }
+                },
             )
 
         await db.insert_into("smc_events").values(values).execute()
@@ -116,7 +115,7 @@ async def write_zones(
                     "strength": str(zone.strength),
                     "is_active": zone.created_bar_index + zone.expiry_bars
                     > zone.created_bar_index,  # Simple active check
-                }
+                },
             )
 
         await (
@@ -127,7 +126,7 @@ async def write_zones(
                 {
                     "touches": lambda: "excluded.touches",
                     "is_active": lambda: "excluded.is_active",
-                }
+                },
             )
             .execute()
         )
@@ -150,8 +149,8 @@ async def update_zone_touches(
             .set(
                 {
                     "touches": touches,
-                    "last_touched_at": datetime.now(timezone.utc),
-                }
+                    "last_touched_at": datetime.now(UTC),
+                },
             )
             .where("zone_id", "=", zone_id)
             .execute()
@@ -176,8 +175,8 @@ async def expire_zones(
             .set(
                 {
                     "is_active": False,
-                    "expired_at": datetime.now(timezone.utc),
-                }
+                    "expired_at": datetime.now(UTC),
+                },
             )
             .where("symbol", "=", symbol)
             .where("timeframe", "=", timeframe)

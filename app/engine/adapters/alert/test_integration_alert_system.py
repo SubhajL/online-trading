@@ -1,16 +1,15 @@
 import asyncio
-import os
-from unittest import mock
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime
+from typing import Any
+from unittest.mock import patch
 
-from app.engine.adapters.alert.telegram import TelegramAlertAdapter
-from app.engine.adapters.alert.line import LineAlertAdapter
-from app.engine.adapters.alert.alert_formatter import AlertFormatter
+import pytest
+
 from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
-from app.engine.models import Position, TradingDecisionEvent, SMCSignalEvent
+from app.engine.adapters.alert.alert_formatter import AlertFormatter
+from app.engine.adapters.alert.line import LineAlertAdapter
+from app.engine.adapters.alert.telegram import TelegramAlertAdapter
+from app.engine.models import Position, SMCSignalEvent, TradingDecisionEvent
 from app.engine.paper.broker import OrderUpdate
 
 
@@ -31,7 +30,7 @@ class TestAlertSystemIntegration:
             bot_token="test-telegram-token",
             chat_id="test-chat-id",
             formatter=formatter,
-            deduplicator=deduplicator
+            deduplicator=deduplicator,
         )
 
     @pytest.fixture
@@ -39,7 +38,7 @@ class TestAlertSystemIntegration:
         return LineAlertAdapter(
             access_token="test-line-token",
             formatter=formatter,
-            deduplicator=deduplicator
+            deduplicator=deduplicator,
         )
 
     @pytest.fixture
@@ -58,9 +57,9 @@ class TestAlertSystemIntegration:
 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 self.sent_alerts.append({
-                    'event': event,
-                    'results': results,
-                    'timestamp': datetime.now(timezone.utc)
+                    "event": event,
+                    "results": results,
+                    "timestamp": datetime.now(UTC),
                 })
 
         return AlertSystem([telegram_adapter, line_adapter])
@@ -76,7 +75,7 @@ class TestAlertSystemIntegration:
             venue="SPOT",
             type="MARKET",
             confidence=0.85,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         # 2. Order placed
@@ -87,7 +86,7 @@ class TestAlertSystemIntegration:
             status="NEW",
             quantity=0.01,
             venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         # 3. Order filled
@@ -100,7 +99,7 @@ class TestAlertSystemIntegration:
             executed_qty=0.01,
             executed_price=45000.0,
             venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         # 4. Position update
@@ -113,12 +112,12 @@ class TestAlertSystemIntegration:
             venue="SPOT",
             pnl=5.0,
             pnl_percent=1.11,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         # Mock the adapter sends
-        with patch.object(alert_system.adapters[0], '_send_telegram_message') as mock_telegram:
-            with patch.object(alert_system.adapters[1], '_send_line_message') as mock_line:
+        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
+            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -148,12 +147,12 @@ class TestAlertSystemIntegration:
             status="NEW",
             quantity=1.0,
             venue="USD_M",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         # Mock Telegram fails but LINE succeeds
-        with patch.object(alert_system.adapters[0], '_send_telegram_message') as mock_telegram:
-            with patch.object(alert_system.adapters[1], '_send_line_message') as mock_line:
+        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
+            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
                 mock_telegram.side_effect = Exception("Telegram API error")
                 loop = asyncio.get_event_loop()
                 mock_line.return_value = loop.create_future()
@@ -179,7 +178,7 @@ class TestAlertSystemIntegration:
                 event_type="CHOCH",
                 direction="bullish",
                 price=45000.0,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             SMCSignalEvent(
                 symbol="BTCUSDT",
@@ -187,7 +186,7 @@ class TestAlertSystemIntegration:
                 event_type="BOS",
                 direction="bullish",
                 price=45500.0,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             SMCSignalEvent(
                 symbol="BTCUSDT",
@@ -196,12 +195,12 @@ class TestAlertSystemIntegration:
                 zone_type="demand",
                 price_from=44800.0,
                 price_to=44900.0,
-                timestamp=datetime.now(timezone.utc)
-            )
+                timestamp=datetime.now(UTC),
+            ),
         ]
 
-        with patch.object(alert_system.adapters[0], '_send_telegram_message') as mock_telegram:
-            with patch.object(alert_system.adapters[1], '_send_line_message') as mock_line:
+        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
+            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -234,14 +233,14 @@ class TestAlertSystemIntegration:
                 status="NEW",
                 quantity=0.001,
                 venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ))
 
         sent_count = 0
         blocked_count = 0
 
-        with patch.object(alert_system.adapters[0], '_send_telegram_message') as mock_telegram:
-            with patch.object(alert_system.adapters[1], '_send_line_message') as mock_line:
+        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
+            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -272,7 +271,7 @@ class TestAlertSystemIntegration:
             status="NEW",
             quantity=1000.0,
             venue="SPOT",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         # Critical alert - large position stop loss hit
@@ -286,11 +285,11 @@ class TestAlertSystemIntegration:
             pnl=-2500.0,
             pnl_percent=-5.0,
             stop_loss_hit=True,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
-        with patch.object(alert_system.adapters[0], '_send_telegram_message') as mock_telegram:
-            with patch.object(alert_system.adapters[1], '_send_line_message') as mock_line:
+        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
+            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -324,7 +323,7 @@ class TestAlertSystemIntegration:
             executed_qty=2.0,
             executed_price=2500.0,
             venue="USD_M",
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         )
 
         call_count = 0
@@ -334,8 +333,8 @@ class TestAlertSystemIntegration:
             if call_count <= 2:
                 raise Exception("Service unavailable")
 
-        with patch.object(alert_system.adapters[0], '_send_telegram_message', side_effect=mock_send_with_recovery):
-            with patch.object(alert_system.adapters[1], '_send_line_message') as mock_line:
+        with patch.object(alert_system.adapters[0], "_send_telegram_message", side_effect=mock_send_with_recovery):
+            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_line.return_value = loop.create_future()
                 mock_line.return_value.set_result({"status": 200})
@@ -345,8 +344,8 @@ class TestAlertSystemIntegration:
                 assert isinstance(results1[0], Exception)
 
                 # System should recover on retry
-                with patch.object(alert_system.adapters[0], 'retry_count', 3):
-                    with patch.object(alert_system.adapters[0], 'retry_delay', 0.01):
+                with patch.object(alert_system.adapters[0], "retry_count", 3):
+                    with patch.object(alert_system.adapters[0], "retry_delay", 0.01):
                         # This attempt should eventually succeed
                         results2 = await alert_system.send_alert(order)
 
@@ -370,7 +369,7 @@ class TestAlertSystemIntegration:
                 executed_qty=0.01,
                 executed_price=45000.0 + i * 100,
                 venue="SPOT",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ))
 
         # Afternoon positions
@@ -383,11 +382,11 @@ class TestAlertSystemIntegration:
             venue="SPOT",
             pnl=50.0,
             pnl_percent=2.08,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(UTC),
         ))
 
-        with patch.object(alert_system.adapters[0], '_send_telegram_message') as mock_telegram:
-            with patch.object(alert_system.adapters[1], '_send_line_message') as mock_line:
+        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
+            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -404,7 +403,7 @@ class TestAlertSystemIntegration:
                     "winning_trades": 3,
                     "total_pnl": 150.75,
                     "win_rate": 0.60,
-                    "date": datetime.now(timezone.utc).date()
+                    "date": datetime.now(UTC).date(),
                 }
 
                 summary_msg = alert_system.adapters[0].formatter.format_daily_summary(summary)
@@ -430,7 +429,7 @@ class TestAlertSystemIntegration:
                 status="NEW",
                 quantity=0.1,
                 venue="USD_M",
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             Position(
                 symbol="ETHUSDT",
@@ -441,7 +440,7 @@ class TestAlertSystemIntegration:
                 venue="USD_M",
                 pnl=100.0,
                 pnl_percent=0.8,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(UTC),
             ),
             TradingDecisionEvent(
                 symbol="BNBUSDT",
@@ -451,12 +450,12 @@ class TestAlertSystemIntegration:
                 type="LIMIT",
                 price=320.0,
                 confidence=0.88,
-                timestamp=datetime.now(timezone.utc)
-            )
+                timestamp=datetime.now(UTC),
+            ),
         ]
 
-        with patch.object(alert_system.adapters[0], '_send_telegram_message') as mock_telegram:
-            with patch.object(alert_system.adapters[1], '_send_line_message') as mock_line:
+        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
+            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
                 # Add delay to simulate network latency
                 async def delayed_telegram_send(msg: Any) -> None:
                     await asyncio.sleep(0.1)

@@ -5,7 +5,7 @@ Separates event processing logic from subscription management.
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -14,9 +14,6 @@ from app.engine.models import BaseEvent
 from app.engine.resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
-)
-from app.engine.resilience.thread_safe_circuit_breaker import (
-    CircuitBreakerState as CBState,
 )
 
 
@@ -41,7 +38,7 @@ class EventProcessingError:
     subscriber_id: str
     error_type: str
     error_message: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -140,7 +137,7 @@ class EventProcessor:
                 # Circuit breaker pre-check
                 if self._config.circuit_breaker_enabled:
                     circuit_breaker = await self._get_circuit_breaker(
-                        subscription.subscriber_id
+                        subscription.subscriber_id,
                     )
                     if not await circuit_breaker.should_allow_request():
                         return False, subscription, RuntimeError("CircuitBreakerOpen")
@@ -151,7 +148,7 @@ class EventProcessor:
                 # Record success to circuit breaker
                 if self._config.circuit_breaker_enabled:
                     circuit_breaker = await self._get_circuit_breaker(
-                        subscription.subscriber_id
+                        subscription.subscriber_id,
                     )
                     await circuit_breaker.record_success()
 
@@ -160,7 +157,7 @@ class EventProcessor:
                 # Record failure to circuit breaker
                 if self._config.circuit_breaker_enabled:
                     circuit_breaker = await self._get_circuit_breaker(
-                        subscription.subscriber_id
+                        subscription.subscriber_id,
                     )
                     await circuit_breaker.record_failure()
                 return False, subscription, exc

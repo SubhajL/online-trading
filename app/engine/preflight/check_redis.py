@@ -1,7 +1,6 @@
-import os
-from typing import Optional
-
 import asyncio
+import os
+
 import redis.asyncio as redis
 
 REQUIRED_VARS = ["REDIS_HOST", "REDIS_PORT"]
@@ -34,7 +33,7 @@ async def check_redis_connectivity(timeout_seconds: float = 5.0) -> None:
             return
         except Exception as e:  # noqa: BLE001
             raise RedisPreflightError(
-                f"Unable to connect to Redis using REDIS_URL: {e}"
+                f"Unable to connect to Redis using REDIS_URL: {e}",
             )
         finally:
             try:
@@ -46,7 +45,7 @@ async def check_redis_connectivity(timeout_seconds: float = 5.0) -> None:
     missing = [v for v in REQUIRED_VARS if not os.getenv(v)]
     if missing:
         raise RedisPreflightError(
-            f"Missing Redis env vars: {', '.join(missing)}. Set REDIS_URL or REDIS_HOST and REDIS_PORT."
+            f"Missing Redis env vars: {', '.join(missing)}. Set REDIS_URL or REDIS_HOST and REDIS_PORT.",
         )
 
     host = os.getenv("REDIS_HOST")
@@ -65,7 +64,7 @@ async def check_redis_connectivity(timeout_seconds: float = 5.0) -> None:
         await asyncio.wait_for(client.ping(), timeout=timeout_seconds)
     except Exception as e:  # noqa: BLE001
         raise RedisPreflightError(
-            f"Unable to connect to Redis at {host}:{port}/{db}: {e}"
+            f"Unable to connect to Redis at {host}:{port}/{db}: {e}",
         )
     finally:
         try:

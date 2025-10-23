@@ -1,8 +1,7 @@
 """Fix parameterized generic isinstance() checks that cause runtime errors."""
 
-import re
 from pathlib import Path
-from typing import List
+import re
 
 
 class GenericIsinstanceFixer:
@@ -19,22 +18,22 @@ class GenericIsinstanceFixer:
         # Use a more comprehensive pattern that handles nested brackets
 
         # Pattern for nested brackets: [^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*
-        nested_brackets = r'[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*'
-        type_names = r'(dict|list|set|tuple)'
+        nested_brackets = r"[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*"
+        type_names = r"(dict|list|set|tuple)"
 
         patterns = [
             # Multi-line isinstance (check first to avoid single-line match)
-            (rf'isinstance\s*\(\s*\n\s*([^,]+?)\s*,\s*\n\s*{type_names}'
-             rf'\[{nested_brackets}\]\s*\n\s*\)',
-             r'isinstance(\n        \1,\n        \2\n    )'),
+            (rf"isinstance\s*\(\s*\n\s*([^,]+?)\s*,\s*\n\s*{type_names}"
+             rf"\[{nested_brackets}\]\s*\n\s*\)",
+             r"isinstance(\n        \1,\n        \2\n    )"),
             # Union types with None
-            (rf'isinstance\s*\(\s*([^,]+?)\s*,\s*{type_names}'
-             rf'\[{nested_brackets}\]\s*\|\s*None\s*\)',
-             r'isinstance(\1, \2) or \1 is None'),
+            (rf"isinstance\s*\(\s*([^,]+?)\s*,\s*{type_names}"
+             rf"\[{nested_brackets}\]\s*\|\s*None\s*\)",
+             r"isinstance(\1, \2) or \1 is None"),
             # Single-line isinstance with nested generics
-            (rf'isinstance\s*\(\s*([^,]+?)\s*,\s*{type_names}'
-             rf'\[{nested_brackets}\]\s*\)',
-             r'isinstance(\1, \2)'),
+            (rf"isinstance\s*\(\s*([^,]+?)\s*,\s*{type_names}"
+             rf"\[{nested_brackets}\]\s*\)",
+             r"isinstance(\1, \2)"),
         ]
 
         result = content
@@ -59,24 +58,24 @@ class GenericIsinstanceFixer:
     @staticmethod
     def fix_file(file_path: str) -> None:
         """Fix generic isinstance checks in a single file."""
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             content = f.read()
 
         fixed_content = GenericIsinstanceFixer.fix_content(content)
 
         if fixed_content != content:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w") as f:
                 f.write(fixed_content)
 
     @staticmethod
-    def get_files_with_generic_isinstance_errors() -> List[str]:
+    def get_files_with_generic_isinstance_errors() -> list[str]:
         """Get list of files that have generic isinstance errors."""
         # These files were identified from mypy output
         return [
-            'app/engine/adapters/router_client/http_client.py',
-            'app/engine/core/config_manager.py',
-            'app/engine/ingest/binance_ws.py',
-            'app/engine/news_funding_guards/guards.py',
+            "app/engine/adapters/router_client/http_client.py",
+            "app/engine/core/config_manager.py",
+            "app/engine/ingest/binance_ws.py",
+            "app/engine/news_funding_guards/guards.py",
         ]
 
     @staticmethod

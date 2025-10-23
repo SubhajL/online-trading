@@ -1,29 +1,30 @@
 from typing import Any
+
 #!/usr/bin/env python3
 """
 Fix all missing return type annotations by running mypy and automatically fixing them
 """
 
-import subprocess
 import re
-from pathlib import Path
+import subprocess
+
 from return_type_fixer import fix_file_return_types
 
 
 def get_files_with_return_type_errors() -> Any:
     """Run mypy and extract files with missing return type errors"""
     result = subprocess.run(
-        ['python', '-m', 'mypy', 'app/engine'],
-        capture_output=True,
-        text=True
+        ["python", "-m", "mypy", "app/engine"],
+        check=False, capture_output=True,
+        text=True,
     )
 
     files_to_fix = set()
 
     # Look for missing return type annotations
-    for line in result.stdout.split('\n'):
-        if 'Function is missing a return type annotation' in line:
-            match = re.match(r'(app/engine/[^:]+):', line)
+    for line in result.stdout.split("\n"):
+        if "Function is missing a return type annotation" in line:
+            match = re.match(r"(app/engine/[^:]+):", line)
             if match:
                 files_to_fix.add(match.group(1))
 
@@ -57,19 +58,19 @@ def fix_all_return_type_annotations() -> None:
     # Run mypy again to verify
     print("\nVerifying fixes...")
     result = subprocess.run(
-        ['python', '-m', 'mypy', 'app/engine', '--no-error-summary'],
-        capture_output=True,
-        text=True
+        ["python", "-m", "mypy", "app/engine", "--no-error-summary"],
+        check=False, capture_output=True,
+        text=True,
     )
 
     # Count remaining return type errors
     remaining_errors = 0
-    for line in result.stdout.split('\n'):
-        if 'Function is missing a return type annotation' in line:
+    for line in result.stdout.split("\n"):
+        if "Function is missing a return type annotation" in line:
             remaining_errors += 1
 
     print(f"Remaining return type annotation errors: {remaining_errors}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     fix_all_return_type_annotations()

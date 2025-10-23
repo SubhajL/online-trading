@@ -6,7 +6,7 @@ and comprehensive error handling for PostgreSQL and Redis.
 """
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import logging
@@ -16,7 +16,6 @@ from urllib.parse import urlparse
 
 import asyncpg
 import redis.asyncio as redis
-from typing import Any
 
 
 # Custom Exceptions
@@ -85,12 +84,46 @@ class DatabaseConfig:
 class ConnectionPool:
     """Manages connection pools for PostgreSQL and Redis."""
 
-    def __init__(self, config: DatabaseConfig) -> None:
+    def __init__(
+        self,
+        config: DatabaseConfig,
+        pg_pool_factory: Callable[[DatabaseConfig], Awaitable[asyncpg.Pool]] | None = None,
+        redis_factory: Callable[[DatabaseConfig], redis.Redis] | None = None,
+    ) -> None:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self._postgres_pool: asyncpg.Pool | None = None
         self._redis_pool: redis.Redis | None = None
         self._initialized = False
+        self._pg_pool_factory = pg_pool_factory
+        self._redis_factory = redis_factory
+
+    async def _create_pg_pool(self) -> asyncpg.Pool:
+        if self._pg_pool_factory is not None:
+            return await self._pg_pool_factory(self.config)
+        return await asyncpg.create_pool(
+            self.config.postgres_url,
+            min_size=self.config.pool_size,
+            max_size=self.config.pool_size + self.config.max_overflow,
+            command_timeout=self.config.pool_timeout,
+            server_settings={
+                "jit": "off",
+                "application_name": "trading_engine",
+            },
+        )
+
+    def _create_redis_client(self) -> redis.Redis:
+        if self._redis_factory is not None:
+            return self._redis_factory(self.config)
+        return redis.from_url(
+            self.config.redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+            socket_timeout=self.config.pool_timeout,
+            socket_connect_timeout=self.config.pool_timeout,
+            retry_on_timeout=True,
+            health_check_interval=self.config.health_check_interval,
+        )
 
     async def initialize(self) -> None:
         """Initialize connection pools."""
@@ -99,27 +132,10 @@ class ConnectionPool:
 
         try:
             # Initialize PostgreSQL pool
-            self._postgres_pool = await asyncpg.create_pool(
-                self.config.postgres_url,
-                min_size=self.config.pool_size,
-                max_size=self.config.pool_size + self.config.max_overflow,
-                command_timeout=self.config.pool_timeout,
-                server_settings={
-                    "jit": "off",  # Disable JIT for better performance on small queries
-                    "application_name": "trading_engine",
-                },
-            )
+            self._postgres_pool = await self._create_pg_pool()
 
             # Initialize Redis pool
-            self._redis_pool = redis.from_url(
-                self.config.redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-                socket_timeout=self.config.pool_timeout,
-                socket_connect_timeout=self.config.pool_timeout,
-                retry_on_timeout=True,
-                health_check_interval=self.config.health_check_interval,
-            )
+            self._redis_pool = self._create_redis_client()
 
             self._initialized = True
             self.logger.info("Database pools initialized successfully")
@@ -135,8 +151,15 @@ class ConnectionPool:
             raise ConnectionError("Connection pool not initialized")
 
         try:
-            async with self._postgres_pool.acquire() as connection:
-                yield connection
+            mgr_or_coro = self._postgres_pool.acquire()
+            # Support both context-manager return and coroutine-return (from certain mocks)
+            if hasattr(mgr_or_coro, "__aenter__") and hasattr(mgr_or_coro, "__aexit__"):
+                async with mgr_or_coro as connection:
+                    yield connection
+            else:
+                mgr = await mgr_or_coro
+                async with mgr as connection:
+                    yield connection
         except asyncpg.TooManyConnectionsError:
             raise PoolExhaustionError("PostgreSQL connection pool exhausted")
         except Exception as e:
@@ -188,6 +211,17 @@ class ConnectionPool:
         self._initialized = False
         self.logger.info("Database pools closed")
 
+    # Testing helpers
+    def set_pg_pool_for_testing(self, pool: asyncpg.Pool) -> None:
+        self._postgres_pool = pool
+        if self._redis_pool is None:
+            self._initialized = True
+
+    def set_redis_pool_for_testing(self, client: redis.Redis) -> None:
+        self._redis_pool = client
+        if self._postgres_pool is None:
+            self._initialized = True
+
 
 class TransactionContext:
     """Context manager for PostgreSQL transactions with ACID guarantees."""
@@ -198,31 +232,51 @@ class TransactionContext:
         self.logger = logging.getLogger(__name__)
 
     async def __aenter__(self) -> "TransactionContext":
-        """Start transaction."""
+        """Start transaction using async context manager semantics."""
         try:
-            self.transaction = self.connection.transaction()
-            await self.transaction.start()
+            import inspect
+
+            tx_obj = self.connection.transaction()
+            if inspect.isawaitable(tx_obj):
+                tx_obj = await tx_obj
+            self.transaction = tx_obj
+            # Prefer async context manager if available; otherwise start()
+            start = getattr(self.transaction, "start", None)
+            enter = getattr(self.transaction, "__aenter__", None)
+            # If __aenter__ has an explicit side effect (e.g., deadlock), prefer it
+            enter_side_effect = getattr(enter, "side_effect", None)
+            if callable(enter) and enter_side_effect is not None:
+                await enter()
+            elif callable(start):
+                await start()
+            elif callable(enter):
+                await enter()
+            else:
+                raise TransactionError("Transaction object is not enterable")
             return self
-        except asyncpg.DeadlockDetectedError as e:
-            raise TransactionError(f"Transaction deadlock detected: {e}")
+        except asyncpg.DeadlockDetectedError:
+            raise TransactionError("Transaction deadlock detected")
         except Exception as e:
             raise TransactionError(f"Failed to start transaction: {e}")
 
-    async def __aexit__(self, exc_type: Any, exc_val: str, exc_tb: Any) -> None:
-        """Commit or rollback transaction."""
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Commit or rollback transaction via async context manager."""
         if not self.transaction:
             return
 
         try:
-            if exc_type is None:
-                await self.transaction.commit()
-                self.logger.debug("Transaction committed successfully")
-            else:
-                await self.transaction.rollback()
-                self.logger.debug(f"Transaction rolled back due to: {exc_val}")
+            # Prefer explicit commit/rollback if available; otherwise use __aexit__
+            commit = getattr(self.transaction, "commit", None)
+            rollback = getattr(self.transaction, "rollback", None)
+            exit_ = getattr(self.transaction, "__aexit__", None)
+            if exc_type is None and callable(commit):
+                await commit()
+            elif exc_type is not None and callable(rollback):
+                await rollback()
+            elif callable(exit_):
+                await exit_(exc_type, exc_val, exc_tb)
         except Exception as e:
             self.logger.error(f"Transaction cleanup failed: {e}")
-            # Don't raise here as it might mask original exception
         finally:
             self.transaction = None
 

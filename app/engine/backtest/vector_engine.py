@@ -139,7 +139,7 @@ def apply_signal_vectorized(
         raise ValueError("position_sizer must return a numpy ndarray")
     if positions.shape != signals.shape:
         raise ValueError(
-            f"position_sizer returned shape {positions.shape}, expected {signals.shape}"
+            f"position_sizer returned shape {positions.shape}, expected {signals.shape}",
         )
 
     # Enforce exposure constraints and numeric dtype

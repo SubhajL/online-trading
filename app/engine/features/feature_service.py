@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Any
 
 """
 Feature Service
@@ -9,12 +8,11 @@ Listens for candle updates and calculates indicators in real-time.
 """
 
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import logging
 
 from ..bus import get_event_bus
 from ..models import (
-    BaseEvent,
     Candle,
     CandleUpdateEvent,
     EventType,
@@ -165,7 +163,7 @@ class FeatureService:
 
             # Create and publish features calculated event
             event = FeaturesCalculatedEvent(
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=symbol,
                 timeframe=timeframe,
                 features=indicators,
@@ -175,7 +173,7 @@ class FeatureService:
 
             # Update statistics
             self._calculations_performed += 1
-            self._last_calculation_time = datetime.now(timezone.utc)
+            self._last_calculation_time = datetime.now(UTC)
 
             logger.debug(f"Published features for {symbol} {timeframe.value}")
 

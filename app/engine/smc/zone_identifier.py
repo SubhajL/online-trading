@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Any
 
 """
 Zone Identifier
@@ -8,7 +7,7 @@ Identifies supply/demand zones, order blocks, and fair value gaps for Smart Mone
 Uses pivot points and price action analysis to detect institutional trading zones.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 import logging
 
@@ -526,7 +525,7 @@ class ZoneIdentifier:
                     # Check if price is testing the zone
                     if zone.bottom_price <= current_price <= zone.top_price:
                         zone.touches += 1
-                        zone.tested_at = datetime.now(timezone.utc)
+                        zone.tested_at = datetime.now(UTC)
 
                         # Invalidate zone if touched too many times
                         if zone.touches >= self.zone_invalidation_touches:

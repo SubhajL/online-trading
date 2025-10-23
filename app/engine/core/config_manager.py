@@ -3,8 +3,6 @@ Configuration management for production trading engine.
 Following C-4: Prefer simple, composable, testable functions.
 """
 
-from typing import Any
-
 from dataclasses import dataclass, field
 import logging
 import os

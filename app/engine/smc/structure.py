@@ -47,15 +47,14 @@ def update_structure_state(tracker: StructureTracker, pivot: Pivot) -> None:
                 tracker.last_lh = pivot
                 if tracker.last_ll:  # Need both LH and LL for bearish
                     tracker.state = StructureState.BEARISH
-        else:  # Low pivot
-            if swing_type == SwingType.HL:
-                tracker.last_hl = pivot
-                if tracker.last_hh:  # Need both HH and HL for bullish
-                    tracker.state = StructureState.BULLISH
-            elif swing_type == SwingType.LL:
-                tracker.last_ll = pivot
-                if tracker.last_lh:  # Need both LH and LL for bearish
-                    tracker.state = StructureState.BEARISH
+        elif swing_type == SwingType.HL:
+            tracker.last_hl = pivot
+            if tracker.last_hh:  # Need both HH and HL for bullish
+                tracker.state = StructureState.BULLISH
+        elif swing_type == SwingType.LL:
+            tracker.last_ll = pivot
+            if tracker.last_lh:  # Need both LH and LL for bearish
+                tracker.state = StructureState.BEARISH
 
 
 def detect_choch(

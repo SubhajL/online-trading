@@ -3,10 +3,9 @@ Core types for backtesting engine.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
 from uuid import UUID, uuid4
 
 
@@ -64,19 +63,19 @@ class BacktestOrder:
     symbol: str = ""
     side: OrderSide = OrderSide.BUY
     type: OrderType = OrderType.MARKET
-    quantity: Decimal = Decimal("0")
-    price: Optional[Decimal] = None
-    stop_price: Optional[Decimal] = None
+    quantity: Decimal = Decimal(0)
+    price: Decimal | None = None
+    stop_price: Decimal | None = None
     status: OrderStatus = OrderStatus.NEW
-    filled_quantity: Decimal = Decimal("0")
-    remaining_quantity: Decimal = Decimal("0")
+    filled_quantity: Decimal = Decimal(0)
+    remaining_quantity: Decimal = Decimal(0)
     reduce_only: bool = False
-    order_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    fill_time: Optional[datetime] = None
+    order_time: datetime = field(default_factory=lambda: datetime.now(UTC))
+    fill_time: datetime | None = None
 
     def __post_init__(self):
         """Initialize remaining quantity."""
-        if self.remaining_quantity == Decimal("0"):
+        if self.remaining_quantity == Decimal(0):
             self.remaining_quantity = self.quantity
 
 
@@ -88,15 +87,15 @@ class BacktestFill:
     order_id: UUID = field(default_factory=uuid4)
     symbol: str = ""
     side: OrderSide = OrderSide.BUY
-    quantity: Decimal = Decimal("0")
-    price: Decimal = Decimal("0")
-    fee: Decimal = Decimal("0")
-    slippage: Decimal = Decimal("0")
-    fill_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    quantity: Decimal = Decimal(0)
+    price: Decimal = Decimal(0)
+    fee: Decimal = Decimal(0)
+    slippage: Decimal = Decimal(0)
+    fill_time: datetime = field(default_factory=lambda: datetime.now(UTC))
     fill_reason: FillReason = FillReason.MARKET
-    candle_open_time: Optional[datetime] = None
-    candle_high: Optional[Decimal] = None
-    candle_low: Optional[Decimal] = None
+    candle_open_time: datetime | None = None
+    candle_high: Decimal | None = None
+    candle_low: Decimal | None = None
 
 
 @dataclass
@@ -104,20 +103,20 @@ class BacktestPosition:
     """Backtesting position representation."""
 
     symbol: str = ""
-    side: Optional[str] = None  # "LONG" or "SHORT"
-    quantity: Decimal = Decimal("0")
-    entry_price: Decimal = Decimal("0")
-    mark_price: Decimal = Decimal("0")
-    unrealized_pnl: Decimal = Decimal("0")
-    realized_pnl: Decimal = Decimal("0")
-    total_fees: Decimal = Decimal("0")
-    total_funding: Decimal = Decimal("0")
-    stop_loss: Optional[Decimal] = None
-    take_profit: Optional[Decimal] = None
+    side: str | None = None  # "LONG" or "SHORT"
+    quantity: Decimal = Decimal(0)
+    entry_price: Decimal = Decimal(0)
+    mark_price: Decimal = Decimal(0)
+    unrealized_pnl: Decimal = Decimal(0)
+    realized_pnl: Decimal = Decimal(0)
+    total_fees: Decimal = Decimal(0)
+    total_funding: Decimal = Decimal(0)
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
     breakeven_moved: bool = False
-    trail_price: Optional[Decimal] = None
-    trail_offset: Optional[Decimal] = None
-    opened_at: Optional[datetime] = None
+    trail_price: Decimal | None = None
+    trail_offset: Decimal | None = None
+    opened_at: datetime | None = None
 
 
 @dataclass
@@ -127,25 +126,25 @@ class BacktestTrade:
     id: UUID = field(default_factory=uuid4)
     symbol: str = ""
     side: str = ""  # "long" or "short"
-    entry_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    exit_time: Optional[datetime] = None
-    entry_price: Decimal = Decimal("0")
-    exit_price: Optional[Decimal] = None
-    size: Decimal = Decimal("0")
-    gross_pnl: Optional[Decimal] = None
-    gross_pnl_r: Optional[Decimal] = None  # in R units
-    fees: Decimal = Decimal("0")
-    slippage: Decimal = Decimal("0")
-    funding: Decimal = Decimal("0")
-    net_pnl: Optional[Decimal] = None
-    net_pnl_r: Optional[Decimal] = None
-    stop_loss: Optional[Decimal] = None
+    entry_time: datetime = field(default_factory=lambda: datetime.now(UTC))
+    exit_time: datetime | None = None
+    entry_price: Decimal = Decimal(0)
+    exit_price: Decimal | None = None
+    size: Decimal = Decimal(0)
+    gross_pnl: Decimal | None = None
+    gross_pnl_r: Decimal | None = None  # in R units
+    fees: Decimal = Decimal(0)
+    slippage: Decimal = Decimal(0)
+    funding: Decimal = Decimal(0)
+    net_pnl: Decimal | None = None
+    net_pnl_r: Decimal | None = None
+    stop_loss: Decimal | None = None
     take_profits: list[dict] = field(default_factory=list)
-    exit_reason: Optional[ExitReason] = None
-    duration_minutes: Optional[int] = None
-    signal_type: Optional[str] = None
-    signal_confidence: Optional[Decimal] = None
-    regime: Optional[str] = None
+    exit_reason: ExitReason | None = None
+    duration_minutes: int | None = None
+    signal_type: str | None = None
+    signal_confidence: Decimal | None = None
+    regime: str | None = None
     market_conditions: dict = field(default_factory=dict)
 
 
@@ -154,8 +153,8 @@ class BacktestConfig:
     """Backtesting configuration."""
 
     # Costs and execution
-    fee_bps_spot: Decimal = Decimal("10")  # 0.1%
-    slippage_bps: Decimal = Decimal("2")  # 0.02%
+    fee_bps_spot: Decimal = Decimal(10)  # 0.1%
+    slippage_bps: Decimal = Decimal(2)  # 0.02%
     funding_model: str = "disabled"  # or path to series
 
     # Session and guards
@@ -170,7 +169,7 @@ class BacktestConfig:
             {"r": Decimal("1.5"), "size": Decimal("0.4")},
             {"r": Decimal("2.0"), "size": Decimal("0.3")},
             {"r": Decimal("3.0"), "size": Decimal("0.3")},
-        ]
+        ],
     )
     move_to_breakeven_on: str = "TP1"
     trail_after: str = "TP2"
@@ -184,31 +183,31 @@ class BacktestConfig:
 class BacktestMetrics:
     """Backtesting performance metrics."""
 
-    total_pnl: Decimal = Decimal("0")
-    total_pnl_pct: Decimal = Decimal("0")
-    profit_factor: Optional[Decimal] = None
-    sharpe_ratio: Optional[Decimal] = None
-    sortino_ratio: Optional[Decimal] = None
-    calmar_ratio: Optional[Decimal] = None
-    max_drawdown_pct: Decimal = Decimal("0")
+    total_pnl: Decimal = Decimal(0)
+    total_pnl_pct: Decimal = Decimal(0)
+    profit_factor: Decimal | None = None
+    sharpe_ratio: Decimal | None = None
+    sortino_ratio: Decimal | None = None
+    calmar_ratio: Decimal | None = None
+    max_drawdown_pct: Decimal = Decimal(0)
     max_drawdown_duration_hours: int = 0
 
     # Trade statistics
     total_trades: int = 0
     winning_trades: int = 0
     losing_trades: int = 0
-    hit_rate_pct: Decimal = Decimal("0")
-    avg_win_r: Decimal = Decimal("0")
-    avg_loss_r: Decimal = Decimal("0")
-    avg_r: Decimal = Decimal("0")
-    largest_win_r: Decimal = Decimal("0")
-    largest_loss_r: Decimal = Decimal("0")
+    hit_rate_pct: Decimal = Decimal(0)
+    avg_win_r: Decimal = Decimal(0)
+    avg_loss_r: Decimal = Decimal(0)
+    avg_r: Decimal = Decimal(0)
+    largest_win_r: Decimal = Decimal(0)
+    largest_loss_r: Decimal = Decimal(0)
 
     # Exposure and costs
-    exposure_pct: Decimal = Decimal("0")
-    total_fees: Decimal = Decimal("0")
-    total_slippage: Decimal = Decimal("0")
-    total_funding: Decimal = Decimal("0")
+    exposure_pct: Decimal = Decimal(0)
+    total_fees: Decimal = Decimal(0)
+    total_slippage: Decimal = Decimal(0)
+    total_funding: Decimal = Decimal(0)
 
     # Runtime
     runtime_ms: int = 0
@@ -223,6 +222,6 @@ class BacktestResult:
     trades: list[BacktestTrade] = field(default_factory=list)
     equity_curve: list[tuple[datetime, Decimal]] = field(default_factory=list)
     drawdown_curve: list[tuple[datetime, Decimal]] = field(default_factory=list)
-    artifacts_path: Optional[str] = None
+    artifacts_path: str | None = None
     git_sha: str = ""
     config_hash: str = ""

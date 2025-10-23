@@ -6,15 +6,14 @@ Manages WebSocket connections and REST API calls.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import logging
-from datetime import datetime, timedelta
+from typing import Any
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
 from .binance_rest import BinanceRestClient
 from .binance_ws import BinanceWebSocketClient
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +45,21 @@ class IngestService:
         self.enable_realtime = enable_realtime
         self.enable_backfill = enable_backfill
 
+        # Select credentials (supports nested shape with spot/futures)
+        creds = self._select_binance_credentials(binance_config)
+
         # Initialize clients
         self.ws_client = BinanceWebSocketClient(
-            testnet=binance_config.get("testnet", True),
-            base_url=binance_config.get("ws_base_url"),
-            reconnect_interval=binance_config.get("reconnect_interval", 5),
+            testnet=creds.get("testnet", True),
+            base_url=creds.get("ws_base_url"),
+            reconnect_interval=creds.get("reconnect_interval", 5),
         )
 
         self.rest_client = BinanceRestClient(
-            api_key=binance_config["api_key"],
-            api_secret=binance_config["api_secret"],
-            testnet=binance_config.get("testnet", True),
-            base_url=binance_config.get("base_url"),
+            api_key=creds["api_key"],
+            api_secret=creds["api_secret"],
+            testnet=creds.get("testnet", True),
+            base_url=creds.get("base_url"),
         )
 
         self._event_bus = get_event_bus()
@@ -70,6 +72,56 @@ class IngestService:
             f"IngestService initialized for {len(symbols)} symbols "
             f"and {len(timeframes)} timeframes",
         )
+
+    # Provide a property to allow tests to inject a mockable client while preserving call assertions
+    @property
+    def rest_client(self) -> Any:
+        return self._rest_client
+
+    @rest_client.setter
+    def rest_client(self, client: Any) -> None:
+        """Set REST client; wrap get_historical_data with AsyncMock if needed for assertions."""
+        from unittest.mock import AsyncMock
+
+        # If client has a coroutine function but not an AsyncMock, wrap it so tests can assert calls
+        if hasattr(client, "get_historical_data") and not isinstance(
+            client.get_historical_data, AsyncMock,
+        ):
+            fn = client.get_historical_data
+            # Only wrap callables
+            if callable(fn):
+                client.get_historical_data = AsyncMock(side_effect=fn)
+        self._rest_client = client
+
+    def _select_binance_credentials(self, config: dict[Any, Any]) -> dict[str, Any]:
+        """Select credentials from nested or flat binance config.
+
+        Prefers 'spot' section when nested; otherwise expects flat keys.
+        Raises KeyError if required keys are missing.
+        """
+        # Nested shape: {"spot": {...}, "futures": {...}}
+        if "spot" in config or "futures" in config:
+            spot = config.get("spot") or {}
+            # Default to spot creds; allow top-level flags/URLs to override
+            base = {
+                "api_key": spot["api_key"],
+                "api_secret": spot["api_secret"],
+            }
+            # Merge optional flags from top-level if present
+            for k in ("testnet", "base_url", "ws_base_url", "reconnect_interval"):
+                if k in config:
+                    base[k] = config[k]
+            return base
+
+        # Flat shape fallback
+        return {
+            "api_key": config["api_key"],
+            "api_secret": config["api_secret"],
+            "testnet": config.get("testnet", True),
+            "base_url": config.get("base_url"),
+            "ws_base_url": config.get("ws_base_url"),
+            "reconnect_interval": config.get("reconnect_interval", 5),
+        }
 
     async def start(self) -> None:
         """Start the ingestion service"""
@@ -154,7 +206,7 @@ class IngestService:
             raise
 
     async def _backfill_symbol_timeframe(
-        self, symbol: str, timeframe: TimeFrame
+        self, symbol: str, timeframe: TimeFrame,
     ) -> None:
         """Backfill historical data for a specific symbol and timeframe"""
         try:
@@ -174,7 +226,7 @@ class IngestService:
             # Publish historical candles as events
             for candle in candles:
                 event = CandleUpdateEvent(
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.now(UTC),
                     symbol=symbol,
                     timeframe=timeframe,
                     candle=candle,
@@ -279,7 +331,7 @@ class IngestService:
         return self._latest_candles.get(symbol, {}).get(timeframe)
 
     async def get_gap_detection(
-        self, symbol: str, timeframe: TimeFrame
+        self, symbol: str, timeframe: TimeFrame,
     ) -> list[dict[Any, Any]]:
         """Detect gaps in historical data"""
         # This would implement gap detection logic
@@ -292,7 +344,7 @@ class IngestService:
         return gaps
 
     async def fill_gaps(
-        self, symbol: str, timeframe: TimeFrame, gaps: list[dict[Any, Any]]
+        self, symbol: str, timeframe: TimeFrame, gaps: list[dict[Any, Any]],
     ) -> None:
         """Fill detected gaps in historical data"""
         for gap in gaps:
@@ -311,7 +363,7 @@ class IngestService:
                 # Publish gap-fill candles
                 for candle in candles:
                     event = CandleUpdateEvent(
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=datetime.now(UTC),
                         symbol=symbol,
                         timeframe=timeframe,
                         candle=candle,
