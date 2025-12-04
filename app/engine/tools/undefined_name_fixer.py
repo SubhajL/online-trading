@@ -23,7 +23,9 @@ class UndefinedNameFixer:
             return content
 
         # Find existing imports
-        has_typing_import, typing_line_idx, typing_imports = UndefinedNameFixer._find_typing_import(lines)
+        has_typing_import, typing_line_idx, typing_imports = (
+            UndefinedNameFixer._find_typing_import(lines)
+        )
         has_decimal_import = UndefinedNameFixer._has_decimal_import(lines)
 
         # Add imports as needed
@@ -170,7 +172,9 @@ class UndefinedNameFixer:
         # After existing imports
         if current_idx > 0:
             prev_line = lines[current_idx - 1].strip()
-            if (prev_line.startswith("from ") or prev_line.startswith("import ")) and not current_line.startswith(("from ", "import ")):
+            if (
+                prev_line.startswith("from ") or prev_line.startswith("import ")
+            ) and not current_line.startswith(("from ", "import ")):
                 return True
 
         # Before first function/class definition
@@ -200,7 +204,9 @@ class UndefinedNameFixer:
             with open(py_file) as f:
                 content = f.read()
 
-            if UndefinedNameFixer._needs_any(content) or UndefinedNameFixer._needs_decimal(content):
+            if UndefinedNameFixer._needs_any(
+                content
+            ) or UndefinedNameFixer._needs_decimal(content):
                 files_with_errors.append(str(py_file))
 
         return files_with_errors

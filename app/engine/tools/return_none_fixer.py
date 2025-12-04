@@ -45,25 +45,34 @@ class ReturnNoneFixer:
 
                 # Check if function has -> None return annotation
                 if node.returns:
-                    return_type = ast.unparse(node.returns) if hasattr(ast, "unparse") else None
+                    return_type = (
+                        ast.unparse(node.returns) if hasattr(ast, "unparse") else None
+                    )
 
                     # Special case for __hash__ method
                     if node.name == "__hash__" and return_type == "None":
                         # Fix __hash__ to return int
-                        fixes.append({
-                            "line": node.returns.lineno - 1,
-                            "type": "fix_hash_return_type",
-                        })
+                        fixes.append(
+                            {
+                                "line": node.returns.lineno - 1,
+                                "type": "fix_hash_return_type",
+                            }
+                        )
                     elif return_type == "None":
                         # Find all return statements with values
                         for child in ast.walk(node):
-                            if isinstance(child, ast.Return) and child.value is not None:
+                            if (
+                                isinstance(child, ast.Return)
+                                and child.value is not None
+                            ):
                                 # Don't process returns in nested functions
                                 if self._is_in_current_function(child, node):
-                                    fixes.append({
-                                        "line": child.lineno - 1,
-                                        "type": "remove_return_value",
-                                    })
+                                    fixes.append(
+                                        {
+                                            "line": child.lineno - 1,
+                                            "type": "remove_return_value",
+                                        }
+                                    )
 
                 self.generic_visit(node)
                 self.current_function = old_function
@@ -84,9 +93,11 @@ class ReturnNoneFixer:
             if fix["type"] == "fix_hash_return_type":
                 # Replace -> None with -> int for __hash__ methods
                 if line_idx < len(lines):
-                    lines[line_idx] = re.sub(r"def __hash__\(self\)\s*->\s*None:",
-                                           "def __hash__(self) -> int:",
-                                           lines[line_idx])
+                    lines[line_idx] = re.sub(
+                        r"def __hash__\(self\)\s*->\s*None:",
+                        "def __hash__(self) -> int:",
+                        lines[line_idx],
+                    )
             elif fix["type"] == "remove_return_value":
                 # Remove the return statement or just the value
                 if line_idx < len(lines):
@@ -136,7 +147,9 @@ class ReturnNoneFixer:
                     content = f.read()
 
                 # Look for functions with -> None that have return statements with values
-                if ("-> None:" in content and re.search(r"return\s+[^:\s]", content)) or re.search(r"def __hash__\(self\)\s*->\s*None:", content):
+                if (
+                    "-> None:" in content and re.search(r"return\s+[^:\s]", content)
+                ) or re.search(r"def __hash__\(self\)\s*->\s*None:", content):
                     files_with_errors.append(str(py_file))
             except Exception:
                 # Skip files that can't be read

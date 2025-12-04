@@ -11,6 +11,7 @@ import aiofiles
 try:
     import aiobotocore.session
     from botocore.exceptions import ClientError
+
     HAS_S3_SUPPORT = True
 except ImportError:
     HAS_S3_SUPPORT = False

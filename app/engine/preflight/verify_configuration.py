@@ -23,16 +23,13 @@ REQUIRED_TABLES = [
     "candles",
     "indicators",
     "swings",
-
     # Smart Money Concept tables
     "smc_events",
     "zones",
-
     # Trading tables
     "orders",
     "positions",
     "balances",
-
     # Reporting and alerts
     "reports",
     "alert_snapshots",  # Added for telegram alerts
@@ -65,6 +62,7 @@ SERVICES_TO_CHECK = {
 
 def substitute_env_vars(content: str) -> str:
     """Substitute ${VAR:-default} patterns with environment variable values."""
+
     def replacer(match):
         var_name = match.group(1)
         default_value = match.group(2)
@@ -118,7 +116,9 @@ def validate_yaml_configs() -> CheckResult:
                 expected_sections = ["database", "redis", "binance"]
                 has_section = any(section in data for section in expected_sections)
                 if not has_section:
-                    validation_errors[str(config_file)] = f"Config missing expected sections: {expected_sections}"
+                    validation_errors[str(config_file)] = (
+                        f"Config missing expected sections: {expected_sections}"
+                    )
                     invalid_files.append(str(config_file))
 
         except Exception as e:
@@ -157,7 +157,9 @@ async def check_database_schema() -> CheckResult:
             "port": int(os.environ.get("POSTGRES_PORT", "5432")),
             "database": os.environ.get("POSTGRES_DB", "trading_platform"),
             "user": os.environ.get("POSTGRES_USER", "trading_user"),
-            "password": os.environ.get("POSTGRES_PASSWORD", "your_secure_password_here"),
+            "password": os.environ.get(
+                "POSTGRES_PASSWORD", "your_secure_password_here"
+            ),
         }
 
         pool = await asyncpg.create_pool(**conn_params, min_size=1, max_size=2)
@@ -185,7 +187,9 @@ async def check_database_schema() -> CheckResult:
                         WHERE hypertable_name = 'candles'
                     )
                 """)
-                is_hypertable = bool(hypertable_check) if hypertable_check is not None else False
+                is_hypertable = (
+                    bool(hypertable_check) if hypertable_check is not None else False
+                )
 
                 # Count indexes
                 index_count = await conn.fetchval("""
@@ -272,7 +276,9 @@ async def verify_service_connectivity() -> CheckResult:
         async with aiohttp.ClientSession() as session:
             router_url = os.environ.get("ROUTER_URL", "http://localhost:8080")
             try:
-                async with session.get(f"{router_url}/healthz", timeout=aiohttp.ClientTimeout(total=2)) as resp:
+                async with session.get(
+                    f"{router_url}/healthz", timeout=aiohttp.ClientTimeout(total=2)
+                ) as resp:
                     if resp.status < 500:  # Consider 4xx as "reachable"
                         reachable_services.append("router")
                     else:

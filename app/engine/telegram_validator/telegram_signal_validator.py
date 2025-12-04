@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TelegramSignal:
     """External signal from Telegram group"""
+
     timestamp: datetime
     symbol: str
     direction: str  # BUY/SELL
@@ -36,6 +37,7 @@ class TelegramSignal:
 @dataclass
 class ValidationResult:
     """Result of comparing external signal with our system"""
+
     telegram_signal: TelegramSignal
     our_signal: dict | None  # Your system's signal at same time
 
@@ -82,7 +84,9 @@ class SignalParser:
     }
 
     @staticmethod
-    def parse_message(message: str, source: str, message_id: int) -> TelegramSignal | None:
+    def parse_message(
+        message: str, source: str, message_id: int
+    ) -> TelegramSignal | None:
         """Parse Telegram message into structured signal"""
 
         # Try each pattern
@@ -168,7 +172,9 @@ class TelegramSignalValidator:
         await self.telegram_client.start(phone)
 
         # Monitor specific groups/channels
-        @self.telegram_client.on(events.NewMessage(chats=self.config["telegram_channels"]))
+        @self.telegram_client.on(
+            events.NewMessage(chats=self.config["telegram_channels"])
+        )
         async def handle_new_message(event):
             await self.process_telegram_message(event.message)
 
@@ -194,7 +200,9 @@ class TelegramSignalValidator:
             if result.overall_score < 50:
                 await self.alert_mismatch(result)
 
-    async def validate_signal(self, telegram_signal: TelegramSignal) -> ValidationResult:
+    async def validate_signal(
+        self, telegram_signal: TelegramSignal
+    ) -> ValidationResult:
         """Validate external signal against your system"""
 
         # Get your system's analysis for same symbol/time
@@ -226,12 +234,18 @@ class TelegramSignalValidator:
             )
 
         # Compare signals
-        direction_match = (telegram_signal.direction == our_signal["direction"])
+        direction_match = telegram_signal.direction == our_signal["direction"]
 
-        entry_diff = abs(telegram_signal.entry_price - our_signal["entry"]) / telegram_signal.entry_price
+        entry_diff = (
+            abs(telegram_signal.entry_price - our_signal["entry"])
+            / telegram_signal.entry_price
+        )
         entry_match = entry_diff <= self.entry_tolerance
 
-        sl_diff = abs(telegram_signal.stop_loss - our_signal["stop_loss"]) / telegram_signal.stop_loss
+        sl_diff = (
+            abs(telegram_signal.stop_loss - our_signal["stop_loss"])
+            / telegram_signal.stop_loss
+        )
         sl_match = sl_diff <= self.sl_tolerance
 
         # Check if at least one TP matches
@@ -286,7 +300,9 @@ class TelegramSignalValidator:
         match = re.search(r"(\d+[HM])", reasoning, re.IGNORECASE)
         return match.group(1) if match else "4H"  # Default to 4H
 
-    def _find_matching_signal(self, our_analysis: dict, timestamp: datetime) -> dict | None:
+    def _find_matching_signal(
+        self, our_analysis: dict, timestamp: datetime
+    ) -> dict | None:
         """Find signal from our system near the timestamp"""
         if not our_analysis or "signals" not in our_analysis:
             return None
@@ -299,7 +315,9 @@ class TelegramSignalValidator:
 
         return None
 
-    def _check_smc_pattern_match(self, telegram_reasoning: str, our_patterns: list[str]) -> bool:
+    def _check_smc_pattern_match(
+        self, telegram_reasoning: str, our_patterns: list[str]
+    ) -> bool:
         """Check if SMC patterns match"""
         telegram_reasoning = telegram_reasoning.upper()
 
@@ -312,7 +330,9 @@ class TelegramSignalValidator:
         # Check for overlap
         return bool(set(telegram_patterns) & set(our_patterns_upper))
 
-    def _check_zone_match(self, telegram_signal: TelegramSignal, our_zones: list[dict]) -> bool:
+    def _check_zone_match(
+        self, telegram_signal: TelegramSignal, our_zones: list[dict]
+    ) -> bool:
         """Check if entry is near same supply/demand zone"""
         for zone in our_zones:
             zone_high = Decimal(str(zone["high"]))
@@ -321,7 +341,11 @@ class TelegramSignalValidator:
             # Check if entry is within or near zone
             buffer = (zone_high - zone_low) * Decimal("0.2")  # 20% buffer
 
-            if (zone_low - buffer) <= telegram_signal.entry_price <= (zone_high + buffer):
+            if (
+                (zone_low - buffer)
+                <= telegram_signal.entry_price
+                <= (zone_high + buffer)
+            ):
                 return True
 
         return False
@@ -382,7 +406,9 @@ class TelegramSignalValidator:
 
         # Calculate metrics
         direction_matches = sum(1 for r in self.validation_history if r.direction_match)
-        entry_matches = sum(1 for r in self.validation_history if r.entry_within_tolerance)
+        entry_matches = sum(
+            1 for r in self.validation_history if r.entry_within_tolerance
+        )
         high_scores = sum(1 for r in self.validation_history if r.overall_score >= 70)
 
         avg_score = sum(r.overall_score for r in self.validation_history) / total
@@ -404,7 +430,10 @@ class TelegramSignalValidator:
                 "zone_match_rate": zone_matches / total * 100,
             },
             "timing": {
-                "avg_delay_seconds": sum(r.timing_difference_seconds for r in self.validation_history) / total,
+                "avg_delay_seconds": sum(
+                    r.timing_difference_seconds for r in self.validation_history
+                )
+                / total,
             },
         }
 
@@ -419,6 +448,7 @@ async def main():
 
     # Your system's API
     from app.engine import TradingSystemAPI
+
     system_api = TradingSystemAPI()
 
     # Create validator

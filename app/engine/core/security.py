@@ -96,7 +96,8 @@ class EnvironmentValidator:
     }
 
     def __init__(
-        self, security_level: SecurityLevel = SecurityLevel.DEVELOPMENT,
+        self,
+        security_level: SecurityLevel = SecurityLevel.DEVELOPMENT,
     ) -> None:
         self.security_level = security_level
         self.rules: dict[str, ValidationRule] = {}

@@ -165,12 +165,16 @@ class TestCostCalculator:
         notional = Decimal(10000)  # $10,000 trade
 
         # Taker fee
-        fee = self.cost_calc.calculate_trading_fee(notional, is_futures=False, is_maker=False)
+        fee = self.cost_calc.calculate_trading_fee(
+            notional, is_futures=False, is_maker=False
+        )
         expected = notional * Decimal("0.001")
         assert fee == expected
 
         # Maker fee (discounted)
-        maker_fee = self.cost_calc.calculate_trading_fee(notional, is_futures=False, is_maker=True)
+        maker_fee = self.cost_calc.calculate_trading_fee(
+            notional, is_futures=False, is_maker=True
+        )
         expected_maker = expected * Decimal("0.75")  # 25% discount
         assert maker_fee == expected_maker
 
@@ -178,7 +182,9 @@ class TestCostCalculator:
         """Test futures trading fee calculation"""
         notional = Decimal(10000)
 
-        fee = self.cost_calc.calculate_trading_fee(notional, is_futures=True, is_maker=False)
+        fee = self.cost_calc.calculate_trading_fee(
+            notional, is_futures=True, is_maker=False
+        )
         expected = notional * Decimal("0.0004")
         assert fee == expected
 
@@ -201,7 +207,9 @@ class TestCostCalculator:
         hours = Decimal(8)  # 8-hour funding period
 
         funding = self.cost_calc.calculate_funding_payment(
-            position_value, funding_rate, hours,
+            position_value,
+            funding_rate,
+            hours,
         )
 
         expected = position_value * funding_rate * (hours / Decimal(8))
@@ -243,13 +251,17 @@ class TestPolicyManager:
         """Test session-based trade filtering"""
         # During allowed hours
         allowed_time = datetime(2024, 1, 1, 15, 0)  # 3 PM
-        is_allowed, reasons = self.policy_manager.is_trading_allowed(allowed_time, "BTCUSDT")
+        is_allowed, reasons = self.policy_manager.is_trading_allowed(
+            allowed_time, "BTCUSDT"
+        )
         assert is_allowed
         assert len(reasons) == 0
 
         # During excluded hours
         excluded_time = datetime(2024, 1, 1, 23, 0)  # 11 PM
-        is_allowed, reasons = self.policy_manager.is_trading_allowed(excluded_time, "BTCUSDT")
+        is_allowed, reasons = self.policy_manager.is_trading_allowed(
+            excluded_time, "BTCUSDT"
+        )
         assert not is_allowed
         assert "session_excluded" in reasons
 
@@ -257,13 +269,19 @@ class TestPolicyManager:
         """Test news event blocking"""
         # Mock news events
         news_events = [
-            {"symbol": "BTCUSDT", "timestamp": datetime(2024, 1, 1, 15, 0), "impact": "high"},
+            {
+                "symbol": "BTCUSDT",
+                "timestamp": datetime(2024, 1, 1, 15, 0),
+                "impact": "high",
+            },
         ]
 
         # 10 minutes before news - should be blocked
         test_time = datetime(2024, 1, 1, 14, 50)
         is_allowed, reasons = self.policy_manager.is_trading_allowed(
-            test_time, "BTCUSDT", news_events=news_events,
+            test_time,
+            "BTCUSDT",
+            news_events=news_events,
         )
         assert not is_allowed
         assert "news_guard" in reasons
@@ -273,7 +291,9 @@ class TestPolicyManager:
         # 3 minutes before funding (every 8 hours: 00:00, 08:00, 16:00 UTC)
         funding_time = datetime(2024, 1, 1, 15, 57)  # 3 min before 16:00
         is_allowed, reasons = self.policy_manager.is_trading_allowed(
-            funding_time, "BTCUSDT", is_futures=True,
+            funding_time,
+            "BTCUSDT",
+            is_futures=True,
         )
         assert not is_allowed
         assert "funding_guard" in reasons
@@ -282,13 +302,17 @@ class TestPolicyManager:
         """Test regime-based filtering"""
         # Allowed regime
         is_allowed, reasons = self.policy_manager.is_trading_allowed(
-            datetime(2024, 1, 1, 15, 0), "BTCUSDT", current_regime="trending",
+            datetime(2024, 1, 1, 15, 0),
+            "BTCUSDT",
+            current_regime="trending",
         )
         assert is_allowed
 
         # Disallowed regime
         is_allowed, reasons = self.policy_manager.is_trading_allowed(
-            datetime(2024, 1, 1, 15, 0), "BTCUSDT", current_regime="ranging",
+            datetime(2024, 1, 1, 15, 0),
+            "BTCUSDT",
+            current_regime="ranging",
         )
         assert not is_allowed
         assert "regime_filter" in reasons
@@ -342,7 +366,9 @@ class TestMetricsCalculator:
         ]
 
         metrics = self.metrics_calc.calculate_metrics(
-            trades, equity_curve, drawdown_curve,
+            trades,
+            equity_curve,
+            drawdown_curve,
         )
 
         assert metrics.total_trades == 2
@@ -361,7 +387,9 @@ class TestMetricsCalculator:
         for i in range(252):  # 252 trading days
             daily_return = Decimal("0.001")  # 0.1% daily
             base_equity = base_equity * (Decimal(1) + daily_return)
-            equity_points.append((datetime(2024, 1, 1) + timedelta(days=i), base_equity))
+            equity_points.append(
+                (datetime(2024, 1, 1) + timedelta(days=i), base_equity)
+            )
 
         metrics = self.metrics_calc.calculate_metrics([], equity_points, [])
 
@@ -376,7 +404,7 @@ class TestMetricsCalculator:
             (datetime(2024, 1, 2), Decimal("0.02")),  # 2% DD
             (datetime(2024, 1, 3), Decimal("0.05")),  # 5% DD (max)
             (datetime(2024, 1, 4), Decimal("0.03")),  # Recovery
-            (datetime(2024, 1, 5), Decimal(0)),      # Full recovery
+            (datetime(2024, 1, 5), Decimal(0)),  # Full recovery
         ]
 
         metrics = self.metrics_calc.calculate_metrics([], [], drawdown_curve)
@@ -525,6 +553,7 @@ class TestCSVDataset:
     def teardown_method(self):
         """Clean up temp files"""
         import shutil
+
         shutil.rmtree(self.temp_dir)
 
 
@@ -611,7 +640,7 @@ class TestEdgeCases:
             close_time=datetime(2024, 1, 1, 12, 15),
             open_price=Decimal(50000),
             high_price=Decimal(100000),  # 100% gap up
-            low_price=Decimal(25000),    # 50% gap down
+            low_price=Decimal(25000),  # 50% gap down
             close_price=Decimal(75000),
             volume=Decimal(1000),
             quote_volume=Decimal(50000000),
@@ -649,8 +678,8 @@ class TestPerformance:
             candle = Candle(
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M15,
-                open_time=datetime(2024, 1, 1) + timedelta(minutes=15*i),
-                close_time=datetime(2024, 1, 1) + timedelta(minutes=15*(i+1)),
+                open_time=datetime(2024, 1, 1) + timedelta(minutes=15 * i),
+                close_time=datetime(2024, 1, 1) + timedelta(minutes=15 * (i + 1)),
                 open_price=Decimal(50000) + Decimal(str(i % 100)),
                 high_price=Decimal(50100) + Decimal(str(i % 100)),
                 low_price=Decimal(49900) + Decimal(str(i % 100)),
@@ -664,6 +693,7 @@ class TestPerformance:
             candles.append(candle)
 
         import time
+
         start_time = time.time()
 
         # Process all candles

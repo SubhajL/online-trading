@@ -58,7 +58,8 @@ def detect_n_bar_pivots(candles: list[Candle], n: int = 3) -> list[Pivot]:
                 min_excl = np.inf
             else:
                 min_excl = min(
-                    np.min(win_lows[: i - w_start]), np.min(win_lows[i - w_start + 1 :]),
+                    np.min(win_lows[: i - w_start]),
+                    np.min(win_lows[i - w_start + 1 :]),
                 )
             if lows[i] <= min_excl:
                 pivots.append(

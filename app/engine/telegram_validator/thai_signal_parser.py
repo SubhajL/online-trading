@@ -49,7 +49,9 @@ class ThaiSignalParser(SignalParser):
     }
 
     @classmethod
-    def parse_thai_signal(cls, text: str, source: str = "Thai SMC Group") -> TelegramSignal | None:
+    def parse_thai_signal(
+        cls, text: str, source: str = "Thai SMC Group"
+    ) -> TelegramSignal | None:
         """
         Parse Thai language signal
 
@@ -65,9 +67,15 @@ class ThaiSignalParser(SignalParser):
             "direction": re.compile(r"สัญญาณ\s*[:：]\s*(\w+)", re.IGNORECASE),
             "symbol": re.compile(r"สินทรัพย์\s*[:：]\s*(\w+)", re.IGNORECASE),
             "timeframe": re.compile(r"กรอบเวลา\s*[:：]\s*(\w+)", re.IGNORECASE),
-            "entry": re.compile(r"(?:ราคาเข้า|ราคาเปิด|Entry)\s*[:：]\s*([\d.]+)", re.IGNORECASE),
-            "sl": re.compile(r"(?:ตัดขาดทุน|SL|Stop Loss)\s*[:：]\s*([\d.]+)", re.IGNORECASE),
-            "tp": re.compile(r"(?:เป้าหมาย|TP|Target)\s*[:：]\s*([\d.,\s]+)", re.IGNORECASE),
+            "entry": re.compile(
+                r"(?:ราคาเข้า|ราคาเปิด|Entry)\s*[:：]\s*([\d.]+)", re.IGNORECASE
+            ),
+            "sl": re.compile(
+                r"(?:ตัดขาดทุน|SL|Stop Loss)\s*[:：]\s*([\d.]+)", re.IGNORECASE
+            ),
+            "tp": re.compile(
+                r"(?:เป้าหมาย|TP|Target)\s*[:：]\s*([\d.,\s]+)", re.IGNORECASE
+            ),
         }
 
         extracted = {}
@@ -93,7 +101,9 @@ class ThaiSignalParser(SignalParser):
 
         # Process symbol - ensure it ends with USDT for crypto
         symbol = extracted["symbol"].upper()
-        if not symbol.endswith("USDT") and not any(currency in symbol for currency in ["USD", "EUR", "GBP", "JPY"]):
+        if not symbol.endswith("USDT") and not any(
+            currency in symbol for currency in ["USD", "EUR", "GBP", "JPY"]
+        ):
             symbol += "USDT"
 
         # Process timeframe
@@ -232,7 +242,7 @@ class ThaiSignalValidator:
             กรอบเวลา : {timeframe}
             ราคาเข้า : {entry}
             ตัดขาดทุน : {sl}
-            เป้าหมาย : {', '.join(tps)}
+            เป้าหมาย : {", ".join(tps)}
             """
 
             return {
@@ -280,7 +290,9 @@ if __name__ == "__main__":
 
     # Test quick format
     validator = ThaiSignalValidator()
-    quick = validator.parse_quick_format("USDJPY SELL 150.50 151.00 150.00,149.50,149.00 H1")
+    quick = validator.parse_quick_format(
+        "USDJPY SELL 150.50 151.00 150.00,149.50,149.00 H1"
+    )
     if quick:
         print("\nQuick format parsed:")
         print(quick["formatted_text"])

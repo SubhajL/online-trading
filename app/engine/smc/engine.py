@@ -111,7 +111,11 @@ class SMCEngine:
             tracker.state = choch_event.to_state  # Update state on CHOCH
             key_levels = get_key_levels(tracker)
             event = create_smc_event(
-                candle.symbol, candle.timeframe, choch_event, tracker.state, key_levels,
+                candle.symbol,
+                candle.timeframe,
+                choch_event,
+                tracker.state,
+                key_levels,
             )
             events_to_publish.append(event)
 
@@ -124,7 +128,9 @@ class SMCEngine:
                         # Look for last bearish candle
                         if c.close_price < c.open_price:
                             ob_zone = detect_order_block(
-                                c, choch_event, candle.timeframe,
+                                c,
+                                choch_event,
+                                candle.timeframe,
                             )
                             if ob_zone:
                                 self._add_zone(key, ob_zone)
@@ -134,7 +140,9 @@ class SMCEngine:
                     # Look for last bullish candle
                     elif c.close_price > c.open_price:
                         ob_zone = detect_order_block(
-                            c, choch_event, candle.timeframe,
+                            c,
+                            choch_event,
+                            candle.timeframe,
                         )
                         if ob_zone:
                             self._add_zone(key, ob_zone)
@@ -146,7 +154,11 @@ class SMCEngine:
         if bos_event:
             key_levels = get_key_levels(tracker)
             event = create_smc_event(
-                candle.symbol, candle.timeframe, bos_event, tracker.state, key_levels,
+                candle.symbol,
+                candle.timeframe,
+                bos_event,
+                tracker.state,
+                key_levels,
             )
             events_to_publish.append(event)
 
@@ -163,7 +175,9 @@ class SMCEngine:
         if len(candles) >= 3:
             recent_candles = candles[-3:]
             fvg_zone = detect_fair_value_gap(
-                recent_candles, candle.symbol, candle.timeframe,
+                recent_candles,
+                candle.symbol,
+                candle.timeframe,
             )
             if fvg_zone:
                 self._add_zone(key, fvg_zone)
@@ -225,10 +239,13 @@ class SMCEngine:
             return detect_n_bar_pivots(candles, n=self.pivot_n)
         # ZIGZAG
         atr = self._atr_values.get(
-            (candles[0].symbol, candles[0].timeframe), Decimal("1.0"),
+            (candles[0].symbol, candles[0].timeframe),
+            Decimal("1.0"),
         )
         return detect_zigzag_pivots(
-            candles, atr, min_reversal_factor=self.atr_reversal_factor,
+            candles,
+            atr,
+            min_reversal_factor=self.atr_reversal_factor,
         )
 
     def _add_zone(self, key: tuple[str, TimeFrame], zone: Zone) -> None:
@@ -241,14 +258,19 @@ class SMCEngine:
             self._zones[key] = zones[-self.max_zones_per_symbol :]
 
     def get_structure_state(
-        self, symbol: str, timeframe: TimeFrame,
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
     ) -> StructureState | None:
         key = (symbol, timeframe)
         tracker = self._trackers.get(key)
         return tracker.state if tracker else None
 
     def get_zones(
-        self, symbol: str, timeframe: TimeFrame, zone_type: str | None = None,
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        zone_type: str | None = None,
     ) -> list[Zone]:
         key = (symbol, timeframe)
         zones = self._zones.get(key, [])

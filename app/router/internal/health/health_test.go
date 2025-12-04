@@ -148,10 +148,10 @@ func TestOrderProcessingPipeline(t *testing.T) {
 	// Simulate healthy pipeline
 	ctx := context.Background()
 	stats := health.OrderStats{
-		TotalOrders:     1000,
+		TotalOrders:      1000,
 		SuccessfulOrders: 995,
-		FailedOrders:    5,
-		AvgProcessingMs: 50,
+		FailedOrders:     5,
+		AvgProcessingMs:  50,
 	}
 
 	status := checker.CheckOrderProcessing(ctx, stats)
@@ -167,10 +167,10 @@ func TestOrderProcessingHighFailureRate(t *testing.T) {
 
 	ctx := context.Background()
 	stats := health.OrderStats{
-		TotalOrders:     1000,
+		TotalOrders:      1000,
 		SuccessfulOrders: 800,
-		FailedOrders:    200,
-		AvgProcessingMs: 100,
+		FailedOrders:     200,
+		AvgProcessingMs:  100,
 	}
 
 	status := checker.CheckOrderProcessing(ctx, stats)

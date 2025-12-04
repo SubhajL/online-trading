@@ -36,7 +36,9 @@ async def check_all_guards(
     # Check funding guard
     if funding_monitor:
         is_safe, reason = await evaluate_funding_safety(
-            symbol, position_side, funding_monitor,
+            symbol,
+            position_side,
+            funding_monitor,
         )
         if not is_safe:
             return ("BLOCK", reason)
@@ -106,7 +108,8 @@ class GuardService:
         # Check news guard
         if self._overrides.get("news") != "SAFE":
             is_blocked, reason = check_news_blackout(
-                self.calendar_manager, current_time,
+                self.calendar_manager,
+                current_time,
             )
             if is_blocked:
                 return ("BLOCK", reason)
@@ -115,7 +118,9 @@ class GuardService:
         if symbol.endswith("USDT") and self.config.get("funding_check_enabled", True):
             if self._overrides.get("funding") != "SAFE":
                 is_safe, reason = await evaluate_funding_safety(
-                    symbol, position_side, self.funding_monitor,
+                    symbol,
+                    position_side,
+                    self.funding_monitor,
                 )
                 if not is_safe:
                     return ("BLOCK", reason)

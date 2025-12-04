@@ -144,7 +144,9 @@ def has_confirmation(
     """Validate close direction or micro-BOS confirmation."""
     # Check micro-BOS confirmation first
     if micro_bos:
-        if (direction == "LONG" and micro_bos.get("type") == "BULLISH_BOS") or (direction == "SHORT" and micro_bos.get("type") == "BEARISH_BOS"):
+        if (direction == "LONG" and micro_bos.get("type") == "BULLISH_BOS") or (
+            direction == "SHORT" and micro_bos.get("type") == "BEARISH_BOS"
+        ):
             return True
 
     # Check candle confirmation

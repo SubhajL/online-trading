@@ -20,7 +20,9 @@ class TestAlertDeduplicator:
         with patch("alert_deduplicator.redis.Redis", return_value=mock_redis):
             return AlertDeduplicator(ttl_seconds=60)
 
-    def test_is_duplicate_new_key(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
+    def test_is_duplicate_new_key(
+        self, deduplicator: Any, mock_redis: dict[str, Any]
+    ) -> None:
         key = "test:key:123"
         mock_redis.get.return_value = None
 
@@ -29,7 +31,9 @@ class TestAlertDeduplicator:
         assert result is False
         mock_redis.get.assert_called_once_with(f"alert:dedup:{key}")
 
-    def test_is_duplicate_existing_key(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
+    def test_is_duplicate_existing_key(
+        self, deduplicator: Any, mock_redis: dict[str, Any]
+    ) -> None:
         key = "test:key:123"
         mock_redis.get.return_value = b"1"
 
@@ -67,7 +71,9 @@ class TestAlertDeduplicator:
                 "1",
             )
 
-    def test_redis_connection_error(self, deduplicator: Any, mock_redis: dict[str, Any]) -> None:
+    def test_redis_connection_error(
+        self, deduplicator: Any, mock_redis: dict[str, Any]
+    ) -> None:
         mock_redis.get.side_effect = Exception("Redis connection error")
 
         # Should return False on error (allowing alert to be sent)

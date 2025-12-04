@@ -62,7 +62,9 @@ class TelegramDelivery:
         ]
 
         # Volume confirmation
-        volume_status = "✅ Confirmed" if signal.volume_confirmation else "⚠️ Not Confirmed"
+        volume_status = (
+            "✅ Confirmed" if signal.volume_confirmation else "⚠️ Not Confirmed"
+        )
         lines.append(f"📊 *Volume:* {volume_status}")
 
         # Confluence factors
@@ -84,10 +86,12 @@ class TelegramDelivery:
                 lines.append(f"✓ {display_factor}")
 
         # Timestamp
-        lines.extend([
-            "",
-            f"🕐 {signal.timestamp.strftime('%Y-%m-%d %H:%M UTC')}",
-        ])
+        lines.extend(
+            [
+                "",
+                f"🕐 {signal.timestamp.strftime('%Y-%m-%d %H:%M UTC')}",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -112,7 +116,9 @@ class TelegramDelivery:
         # Prepare multipart form data
         form = FormData()
         form.add_field("chat_id", str(self.chat_id))
-        form.add_field("photo", image_data, filename="chart.png", content_type="image/png")
+        form.add_field(
+            "photo", image_data, filename="chart.png", content_type="image/png"
+        )
         form.add_field("caption", caption)
         form.add_field("parse_mode", "Markdown")
 
@@ -140,8 +146,12 @@ class TelegramDelivery:
                         error_desc = result.get("description", "Unknown error")
 
                         if error_code == 429:  # Rate limited
-                            retry_after = result.get("parameters", {}).get("retry_after", 60)
-                            logger.warning(f"Telegram rate limit, retry after {retry_after}s")
+                            retry_after = result.get("parameters", {}).get(
+                                "retry_after", 60
+                            )
+                            logger.warning(
+                                f"Telegram rate limit, retry after {retry_after}s"
+                            )
                             await asyncio.sleep(min(retry_after, 60))
                             continue
 
@@ -171,7 +181,7 @@ class TelegramDelivery:
 
             # Wait before retry
             if attempt < self.max_retries - 1:
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                await asyncio.sleep(2**attempt)  # Exponential backoff
 
         return {"success": False, "error": "Max retries exceeded"}
 
@@ -194,11 +204,14 @@ class TelegramDelivery:
         }
 
         try:
-            async with aiohttp.ClientSession() as session, session.post(
-                url,
-                json=data,
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as response:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
+                    url,
+                    json=data,
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as response,
+            ):
                 result = await response.json()
 
                 if response.status == 200 and result.get("ok"):

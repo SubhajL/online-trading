@@ -511,7 +511,10 @@ def calculate_macd(
 ) -> tuple[list[Decimal | None], list[Decimal | None], list[Decimal | None]]:
     """Calculate MACD"""
     return TechnicalIndicatorsCalculator.macd(
-        values, fast_period, slow_period, signal_period,
+        values,
+        fast_period,
+        slow_period,
+        signal_period,
     )
 
 

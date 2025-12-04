@@ -1,8 +1,73 @@
 {
-  "env": {
-    "ANTHROPIC_MODEL": "claude-opus-4-20250514"
-  },
-  "permissions": {
-    "defaultMode": "bypassPermissions"
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/subhajlimanond/dev/lastmile-accelerator/.claude/hooks/UserPromptSubmit"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(rm -rf /|rm -rf \\.|--force.*origin.*main|git push.*--force|docker system prune.*--all.*--force|DROP DATABASE|DROP TABLE)'; then echo 'BLOCKED: Dangerous command detected. Please review and confirm before running destructive operations.' && exit 2; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATHS\" | grep -qE '(\\.env$|\\.env\\.production|\\.env\\.local|credentials\\.json|secrets\\.|.*\\.pem$|.*\\.key$)'; then echo 'WARNING: Editing sensitive file. Ensure no secrets are hardcoded.' >&2; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATHS\" | grep -qE '\\.(ts|tsx|js|jsx)$'; then for file in $CLAUDE_FILE_PATHS; do if [ -f \"$file\" ]; then npx prettier --write \"$file\" 2>/dev/null || true; fi; done; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATHS\" | grep -qE '\\.(go)$'; then for file in $CLAUDE_FILE_PATHS; do if [ -f \"$file\" ]; then gofmt -w \"$file\" 2>/dev/null || true; fi; done; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATHS\" | grep -qE '\\.(py)$'; then for file in $CLAUDE_FILE_PATHS; do if [ -f \"$file\" ]; then ruff format \"$file\" 2>/dev/null || black \"$file\" 2>/dev/null || true; fi; done; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATHS\" | grep -qE '\\.(json)$'; then for file in $CLAUDE_FILE_PATHS; do if [ -f \"$file\" ]; then npx prettier --write \"$file\" 2>/dev/null || true; fi; done; fi"
+          }
+        ]
+      }
+    ]
   }
 }

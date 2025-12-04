@@ -24,8 +24,13 @@ class ImportSyntaxFixer:
                 import_items = line[4:].strip()  # Remove 'from ' prefix
 
                 # Check if this is a multi-line import
-                if i + 1 < len(lines) and (lines[i + 1].strip().startswith(",") or
-                                          (lines[i + 1].strip() and not lines[i + 1].strip().startswith(("from", "import")))):
+                if i + 1 < len(lines) and (
+                    lines[i + 1].strip().startswith(",")
+                    or (
+                        lines[i + 1].strip()
+                        and not lines[i + 1].strip().startswith(("from", "import"))
+                    )
+                ):
                     # Multi-line import
                     result_lines.append("from ..config import (")
                     result_lines.append("    " + import_items)

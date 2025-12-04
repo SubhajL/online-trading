@@ -40,7 +40,9 @@ class DecisionEngine:
         self._running = False
         logger.info("DecisionEngine stopped")
 
-    def process_signals(self, signals_raw: list[dict[str, Any]], regime: dict[str, Any]) -> list[dict[str, Any]]:
+    def process_signals(
+        self, signals_raw: list[dict[str, Any]], regime: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Process raw signals with regime context.
 
         Args:

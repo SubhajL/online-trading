@@ -343,7 +343,8 @@ class RegimeVolEngine:
 
             # Calculate percentiles
             metrics = await self._calculate_percentiles(
-                features.symbol, features.timeframe.value,
+                features.symbol,
+                features.timeframe.value,
             )
 
             # Classify regime
@@ -403,7 +404,8 @@ class RegimeVolEngine:
         ]
 
         return calculate_volatility_metrics(
-            candles=candle_dicts, lookback_period=self.lookback_periods,
+            candles=candle_dicts,
+            lookback_period=self.lookback_periods,
         )
 
     def get_current_regime(self, symbol: str, timeframe: str) -> MarketRegime | None:

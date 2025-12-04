@@ -222,7 +222,9 @@ class PaperBroker:
     async def initialize(self):
         """Initialize database connection and load state"""
         self.db_pool = await asyncpg.create_pool(
-            self.database_url, min_size=2, max_size=10,
+            self.database_url,
+            min_size=2,
+            max_size=10,
         )
         await self._load_state_from_db()
         logger.info("Paper broker database initialized")
@@ -317,7 +319,8 @@ class PaperBroker:
             is_maker=(order.type == OrderType.LIMIT),
         )
         slippage = self.cost_calculator.calculate_slippage(
-            order.quantity, candle.volume,
+            order.quantity,
+            candle.volume,
         )
 
         # Create fill
@@ -342,7 +345,8 @@ class PaperBroker:
         # Update position
         if order.symbol not in self.positions:
             self.positions[order.symbol] = PaperPosition(
-                order.symbol, is_futures=order.symbol.endswith("USDT"),
+                order.symbol,
+                is_futures=order.symbol.endswith("USDT"),
             )
 
         self.positions[order.symbol].update_position(fill, candle.close_price)
@@ -452,7 +456,8 @@ class PaperBroker:
     # ============================================================================
 
     async def place_bracket_order(
-        self, request: PlaceBracketRequest,
+        self,
+        request: PlaceBracketRequest,
     ) -> PlaceBracketResponse:
         """Place bracket order with entry, TPs, and SL"""
         bracket_id = str(uuid.uuid4())
@@ -583,7 +588,8 @@ class PaperBroker:
             if not client_order_id and request.order_id:
                 # Find by order_id (not implemented in this simple version)
                 raise HTTPException(
-                    status_code=400, detail="Cancel by order_id not implemented",
+                    status_code=400,
+                    detail="Cancel by order_id not implemented",
                 )
 
             if client_order_id not in self.active_orders:

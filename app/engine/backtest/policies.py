@@ -121,11 +121,13 @@ class NewsGuardPolicy:
             impact: Impact level (LOW, MEDIUM, HIGH)
             currency: Affected currency
         """
-        self.news_events.append({
-            "timestamp": timestamp,
-            "impact": impact,
-            "currency": currency,
-        })
+        self.news_events.append(
+            {
+                "timestamp": timestamp,
+                "impact": impact,
+                "currency": currency,
+            }
+        )
 
     def is_news_block_active(self, timestamp: datetime, symbol: str) -> bool:
         """
@@ -236,7 +238,11 @@ class FundingGuardPolicy:
             time_to_funding = (funding_time - timestamp).total_seconds() / 60
 
             # Check if within blocking window
-            if -self.block_minutes_after <= time_to_funding <= self.block_minutes_before:
+            if (
+                -self.block_minutes_after
+                <= time_to_funding
+                <= self.block_minutes_before
+            ):
                 return True
 
         return False
@@ -364,7 +370,9 @@ class TradingPolicyManager:
 
         # Check regime filter (if signal provided)
         if signal_direction and regime and indicators:
-            if not self.regime_filter.is_regime_favorable(regime, signal_direction, indicators):
+            if not self.regime_filter.is_regime_favorable(
+                regime, signal_direction, indicators
+            ):
                 blocking_reasons.append("regime_unfavorable")
 
         is_allowed = len(blocking_reasons) == 0
@@ -383,9 +391,12 @@ class TradingPolicyManager:
         """
         return {
             "session_allowed": self.session_policy.is_trading_allowed(timestamp),
-            "news_block_active": self.news_guard.is_news_block_active(timestamp, symbol),
+            "news_block_active": self.news_guard.is_news_block_active(
+                timestamp, symbol
+            ),
             "funding_block_active": self.funding_guard.is_funding_block_active(
-                timestamp, Decimal("0.001"),  # Sample funding rate
+                timestamp,
+                Decimal("0.001"),  # Sample funding rate
             ),
             "regime_filter_enabled": self.regime_filter.enabled,
         }

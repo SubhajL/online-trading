@@ -341,10 +341,7 @@ export function Chart({
       {/* Chart container */}
       <div style={chartAreaStyles}>
         {loading && (
-          <div
-            data-testid="chart-loading"
-            style={getOverlayStyles(tokens)}
-          >
+          <div data-testid="chart-loading" style={getOverlayStyles(tokens)}>
             <div
               style={{
                 ...getSpinnerStyles('lg', tokens),
@@ -359,9 +356,7 @@ export function Chart({
         )}
 
         {error && (
-          <div
-            style={getOverlayStyles(tokens)}
-          >
+          <div style={getOverlayStyles(tokens)}>
             <p
               style={{
                 color: tokens.colors.text.danger,

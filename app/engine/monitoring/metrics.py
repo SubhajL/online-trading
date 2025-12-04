@@ -215,6 +215,7 @@ snapshot_delivery_success = Counter(
 # Helper Functions
 # ==============================================================================
 
+
 def track_time(metric: Histogram, labels: dict[str, str] | None = None):
     """
     Decorator to track execution time of a function.
@@ -228,6 +229,7 @@ def track_time(metric: Histogram, labels: dict[str, str] | None = None):
         async def generate_signal():
             ...
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -257,6 +259,7 @@ def track_time(metric: Histogram, labels: dict[str, str] | None = None):
 
         # Return appropriate wrapper based on function type
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
@@ -264,7 +267,9 @@ def track_time(metric: Histogram, labels: dict[str, str] | None = None):
     return decorator
 
 
-def increment_counter(counter: Counter, labels: dict[str, str] | None = None, value: float = 1):
+def increment_counter(
+    counter: Counter, labels: dict[str, str] | None = None, value: float = 1
+):
     """
     Increment a counter metric.
 
@@ -300,7 +305,9 @@ def set_gauge(gauge: Gauge, value: float, labels: dict[str, str] | None = None):
         logger.error(f"Error setting gauge: {e}")
 
 
-def observe_histogram(histogram: Histogram, value: float, labels: dict[str, str] | None = None):
+def observe_histogram(
+    histogram: Histogram, value: float, labels: dict[str, str] | None = None
+):
     """
     Record an observation in a histogram.
 
@@ -321,6 +328,7 @@ def observe_histogram(histogram: Histogram, value: float, labels: dict[str, str]
 # ==============================================================================
 # Metrics Export
 # ==============================================================================
+
 
 def get_metrics() -> bytes:
     """
@@ -345,6 +353,7 @@ def get_metrics_content_type() -> str:
 # ==============================================================================
 # Metric Collection Functions
 # ==============================================================================
+
 
 def record_signal_generated(symbol: str, timeframe: str, signal_type: str, source: str):
     """Record a signal generation event."""

@@ -62,7 +62,10 @@ def run_all_checks(fail_fast: bool = False) -> PreflightResults:
                 can_proceed = False
                 if fail_fast:
                     break
-            elif result.status == CheckStatus.WARNING and overall_status != CheckStatus.FAILED:
+            elif (
+                result.status == CheckStatus.WARNING
+                and overall_status != CheckStatus.FAILED
+            ):
                 overall_status = CheckStatus.WARNING
 
         except Exception as e:
@@ -148,7 +151,9 @@ def generate_preflight_report(results: PreflightResults) -> str:
                 lines.append(f"   Error: {result.details['error']}")
 
             if result.details.get("missing_commands"):
-                lines.append(f"   Missing commands: {', '.join(result.details['missing_commands'])}")
+                lines.append(
+                    f"   Missing commands: {', '.join(result.details['missing_commands'])}"
+                )
 
             if "version_mismatches" in result.details:
                 lines.append("   Version mismatches:")
@@ -164,16 +169,25 @@ def generate_preflight_report(results: PreflightResults) -> str:
         lines.append("RECOMMENDED ACTIONS:")
         lines.append("=" * 60)
 
-        if "environment" in results.checks and results.checks["environment"].status == CheckStatus.FAILED:
+        if (
+            "environment" in results.checks
+            and results.checks["environment"].status == CheckStatus.FAILED
+        ):
             lines.append("\n1. Set missing environment variables in .env file")
             lines.append("   cp .env.example .env")
             lines.append("   # Edit .env and add required values")
 
-        if "packages" in results.checks and results.checks["packages"].status == CheckStatus.FAILED:
+        if (
+            "packages" in results.checks
+            and results.checks["packages"].status == CheckStatus.FAILED
+        ):
             lines.append("\n2. Install missing Python packages")
             lines.append("   pip install -r app/engine/requirements.txt")
 
-        if "system_commands" in results.checks and results.checks["system_commands"].status == CheckStatus.FAILED:
+        if (
+            "system_commands" in results.checks
+            and results.checks["system_commands"].status == CheckStatus.FAILED
+        ):
             lines.append("\n3. Install missing system commands")
             details = results.checks["system_commands"].details
             if "docker" in details.get("missing_commands", []):
@@ -181,7 +195,10 @@ def generate_preflight_report(results: PreflightResults) -> str:
             if "psql" in details.get("missing_commands", []):
                 lines.append("   # Install PostgreSQL client: brew install postgresql")
 
-        if "ports" in results.checks and results.checks["ports"].status == CheckStatus.FAILED:
+        if (
+            "ports" in results.checks
+            and results.checks["ports"].status == CheckStatus.FAILED
+        ):
             lines.append("\n4. Start required services")
             lines.append("   make infra-up  # Start PostgreSQL and Redis")
 

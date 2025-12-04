@@ -170,7 +170,9 @@ describe('SmcOverlays', () => {
       render(<SmcOverlays events={event} chartRef={chartRef} />)
 
       const label = screen.getByText('↓ BoS') as HTMLElement
-      expect(label.style.backgroundColor).toBe(DEFAULT_TOKENS.colors.error[600] || DEFAULT_TOKENS.colors.error[500])
+      expect(label.style.backgroundColor).toBe(
+        DEFAULT_TOKENS.colors.error[600] || DEFAULT_TOKENS.colors.error[500],
+      )
       expect(label.style.color).toBe(DEFAULT_TOKENS.colors.text.inverse)
     })
 

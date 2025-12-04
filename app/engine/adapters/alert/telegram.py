@@ -111,7 +111,9 @@ class TelegramAlertAdapter:
                     image_data = await self._download_snapshot(snapshot_url)
                     if image_data:
                         # Send as photo with caption
-                        snapshot_sent = await self._send_photo_alert(image_data, message)
+                        snapshot_sent = await self._send_photo_alert(
+                            image_data, message
+                        )
 
             # If no snapshot or photo send failed, send text message
             if not snapshot_sent:
@@ -207,7 +209,9 @@ class TelegramAlertAdapter:
             data.add_field("chat_id", self.chat_id)
             data.add_field("parse_mode", "HTML")
             data.add_field("caption", caption)
-            data.add_field("photo", image_data, filename="signal.png", content_type="image/png")
+            data.add_field(
+                "photo", image_data, filename="signal.png", content_type="image/png"
+            )
 
             async with self.session.post(url, data=data) as response:
                 if response.status == 200:

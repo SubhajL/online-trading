@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExchangeInfo:
     """Exchange trading rules for a symbol."""
+
     symbol: str
     base_asset: str
     quote_asset: str
@@ -91,7 +92,10 @@ class OrderFormatter:
         if not info.price_tick_size.is_zero():
             remainder = price % info.price_tick_size
             if not remainder.is_zero():
-                return False, f"Price {price} not aligned to tick size {info.price_tick_size}"
+                return (
+                    False,
+                    f"Price {price} not aligned to tick size {info.price_tick_size}",
+                )
 
         return True, "Price valid"
 
@@ -112,11 +116,16 @@ class OrderFormatter:
         if not info.qty_step_size.is_zero():
             remainder = quantity % info.qty_step_size
             if not remainder.is_zero():
-                return False, f"Quantity {quantity} not aligned to step size {info.qty_step_size}"
+                return (
+                    False,
+                    f"Quantity {quantity} not aligned to step size {info.qty_step_size}",
+                )
 
         return True, "Quantity valid"
 
-    def validate_notional(self, symbol: str, price: Decimal, quantity: Decimal) -> tuple[bool, str]:
+    def validate_notional(
+        self, symbol: str, price: Decimal, quantity: Decimal
+    ) -> tuple[bool, str]:
         """Validate order meets minimum notional value."""
         if symbol not in self.exchange_info:
             return False, f"Unknown symbol: {symbol}"
@@ -129,7 +138,9 @@ class OrderFormatter:
 
         return True, f"Notional {notional} valid"
 
-    def adjust_quantity_for_notional(self, symbol: str, price: Decimal, quantity: Decimal) -> Decimal:
+    def adjust_quantity_for_notional(
+        self, symbol: str, price: Decimal, quantity: Decimal
+    ) -> Decimal:
         """Adjust quantity up to meet minimum notional if needed."""
         if symbol not in self.exchange_info:
             raise ValueError(f"Unknown symbol: {symbol}")
@@ -170,14 +181,20 @@ class OrderFormatter:
             formatted["take_profit"] = self.round_price(symbol, order["take_profit"])
 
         # Adjust quantity for min notional if needed (only for limit orders)
-        if order.get("type") == "LIMIT" and "price" in formatted and "quantity" in formatted:
+        if (
+            order.get("type") == "LIMIT"
+            and "price" in formatted
+            and "quantity" in formatted
+        ):
             adjusted_qty = self.adjust_quantity_for_notional(
                 symbol,
                 formatted["price"],
                 formatted["quantity"],
             )
             if adjusted_qty != formatted["quantity"]:
-                logger.info(f"Adjusted quantity from {formatted['quantity']} to {adjusted_qty} for min notional")
+                logger.info(
+                    f"Adjusted quantity from {formatted['quantity']} to {adjusted_qty} for min notional"
+                )
                 formatted["quantity"] = adjusted_qty
 
         return formatted
@@ -219,7 +236,9 @@ class OrderFormatter:
 
         # Validate notional (for limit orders)
         if order.get("type") == "LIMIT" and "price" in order and "quantity" in order:
-            is_valid, reason = self.validate_notional(symbol, order["price"], order["quantity"])
+            is_valid, reason = self.validate_notional(
+                symbol, order["price"], order["quantity"]
+            )
             if not is_valid:
                 errors.append(f"Notional: {reason}")
 

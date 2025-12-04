@@ -133,8 +133,7 @@ def create_enhanced_health_endpoints(
         dependencies = await health_checker.check_all_dependencies()
 
         all_available = all(
-            dep.status.value == "available"
-            for dep in dependencies.values()
+            dep.status.value == "available" for dep in dependencies.values()
         )
 
         critical_available = all(

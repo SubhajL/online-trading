@@ -44,6 +44,7 @@ class TestAlertSystemIntegration:
     @pytest.fixture
     def alert_system(self, telegram_adapter: Any, line_adapter: Any) -> Any:
         """Mock alert system that can send to multiple platforms"""
+
         class AlertSystem:
             def __init__(self, adapters: Any) -> None:
                 self.adapters = adapters
@@ -56,11 +57,13 @@ class TestAlertSystemIntegration:
                     tasks.append(adapter.send_alert(event))
 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                self.sent_alerts.append({
-                    "event": event,
-                    "results": results,
-                    "timestamp": datetime.now(UTC),
-                })
+                self.sent_alerts.append(
+                    {
+                        "event": event,
+                        "results": results,
+                        "timestamp": datetime.now(UTC),
+                    }
+                )
 
         return AlertSystem([telegram_adapter, line_adapter])
 
@@ -116,8 +119,12 @@ class TestAlertSystemIntegration:
         )
 
         # Mock the adapter sends
-        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
-            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
+        with patch.object(
+            alert_system.adapters[0], "_send_telegram_message"
+        ) as mock_telegram:
+            with patch.object(
+                alert_system.adapters[1], "_send_line_message"
+            ) as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -151,8 +158,12 @@ class TestAlertSystemIntegration:
         )
 
         # Mock Telegram fails but LINE succeeds
-        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
-            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
+        with patch.object(
+            alert_system.adapters[0], "_send_telegram_message"
+        ) as mock_telegram:
+            with patch.object(
+                alert_system.adapters[1], "_send_line_message"
+            ) as mock_line:
                 mock_telegram.side_effect = Exception("Telegram API error")
                 loop = asyncio.get_event_loop()
                 mock_line.return_value = loop.create_future()
@@ -199,8 +210,12 @@ class TestAlertSystemIntegration:
             ),
         ]
 
-        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
-            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
+        with patch.object(
+            alert_system.adapters[0], "_send_telegram_message"
+        ) as mock_telegram:
+            with patch.object(
+                alert_system.adapters[1], "_send_line_message"
+            ) as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -215,10 +230,15 @@ class TestAlertSystemIntegration:
                 assert mock_line.call_count == 3
 
                 # Check formatting includes SMC terminology
-                telegram_messages = [call[0][0] for call in mock_telegram.call_args_list]
+                telegram_messages = [
+                    call[0][0] for call in mock_telegram.call_args_list
+                ]
                 assert any("CHOCH" in msg for msg in telegram_messages)
                 assert any("BOS" in msg for msg in telegram_messages)
-                assert any("ORDER BLOCK" in msg or "Order Block" in msg for msg in telegram_messages)
+                assert any(
+                    "ORDER BLOCK" in msg or "Order Block" in msg
+                    for msg in telegram_messages
+                )
 
     @pytest.mark.asyncio
     async def test_alert_storm_protection(self, alert_system: Any) -> None:
@@ -226,21 +246,27 @@ class TestAlertSystemIntegration:
         # Generate 50 similar orders in quick succession
         orders = []
         for i in range(50):
-            orders.append(OrderUpdate(
-                order_id=f"STORM-{i}",
-                symbol="BTCUSDT",
-                side="BUY",
-                status="NEW",
-                quantity=0.001,
-                venue="SPOT",
-                timestamp=datetime.now(UTC),
-            ))
+            orders.append(
+                OrderUpdate(
+                    order_id=f"STORM-{i}",
+                    symbol="BTCUSDT",
+                    side="BUY",
+                    status="NEW",
+                    quantity=0.001,
+                    venue="SPOT",
+                    timestamp=datetime.now(UTC),
+                )
+            )
 
         sent_count = 0
         blocked_count = 0
 
-        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
-            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
+        with patch.object(
+            alert_system.adapters[0], "_send_telegram_message"
+        ) as mock_telegram:
+            with patch.object(
+                alert_system.adapters[1], "_send_line_message"
+            ) as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -288,8 +314,12 @@ class TestAlertSystemIntegration:
             timestamp=datetime.now(UTC),
         )
 
-        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
-            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
+        with patch.object(
+            alert_system.adapters[0], "_send_telegram_message"
+        ) as mock_telegram:
+            with patch.object(
+                alert_system.adapters[1], "_send_line_message"
+            ) as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -306,7 +336,8 @@ class TestAlertSystemIntegration:
 
                 # Critical alert should have special formatting
                 critical_messages = [
-                    call[0][0] for call in mock_telegram.call_args_list
+                    call[0][0]
+                    for call in mock_telegram.call_args_list
                     if "2500" in call[0][0] or "STOP LOSS" in call[0][0].upper()
                 ]
                 assert len(critical_messages) >= 1
@@ -327,14 +358,21 @@ class TestAlertSystemIntegration:
         )
 
         call_count = 0
+
         async def mock_send_with_recovery(message: Any) -> None:
             nonlocal call_count
             call_count += 1
             if call_count <= 2:
                 raise Exception("Service unavailable")
 
-        with patch.object(alert_system.adapters[0], "_send_telegram_message", side_effect=mock_send_with_recovery):
-            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
+        with patch.object(
+            alert_system.adapters[0],
+            "_send_telegram_message",
+            side_effect=mock_send_with_recovery,
+        ):
+            with patch.object(
+                alert_system.adapters[1], "_send_line_message"
+            ) as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_line.return_value = loop.create_future()
                 mock_line.return_value.set_result({"status": 200})
@@ -360,33 +398,41 @@ class TestAlertSystemIntegration:
 
         # Morning trades
         for i in range(5):
-            daily_events.append(OrderUpdate(
-                order_id=f"MORNING-{i}",
-                symbol="BTCUSDT",
-                side="BUY" if i % 2 == 0 else "SELL",
-                status="FILLED",
-                quantity=0.01,
-                executed_qty=0.01,
-                executed_price=45000.0 + i * 100,
-                venue="SPOT",
-                timestamp=datetime.now(UTC),
-            ))
+            daily_events.append(
+                OrderUpdate(
+                    order_id=f"MORNING-{i}",
+                    symbol="BTCUSDT",
+                    side="BUY" if i % 2 == 0 else "SELL",
+                    status="FILLED",
+                    quantity=0.01,
+                    executed_qty=0.01,
+                    executed_price=45000.0 + i * 100,
+                    venue="SPOT",
+                    timestamp=datetime.now(UTC),
+                )
+            )
 
         # Afternoon positions
-        daily_events.append(Position(
-            symbol="ETHUSDT",
-            side="LONG",
-            quantity=1.0,
-            entry_price=2400.0,
-            current_price=2450.0,
-            venue="SPOT",
-            pnl=50.0,
-            pnl_percent=2.08,
-            timestamp=datetime.now(UTC),
-        ))
+        daily_events.append(
+            Position(
+                symbol="ETHUSDT",
+                side="LONG",
+                quantity=1.0,
+                entry_price=2400.0,
+                current_price=2450.0,
+                venue="SPOT",
+                pnl=50.0,
+                pnl_percent=2.08,
+                timestamp=datetime.now(UTC),
+            )
+        )
 
-        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
-            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
+        with patch.object(
+            alert_system.adapters[0], "_send_telegram_message"
+        ) as mock_telegram:
+            with patch.object(
+                alert_system.adapters[1], "_send_line_message"
+            ) as mock_line:
                 loop = asyncio.get_event_loop()
                 mock_telegram.return_value = loop.create_future()
                 mock_telegram.return_value.set_result({"ok": True})
@@ -406,13 +452,16 @@ class TestAlertSystemIntegration:
                     "date": datetime.now(UTC).date(),
                 }
 
-                summary_msg = alert_system.adapters[0].formatter.format_daily_summary(summary)
+                summary_msg = alert_system.adapters[0].formatter.format_daily_summary(
+                    summary
+                )
                 await alert_system.adapters[0]._send_telegram_message(summary_msg)
                 await alert_system.adapters[1]._send_line_message(summary_msg)
 
                 # Verify summary was sent
                 summary_calls = [
-                    call for call in mock_telegram.call_args_list
+                    call
+                    for call in mock_telegram.call_args_list
                     if "Daily Trading Summary" in call[0][0]
                 ]
                 assert len(summary_calls) == 1
@@ -454,8 +503,12 @@ class TestAlertSystemIntegration:
             ),
         ]
 
-        with patch.object(alert_system.adapters[0], "_send_telegram_message") as mock_telegram:
-            with patch.object(alert_system.adapters[1], "_send_line_message") as mock_line:
+        with patch.object(
+            alert_system.adapters[0], "_send_telegram_message"
+        ) as mock_telegram:
+            with patch.object(
+                alert_system.adapters[1], "_send_line_message"
+            ) as mock_line:
                 # Add delay to simulate network latency
                 async def delayed_telegram_send(msg: Any) -> None:
                     await asyncio.sleep(0.1)

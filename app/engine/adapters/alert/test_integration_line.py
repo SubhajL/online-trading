@@ -135,7 +135,9 @@ class TestLineIntegration:
 
         with patch("aiohttp.ClientSession.post") as mock_post:
             mock_response = AsyncMock()
-            mock_response.json = AsyncMock(return_value={"status": 200, "message": "ok"})
+            mock_response.json = AsyncMock(
+                return_value={"status": 200, "message": "ok"}
+            )
             mock_response.status = 200
             mock_post.return_value.__aenter__.return_value = mock_response
 

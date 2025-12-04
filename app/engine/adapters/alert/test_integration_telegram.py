@@ -55,7 +55,9 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
-            mock_send.return_value.set_result({"ok": True, "result": {"message_id": 123}})
+            mock_send.return_value.set_result(
+                {"ok": True, "result": {"message_id": 123}}
+            )
 
             await telegram_adapter.send_alert(order)
 
@@ -85,7 +87,9 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
-            mock_send.return_value.set_result({"ok": True, "result": {"message_id": 124}})
+            mock_send.return_value.set_result(
+                {"ok": True, "result": {"message_id": 124}}
+            )
 
             await telegram_adapter.send_alert(position)
 
@@ -112,7 +116,9 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
-            mock_send.return_value.set_result({"ok": True, "result": {"message_id": 125}})
+            mock_send.return_value.set_result(
+                {"ok": True, "result": {"message_id": 125}}
+            )
 
             # First alert should be sent
             await telegram_adapter.send_alert(decision)
@@ -136,15 +142,20 @@ class TestTelegramIntegration:
         )
 
         call_count = 0
+
         async def mock_send_with_retry(message: Any) -> None:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
                 raise Exception("Network error")
 
-        with patch.object(telegram_adapter, "_send_telegram_message", side_effect=mock_send_with_retry):
+        with patch.object(
+            telegram_adapter, "_send_telegram_message", side_effect=mock_send_with_retry
+        ):
             with patch.object(telegram_adapter, "retry_count", 3):
-                with patch.object(telegram_adapter, "retry_delay", 0.01):  # Fast retry for tests
+                with patch.object(
+                    telegram_adapter, "retry_delay", 0.01
+                ):  # Fast retry for tests
                     await telegram_adapter.send_alert(order)
                     assert call_count == 3  # Should retry until success
 
@@ -167,7 +178,9 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
-            mock_send.return_value.set_result({"ok": True, "result": {"message_id": 127}})
+            mock_send.return_value.set_result(
+                {"ok": True, "result": {"message_id": 127}}
+            )
 
             # Set rate limit to 3 messages per second
             with patch.object(telegram_adapter, "rate_limit_per_second", 3):
@@ -202,7 +215,9 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
-            mock_send.return_value.set_result({"ok": True, "result": {"message_id": 128}})
+            mock_send.return_value.set_result(
+                {"ok": True, "result": {"message_id": 128}}
+            )
 
             await telegram_adapter.send_alert(order)
 
@@ -212,7 +227,9 @@ class TestTelegramIntegration:
             assert "BTC\\_USDT" in message or "BTC_USDT" in message  # Escaped or raw
 
     @pytest.mark.asyncio
-    async def test_batch_alerts_for_multiple_events(self, telegram_adapter: Any) -> None:
+    async def test_batch_alerts_for_multiple_events(
+        self, telegram_adapter: Any
+    ) -> None:
         """Test handling multiple alerts in quick succession"""
         events = [
             OrderUpdate(
@@ -250,7 +267,9 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
-            mock_send.return_value.set_result({"ok": True, "result": {"message_id": 129}})
+            mock_send.return_value.set_result(
+                {"ok": True, "result": {"message_id": 129}}
+            )
 
             # Send all events
             for event in events:
@@ -282,7 +301,9 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
-            mock_send.return_value.set_result({"ok": True, "result": {"message_id": 130}})
+            mock_send.return_value.set_result(
+                {"ok": True, "result": {"message_id": 130}}
+            )
 
             await telegram_adapter.send_alert(error_order)
 
@@ -312,7 +333,9 @@ class TestTelegramIntegration:
         with patch.object(telegram_adapter, "_send_telegram_message") as mock_send:
             loop = asyncio.get_event_loop()
             mock_send.return_value = loop.create_future()
-            mock_send.return_value.set_result({"ok": True, "result": {"message_id": 131}})
+            mock_send.return_value.set_result(
+                {"ok": True, "result": {"message_id": 131}}
+            )
 
             # Send alerts sequentially
             for order in orders:

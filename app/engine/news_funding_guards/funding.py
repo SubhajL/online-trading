@@ -214,7 +214,8 @@ class FundingMonitor:
                         funding_data.get_predicted_payment_rate("SHORT"),
                     ),
                     "near_funding": should_block_near_funding(
-                        hours_until, self.blackout_hours_before,
+                        hours_until,
+                        self.blackout_hours_before,
                     ),
                 }
             else:

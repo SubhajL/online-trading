@@ -275,8 +275,9 @@ class FillEngine:
         """
         if order_type == OrderType.LIMIT and target_price:
             # Limit orders get filled at limit price if touched
-            if ((order_side == OrderSide.BUY and target_price >= candle.low_price) or
-                (order_side == OrderSide.SELL and target_price <= candle.high_price)):
+            if (order_side == OrderSide.BUY and target_price >= candle.low_price) or (
+                order_side == OrderSide.SELL and target_price <= candle.high_price
+            ):
                 return target_price, Decimal(0)
             # No fill possible
             return Decimal(0), Decimal(0)

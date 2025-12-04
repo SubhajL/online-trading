@@ -547,7 +547,6 @@ def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL) -> Any:
 
             return async_wrapper  # type: ignore[return-value]
 
-
         @wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer(func.__module__)
@@ -556,7 +555,9 @@ def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL) -> Any:
                 result = func(*args, **kwargs)
                 if result is None and args:
                     # If two numeric args, return their sum to satisfy tests
-                    if len(args) >= 2 and all(isinstance(a, (int, float)) for a in args[:2]):
+                    if len(args) >= 2 and all(
+                        isinstance(a, (int, float)) for a in args[:2]
+                    ):
                         return args[0] + args[1]
                 return result
 

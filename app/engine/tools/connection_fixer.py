@@ -28,7 +28,8 @@ def detect_connection_patterns(content: str) -> list[dict[str, Any]]:
     for i, line in enumerate(norm):
         if line.strip() == "@asynccontextmanager" and i + 1 < len(norm):
             m = re.match(
-                r"^\s*async\s+def\s+(\w+)\(.*\)\s*->\s*None\s*:\s*$", norm[i + 1],
+                r"^\s*async\s+def\s+(\w+)\(.*\)\s*->\s*None\s*:\s*$",
+                norm[i + 1],
             )
             if m:
                 patterns.append(
@@ -216,7 +217,9 @@ def add_connection_type_hints(arg: Any) -> Any:
     - If arg is a source code string: return transformed code string.
     """
     # Treat as file path only if it's a Path or a string without newlines
-    if isinstance(arg, Path) or (isinstance(arg, str) and ("\n" not in arg and "\r" not in arg)):
+    if isinstance(arg, Path) or (
+        isinstance(arg, str) and ("\n" not in arg and "\r" not in arg)
+    ):
         p = Path(str(arg))
         if not p.exists():
             # Not a real file; fall back to code path
@@ -224,9 +227,12 @@ def add_connection_type_hints(arg: Any) -> Any:
         original = p.read_text()
         modified = _add_connection_type_hints_to_code(original)
         # For file-based flow, normalize inline comments to '# type: asyncpg.Connection'
-        modified = re.sub(r"#\s*\w+\s*:\s*asyncpg\.Connection", "# type: asyncpg.Connection", modified)
+        modified = re.sub(
+            r"#\s*\w+\s*:\s*asyncpg\.Connection", "# type: asyncpg.Connection", modified
+        )
         if modified == original:
             return 0
+
         # Count added inline connection annotations per-line to avoid double-counting substrings
         def _count_annot_lines(s: str) -> int:
             cnt = 0
@@ -234,6 +240,7 @@ def add_connection_type_hints(arg: Any) -> Any:
                 if re.search(r"#\s*(type|\w+)\s*:\s*asyncpg\.Connection\b", ln):
                     cnt += 1
             return cnt
+
         before = _count_annot_lines(original)
         after = _count_annot_lines(modified)
         p.write_text(modified)

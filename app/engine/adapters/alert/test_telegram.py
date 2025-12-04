@@ -31,7 +31,9 @@ class TestTelegramAlertAdapter:
         return formatter
 
     @pytest.fixture
-    def adapter(self, mock_event_bus: Any, mock_deduplicator: Any, mock_formatter: Any) -> Any:
+    def adapter(
+        self, mock_event_bus: Any, mock_deduplicator: Any, mock_formatter: Any
+    ) -> Any:
         with patch("telegram.aiohttp.ClientSession"):
             adapter = TelegramAlertAdapter(
                 bot_token="test_token",
@@ -71,7 +73,11 @@ class TestTelegramAlertAdapter:
             assert result is True
             mock_post.assert_called_once_with(
                 "https://api.telegram.org/bottest_token/sendMessage",
-                json={"chat_id": "test_chat", "text": "Test message", "parse_mode": "HTML"},
+                json={
+                    "chat_id": "test_chat",
+                    "text": "Test message",
+                    "parse_mode": "HTML",
+                },
             )
 
     @pytest.mark.asyncio
@@ -87,7 +93,9 @@ class TestTelegramAlertAdapter:
             assert result is False
 
     @pytest.mark.asyncio
-    async def test_handle_decision_with_deduplication(self, adapter: Any, mock_deduplicator: Any) -> None:
+    async def test_handle_decision_with_deduplication(
+        self, adapter: Any, mock_deduplicator: Any
+    ) -> None:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
@@ -131,7 +139,9 @@ class TestTelegramAlertAdapter:
     @pytest.mark.asyncio
     async def test_rate_limiting(self, adapter: Any) -> None:
         adapter.rate_limiter = Mock()
-        adapter.rate_limiter.check_rate_limit = AsyncMock(side_effect=[True, False, True])
+        adapter.rate_limiter.check_rate_limit = AsyncMock(
+            side_effect=[True, False, True]
+        )
 
         with patch.object(adapter, "_send_alert") as mock_send:
             # First call passes rate limit

@@ -1,5 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
-import { HealthCheckService, HealthCheck, HttpHealthIndicator, TypeOrmHealthIndicator, HealthIndicatorResult } from '@nestjs/terminus';
+import {
+  HealthCheckService,
+  HealthCheck,
+  HttpHealthIndicator,
+  TypeOrmHealthIndicator,
+  HealthIndicatorResult,
+} from '@nestjs/terminus';
 import { ConfigService } from '@nestjs/config';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import { RedisHealthIndicator } from './indicators/redis.health';

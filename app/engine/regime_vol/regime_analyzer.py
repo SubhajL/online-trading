@@ -51,9 +51,9 @@ class RegimeVolatilityAnalyzer:
 
         # Current regime state
         self._current_regime: dict[str, MarketRegime] = {}  # symbol_timeframe -> regime
-        self._volatility_state: dict[str, str] = (
-            {}
-        )  # symbol_timeframe -> volatility level
+        self._volatility_state: dict[
+            str, str
+        ] = {}  # symbol_timeframe -> volatility level
 
         # Event bus
         self._event_bus = get_event_bus()

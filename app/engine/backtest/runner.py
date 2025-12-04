@@ -56,10 +56,12 @@ class BacktestRunner:
                 session_enabled=backtest_data.get("session", {}).get("enabled", True),
                 session_exclude=backtest_data.get("session", {}).get("exclude", []),
                 news_block_before_min=backtest_data.get("news_block", {}).get(
-                    "before_min", 15,
+                    "before_min",
+                    15,
                 ),
                 news_block_after_min=backtest_data.get("news_block", {}).get(
-                    "after_min", 15,
+                    "after_min",
+                    15,
                 ),
                 tp_ladder=backtest_data.get("rr", {}).get(
                     "tp_ladder",
@@ -70,7 +72,8 @@ class BacktestRunner:
                     ],
                 ),
                 move_to_breakeven_on=backtest_data.get("rr", {}).get(
-                    "move_to_breakeven_on", "TP1",
+                    "move_to_breakeven_on",
+                    "TP1",
                 ),
                 trail_after=backtest_data.get("rr", {}).get("trail_after", "TP2"),
                 train_days=backtest_data.get("wfo", {}).get("train_days", 90),
@@ -214,12 +217,14 @@ class BacktestRunner:
 
         if result.equity_curve:
             chart_generator.create_equity_chart(
-                result.equity_curve, str(artifacts_dir / "equity.png"),
+                result.equity_curve,
+                str(artifacts_dir / "equity.png"),
             )
 
         if result.drawdown_curve:
             chart_generator.create_drawdown_chart(
-                result.drawdown_curve, str(artifacts_dir / "drawdown.png"),
+                result.drawdown_curve,
+                str(artifacts_dir / "drawdown.png"),
             )
 
         if result.trades:
@@ -347,7 +352,8 @@ class BacktestRunner:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                check=False, capture_output=True,
+                check=False,
+                capture_output=True,
                 text=True,
                 cwd=self.config_path.parent,
             )
@@ -369,7 +375,9 @@ def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(description="Run single backtest")
     parser.add_argument(
-        "--symbol", required=True, help="Trading symbol (e.g., BTCUSDT)",
+        "--symbol",
+        required=True,
+        help="Trading symbol (e.g., BTCUSDT)",
     )
     parser.add_argument("--tf", required=True, help="Timeframe (e.g., 15m, 1h)")
     parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
@@ -385,10 +393,14 @@ def main():
     parser.add_argument("--data-dir", help="Data directory for CSV source")
     parser.add_argument("--database-url", help="Database URL for TimescaleDB")
     parser.add_argument(
-        "--output-dir", default="artifacts/backtest", help="Output directory",
+        "--output-dir",
+        default="artifacts/backtest",
+        help="Output directory",
     )
     parser.add_argument(
-        "--save-db", action="store_true", help="Save results to database",
+        "--save-db",
+        action="store_true",
+        help="Save results to database",
     )
 
     args = parser.parse_args()
@@ -422,14 +434,23 @@ def main():
 
         # Save results
         artifacts_path = runner.save_results(
-            result, args.symbol, args.tf, args.start, args.end, args.output_dir,
+            result,
+            args.symbol,
+            args.tf,
+            args.start,
+            args.end,
+            args.output_dir,
         )
 
         # Optionally save to database
         if args.save_db:
             serializer = ResultSerializer()
             serializer.save_to_database(
-                result, args.symbol, args.tf, args.start, args.end,
+                result,
+                args.symbol,
+                args.tf,
+                args.start,
+                args.end,
             )
 
         print(f"\n{'=' * 50}")

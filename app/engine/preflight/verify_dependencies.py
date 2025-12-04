@@ -33,12 +33,9 @@ def check_python_version() -> CheckResult:
     current_str = f"{current_version[0]}.{current_version[1]}.{current_version[2]}"
     min_str = f"{MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}"
 
-    meets_requirement = (
-        current_version[0] > MIN_PYTHON_VERSION[0]
-        or (
-            current_version[0] == MIN_PYTHON_VERSION[0]
-            and current_version[1] >= MIN_PYTHON_VERSION[1]
-        )
+    meets_requirement = current_version[0] > MIN_PYTHON_VERSION[0] or (
+        current_version[0] == MIN_PYTHON_VERSION[0]
+        and current_version[1] >= MIN_PYTHON_VERSION[1]
     )
 
     details = {
@@ -137,7 +134,11 @@ def check_python_packages() -> CheckResult:
 
         if not found:
             missing_packages.append(pkg)
-        elif found and required_version != "any" and installed_packages[found_pkg] != required_version:
+        elif (
+            found
+            and required_version != "any"
+            and installed_packages[found_pkg] != required_version
+        ):
             version_mismatches[pkg] = {
                 "required": required_version,
                 "installed": installed_packages[found_pkg],

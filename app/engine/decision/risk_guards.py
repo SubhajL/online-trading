@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RiskGuardConfig:
     """Configuration for risk guards."""
+
     # Daily loss limit
     daily_loss_limit_pct: Decimal = Decimal("0.02")  # 2% max daily loss
 
@@ -46,10 +47,12 @@ class DailyLossGuard:
 
     def add_trade_result(self, pnl: Decimal, timestamp: datetime) -> None:
         """Record a trade result."""
-        self.trades.append({
-            "pnl": pnl,
-            "timestamp": timestamp,
-        })
+        self.trades.append(
+            {
+                "pnl": pnl,
+                "timestamp": timestamp,
+            }
+        )
         self._cleanup_old_trades()
 
     def can_trade(self, account_balance: Decimal) -> tuple[bool, str]:
@@ -66,7 +69,10 @@ class DailyLossGuard:
         loss_pct = abs(total_pnl) / account_balance
 
         if loss_pct >= self.max_daily_loss_pct:
-            return False, f"Daily loss limit exceeded: {loss_pct:.2%} >= {self.max_daily_loss_pct:.2%}"
+            return (
+                False,
+                f"Daily loss limit exceeded: {loss_pct:.2%} >= {self.max_daily_loss_pct:.2%}",
+            )
 
         return True, "Within daily loss limit"
 
@@ -105,16 +111,24 @@ class MaxPositionsGuard:
             if not self.correlation_groups[group]:
                 del self.correlation_groups[group]
 
-    def can_open_position(self, symbol: str, correlation_group: str) -> tuple[bool, str]:
+    def can_open_position(
+        self, symbol: str, correlation_group: str
+    ) -> tuple[bool, str]:
         """Check if a new position can be opened."""
         # Check total positions
         if len(self.open_positions) >= self.max_positions:
-            return False, f"Maximum positions reached: {len(self.open_positions)}/{self.max_positions}"
+            return (
+                False,
+                f"Maximum positions reached: {len(self.open_positions)}/{self.max_positions}",
+            )
 
         # Check correlated positions
         group_positions = len(self.correlation_groups.get(correlation_group, []))
         if group_positions >= self.max_correlated_positions:
-            return False, f"Maximum correlated positions in {correlation_group}: {group_positions}/{self.max_correlated_positions}"
+            return (
+                False,
+                f"Maximum correlated positions in {correlation_group}: {group_positions}/{self.max_correlated_positions}",
+            )
 
         return True, "Position limits OK"
 
@@ -134,10 +148,12 @@ class DrawdownGuard:
 
     def update_balance(self, balance: Decimal, timestamp: datetime) -> None:
         """Update balance history and track peak."""
-        self.balance_history.append({
-            "balance": balance,
-            "timestamp": timestamp,
-        })
+        self.balance_history.append(
+            {
+                "balance": balance,
+                "timestamp": timestamp,
+            }
+        )
         self._cleanup_old_history()
 
         # Update peak balance
@@ -156,14 +172,19 @@ class DrawdownGuard:
         drawdown = (self.peak_balance - current_balance) / self.peak_balance
 
         if drawdown >= self.max_drawdown_pct:
-            return False, f"Drawdown limit exceeded: {drawdown:.2%} >= {self.max_drawdown_pct:.2%}"
+            return (
+                False,
+                f"Drawdown limit exceeded: {drawdown:.2%} >= {self.max_drawdown_pct:.2%}",
+            )
 
         return True, f"Within drawdown limit: {drawdown:.2%}"
 
     def _cleanup_old_history(self) -> None:
         """Remove old balance history."""
         cutoff = datetime.now() - timedelta(days=self.lookback_days)
-        self.balance_history = [h for h in self.balance_history if h["timestamp"] > cutoff]
+        self.balance_history = [
+            h for h in self.balance_history if h["timestamp"] > cutoff
+        ]
 
         # Recalculate peak from remaining history
         if self.balance_history:
@@ -194,7 +215,10 @@ class CorrelationGuard:
             correlation = self.get_correlation(symbol, existing_symbol)
 
             if correlation > self.max_correlation:
-                return False, f"High correlation ({correlation:.2f}) with {existing_symbol}"
+                return (
+                    False,
+                    f"High correlation ({correlation:.2f}) with {existing_symbol}",
+                )
 
         return True, "Correlation check passed"
 
@@ -212,7 +236,9 @@ class CorrelationGuard:
 
         # Crypto correlation
         crypto_symbols = ["BTC", "ETH", "BNB", "SOL"]
-        if any(s in symbol1 for s in crypto_symbols) and any(s in symbol2 for s in crypto_symbols):
+        if any(s in symbol1 for s in crypto_symbols) and any(
+            s in symbol2 for s in crypto_symbols
+        ):
             return Decimal("0.7")
 
         # Default low correlation
@@ -226,25 +252,33 @@ class RiskGuardManager:
         self.config = config
 
         # Initialize guards
-        self.daily_loss_guard = DailyLossGuard({
-            "max_daily_loss_pct": config.daily_loss_limit_pct,
-            "lookback_hours": 24,
-        })
+        self.daily_loss_guard = DailyLossGuard(
+            {
+                "max_daily_loss_pct": config.daily_loss_limit_pct,
+                "lookback_hours": 24,
+            }
+        )
 
-        self.positions_guard = MaxPositionsGuard({
-            "max_positions": config.max_positions,
-            "max_correlated_positions": config.max_correlated_positions,
-        })
+        self.positions_guard = MaxPositionsGuard(
+            {
+                "max_positions": config.max_positions,
+                "max_correlated_positions": config.max_correlated_positions,
+            }
+        )
 
-        self.drawdown_guard = DrawdownGuard({
-            "max_drawdown_pct": config.max_drawdown_pct,
-            "lookback_days": config.lookback_days,
-        })
+        self.drawdown_guard = DrawdownGuard(
+            {
+                "max_drawdown_pct": config.max_drawdown_pct,
+                "lookback_days": config.lookback_days,
+            }
+        )
 
-        self.correlation_guard = CorrelationGuard({
-            "max_correlation": config.correlation_threshold,
-            "lookback_periods": 20,
-        })
+        self.correlation_guard = CorrelationGuard(
+            {
+                "max_correlation": config.correlation_threshold,
+                "lookback_periods": 20,
+            }
+        )
 
         # Emergency stop flag
         self.emergency_stop = False
@@ -257,7 +291,9 @@ class RiskGuardManager:
         if config.state_file:
             self.load_state()
 
-    def can_trade(self, symbol: str, account_balance: Decimal) -> tuple[bool, list[str]]:
+    def can_trade(
+        self, symbol: str, account_balance: Decimal
+    ) -> tuple[bool, list[str]]:
         """Check if trading is allowed by ALL guards."""
         reasons = []
         can_trade = True
@@ -279,13 +315,17 @@ class RiskGuardManager:
             reasons.append(drawdown_reason)
 
         # Check position limits (assuming default correlation group)
-        positions_ok, positions_reason = self.positions_guard.can_open_position(symbol, "default")
+        positions_ok, positions_reason = self.positions_guard.can_open_position(
+            symbol, "default"
+        )
         if not positions_ok:
             can_trade = False
             reasons.append(positions_reason)
 
         # Check correlation
-        correlation_ok, correlation_reason = self.correlation_guard.can_open_position(symbol)
+        correlation_ok, correlation_reason = self.correlation_guard.can_open_position(
+            symbol
+        )
         if not correlation_ok:
             can_trade = False
             reasons.append(correlation_reason)
@@ -298,14 +338,18 @@ class RiskGuardManager:
 
         return can_trade, reasons
 
-    def record_trade_result(self, symbol: str, pnl: Decimal, timestamp: datetime) -> None:
+    def record_trade_result(
+        self, symbol: str, pnl: Decimal, timestamp: datetime
+    ) -> None:
         """Record a completed trade."""
         self.daily_loss_guard.add_trade_result(pnl, timestamp)
 
         if pnl < 0:
             logger.warning(f"Loss recorded: {symbol} ${pnl:.2f}")
 
-    def add_open_position(self, symbol: str, correlation_group: str = "default") -> None:
+    def add_open_position(
+        self, symbol: str, correlation_group: str = "default"
+    ) -> None:
         """Add a new open position."""
         self.positions_guard.add_position(symbol, correlation_group)
         self.correlation_guard.add_position(symbol)
@@ -414,7 +458,9 @@ class RiskGuardManager:
             "max_drawdown": float(self.config.max_drawdown_pct),
             "guards": {
                 "daily_loss": self.daily_loss_guard.can_trade(Decimal(100000))[0],
-                "positions": self.positions_guard.can_open_position("TEST", "default")[0],
+                "positions": self.positions_guard.can_open_position("TEST", "default")[
+                    0
+                ],
                 "drawdown": self.drawdown_guard.can_trade(Decimal(100000))[0],
             },
         }

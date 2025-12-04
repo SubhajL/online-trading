@@ -69,8 +69,16 @@ async def upsert_candle(candle: Candle) -> bool:
             taker_buy_quote_volume = EXCLUDED.taker_buy_quote_volume
         """
     try:
-        ot = (candle.open_time.replace(tzinfo=UTC).timestamp() if candle.open_time.tzinfo is None else candle.open_time.timestamp())
-        ct = (candle.close_time.replace(tzinfo=UTC).timestamp() if candle.close_time.tzinfo is None else candle.close_time.timestamp())
+        ot = (
+            candle.open_time.replace(tzinfo=UTC).timestamp()
+            if candle.open_time.tzinfo is None
+            else candle.open_time.timestamp()
+        )
+        ct = (
+            candle.close_time.replace(tzinfo=UTC).timestamp()
+            if candle.close_time.tzinfo is None
+            else candle.close_time.timestamp()
+        )
         async with acquire_connection() as conn:
             await conn.execute(
                 query,
@@ -128,9 +136,17 @@ async def get_candles(
     for r in rows:
         d = dict(r) if not isinstance(r, dict) else r
         # Normalize to naive datetimes for tests
-        if "open_time" in d and isinstance(d["open_time"], datetime) and d["open_time"].tzinfo:
+        if (
+            "open_time" in d
+            and isinstance(d["open_time"], datetime)
+            and d["open_time"].tzinfo
+        ):
             d["open_time"] = d["open_time"].replace(tzinfo=None)
-        if "close_time" in d and isinstance(d["close_time"], datetime) and d["close_time"].tzinfo:
+        if (
+            "close_time" in d
+            and isinstance(d["close_time"], datetime)
+            and d["close_time"].tzinfo
+        ):
             d["close_time"] = d["close_time"].replace(tzinfo=None)
         result.append(d)
     return result

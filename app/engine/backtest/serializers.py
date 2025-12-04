@@ -23,7 +23,9 @@ class ResultSerializer:
     """
 
     def __init__(
-        self, database_url: str | None = None, s3_config: dict | None = None,
+        self,
+        database_url: str | None = None,
+        s3_config: dict | None = None,
     ):
         """
         Initialize result serializer.
@@ -225,7 +227,10 @@ class ResultSerializer:
             return None
 
     def upload_to_s3(
-        self, local_path: str, s3_key: str, bucket: str | None = None,
+        self,
+        local_path: str,
+        s3_key: str,
+        bucket: str | None = None,
     ) -> bool:
         """
         Upload file to S3/MinIO.
@@ -417,7 +422,11 @@ class ResultSerializer:
         # Save to database
         if save_to_db and self.database_url:
             report_id = self.save_to_database(
-                result, symbol, timeframe, start_date, end_date,
+                result,
+                symbol,
+                timeframe,
+                start_date,
+                end_date,
             )
             if report_id:
                 status["database"] = True

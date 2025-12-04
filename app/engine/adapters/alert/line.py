@@ -169,7 +169,9 @@ class LineAlertAdapter:
                     ],
                 }
 
-                async with self.session.post(url, json=payload, headers=headers) as response:
+                async with self.session.post(
+                    url, json=payload, headers=headers
+                ) as response:
                     if response.status == 200:
                         logger.debug("LINE alert sent successfully")
                     else:

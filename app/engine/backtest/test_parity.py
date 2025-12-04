@@ -30,21 +30,31 @@ class ParityTestFramework:
     def __init__(self):
         self.tolerance = Decimal("0.000001")  # 1e-6 tolerance for decimal comparisons
 
-    def compare_decimals(self, live_value: Decimal, backtest_value: Decimal, name: str) -> bool:
+    def compare_decimals(
+        self, live_value: Decimal, backtest_value: Decimal, name: str
+    ) -> bool:
         """Compare two decimal values with tolerance"""
         diff = abs(live_value - backtest_value)
         if diff > self.tolerance:
-            print(f"PARITY FAILURE - {name}: live={live_value}, backtest={backtest_value}, diff={diff}")
+            print(
+                f"PARITY FAILURE - {name}: live={live_value}, backtest={backtest_value}, diff={diff}"
+            )
             return False
         return True
 
-    def compare_arrays(self, live_array: list[Decimal], backtest_array: list[Decimal], name: str) -> bool:
+    def compare_arrays(
+        self, live_array: list[Decimal], backtest_array: list[Decimal], name: str
+    ) -> bool:
         """Compare two arrays of decimal values"""
         if len(live_array) != len(backtest_array):
-            print(f"PARITY FAILURE - {name}: length mismatch live={len(live_array)}, backtest={len(backtest_array)}")
+            print(
+                f"PARITY FAILURE - {name}: length mismatch live={len(live_array)}, backtest={len(backtest_array)}"
+            )
             return False
 
-        for i, (live_val, backtest_val) in enumerate(zip(live_array, backtest_array, strict=False)):
+        for i, (live_val, backtest_val) in enumerate(
+            zip(live_array, backtest_array, strict=False)
+        ):
             if not self.compare_decimals(live_val, backtest_val, f"{name}[{i}]"):
                 return False
 
@@ -59,13 +69,19 @@ class ParityTestFramework:
         for i in range(count):
             # Simulate random walk with realistic volatility
             price_change = Decimal(str(np.random.normal(0, 0.005)))  # 0.5% std dev
-            base_price *= (Decimal(1) + price_change)
+            base_price *= Decimal(1) + price_change
 
             # Create realistic OHLC
             open_price = base_price
-            close_price = base_price * (Decimal(1) + Decimal(str(np.random.normal(0, 0.002))))
-            high_price = max(open_price, close_price) * (Decimal(1) + Decimal(str(abs(np.random.normal(0, 0.001)))))
-            low_price = min(open_price, close_price) * (Decimal(1) - Decimal(str(abs(np.random.normal(0, 0.001)))))
+            close_price = base_price * (
+                Decimal(1) + Decimal(str(np.random.normal(0, 0.002)))
+            )
+            high_price = max(open_price, close_price) * (
+                Decimal(1) + Decimal(str(abs(np.random.normal(0, 0.001))))
+            )
+            low_price = min(open_price, close_price) * (
+                Decimal(1) - Decimal(str(abs(np.random.normal(0, 0.001))))
+            )
 
             # Realistic volume
             volume = Decimal(str(np.random.uniform(50, 200)))
@@ -83,8 +99,10 @@ class ParityTestFramework:
                 volume=volume,
                 quote_volume=quote_volume,
                 trades=int(np.random.uniform(80, 150)),
-                taker_buy_base_volume=volume * Decimal(str(np.random.uniform(0.4, 0.6))),
-                taker_buy_quote_volume=quote_volume * Decimal(str(np.random.uniform(0.4, 0.6))),
+                taker_buy_base_volume=volume
+                * Decimal(str(np.random.uniform(0.4, 0.6))),
+                taker_buy_quote_volume=quote_volume
+                * Decimal(str(np.random.uniform(0.4, 0.6))),
             )
 
             candles.append(candle)
@@ -133,6 +151,7 @@ class TestIndicatorParity:
     @pytest.mark.parity
     def test_rsi_parity(self):
         """Test RSI calculations are identical"""
+
         def calculate_rsi(prices: list[Decimal], period: int = 14) -> list[Decimal]:
             if len(prices) < period + 1:
                 return [Decimal(50)] * len(prices)
@@ -143,7 +162,7 @@ class TestIndicatorParity:
 
             # Calculate price changes
             for i in range(1, len(prices)):
-                change = prices[i] - prices[i-1]
+                change = prices[i] - prices[i - 1]
                 if change > 0:
                     gains.append(change)
                     losses.append(Decimal(0))
@@ -163,8 +182,12 @@ class TestIndicatorParity:
 
             # Calculate RSI for remaining periods
             for i in range(period, len(gains)):
-                avg_gain = (avg_gain * Decimal(str(period - 1)) + gains[i]) / Decimal(str(period))
-                avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(str(period))
+                avg_gain = (avg_gain * Decimal(str(period - 1)) + gains[i]) / Decimal(
+                    str(period)
+                )
+                avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(
+                    str(period)
+                )
 
                 if avg_loss == 0:
                     rsi = Decimal(100)
@@ -188,6 +211,7 @@ class TestIndicatorParity:
     @pytest.mark.parity
     def test_atr_parity(self):
         """Test ATR calculations are identical"""
+
         def calculate_atr(candles: list[Candle], period: int = 14) -> list[Decimal]:
             if len(candles) < 2:
                 return [Decimal(0)] * len(candles)
@@ -197,7 +221,7 @@ class TestIndicatorParity:
             # Calculate True Range for each candle
             for i in range(1, len(candles)):
                 current = candles[i]
-                previous = candles[i-1]
+                previous = candles[i - 1]
 
                 tr1 = current.high_price - current.low_price
                 tr2 = abs(current.high_price - previous.close_price)
@@ -218,7 +242,9 @@ class TestIndicatorParity:
             # Smoothed ATR using Wilder's smoothing
             current_atr = initial_atr
             for i in range(period, len(true_ranges)):
-                current_atr = (current_atr * Decimal(str(period - 1)) + true_ranges[i]) / Decimal(str(period))
+                current_atr = (
+                    current_atr * Decimal(str(period - 1)) + true_ranges[i]
+                ) / Decimal(str(period))
                 atr_values.append(current_atr)
 
             # Fill remaining values
@@ -243,7 +269,10 @@ class TestSMCParity:
     @pytest.mark.parity
     def test_pivot_detection_parity(self):
         """Test pivot detection consistency"""
-        def find_pivots(candles: list[Candle], lookback: int = 5) -> dict[str, list[int]]:
+
+        def find_pivots(
+            candles: list[Candle], lookback: int = 5
+        ) -> dict[str, list[int]]:
             highs = []
             lows = []
 
@@ -280,6 +309,7 @@ class TestSMCParity:
     @pytest.mark.parity
     def test_structure_break_parity(self):
         """Test structure break detection consistency"""
+
         # Simplified structure break detection
         def detect_structure_breaks(candles: list[Candle]) -> list[dict[str, Any]]:
             breaks = []
@@ -287,26 +317,30 @@ class TestSMCParity:
             # Look for significant breaks in structure
             for i in range(50, len(candles) - 10):
                 # Simple breakout detection
-                recent_high = max(c.high_price for c in candles[i-20:i])
-                recent_low = min(c.low_price for c in candles[i-20:i])
+                recent_high = max(c.high_price for c in candles[i - 20 : i])
+                recent_low = min(c.low_price for c in candles[i - 20 : i])
 
                 current_candle = candles[i]
 
                 # Bullish break
                 if current_candle.close_price > recent_high * Decimal("1.02"):
-                    breaks.append({
-                        "index": i,
-                        "type": "bullish_break",
-                        "level": recent_high,
-                    })
+                    breaks.append(
+                        {
+                            "index": i,
+                            "type": "bullish_break",
+                            "level": recent_high,
+                        }
+                    )
 
                 # Bearish break
                 if current_candle.close_price < recent_low * Decimal("0.98"):
-                    breaks.append({
-                        "index": i,
-                        "type": "bearish_break",
-                        "level": recent_low,
-                    })
+                    breaks.append(
+                        {
+                            "index": i,
+                            "type": "bearish_break",
+                            "level": recent_low,
+                        }
+                    )
 
             return breaks
 
@@ -330,6 +364,7 @@ class TestSignalParity:
     @pytest.mark.parity
     def test_signal_generation_consistency(self):
         """Test that signals are generated consistently"""
+
         def generate_simple_signals(candles: list[Candle]) -> list[dict[str, Any]]:
             signals = []
 
@@ -342,32 +377,40 @@ class TestSignalParity:
             sma_slow = []
 
             for i in range(49, len(candles)):
-                fast_sum = sum(c.close_price for c in candles[i-9:i+1])  # 10 period
-                slow_sum = sum(c.close_price for c in candles[i-19:i+1])  # 20 period
+                fast_sum = sum(
+                    c.close_price for c in candles[i - 9 : i + 1]
+                )  # 10 period
+                slow_sum = sum(
+                    c.close_price for c in candles[i - 19 : i + 1]
+                )  # 20 period
 
                 sma_fast.append(fast_sum / Decimal(10))
                 sma_slow.append(slow_sum / Decimal(20))
 
             # Find crossovers
             for i in range(1, len(sma_fast)):
-                prev_fast, curr_fast = sma_fast[i-1], sma_fast[i]
-                prev_slow, curr_slow = sma_slow[i-1], sma_slow[i]
+                prev_fast, curr_fast = sma_fast[i - 1], sma_fast[i]
+                prev_slow, curr_slow = sma_slow[i - 1], sma_slow[i]
 
                 # Bullish crossover
                 if prev_fast <= prev_slow and curr_fast > curr_slow:
-                    signals.append({
-                        "index": i + 49,  # Adjust for lookback
-                        "type": "bullish_crossover",
-                        "strength": float((curr_fast - curr_slow) / curr_slow),
-                    })
+                    signals.append(
+                        {
+                            "index": i + 49,  # Adjust for lookback
+                            "type": "bullish_crossover",
+                            "strength": float((curr_fast - curr_slow) / curr_slow),
+                        }
+                    )
 
                 # Bearish crossover
                 elif prev_fast >= prev_slow and curr_fast < curr_slow:
-                    signals.append({
-                        "index": i + 49,
-                        "type": "bearish_crossover",
-                        "strength": float((curr_slow - curr_fast) / curr_fast),
-                    })
+                    signals.append(
+                        {
+                            "index": i + 49,
+                            "type": "bearish_crossover",
+                            "strength": float((curr_slow - curr_fast) / curr_fast),
+                        }
+                    )
 
             return signals
 
@@ -378,7 +421,9 @@ class TestSignalParity:
         for s1, s2 in zip(signals1, signals2, strict=False):
             assert s1["index"] == s2["index"]
             assert s1["type"] == s2["type"]
-            assert abs(s1["strength"] - s2["strength"]) < float(self.parity_framework.tolerance)
+            assert abs(s1["strength"] - s2["strength"]) < float(
+                self.parity_framework.tolerance
+            )
 
 
 class TestPositionSizingParity:
@@ -390,6 +435,7 @@ class TestPositionSizingParity:
     @pytest.mark.parity
     def test_fixed_fractional_sizing(self):
         """Test fixed fractional position sizing"""
+
         def calculate_position_size(
             account_balance: Decimal,
             risk_per_trade: Decimal,
@@ -423,6 +469,7 @@ class TestPositionSizingParity:
     @pytest.mark.parity
     def test_atr_based_sizing(self):
         """Test ATR-based position sizing"""
+
         def calculate_atr_position_size(
             account_balance: Decimal,
             risk_per_trade: Decimal,
@@ -479,9 +526,13 @@ class TestBacktestSystemParity:
         # Compare final states
         assert len(simulator1.equity_history) == len(simulator2.equity_history)
 
-        for (time1, equity1), (time2, equity2) in zip(simulator1.equity_history, simulator2.equity_history, strict=False):
+        for (time1, equity1), (time2, equity2) in zip(
+            simulator1.equity_history, simulator2.equity_history, strict=False
+        ):
             assert time1 == time2
-            assert self.parity_framework.compare_decimals(equity1, equity2, f"equity_{time1}")
+            assert self.parity_framework.compare_decimals(
+                equity1, equity2, f"equity_{time1}"
+            )
 
     @pytest.mark.parity
     def test_order_fill_determinism(self):
@@ -513,7 +564,9 @@ class TestBacktestSystemParity:
             fill_price1 = fill_engine1.get_fill_price(order, candle)
             fill_price2 = fill_engine2.get_fill_price(order, candle)
 
-            assert self.parity_framework.compare_decimals(fill_price1, fill_price2, "fill_price")
+            assert self.parity_framework.compare_decimals(
+                fill_price1, fill_price2, "fill_price"
+            )
 
 
 def run_parity_test_suite():
@@ -523,13 +576,16 @@ def run_parity_test_suite():
     print("=" * 60)
 
     # Run pytest with parity marker
-    exit_code = pytest.main([
-        __file__,
-        "-v",
-        "-m", "parity",
-        "--tb=short",
-        "--capture=no",
-    ])
+    exit_code = pytest.main(
+        [
+            __file__,
+            "-v",
+            "-m",
+            "parity",
+            "--tb=short",
+            "--capture=no",
+        ]
+    )
 
     if exit_code == 0:
         print("\n" + "=" * 60)

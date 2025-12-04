@@ -23,17 +23,23 @@ class GenericIsinstanceFixer:
 
         patterns = [
             # Multi-line isinstance (check first to avoid single-line match)
-            (rf"isinstance\s*\(\s*\n\s*([^,]+?)\s*,\s*\n\s*{type_names}"
-             rf"\[{nested_brackets}\]\s*\n\s*\)",
-             r"isinstance(\n        \1,\n        \2\n    )"),
+            (
+                rf"isinstance\s*\(\s*\n\s*([^,]+?)\s*,\s*\n\s*{type_names}"
+                rf"\[{nested_brackets}\]\s*\n\s*\)",
+                r"isinstance(\n        \1,\n        \2\n    )",
+            ),
             # Union types with None
-            (rf"isinstance\s*\(\s*([^,]+?)\s*,\s*{type_names}"
-             rf"\[{nested_brackets}\]\s*\|\s*None\s*\)",
-             r"isinstance(\1, \2) or \1 is None"),
+            (
+                rf"isinstance\s*\(\s*([^,]+?)\s*,\s*{type_names}"
+                rf"\[{nested_brackets}\]\s*\|\s*None\s*\)",
+                r"isinstance(\1, \2) or \1 is None",
+            ),
             # Single-line isinstance with nested generics
-            (rf"isinstance\s*\(\s*([^,]+?)\s*,\s*{type_names}"
-             rf"\[{nested_brackets}\]\s*\)",
-             r"isinstance(\1, \2)"),
+            (
+                rf"isinstance\s*\(\s*([^,]+?)\s*,\s*{type_names}"
+                rf"\[{nested_brackets}\]\s*\)",
+                r"isinstance(\1, \2)",
+            ),
         ]
 
         result = content
@@ -81,8 +87,7 @@ class GenericIsinstanceFixer:
     @staticmethod
     def fix_all() -> None:
         """Fix all files with generic isinstance errors."""
-        files = (GenericIsinstanceFixer
-                 .get_files_with_generic_isinstance_errors())
+        files = GenericIsinstanceFixer.get_files_with_generic_isinstance_errors()
         fixed_count = 0
 
         for file_path in files:

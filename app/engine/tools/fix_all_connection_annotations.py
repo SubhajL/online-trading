@@ -15,7 +15,8 @@ def get_files_with_connection_errors() -> Any:
     """Run mypy and extract files with connection annotation errors"""
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine"],
-        check=False, capture_output=True,
+        check=False,
+        capture_output=True,
         text=True,
     )
 
@@ -30,7 +31,9 @@ def get_files_with_connection_errors() -> Any:
 
     # Look for var-annotated errors related to connections
     for line in result.stdout.split("\n"):
-        if "var-annotated" in line and any(keyword in line for keyword in ["connection", "conn", "pool"]):
+        if "var-annotated" in line and any(
+            keyword in line for keyword in ["connection", "conn", "pool"]
+        ):
             match = re.match(r"(app/engine/[^:]+):", line)
             if match:
                 files_to_fix.add(match.group(1))
@@ -66,14 +69,18 @@ def fix_all_connection_annotations() -> None:
     print("\nVerifying fixes...")
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine", "--no-error-summary"],
-        check=False, capture_output=True,
+        check=False,
+        capture_output=True,
         text=True,
     )
 
     # Count remaining connection-related errors
     remaining_errors = 0
     for line in result.stdout.split("\n"):
-        if ("var-annotated" in line and any(keyword in line for keyword in ["connection", "conn", "pool"])) or ("-> None:" in line and "get_connection" in line):
+        if (
+            "var-annotated" in line
+            and any(keyword in line for keyword in ["connection", "conn", "pool"])
+        ) or ("-> None:" in line and "get_connection" in line):
             remaining_errors += 1
 
     print(f"Remaining connection annotation errors: {remaining_errors}")

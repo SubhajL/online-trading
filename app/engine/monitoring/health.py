@@ -122,6 +122,7 @@ class HealthChecker:
                         record_health_check_duration,
                         update_health_check_status,
                     )
+
                     # Record both database query and health check metrics
                     observe_histogram(
                         db_query_duration,
@@ -150,6 +151,7 @@ class HealthChecker:
                     record_health_check_duration,
                     update_health_check_status,
                 )
+
                 record_health_check_duration("database", latency_ms / 1000)
                 update_health_check_status("database", "unhealthy")
             except ImportError:
@@ -167,6 +169,7 @@ class HealthChecker:
                     record_health_check_duration,
                     update_health_check_status,
                 )
+
                 record_health_check_duration("database", latency_ms / 1000)
                 update_health_check_status("database", "unhealthy")
             except ImportError:
@@ -208,6 +211,7 @@ class HealthChecker:
                         record_health_check_duration,
                         update_health_check_status,
                     )
+
                     record_health_check_duration("redis", latency_ms / 1000)
                     update_health_check_status("redis", "healthy")
                 except ImportError:
@@ -230,6 +234,7 @@ class HealthChecker:
                     record_health_check_duration,
                     update_health_check_status,
                 )
+
                 record_health_check_duration("redis", latency_ms / 1000)
                 update_health_check_status("redis", "unhealthy")
             except ImportError:
@@ -247,6 +252,7 @@ class HealthChecker:
                     record_health_check_duration,
                     update_health_check_status,
                 )
+
                 record_health_check_duration("redis", latency_ms / 1000)
                 update_health_check_status("redis", "unhealthy")
             except ImportError:
@@ -271,6 +277,7 @@ class HealthChecker:
                         record_health_check_duration,
                         update_health_check_status,
                     )
+
                     record_health_check_duration("event_bus", latency_ms / 1000)
                     update_health_check_status("event_bus", "unhealthy")
                 except ImportError:
@@ -300,6 +307,7 @@ class HealthChecker:
                     record_health_check_duration,
                     update_health_check_status,
                 )
+
                 record_health_check_duration("event_bus", latency_ms / 1000)
                 update_health_check_status("event_bus", "healthy")
             except ImportError:
@@ -320,6 +328,7 @@ class HealthChecker:
                     record_health_check_duration,
                     update_health_check_status,
                 )
+
                 record_health_check_duration("event_bus", latency_ms / 1000)
                 update_health_check_status("event_bus", "unhealthy")
             except ImportError:

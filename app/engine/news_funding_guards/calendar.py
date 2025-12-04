@@ -133,11 +133,13 @@ class CalendarManager:
         try:
             if self.source_type == "csv":
                 self._events = await load_calendar_events(
-                    self.csv_path, source_type="csv",
+                    self.csv_path,
+                    source_type="csv",
                 )
             elif self.source_type == "google_sheets":
                 self._events = await load_calendar_events(
-                    self.google_sheets_id, source_type="google_sheets",
+                    self.google_sheets_id,
+                    source_type="google_sheets",
                 )
 
             # Filter for tracked event types
@@ -164,9 +166,7 @@ class CalendarManager:
             await self.load_events()
             return
 
-        age_hours = (
-            datetime.now(UTC) - self._last_loaded
-        ).total_seconds() / 3600
+        age_hours = (datetime.now(UTC) - self._last_loaded).total_seconds() / 3600
         if age_hours > max_age_hours:
             await self.load_events()
 

@@ -31,7 +31,9 @@ class TestLineAlertAdapter:
         return formatter
 
     @pytest.fixture
-    def adapter(self, mock_event_bus: Any, mock_deduplicator: Any, mock_formatter: Any) -> Any:
+    def adapter(
+        self, mock_event_bus: Any, mock_deduplicator: Any, mock_formatter: Any
+    ) -> Any:
         with patch("line.aiohttp.ClientSession"):
             adapter = LineAlertAdapter(
                 access_token="test_token",
@@ -91,7 +93,9 @@ class TestLineAlertAdapter:
             assert result is False
 
     @pytest.mark.asyncio
-    async def test_handle_decision_with_deduplication(self, adapter: Any, mock_deduplicator: Any) -> None:
+    async def test_handle_decision_with_deduplication(
+        self, adapter: Any, mock_deduplicator: Any
+    ) -> None:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",

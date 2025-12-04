@@ -37,12 +37,16 @@ def mock_event_bus():
     bus = MagicMock()
     bus.is_running = MagicMock(return_value=True)
     bus.get_queue_sizes = MagicMock(return_value={"candle_update": 5, "features": 3})
-    bus.get_subscriber_counts = MagicMock(return_value={"candle_update": 2, "features": 1})
-    bus.get_event_metrics = MagicMock(return_value={
-        "events_published": 1000,
-        "events_processed": 995,
-        "processing_lag_ms": 50,
-    })
+    bus.get_subscriber_counts = MagicMock(
+        return_value={"candle_update": 2, "features": 1}
+    )
+    bus.get_event_metrics = MagicMock(
+        return_value={
+            "events_published": 1000,
+            "events_processed": 995,
+            "processing_lag_ms": 50,
+        }
+    )
     return bus
 
 
@@ -64,7 +68,9 @@ class TestEnhancedHealthChecker:
             mock_session.__aexit__ = AsyncMock()
             mock_session_class.return_value = mock_session
 
-            result = await checker.check_service_dependency("router", "http://localhost:8080/healthz")
+            result = await checker.check_service_dependency(
+                "router", "http://localhost:8080/healthz"
+            )
 
             assert result.service == "router"
             assert result.status == DependencyStatus.AVAILABLE
@@ -84,7 +90,9 @@ class TestEnhancedHealthChecker:
             mock_session.__aexit__ = AsyncMock()
             mock_session_class.return_value = mock_session
 
-            result = await checker.check_service_dependency("router", "http://localhost:8080/healthz")
+            result = await checker.check_service_dependency(
+                "router", "http://localhost:8080/healthz"
+            )
 
             assert result.service == "router"
             assert result.status == DependencyStatus.TIMEOUT
@@ -102,7 +110,9 @@ class TestEnhancedHealthChecker:
             mock_session.__aexit__ = AsyncMock()
             mock_session_class.return_value = mock_session
 
-            result = await checker.check_service_dependency("router", "http://localhost:8080/healthz")
+            result = await checker.check_service_dependency(
+                "router", "http://localhost:8080/healthz"
+            )
 
             assert result.service == "router"
             assert result.status == DependencyStatus.UNAVAILABLE
@@ -114,13 +124,19 @@ class TestEnhancedHealthChecker:
         checker = EnhancedHealthChecker(health_config)
 
         # Register dependencies
-        checker.register_dependency("router", "http://localhost:8080/healthz", critical=True)
-        checker.register_dependency("external_api", "https://api.example.com/health", critical=False)
+        checker.register_dependency(
+            "router", "http://localhost:8080/healthz", critical=True
+        )
+        checker.register_dependency(
+            "external_api", "https://api.example.com/health", critical=False
+        )
 
         with patch.object(checker, "check_service_dependency") as mock_check:
             mock_check.side_effect = [
                 ServiceDependency("router", DependencyStatus.AVAILABLE, "Healthy", 10),
-                ServiceDependency("external_api", DependencyStatus.UNAVAILABLE, "Connection error", 0),
+                ServiceDependency(
+                    "external_api", DependencyStatus.UNAVAILABLE, "Connection error", 0
+                ),
             ]
 
             results = await checker.check_all_dependencies()
@@ -130,7 +146,9 @@ class TestEnhancedHealthChecker:
             assert results["external_api"].status == DependencyStatus.UNAVAILABLE
 
     @pytest.mark.asyncio
-    async def test_check_event_bus_health_with_backlog(self, health_config, mock_event_bus):
+    async def test_check_event_bus_health_with_backlog(
+        self, health_config, mock_event_bus
+    ):
         """Test event bus health check with message backlog."""
         checker = EnhancedHealthChecker(health_config)
 
@@ -195,25 +213,54 @@ class TestEnhancedHealthChecker:
         checker = EnhancedHealthChecker(health_config)
 
         # Register components and dependencies
-        checker.register_component("database", checker.check_database_health, "postgresql://test")
-        checker.register_component("redis", checker.check_redis_health, "redis://localhost")
-        checker.register_component("event_bus", checker.check_event_bus_health, mock_event_bus)
-        checker.register_dependency("router", "http://localhost:8080/healthz", critical=True)
+        checker.register_component(
+            "database", checker.check_database_health, "postgresql://test"
+        )
+        checker.register_component(
+            "redis", checker.check_redis_health, "redis://localhost"
+        )
+        checker.register_component(
+            "event_bus", checker.check_event_bus_health, mock_event_bus
+        )
+        checker.register_dependency(
+            "router", "http://localhost:8080/healthz", critical=True
+        )
 
         # Mock health check results
-        with patch.multiple(checker,
-            check_database_health=AsyncMock(return_value=ComponentHealth(
-                name="database", status=HealthStatus.HEALTHY, message="OK", latency_ms=10,
-            )),
-            check_redis_health=AsyncMock(return_value=ComponentHealth(
-                name="redis", status=HealthStatus.HEALTHY, message="OK", latency_ms=5,
-            )),
-            check_event_bus_health=AsyncMock(return_value=ComponentHealth(
-                name="event_bus", status=HealthStatus.HEALTHY, message="OK", latency_ms=1,
-            )),
-            check_service_dependency=AsyncMock(return_value=ServiceDependency(
-                service="router", status=DependencyStatus.AVAILABLE, message="OK", latency_ms=20,
-            )),
+        with patch.multiple(
+            checker,
+            check_database_health=AsyncMock(
+                return_value=ComponentHealth(
+                    name="database",
+                    status=HealthStatus.HEALTHY,
+                    message="OK",
+                    latency_ms=10,
+                )
+            ),
+            check_redis_health=AsyncMock(
+                return_value=ComponentHealth(
+                    name="redis",
+                    status=HealthStatus.HEALTHY,
+                    message="OK",
+                    latency_ms=5,
+                )
+            ),
+            check_event_bus_health=AsyncMock(
+                return_value=ComponentHealth(
+                    name="event_bus",
+                    status=HealthStatus.HEALTHY,
+                    message="OK",
+                    latency_ms=1,
+                )
+            ),
+            check_service_dependency=AsyncMock(
+                return_value=ServiceDependency(
+                    service="router",
+                    status=DependencyStatus.AVAILABLE,
+                    message="OK",
+                    latency_ms=20,
+                )
+            ),
         ):
             report = await checker.get_comprehensive_health()
 
@@ -226,20 +273,37 @@ class TestEnhancedHealthChecker:
             assert report.dependencies["router"].status == DependencyStatus.AVAILABLE
 
     @pytest.mark.asyncio
-    async def test_comprehensive_health_with_critical_failure(self, health_config, mock_event_bus):
+    async def test_comprehensive_health_with_critical_failure(
+        self, health_config, mock_event_bus
+    ):
         """Test comprehensive health report with critical dependency failure."""
         checker = EnhancedHealthChecker(health_config)
 
-        checker.register_component("database", checker.check_database_health, "postgresql://test")
-        checker.register_dependency("router", "http://localhost:8080/healthz", critical=True)
+        checker.register_component(
+            "database", checker.check_database_health, "postgresql://test"
+        )
+        checker.register_dependency(
+            "router", "http://localhost:8080/healthz", critical=True
+        )
 
-        with patch.multiple(checker,
-            check_database_health=AsyncMock(return_value=ComponentHealth(
-                name="database", status=HealthStatus.HEALTHY, message="OK", latency_ms=10,
-            )),
-            check_service_dependency=AsyncMock(return_value=ServiceDependency(
-                service="router", status=DependencyStatus.UNAVAILABLE, message="Connection refused", latency_ms=0,
-            )),
+        with patch.multiple(
+            checker,
+            check_database_health=AsyncMock(
+                return_value=ComponentHealth(
+                    name="database",
+                    status=HealthStatus.HEALTHY,
+                    message="OK",
+                    latency_ms=10,
+                )
+            ),
+            check_service_dependency=AsyncMock(
+                return_value=ServiceDependency(
+                    service="router",
+                    status=DependencyStatus.UNAVAILABLE,
+                    message="Connection refused",
+                    latency_ms=0,
+                )
+            ),
         ):
             report = await checker.get_comprehensive_health()
 
@@ -255,13 +319,20 @@ class TestEnhancedHealthChecker:
 
         # Track health check calls
         check_count = 0
-        health_states = [HealthStatus.HEALTHY, HealthStatus.DEGRADED, HealthStatus.UNHEALTHY, HealthStatus.HEALTHY]
+        health_states = [
+            HealthStatus.HEALTHY,
+            HealthStatus.DEGRADED,
+            HealthStatus.UNHEALTHY,
+            HealthStatus.HEALTHY,
+        ]
 
         async def mock_check():
             nonlocal check_count
             status = health_states[min(check_count, len(health_states) - 1)]
             check_count += 1
-            return ComponentHealth(name="test", status=status, message=f"Check {check_count}")
+            return ComponentHealth(
+                name="test", status=status, message=f"Check {check_count}"
+            )
 
         checker.register_component("test", mock_check)
 

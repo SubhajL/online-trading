@@ -232,7 +232,9 @@ class MigrationRunner:
 
         # Compute the contiguous plan starting after the current version
         migrations_to_apply = self.compute_contiguous_plan(
-            available_migrations, start_version=current_version + 1, target_version=target_version,
+            available_migrations,
+            start_version=current_version + 1,
+            target_version=target_version,
         )
 
         if not migrations_to_apply:

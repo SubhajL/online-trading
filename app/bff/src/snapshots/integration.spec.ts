@@ -232,9 +232,9 @@ describe('Snapshots Integration', () => {
     it('should handle snapshot generation errors gracefully', async () => {
       // Mock the snapshot generator to fail
       const snapshotGenerator = moduleRef.get('SnapshotGeneratorService');
-      jest.spyOn(snapshotGenerator, 'generateSnapshot').mockRejectedValue(
-        new Error('Puppeteer error'),
-      );
+      jest
+        .spyOn(snapshotGenerator, 'generateSnapshot')
+        .mockRejectedValue(new Error('Puppeteer error'));
 
       const signalId = `sig_${uuidv4().substring(0, 12)}`;
       const payload = {

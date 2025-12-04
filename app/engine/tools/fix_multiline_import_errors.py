@@ -20,7 +20,11 @@ def fix_multiline_import_errors(file_path: str) -> bool:
         pattern = r"(from\s+[^\s]+\s+import\s+\(\s*\nfrom typing import Any\s*\n)"
 
         # Replace by removing the incorrect import line
-        content = re.sub(pattern, r"from \g<1>".replace(r"\g<1>", "").replace("from typing import Any\n", ""), content)
+        content = re.sub(
+            pattern,
+            r"from \g<1>".replace(r"\g<1>", "").replace("from typing import Any\n", ""),
+            content,
+        )
 
         # More specific pattern
         pattern = r"(from\s+[\w.]+\s+import\s+\()\s*\nfrom typing import Any\s*\n"

@@ -34,7 +34,7 @@ def update_structure_state(tracker: StructureTracker, pivot: Pivot) -> None:
 
     # Maintain max pivots
     if len(tracker.pivots) > tracker.max_pivots:
-        tracker.pivots = tracker.pivots[-tracker.max_pivots:]
+        tracker.pivots = tracker.pivots[-tracker.max_pivots :]
 
     # Update structure based on swing type
     if swing_type:

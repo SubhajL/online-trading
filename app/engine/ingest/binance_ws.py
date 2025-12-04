@@ -129,7 +129,9 @@ class BinanceWebSocketClient:
         logger.info("WebSocket client stopped")
 
     async def subscribe_klines(
-        self, symbols: list[str], timeframes: list[TimeFrame],
+        self,
+        symbols: list[str],
+        timeframes: list[TimeFrame],
     ) -> None:
         """
         Subscribe to kline/candlestick streams
@@ -254,7 +256,8 @@ class BinanceWebSocketClient:
             # Build WebSocket URL using Binance combined stream format
             if self._subscriptions:
                 url = build_combined_stream_url(
-                    self.base_url, sorted(self._subscriptions),
+                    self.base_url,
+                    sorted(self._subscriptions),
                 )
             else:
                 # Use a dummy stream for initial connection

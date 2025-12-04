@@ -91,17 +91,26 @@ class MetricsCalculator:
 
         # Hit rate
         if metrics.total_trades > 0:
-            metrics.hit_rate_pct = (Decimal(metrics.winning_trades) /
-                                   Decimal(metrics.total_trades)) * Decimal(100)
+            metrics.hit_rate_pct = (
+                Decimal(metrics.winning_trades) / Decimal(metrics.total_trades)
+            ) * Decimal(100)
 
         # R multiples
         if winning_trades:
-            metrics.avg_win_r = sum(t.net_pnl_r for t in winning_trades if t.net_pnl_r) / Decimal(len(winning_trades))
-            metrics.largest_win_r = max(t.net_pnl_r for t in winning_trades if t.net_pnl_r)
+            metrics.avg_win_r = sum(
+                t.net_pnl_r for t in winning_trades if t.net_pnl_r
+            ) / Decimal(len(winning_trades))
+            metrics.largest_win_r = max(
+                t.net_pnl_r for t in winning_trades if t.net_pnl_r
+            )
 
         if losing_trades:
-            metrics.avg_loss_r = sum(t.net_pnl_r for t in losing_trades if t.net_pnl_r) / Decimal(len(losing_trades))
-            metrics.largest_loss_r = min(t.net_pnl_r for t in losing_trades if t.net_pnl_r)
+            metrics.avg_loss_r = sum(
+                t.net_pnl_r for t in losing_trades if t.net_pnl_r
+            ) / Decimal(len(losing_trades))
+            metrics.largest_loss_r = min(
+                t.net_pnl_r for t in losing_trades if t.net_pnl_r
+            )
 
         # Overall average R
         r_values = [t.net_pnl_r for t in trades if t.net_pnl_r]
@@ -133,11 +142,15 @@ class MetricsCalculator:
         # Total PnL
         final_equity = equity_curve[-1][1]
         metrics.total_pnl = final_equity - self.initial_balance
-        metrics.total_pnl_pct = (metrics.total_pnl / self.initial_balance) * Decimal(100)
+        metrics.total_pnl_pct = (metrics.total_pnl / self.initial_balance) * Decimal(
+            100
+        )
 
         # Profit factor
         gross_wins = sum(t.net_pnl for t in trades if t.net_pnl and t.net_pnl > 0)
-        gross_losses = abs(sum(t.net_pnl for t in trades if t.net_pnl and t.net_pnl <= 0))
+        gross_losses = abs(
+            sum(t.net_pnl for t in trades if t.net_pnl and t.net_pnl <= 0)
+        )
 
         if gross_losses > 0:
             metrics.profit_factor = gross_wins / gross_losses
@@ -164,7 +177,9 @@ class MetricsCalculator:
         metrics.max_drawdown_pct = max_dd * Decimal(100)
 
         # Maximum drawdown duration
-        metrics.max_drawdown_duration_hours = self._calculate_max_dd_duration(drawdown_curve)
+        metrics.max_drawdown_duration_hours = self._calculate_max_dd_duration(
+            drawdown_curve
+        )
 
         # Exposure calculation (time in market)
         if equity_curve and len(equity_curve) > 1:
@@ -199,14 +214,18 @@ class MetricsCalculator:
 
         # Sharpe ratio (assuming 0% risk-free rate)
         if returns_array.std() > 0:
-            metrics.sharpe_ratio = Decimal(str(returns_array.mean() / returns_array.std() * math.sqrt(252)))
+            metrics.sharpe_ratio = Decimal(
+                str(returns_array.mean() / returns_array.std() * math.sqrt(252))
+            )
 
         # Sortino ratio (downside deviation)
         downside_returns = returns_array[returns_array < 0]
         if len(downside_returns) > 0:
             downside_std = downside_returns.std()
             if downside_std > 0:
-                metrics.sortino_ratio = Decimal(str(returns_array.mean() / downside_std * math.sqrt(252)))
+                metrics.sortino_ratio = Decimal(
+                    str(returns_array.mean() / downside_std * math.sqrt(252))
+                )
 
         # Calmar ratio (return / max drawdown)
         if metrics.max_drawdown_pct > 0:
@@ -231,7 +250,7 @@ class MetricsCalculator:
 
         returns = []
         for i in range(1, len(equity_curve)):
-            prev_equity = equity_curve[i-1][1]
+            prev_equity = equity_curve[i - 1][1]
             curr_equity = equity_curve[i][1]
 
             if prev_equity > 0:
@@ -318,18 +337,20 @@ class MetricsCalculator:
         }
 
         if len(r_array) > 0:
-            distribution.update({
-                # R multiple statistics
-                "r_mean": float(r_array.mean()),
-                "r_std": float(r_array.std()),
-                "r_percentiles": {
-                    "5th": float(np.percentile(r_array, 5)),
-                    "25th": float(np.percentile(r_array, 25)),
-                    "50th": float(np.percentile(r_array, 50)),
-                    "75th": float(np.percentile(r_array, 75)),
-                    "95th": float(np.percentile(r_array, 95)),
-                },
-            })
+            distribution.update(
+                {
+                    # R multiple statistics
+                    "r_mean": float(r_array.mean()),
+                    "r_std": float(r_array.std()),
+                    "r_percentiles": {
+                        "5th": float(np.percentile(r_array, 5)),
+                        "25th": float(np.percentile(r_array, 25)),
+                        "50th": float(np.percentile(r_array, 50)),
+                        "75th": float(np.percentile(r_array, 75)),
+                        "95th": float(np.percentile(r_array, 95)),
+                    },
+                }
+            )
 
         return distribution
 
@@ -343,7 +364,7 @@ class MetricsCalculator:
         if std == 0:
             return 0.0
 
-        return ((data - mean) ** 3).mean() / (std ** 3)
+        return ((data - mean) ** 3).mean() / (std**3)
 
     def _calculate_kurtosis(self, data: np.ndarray) -> float:
         """Calculate kurtosis of data."""
@@ -355,7 +376,7 @@ class MetricsCalculator:
         if std == 0:
             return 0.0
 
-        return ((data - mean) ** 4).mean() / (std ** 4) - 3  # Excess kurtosis
+        return ((data - mean) ** 4).mean() / (std**4) - 3  # Excess kurtosis
 
     def calculate_monthly_returns(
         self,
