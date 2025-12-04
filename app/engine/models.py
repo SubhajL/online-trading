@@ -146,6 +146,7 @@ class BaseEvent(BaseModel):
     symbol: str
     timeframe: TimeFrame | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict()
 
@@ -870,7 +871,10 @@ def kline_to_candle(data: dict[str, Any], venue: str) -> Candle:
 
 
 def rest_kline_to_candle(
-    data: list[Any], symbol: str, timeframe: str, venue: str,
+    data: list[Any],
+    symbol: str,
+    timeframe: str,
+    venue: str,
 ) -> Candle:
     """
     Convert Binance REST API kline array to Candle model.

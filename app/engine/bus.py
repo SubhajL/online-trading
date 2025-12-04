@@ -6,6 +6,7 @@ Uses dependency injection for subscription management and event processing.
 """
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime
 import logging
 from typing import Any
@@ -24,9 +25,74 @@ from .core.interfaces import (
     EventProcessorInterface,
     SubscriptionManagerInterface,
 )
-from .models import BaseEvent, EventType
+from .models import BaseEvent, EventType, TimeFrame
 
 logger = logging.getLogger(__name__)
+
+
+# Topic to EventType mapping for publish_event routing
+TOPIC_TO_EVENT_TYPE: dict[str, EventType] = {
+    "candles.v1": EventType.CANDLE_UPDATE,
+    "features.v1": EventType.FEATURES_CALCULATED,
+    "smc_events.v1": EventType.SMC_SIGNAL,
+    "zones.v1": EventType.SMC_SIGNAL,
+    "signals_raw.v1": EventType.RETEST_SIGNAL,
+    "decision.v1": EventType.TRADING_DECISION,
+    "order_update.v1": EventType.ORDER_PLACED,
+    "regime.v1": EventType.REGIME_UPDATE,
+}
+
+
+class DeadLetterQueue:
+    """Thread-safe dead letter queue using deque with async lock.
+
+    Provides peek (non-destructive read) and drain (destructive read) operations
+    that are safe for concurrent access.
+    """
+
+    def __init__(self, maxsize: int = 1000) -> None:
+        """Initialize the dead letter queue.
+
+        Args:
+            maxsize: Maximum number of events to store. When full, oldest events
+                     are dropped to make room for new ones.
+        """
+        from collections import deque
+
+        self._events: deque[BaseEvent] = deque(maxlen=maxsize)
+        self._lock = asyncio.Lock()
+        self._maxsize = maxsize
+
+    def qsize(self) -> int:
+        """Return current queue size (not thread-safe, for monitoring only)."""
+        return len(self._events)
+
+    async def put(self, event: BaseEvent) -> None:
+        """Add an event to the queue.
+
+        If queue is at maxsize, oldest event is automatically dropped.
+        """
+        async with self._lock:
+            self._events.append(event)
+
+    async def peek(self, limit: int = 100) -> list[BaseEvent]:
+        """Return up to limit events without removing them.
+
+        Thread-safe read that does not modify queue state.
+        """
+        async with self._lock:
+            return list(self._events)[:limit]
+
+    async def drain(self, limit: int = 100) -> list[BaseEvent]:
+        """Remove and return up to limit events from the queue.
+
+        Events are removed from the front (oldest first).
+        """
+        async with self._lock:
+            result: list[BaseEvent] = []
+            for _ in range(min(limit, len(self._events))):
+                result.append(self._events.popleft())
+            return result
 
 
 class EventBus:
@@ -306,7 +372,8 @@ class EventBus:
                 # Get event from queue with timeout
                 if self._use_priority_queue:
                     _prio, _ts, event = await asyncio.wait_for(
-                        self._event_queue.get(), timeout=1.0,
+                        self._event_queue.get(),
+                        timeout=1.0,
                     )
                 else:
                     event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
@@ -334,7 +401,9 @@ class EventBus:
                 # Warn if processing exceeds configured threshold
                 try:
                     threshold_ms = getattr(
-                        self._config, "slow_event_warning_threshold_ms", 100,
+                        self._config,
+                        "slow_event_warning_threshold_ms",
+                        100,
                     )
                 except Exception:
                     threshold_ms = 100
@@ -377,7 +446,8 @@ class EventBus:
         if obs is not None:
             try:
                 obs.update_queue_metrics(
-                    queue_size=self._event_queue.qsize(), processing_lag=processing_lag,
+                    queue_size=self._event_queue.qsize(),
+                    processing_lag=processing_lag,
                 )
             except Exception:
                 # Metrics should never break processing
@@ -460,7 +530,8 @@ class EventBus:
         return events
 
     async def get_subscription_status(
-        self, subscription_id: str,
+        self,
+        subscription_id: str,
     ) -> dict[str, Any] | None:
         """Get subscription status including circuit breaker state."""
         sub = await self._subscription_manager.get_subscription_by_id(subscription_id)
@@ -535,24 +606,43 @@ async def publish_event(topic: str, data: dict[str, Any]) -> bool:
     """
     Simplified interface to publish an event to the global event bus.
 
+    Routes topic to correct EventType and stores data in payload field.
+
     Args:
-        topic: The event topic (e.g., "candles.v1")
-        data: The event data dictionary
+        topic: The event topic (e.g., "candles.v1", "decision.v1")
+        data: The event data dictionary containing symbol, timestamp, etc.
 
     Returns:
         True if published successfully
 
     Raises:
-        RuntimeError: If no event bus has been set[Any]
+        RuntimeError: If no event bus has been set
     """
     bus = get_event_bus()
+
+    # Route topic to EventType, log warning for unknown topics
+    event_type = TOPIC_TO_EVENT_TYPE.get(topic)
+    if event_type is None:
+        logger.warning("Unknown topic '%s', defaulting to CANDLE_UPDATE", topic)
+        event_type = EventType.CANDLE_UPDATE
+
+    # Extract symbol from data (required field)
+    symbol = data.get("symbol", "")
+
+    # Extract timeframe if present
+    timeframe = None
+    if "timeframe" in data:
+        with contextlib.suppress(ValueError):
+            timeframe = TimeFrame(data["timeframe"])
+
+    # Extract timestamp, default to now
+    timestamp = data.get("timestamp", datetime.now(UTC))
+
     event = BaseEvent(
-        event_type=(
-            EventType.CANDLE_UPDATE
-            if topic == "candles.v1"
-            else EventType.CANDLE_UPDATE
-        ),
-        timestamp=data.get("timestamp", datetime.now(UTC)),
-        data=data,
+        event_type=event_type,
+        timestamp=timestamp,
+        symbol=symbol,
+        timeframe=timeframe,
+        payload=data,
     )
     return await bus.publish(event)
