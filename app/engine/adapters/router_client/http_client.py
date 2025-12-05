@@ -14,6 +14,7 @@ from urllib.parse import urljoin
 
 from aiohttp import ClientSession, ClientTimeout
 
+from ...decision.idempotency import generate_client_order_id
 from ...models import TradingDecision
 from ...resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
@@ -222,7 +223,10 @@ class RouterHTTPClient:
     async def place_order(self, decision: TradingDecision) -> dict[str, Any]:
         """Place a trading order based on decision"""
         try:
+            client_order_id = generate_client_order_id(decision.decision_id, "entry")
+
             order_data = {
+                "newClientOrderId": client_order_id,
                 "symbol": decision.symbol,
                 "side": decision.action,  # BUY/SELL
                 "type": decision.order_type.value if decision.order_type else "MARKET",
