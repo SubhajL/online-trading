@@ -1,11 +1,16 @@
 """Tests for RedisBridge forwarding events to Redis pub/sub."""
 
 from datetime import UTC, datetime
+import inspect
+from typing import get_type_hints
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from app.engine.adapters.bridge.redis_bridge import RedisBridge
+from app.engine.adapters.bridge.redis_bridge import (
+    EventHandler,
+    RedisBridge,
+)
 from app.engine.models import BaseEvent, EventType
 
 
@@ -155,3 +160,26 @@ class TestRedisBridge:
         await bridge.stop()
 
         assert bridge.is_running
+
+
+class TestEventHandlerType:
+    """Tests for EventHandler type alias correctness."""
+
+    def test_forward_to_redis_is_async_function(self) -> None:
+        """forward_to_redis is an async coroutine function."""
+        assert inspect.iscoroutinefunction(RedisBridge.forward_to_redis)
+
+    def test_forward_to_redis_takes_base_event_parameter(self) -> None:
+        """forward_to_redis accepts BaseEvent as parameter."""
+        hints = get_type_hints(RedisBridge.forward_to_redis)
+        assert hints.get("event") == BaseEvent
+
+    def test_forward_to_redis_returns_none(self) -> None:
+        """forward_to_redis returns None."""
+        hints = get_type_hints(RedisBridge.forward_to_redis)
+        assert hints.get("return") is type(None)
+
+    def test_event_handler_type_is_callable(self) -> None:
+        """EventHandler is a Callable type alias."""
+        # EventHandler should be Callable[[BaseEvent], Awaitable[None]]
+        assert hasattr(EventHandler, "__origin__") or callable(EventHandler)

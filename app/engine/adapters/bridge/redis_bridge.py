@@ -1,11 +1,15 @@
 """Redis bridge for forwarding event bus events to Redis pub/sub."""
 
+from collections.abc import Awaitable, Callable
 import logging
 from typing import Protocol, runtime_checkable
 
 from app.engine.models import BaseEvent, EventType
 
 logger = logging.getLogger(__name__)
+
+# Type alias for async event handler callbacks
+EventHandler = Callable[[BaseEvent], Awaitable[None]]
 
 
 @runtime_checkable
@@ -24,7 +28,7 @@ class EventBusSubscriber(Protocol):
     async def subscribe(
         self,
         subscriber_id: str,
-        handler: object,
+        handler: EventHandler,
         event_types: list[EventType] | None = None,
         priority: int = 0,
     ) -> str:
