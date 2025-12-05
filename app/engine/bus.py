@@ -40,6 +40,8 @@ TOPIC_TO_EVENT_TYPE: dict[str, EventType] = {
     "decision.v1": EventType.TRADING_DECISION,
     "order_update.v1": EventType.ORDER_PLACED,
     "regime.v1": EventType.REGIME_UPDATE,
+    "news_window.v1": EventType.NEWS_ALERT,
+    "funding_window.v1": EventType.FUNDING_ALERT,
 }
 
 
