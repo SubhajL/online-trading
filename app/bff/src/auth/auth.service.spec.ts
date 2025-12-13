@@ -39,12 +39,14 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
     jwtService = module.get<JwtService>(JwtService);
 
-    mockConfigService.get.mockImplementation((key: string) => {
+    mockConfigService.get.mockImplementation((key: string, defaultValue?: string) => {
       const config: Record<string, string> = {
         JWT_EXPIRATION: '24h',
         JWT_REFRESH_EXPIRATION: '7d',
+        JWT_REMEMBER_EXPIRATION: '30d',
+        JWT_REMEMBER_REFRESH_EXPIRATION: '60d',
       };
-      return config[key];
+      return config[key] ?? defaultValue;
     });
   });
 
@@ -81,7 +83,7 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should return JWT tokens for valid user', async () => {
+    it('should return JWT tokens with extended expiry when rememberMe is true (default)', async () => {
       const user = { id: 'user-123', username: 'testuser', roles: ['operator'] };
       const accessToken = 'access.token.here';
       const refreshToken = 'refresh.token.here';
@@ -89,6 +91,29 @@ describe('AuthService', () => {
       mockJwtService.sign.mockReturnValueOnce(accessToken).mockReturnValueOnce(refreshToken);
 
       const result = await service.login(user);
+
+      expect(result).toEqual({ accessToken, refreshToken });
+      expect(jwtService.sign).toHaveBeenCalledTimes(2);
+      expect(jwtService.sign).toHaveBeenNthCalledWith(
+        1,
+        { sub: user.id, username: user.username, roles: user.roles },
+        { expiresIn: '30d' },
+      );
+      expect(jwtService.sign).toHaveBeenNthCalledWith(
+        2,
+        { sub: user.id, username: user.username },
+        { expiresIn: '60d' },
+      );
+    });
+
+    it('should return JWT tokens with short expiry when rememberMe is false', async () => {
+      const user = { id: 'user-123', username: 'testuser', roles: ['operator'] };
+      const accessToken = 'access.token.here';
+      const refreshToken = 'refresh.token.here';
+
+      mockJwtService.sign.mockReturnValueOnce(accessToken).mockReturnValueOnce(refreshToken);
+
+      const result = await service.login(user, false);
 
       expect(result).toEqual({ accessToken, refreshToken });
       expect(jwtService.sign).toHaveBeenCalledTimes(2);

@@ -27,6 +27,7 @@ export default function LoginPage() {
   const { login, state } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(true)
   const [errors, setErrors] = useState<FormErrors>({})
   const [loginError, setLoginError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -55,14 +56,14 @@ export default function LoginPage() {
       setIsSubmitting(true)
 
       try {
-        await login(email, password)
+        await login(email, password, rememberMe)
       } catch (err) {
         setLoginError(err instanceof Error ? err.message : 'Login failed')
       } finally {
         setIsSubmitting(false)
       }
     },
-    [email, password, login],
+    [email, password, rememberMe, login],
   )
 
   const handleKeyDown = useCallback(
@@ -132,6 +133,20 @@ export default function LoginPage() {
                 {errors.password}
               </span>
             )}
+          </div>
+
+          <div className={styles.checkboxField}>
+            <label className={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                data-testid="remember-me-checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className={styles.checkbox}
+                disabled={isLoading}
+              />
+              Remember me
+            </label>
           </div>
 
           <button

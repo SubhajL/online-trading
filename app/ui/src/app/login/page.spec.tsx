@@ -63,7 +63,7 @@ describe('LoginPage', () => {
     })
   })
 
-  it('calls login on valid form submit', async () => {
+  it('calls login on valid form submit with rememberMe default true', async () => {
     mockLogin.mockResolvedValueOnce(undefined)
     render(<LoginPage />)
 
@@ -72,7 +72,7 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByTestId('login-button'))
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'Password123')
+      expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'Password123', true)
     })
   })
 
@@ -99,6 +99,42 @@ describe('LoginPage', () => {
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalled()
+    })
+  })
+
+  describe('TC1.7 - Remember Me', () => {
+    it('renders Remember Me checkbox', () => {
+      render(<LoginPage />)
+
+      expect(screen.getByTestId('remember-me-checkbox')).toBeInTheDocument()
+      expect(screen.getByLabelText(/remember me/i)).toBeInTheDocument()
+    })
+
+    it('Remember Me is checked by default', () => {
+      render(<LoginPage />)
+
+      const checkbox = screen.getByTestId('remember-me-checkbox')
+      expect(checkbox).toBeChecked()
+    })
+
+    it('passes rememberMe=false to login when unchecked', async () => {
+      mockLogin.mockResolvedValueOnce(undefined)
+      render(<LoginPage />)
+
+      // Uncheck Remember Me
+      fireEvent.click(screen.getByTestId('remember-me-checkbox'))
+
+      fireEvent.change(screen.getByTestId('email-input'), {
+        target: { value: 'test@example.com' },
+      })
+      fireEvent.change(screen.getByTestId('password-input'), {
+        target: { value: 'Password123' },
+      })
+      fireEvent.click(screen.getByTestId('login-button'))
+
+      await waitFor(() => {
+        expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'Password123', false)
+      })
     })
   })
 })

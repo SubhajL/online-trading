@@ -55,21 +55,30 @@ export class AuthService {
     return result;
   }
 
-  async login(user: Omit<User, 'password'>): Promise<JwtTokens> {
+  async login(user: Omit<User, 'password'>, rememberMe = true): Promise<JwtTokens> {
     const payload: JwtPayload = {
       sub: user.id,
       username: user.username,
       roles: user.roles,
     };
 
+    // Extended expiry for Remember Me: 30 days vs 24 hours
+    const accessExpiry = rememberMe
+      ? this.configService.get<string>('JWT_REMEMBER_EXPIRATION', '30d')
+      : this.configService.get<string>('JWT_EXPIRATION', '24h');
+
+    const refreshExpiry = rememberMe
+      ? this.configService.get<string>('JWT_REMEMBER_REFRESH_EXPIRATION', '60d')
+      : this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d');
+
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: this.configService.get<string>('JWT_EXPIRATION', '24h'),
+      expiresIn: accessExpiry,
     });
 
     const refreshToken = this.jwtService.sign(
       { sub: user.id, username: user.username },
       {
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d'),
+        expiresIn: refreshExpiry,
       },
     );
 

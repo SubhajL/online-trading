@@ -36,7 +36,7 @@ describe('AuthController', () => {
   });
 
   describe('login', () => {
-    it('should return JWT token for valid credentials', async () => {
+    it('should return JWT token for valid credentials with rememberMe default', async () => {
       const loginDto: LoginDto = {
         username: 'testuser',
         password: 'testpass',
@@ -54,11 +54,42 @@ describe('AuthController', () => {
 
       expect(result).toEqual(expectedToken);
       expect(authService.validateUser).toHaveBeenCalledWith(loginDto.username, loginDto.password);
-      expect(authService.login).toHaveBeenCalledWith({
+      expect(authService.login).toHaveBeenCalledWith(
+        {
+          id: 'user-123',
+          username: 'testuser',
+          roles: ['operator'],
+        },
+        true,
+      );
+    });
+
+    it('should pass rememberMe=false to login service', async () => {
+      const loginDto: LoginDto = {
+        username: 'testuser',
+        password: 'testpass',
+        rememberMe: false,
+      };
+
+      const expectedToken = { access_token: 'jwt-token' };
+      mockAuthService.validateUser.mockResolvedValue({
         id: 'user-123',
         username: 'testuser',
         roles: ['operator'],
       });
+      mockAuthService.login.mockResolvedValue(expectedToken);
+
+      const result = await controller.login(loginDto);
+
+      expect(result).toEqual(expectedToken);
+      expect(authService.login).toHaveBeenCalledWith(
+        {
+          id: 'user-123',
+          username: 'testuser',
+          roles: ['operator'],
+        },
+        false,
+      );
     });
 
     it('should throw UnauthorizedException for invalid credentials', async () => {
