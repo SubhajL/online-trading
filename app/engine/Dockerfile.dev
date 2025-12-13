@@ -1,0 +1,44 @@
+# Development Dockerfile for Python trading engine
+# Use pre-built TA-Lib base for faster builds
+FROM python:3.13-slim
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    build-essential \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install TA-Lib C library using the newer method that works on ARM64
+RUN wget https://github.com/TA-Lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz && \
+    tar -xzf ta-lib-0.6.4-src.tar.gz && \
+    cd ta-lib-0.6.4 && \
+    ./configure --prefix=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib-0.6.4 ta-lib-0.6.4-src.tar.gz && \
+    ldconfig
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy requirements first for caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Environment variables for development
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/workspace
+
+# Expose port for FastAPI
+EXPOSE 8000
+
+# Run with hot reload
+CMD ["uvicorn", "app.engine.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

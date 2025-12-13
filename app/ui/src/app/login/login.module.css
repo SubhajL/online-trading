@@ -1,0 +1,134 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, hsl(220, 25%, 10%) 0%, hsl(220, 25%, 5%) 100%);
+  padding: 1rem;
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+  background: hsl(220, 20%, 12%);
+  border: 1px solid hsl(220, 20%, 20%);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: hsl(220, 70%, 60%);
+  text-align: center;
+  margin: 0 0 0.5rem;
+}
+
+.subtitle {
+  color: hsl(220, 15%, 55%);
+  text-align: center;
+  margin: 0 0 2rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.errorBanner {
+  background: hsla(0, 84%, 60%, 0.15);
+  border: 1px solid hsl(0, 84%, 60%);
+  color: hsl(0, 84%, 70%);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  color: hsl(220, 15%, 70%);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.input {
+  padding: 0.75rem 1rem;
+  border: 1px solid hsl(220, 20%, 25%);
+  border-radius: 6px;
+  background: hsl(220, 20%, 8%);
+  color: hsl(220, 15%, 90%);
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.input::placeholder {
+  color: hsl(220, 15%, 40%);
+}
+
+.input:focus {
+  outline: none;
+  border-color: hsl(220, 70%, 50%);
+}
+
+.input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inputError {
+  border-color: hsl(0, 84%, 60%);
+}
+
+.fieldError {
+  color: hsl(0, 84%, 65%);
+  font-size: 0.8125rem;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, hsl(220, 70%, 50%) 0%, hsl(220, 70%, 40%) 100%);
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px hsla(220, 70%, 50%, 0.4);
+}
+
+.button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+

@@ -15,6 +15,7 @@ import { CommandBus } from '@nestjs/cqrs';
 import { TradingService } from './trading.service';
 import { OrderRequest, OrderResponse } from '../router-client/router-client.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../auth/decorators/public.decorator';
 import { PlaceOrderCommand } from './commands/place-order.command';
 import { CancelOrderCommand } from './commands/cancel-order.command';
 import { SetAutoTradingCommand } from './commands/set-auto-trading.command';
@@ -74,11 +75,13 @@ export class TradingController {
   }
 
   @Get('positions')
+  @Public()
   async getPositions() {
     return this.tradingService.getPositions();
   }
 
   @Get('orders')
+  @Public()
   async getActiveOrders() {
     return this.tradingService.getActiveOrders();
   }

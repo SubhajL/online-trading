@@ -1,19 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { PageShell } from '@/components/Layout/PageShell'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
+import { LogoutModal } from '@/components/common/LogoutModal'
+import { useAuth } from '@/context/AuthContext'
 import { useBalances } from '@/hooks/useBalances'
 import { usePositions } from '@/hooks/usePositions'
 import { useOrders } from '@/hooks/useOrders'
 import type { OrderFormValues } from '@/types'
-import styles from './home.module.css'
 
 export default function Home() {
+  const { state: authState, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false)
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
 
   // Use real API hooks
   const { balances, loading: balancesLoading, error: balancesError } = useBalances()
@@ -35,25 +38,37 @@ export default function Home() {
   const handleSubmitOrder = async (order: OrderFormValues) => {
     try {
       await placeOrder(order)
-      console.warn('Order placed successfully:', order)
-    } catch (error) {
-      console.error('Failed to place order:', error)
+    } catch (err) {
+      console.error('Failed to place order:', err)
     }
   }
 
   const handleToggleAutoTrading = (enabled: boolean) => {
     setAutoTradingEnabled(enabled)
-    console.warn('Auto trading:', enabled ? 'enabled' : 'disabled')
   }
 
-  const handleLogout = () => {
-    console.warn('TODO: Implement logout')
-    // TODO: Implement logout
-  }
+  const handleLogoutClick = useCallback(() => {
+    if (positions.length > 0) {
+      setShowLogoutModal(true)
+    } else {
+      logout()
+    }
+  }, [positions.length, logout])
+
+  const handleLogoutConfirm = useCallback(() => {
+    setShowLogoutModal(false)
+    logout()
+  }, [logout])
+
+  const handleLogoutCancel = useCallback(() => {
+    setShowLogoutModal(false)
+  }, [])
+
+  const userName = authState.user?.email ?? authState.user?.username
 
   return (
     <PageShell skipLinkTarget="dashboard-content" maxWidth="full">
-      <Header userName="Trader" onLogout={handleLogout} />
+      <Header userName={userName} onLogout={handleLogoutClick} />
 
       <div style={{ display: 'flex', flex: 1 }}>
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
@@ -71,6 +86,15 @@ export default function Home() {
           />
         </main>
       </div>
+
+      {showLogoutModal && (
+        <LogoutModal
+          positions={positions}
+          loading={positionsLoading}
+          onCancel={handleLogoutCancel}
+          onConfirm={handleLogoutConfirm}
+        />
+      )}
     </PageShell>
   )
 }

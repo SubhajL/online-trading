@@ -33,87 +33,87 @@ export type Venue = 'SPOT' | 'USD_M';
 @Index(['exchangeOrderId'])
 @Index(['decisionId'])
 export class OrderEntity {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn('uuid', { name: 'order_id' })
   orderId: string;
 
-  @Column({ unique: true })
+  @Column({ name: 'client_order_id', unique: true })
   clientOrderId: string;
 
-  @Column()
+  @Column({ name: 'venue' })
   venue: Venue;
 
-  @Column()
+  @Column({ name: 'symbol' })
   symbol: string;
 
-  @Column()
+  @Column({ name: 'side' })
   side: OrderSide;
 
-  @Column()
+  @Column({ name: 'type' })
   type: OrderType;
 
-  @Column('decimal', { precision: 18, scale: 8 })
+  @Column('decimal', { name: 'quantity', precision: 18, scale: 8 })
   quantity: number;
 
-  @Column('decimal', { precision: 18, scale: 8, nullable: true })
+  @Column('decimal', { name: 'price', precision: 18, scale: 8, nullable: true })
   price: number | null;
 
-  @Column('decimal', { precision: 18, scale: 8, nullable: true })
+  @Column('decimal', { name: 'stop_price', precision: 18, scale: 8, nullable: true })
   stopPrice: number | null;
 
-  @Column({ default: 'GTC' })
+  @Column({ name: 'time_in_force', default: 'GTC' })
   timeInForce: TimeInForce;
 
-  @Column()
+  @Column({ name: 'status' })
   status: OrderStatus;
 
-  @Column('decimal', { precision: 18, scale: 8, default: 0 })
+  @Column('decimal', { name: 'filled_quantity', precision: 18, scale: 8, default: 0 })
   filledQuantity: number;
 
-  @Column('decimal', { precision: 18, scale: 8, nullable: true })
+  @Column('decimal', { name: 'average_fill_price', precision: 18, scale: 8, nullable: true })
   averageFillPrice: number | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @Column('uuid', { nullable: true })
+  @Column('uuid', { name: 'decision_id', nullable: true })
   decisionId: string | null;
 
-  @Column('varchar', { nullable: true })
+  @Column('varchar', { name: 'exchange_order_id', nullable: true })
   exchangeOrderId: string | null;
 
-  @Column('timestamptz', { nullable: true })
+  @Column('timestamptz', { name: 'last_update_time', nullable: true })
   lastUpdateTime: Date | null;
 
-  @Column('decimal', { precision: 18, scale: 8, default: 0 })
+  @Column('decimal', { name: 'commission', precision: 18, scale: 8, default: 0 })
   commission: number;
 
-  @Column('varchar', { nullable: true })
+  @Column('varchar', { name: 'commission_asset', nullable: true })
   commissionAsset: string | null;
 
-  @Column({ default: false })
+  @Column({ name: 'reduce_only', default: false })
   reduceOnly: boolean;
 
-  @Column({ default: false })
+  @Column({ name: 'post_only', default: false })
   postOnly: boolean;
 
-  @Column({ default: false })
+  @Column({ name: 'close_position', default: false })
   closePosition: boolean;
 
-  @Column('decimal', { precision: 18, scale: 8, nullable: true })
+  @Column('decimal', { name: 'activation_price', precision: 18, scale: 8, nullable: true })
   activationPrice: number | null;
 
-  @Column('decimal', { precision: 5, scale: 2, nullable: true })
+  @Column('decimal', { name: 'callback_rate', precision: 5, scale: 2, nullable: true })
   callbackRate: number | null;
 
-  @Column('varchar', { nullable: true })
+  @Column('varchar', { name: 'working_type', nullable: true })
   workingType: WorkingType | null;
 
-  @Column({ default: false })
+  @Column({ name: 'price_protect', default: false })
   priceProtect: boolean;
 
-  @Column('varchar', { nullable: true })
+  @Column('varchar', { name: 'reject_reason', nullable: true })
   rejectReason: string | null;
 }

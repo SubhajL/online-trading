@@ -19,19 +19,24 @@ async function bootstrap() {
     }),
   );
 
-  // Enable CORS
+  // Enable CORS - use WS_CORS_ORIGIN env var or default to localhost:3000
+  const corsOrigin = configService.get<string>('WS_CORS_ORIGIN') || 'http://localhost:3000';
   app.enableCors({
-    origin: configService.get<string>('websocket.corsOrigin'),
+    origin: corsOrigin,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
 
   // Global prefix
   app.setGlobalPrefix('api');
 
-  const port = configService.get<number>('port') ?? 3001;
+  // Use PORT for internal container port (3001), fall back to BFF_PORT for external reference
+  const port = configService.get<number>('PORT') || 3001;
   await app.listen(port);
 
   console.log(`🚀 BFF service is running on: http://localhost:${port}/api`);
+  console.log(`📢 CORS enabled for origin: ${corsOrigin}`);
 }
 
 bootstrap();

@@ -6,7 +6,7 @@ import { HealthModule } from './health/health.module';
 import { EngineClientModule } from './engine-client/engine-client.module';
 import { RouterClientModule } from './router-client/router-client.module';
 // import { MarketDataModule } from './market-data/market-data.module';
-// import { TradingModule } from './trading/trading.module';
+import { TradingModule } from './trading/trading.module';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { AlertsModule } from './alerts/alerts.module';
@@ -37,7 +37,7 @@ import { OrdersModule } from './orders/orders.module';
     EngineClientModule,
     RouterClientModule,
     // MarketDataModule,
-    // TradingModule,
+    TradingModule,
     AlertsModule,
     SnapshotsModule,
     BalancesModule,

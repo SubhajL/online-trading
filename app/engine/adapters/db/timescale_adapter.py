@@ -739,11 +739,12 @@ class TimescaleDBAdapter:
                 )
 
                 # Get table stats
+                # Note: PostgreSQL 16+ uses 'relname' instead of 'tablename' in pg_stat_user_tables
                 stats_result = await conn.fetch(
                     """
-                    SELECT schemaname, tablename, n_tup_ins as inserts, n_tup_upd as updates
+                    SELECT schemaname, relname as tablename, n_tup_ins as inserts, n_tup_upd as updates
                     FROM pg_stat_user_tables
-                    WHERE tablename IN ('candles', 'technical_indicators', 'trading_decisions', 'orders', 'positions')
+                    WHERE relname IN ('candles', 'technical_indicators', 'trading_decisions', 'orders', 'positions')
                 """,
                 )
 

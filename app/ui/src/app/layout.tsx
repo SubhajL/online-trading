@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { SkipLink } from '@/components/common/SkipLink'
+import { Providers } from './providers'
 import './globals.css'
-import './styles/tokens.css'
+import '../styles/tokens.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -16,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={inter.className}>
         <SkipLink />
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

@@ -83,7 +83,7 @@ services:
       - DEBUG=true
       - LOG_LEVEL=debug
       - PYTHONPATH=/workspace
-      - ROUTER_URL=http://router:8080
+      - ROUTER_URL=http://router:8001
     ports:
       - "${ENGINE_PORT:-8000}:8000"
     working_dir: /workspace/app/engine
@@ -118,19 +118,24 @@ services:
     container_name: trading-router-dev
     restart: unless-stopped
     environment:
-      - PORT=${ROUTER_PORT:-8080}
+      - PORT=${ROUTER_PORT:-8001}
       - ENGINE_URL=http://engine:8000
       - REDIS_URL=redis://redis:6379/0
       - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_SECRET_KEY=${BINANCE_SECRET_KEY}
       - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - BINANCE_SPOT_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_SPOT_SECRET_KEY=${BINANCE_SECRET_KEY}
       - BINANCE_FUTURES_API_KEY=${BINANCE_FUTURES_API_KEY}
       - BINANCE_FUTURES_API_SECRET=${BINANCE_FUTURES_API_SECRET}
+      - BINANCE_FUTURES_SECRET_KEY=${BINANCE_FUTURES_API_SECRET}
       - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
+      - TRADING_MODE=${TRADING_MODE:-spot}
       - ENVIRONMENT=development
       - DEBUG=true
       - LOG_LEVEL=debug
     ports:
-      - "${ROUTER_PORT:-8080}:8080"
+      - "${ROUTER_PORT:-8001}:8001"
     volumes:
       - ./app/router:/app
     depends_on:
@@ -141,10 +146,11 @@ services:
     networks:
       - trading-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8001/healthz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
 
   bff:
@@ -154,10 +160,11 @@ services:
     container_name: trading-bff-dev
     restart: unless-stopped
     environment:
-      - PORT=${BFF_PORT:-3001}
+      - PORT=3001
+      - BFF_PORT=${BFF_PORT:-8002}
       - NODE_ENV=development
       - ENGINE_PUBSUB_URL=redis://redis:6379
-      - ROUTER_URL=http://router:8080
+      - ROUTER_URL=http://router:8001
       - ROUTER_API_KEY=${ROUTER_API_KEY}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -167,7 +174,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_secure_password_here}
       - POSTGRES_DB=${POSTGRES_DB:-trading_platform}
     ports:
-      - "${BFF_PORT:-3001}:3001"
+      - "${BFF_PORT:-8002}:3001"
     volumes:
       - ./app/bff:/app
       - /app/node_modules  # Exclude node_modules from volume mount
@@ -187,7 +194,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "node -e \"fetch('http://localhost:3001/api/health',{cache:'no-store'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+          "node -e \"fetch('http://localhost:3001/api/health/liveness',{cache:'no-store'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
         ]
       interval: 10s
       timeout: 5s
@@ -201,17 +208,17 @@ services:
     container_name: trading-ui-dev
     restart: unless-stopped
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:${BFF_PORT:-3001}/api
-      - NEXT_PUBLIC_WS_URL=ws://localhost:${BFF_PORT:-3001}
+      - NEXT_PUBLIC_API_URL=http://localhost:${BFF_PORT:-8002}/api
+      - NEXT_PUBLIC_WS_URL=ws://localhost:${BFF_PORT:-8002}/ws
       - NEXT_INTERNAL_API_URL=http://bff:3001/api
       - NODE_ENV=development
       - FAST_REFRESH=true
     ports:
       - "${UI_PORT:-3000}:3000"
     volumes:
-      - ./app/ui:/app
-      - /app/node_modules  # Exclude node_modules from volume mount
-      - /app/.next  # Exclude .next from volume mount
+      - ./app/ui/src:/app/src
+      - ./app/ui/public:/app/public
+      # node_modules stays in container from build
     depends_on:
       bff:
         condition: service_healthy

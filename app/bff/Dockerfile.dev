@@ -4,20 +4,24 @@ FROM node:20-alpine
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
 
-# Install pnpm
-RUN npm install -g pnpm@8
+# Install pnpm (v9 required for lockfileVersion 9.0)
+RUN npm install -g pnpm@9
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Copy workspace configuration from root context
+COPY pnpm-workspace.yaml ./
+COPY package.json ./package.json.root
 
-# Install all dependencies (including devDependencies)
-RUN pnpm install --frozen-lockfile
+# Copy BFF-specific package files
+COPY app/bff/package.json app/bff/pnpm-lock.yaml ./
 
-# Expose port
-EXPOSE 3000
+# Install dependencies
+RUN pnpm install --frozen-lockfile || pnpm install
+
+# Expose port (aligned with .env BFF_PORT)
+EXPOSE 8002
 
 # Use the start:dev command for hot-reloading
 CMD ["pnpm", "run", "start:dev"]

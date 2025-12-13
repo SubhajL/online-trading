@@ -97,7 +97,7 @@ class RouterHTTPClient:
     def _get_headers(self) -> dict[str, str]:
         """Get HTTP headers for requests"""
         headers = {
-            "Content-Type[Any]": "application/json",
+            "Content-Type": "application/json",
             "User-Agent": "TradingEngine/1.0",
         }
 
@@ -495,7 +495,7 @@ class RouterHTTPClient:
     async def health_check(self) -> dict[str, Any]:
         """Check router service health"""
         try:
-            result = await self._make_request("GET", "/health")
+            result = await self._make_request("GET", "/healthz")
             return result
 
         except Exception as e:

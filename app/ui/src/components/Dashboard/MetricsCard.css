@@ -4,11 +4,30 @@
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   transition: all var(--duration-base) var(--easing-default);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Accent gradient overlay for visual interest */
+.metrics-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-success-500));
+  opacity: 0.6;
 }
 
 .metrics-card:hover {
   border-color: var(--color-border-default);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.metrics-card:hover::before {
+  opacity: 1;
 }
 
 .metrics-header {
@@ -21,6 +40,10 @@
 .metrics-icon {
   font-size: var(--font-size-2xl);
   line-height: 1;
+  color: var(--color-primary-400);
+  padding: var(--space-2);
+  background: linear-gradient(135deg, var(--color-primary-900), var(--color-primary-800));
+  border-radius: var(--radius-md);
 }
 
 .metrics-titles {
@@ -52,7 +75,7 @@
 .metrics-value {
   font-size: 28px;
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
   line-height: var(--line-height-tight);
 }
 

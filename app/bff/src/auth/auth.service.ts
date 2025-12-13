@@ -26,6 +26,12 @@ export class AuthService {
       password: '$2b$10$KIKhxW5lMQPC1svPLAcrZeP/oLhV5Dw7F8PTVm08r6oNSJzJl8jGe', // password: admin123
       roles: ['admin', 'operator'],
     },
+    {
+      id: 'user-789',
+      username: 'trader@test.com',
+      password: '$2b$10$PjNyJWip7IMwgE/rC1ZzjOHuH7uopLRUf3Eb82luMGCECjUVyDk8e', // password: Password123
+      roles: ['operator'],
+    },
   ];
 
   constructor(

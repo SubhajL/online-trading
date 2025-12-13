@@ -8,6 +8,7 @@ import {
 } from '@nestjs/terminus';
 import { ConfigService } from '@nestjs/config';
 import { EngineClientService } from '../engine-client/engine-client.service';
+import { Public } from '../auth/decorators/public.decorator';
 
 interface LivenessResponse {
   status: string;
@@ -15,6 +16,7 @@ interface LivenessResponse {
   uptime: number;
 }
 
+@Public()
 @Controller('health')
 export class HealthController {
   private readonly startTime = Date.now();

@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Trading Platform (Dev)",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "trading_platform",
+      "Username": "trading_user",
+      "SSLMode": "prefer"
+    }
+  }
+}

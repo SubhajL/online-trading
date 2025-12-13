@@ -5,7 +5,16 @@ from decimal import Decimal
 import numpy as np
 
 from ..models import Candle
-from ..smc_types import Pivot, SwingType
+from ..smc_types import Pivot, PivotMethod, SwingType
+
+# Re-export PivotMethod for backward compatibility
+__all__ = [
+    "PivotMethod",
+    "detect_n_bar_pivots",
+    "detect_zigzag_pivots",
+    "detect_zigzag_pivots_np",
+    "classify_pivot_relationship",
+]
 
 
 def detect_n_bar_pivots(candles: list[Candle], n: int = 3) -> list[Pivot]:
