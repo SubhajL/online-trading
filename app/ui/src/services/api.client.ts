@@ -1,5 +1,31 @@
 import { REQUEST_TIMEOUT } from '@/config/constants'
 
+export class UnauthorizedError extends Error {
+  constructor(message = 'Unauthorized') {
+    super(message)
+    this.name = 'UnauthorizedError'
+  }
+}
+
+// Global 401 handler that can be set by AuthProvider
+let onUnauthorizedCallback: (() => void) | null = null
+let isHandling401 = false
+
+export function setOnUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorizedCallback = handler
+  isHandling401 = false // Reset when handler changes
+}
+
+export function getOnUnauthorizedHandler() {
+  return onUnauthorizedCallback
+}
+
+function handle401() {
+  if (isHandling401 || !onUnauthorizedCallback) return
+  isHandling401 = true
+  onUnauthorizedCallback()
+}
+
 export type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   headers?: Record<string, string>
@@ -81,6 +107,11 @@ export class ApiClient {
       }
 
       if (!response.ok) {
+        if (response.status === 401) {
+          // Call global 401 handler (once only)
+          handle401()
+          throw new UnauthorizedError('Session expired')
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 

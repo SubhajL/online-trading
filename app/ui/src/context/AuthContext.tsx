@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { setOnUnauthorizedHandler } from '@/services/api.client'
+import { websocketService } from '@/services/websocket'
 
 type User = {
   id: string
@@ -29,6 +31,7 @@ type AuthContextValue = {
   state: AuthState
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   logout: () => void
+  handleSessionExpired: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -277,6 +280,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           notification: null,
         })
 
+        // Reconnect WebSocket with new auth token
+        websocketService.reconnectWithAuth()
+
         router.push('/')
       } catch (error) {
         setState(prev => ({ ...prev, isLoading: false }))
@@ -298,13 +304,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login')
   }, [router, clearRefreshTimer])
 
+  const handleSessionExpired = useCallback(() => {
+    clearRefreshTimer()
+    clearStoredAuth()
+    setState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      notification: 'Session expired. Please log in again.',
+    })
+    router.push('/login')
+  }, [router, clearRefreshTimer])
+
+  // Register global 401 handler for API client
+  useEffect(() => {
+    setOnUnauthorizedHandler(handleSessionExpired)
+    return () => {
+      setOnUnauthorizedHandler(null)
+    }
+  }, [handleSessionExpired])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       state,
       login,
       logout,
+      handleSessionExpired,
     }),
-    [state, login, logout],
+    [state, login, logout, handleSessionExpired],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

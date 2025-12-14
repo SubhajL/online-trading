@@ -5,9 +5,18 @@ Guidelines for AI-assisted programming in this repository to ensure maintainabil
 Architecture reference: `CONTEXT.md`.
 
 ## AI-Assisted Programming Guidelines (Sabrina Ramonov)
-- **BP-1 (MUST)** Ask clarifying questions before coding.  
-- **BP-2 (SHOULD)** Confirm an approach for complex work.  
-- **BP-3 (SHOULD)** List pros/cons when multiple approaches exist.  
+- **BP-1 (MUST)** Ask clarifying questions before coding.
+- **BP-2 (SHOULD)** Confirm an approach for complex work.
+- **BP-3 (SHOULD)** List pros/cons when multiple approaches exist.
+
+### Code Search Rules (MUST)
+- **S-1 (MUST)** Use `mcp__auggie-mcp__codebase-retrieval` (Augment) as the **primary tool** for semantic code search.
+- **S-2 (MUST)** Prefer Augment for: finding implementations, understanding architecture, locating features, exploring unfamiliar code.
+- **S-3 (MUST NOT)** Use Bash `grep`/`rg` or Grep tool for semantic code understanding.
+- **S-4 (SHOULD)** Use Grep only for exact string matching (error messages, config values, known identifiers).
+
+**Augment examples**: "Where is authentication implemented?", "How does the event bus work?", "What tests exist for order routing?"
+**Grep examples**: `"TODO"`, `"class OrderRouter"`, `"error: connection refused"`  
 - **C-1 (MUST)** Follow TDD: stub → failing test → implement.  
 - **C-2 (MUST)** Use domain vocabulary for names.  
 - **C-3 (SHOULD NOT)** Add classes when small functions suffice.  

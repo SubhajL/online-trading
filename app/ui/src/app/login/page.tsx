@@ -84,6 +84,12 @@ export default function LoginPage() {
         <p className={styles.subtitle}>Sign in to your account</p>
 
         <form data-testid="login-form" onSubmit={handleSubmit} className={styles.form}>
+          {state.notification && (
+            <div data-testid="session-notification" className={styles.notificationBanner}>
+              {state.notification}
+            </div>
+          )}
+
           {loginError && (
             <div data-testid="login-error" className={styles.errorBanner}>
               {loginError}

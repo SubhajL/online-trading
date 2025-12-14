@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { PageShell } from '@/components/Layout/PageShell'
@@ -13,12 +14,13 @@ import { useOrders } from '@/hooks/useOrders'
 import type { OrderFormValues } from '@/types'
 
 export default function Home() {
+  const router = useRouter()
   const { state: authState, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [autoTradingEnabled, setAutoTradingEnabled] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
 
-  // Use real API hooks
+  // API hooks - must be called before any conditional return
   const { balances, loading: balancesLoading, error: balancesError } = useBalances()
   const { positions, loading: positionsLoading, error: positionsError } = usePositions()
   const {
@@ -31,21 +33,24 @@ export default function Home() {
     limit: 10,
   })
 
-  // Combine loading and error states
-  const loading = balancesLoading || positionsLoading || ordersLoading
-  const error = balancesError || positionsError || ordersError
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authState.isLoading && !authState.isAuthenticated) {
+      router.push('/login')
+    }
+  }, [authState.isLoading, authState.isAuthenticated, router])
 
-  const handleSubmitOrder = async (order: OrderFormValues) => {
+  const handleSubmitOrder = useCallback(async (order: OrderFormValues) => {
     try {
       await placeOrder(order)
     } catch (err) {
       console.error('Failed to place order:', err)
     }
-  }
+  }, [placeOrder])
 
-  const handleToggleAutoTrading = (enabled: boolean) => {
+  const handleToggleAutoTrading = useCallback((enabled: boolean) => {
     setAutoTradingEnabled(enabled)
-  }
+  }, [])
 
   const handleLogoutClick = useCallback(() => {
     if (positions.length > 0) {
@@ -64,6 +69,17 @@ export default function Home() {
     setShowLogoutModal(false)
   }, [])
 
+  // Show loading while checking auth or if not authenticated
+  if (authState.isLoading || !authState.isAuthenticated) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <p>Loading...</p>
+      </div>
+    )
+  }
+
+  const loading = balancesLoading || positionsLoading || ordersLoading
+  const error = balancesError || positionsError || ordersError
   const userName = authState.user?.email ?? authState.user?.username
 
   return (

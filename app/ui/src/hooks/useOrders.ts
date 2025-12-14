@@ -137,7 +137,7 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
     try {
       setActionLoading(true)
       setActionError(null)
-      await apiClientRef.current.post('/orders', order)
+      await apiClientRef.current.post('/trading/orders', order)
       // Refresh orders list after placing
       await refetch()
     } catch (err) {
@@ -153,7 +153,7 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
     try {
       setActionLoading(true)
       setActionError(null)
-      await apiClientRef.current.delete(`/orders/${orderId}`)
+      await apiClientRef.current.delete(`/trading/orders/${orderId}`)
       // Refresh orders list after canceling
       await refetch()
     } catch (err) {

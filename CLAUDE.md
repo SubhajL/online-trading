@@ -305,9 +305,27 @@ TimescaleDB hypertables for time-series data:
 
 ## Available Tools
 
+### Code Search Rules (MUST)
+
+- **MUST** use `mcp__auggie-mcp__codebase-retrieval` (Augment) as the **primary tool** for semantic code search
+- **MUST** prefer Augment for: finding implementations, understanding architecture, locating features, exploring unfamiliar code
+- **MUST NOT** use Bash `grep`/`rg` or the Grep tool for semantic code understanding
+- **SHOULD** use Grep only for exact string matching (error messages, config values, literal text)
+- **SHOULD** use Grep for finding all references to a known identifier
+
+**Good Augment queries:**
+- "Where is user authentication implemented?"
+- "How does the event bus publish messages?"
+- "What tests exist for the order router?"
+
+**Use Grep instead for:**
+- `"TODO"` - exact string search
+- `"class OrderRouter"` - known identifier lookup
+- `"error: connection refused"` - error message search
+
 ### Standard Tools
 
-- `rg` (ripgrep) for code search
+- `rg` (ripgrep) for exact string/regex search only
 - `git`, `gh` (GitHub CLI)
 - `pnpm`, `npm` for Node.js
 - `go` for Go projects

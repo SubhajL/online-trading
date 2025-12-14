@@ -32,6 +32,12 @@ export class AuthService {
       password: '$2b$10$PjNyJWip7IMwgE/rC1ZzjOHuH7uopLRUf3Eb82luMGCECjUVyDk8e', // password: Password123
       roles: ['operator'],
     },
+    {
+      id: 'user-e2e',
+      username: 'test@example.com',
+      password: '$2b$10$iK0eXWpQ4lzQABLYDjWgg.JG.12RwQFydDw7mUJ21wT7tpJol0xsi', // password: password123
+      roles: ['operator'],
+    },
   ];
 
   constructor(
