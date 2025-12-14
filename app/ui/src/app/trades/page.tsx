@@ -40,9 +40,9 @@ export default function TradesPage() {
     [orders],
   )
 
-  const handleCancelOrder = async (orderId: string) => {
+  const handleCancelOrder = async (orderId: string, symbol: string, venue: 'SPOT' | 'USD_M') => {
     try {
-      await cancelOrder(orderId)
+      await cancelOrder(orderId, symbol, venue)
       console.warn('Order canceled successfully:', orderId)
     } catch (error) {
       console.error('Failed to cancel order:', error)
@@ -174,7 +174,9 @@ export default function TradesPage() {
                         {(order.status === 'NEW' || order.status === 'PARTIALLY_FILLED') && (
                           <button
                             className={styles.cancelBtn}
-                            onClick={() => handleCancelOrder(String(order.orderId))}
+                            onClick={() =>
+                              handleCancelOrder(String(order.orderId), order.symbol, order.venue)
+                            }
                           >
                             Cancel
                           </button>

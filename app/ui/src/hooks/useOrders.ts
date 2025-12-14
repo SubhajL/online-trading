@@ -19,7 +19,7 @@ type UseOrdersReturn = {
   error: string | null
   refresh: () => Promise<void>
   placeOrder: (order: OrderFormValues) => Promise<void>
-  cancelOrder: (orderId: string) => Promise<void>
+  cancelOrder: (orderId: string, symbol: string, venue: Venue) => Promise<void>
   actionLoading: boolean
 }
 
@@ -67,48 +67,53 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
   // Subscribe to WebSocket order events for active orders
   useEffect(() => {
     if (!isActiveOrdersQuery) return
+    if (!websocketService.isReady()) return
 
     const unsubscribes: Array<() => void> = []
 
-    // Subscribe to order placed events
-    unsubscribes.push(
-      websocketService.subscribe('order.placed', (order: Order) => {
-        if (
-          (!filters?.venue || order.venue === filters.venue) &&
-          (!filters?.symbol || order.symbol === filters.symbol)
-        ) {
+    try {
+      // Subscribe to order placed events
+      unsubscribes.push(
+        websocketService.subscribe('order.placed', (order: Order) => {
+          if (
+            (!filters?.venue || order.venue === filters.venue) &&
+            (!filters?.symbol || order.symbol === filters.symbol)
+          ) {
+            setWsOrders(prev => {
+              const updated = new Map(prev)
+              updated.set(order.orderId, order)
+              return updated
+            })
+          }
+        }),
+      )
+
+      // Subscribe to order updated events
+      unsubscribes.push(
+        websocketService.subscribe('order.updated', (order: Order) => {
           setWsOrders(prev => {
             const updated = new Map(prev)
-            updated.set(order.orderId, order)
+            if (prev.has(order.orderId)) {
+              updated.set(order.orderId, order)
+            }
             return updated
           })
-        }
-      }),
-    )
+        }),
+      )
 
-    // Subscribe to order updated events
-    unsubscribes.push(
-      websocketService.subscribe('order.updated', (order: Order) => {
-        setWsOrders(prev => {
-          const updated = new Map(prev)
-          if (prev.has(order.orderId)) {
-            updated.set(order.orderId, order)
-          }
-          return updated
-        })
-      }),
-    )
-
-    // Subscribe to order canceled events
-    unsubscribes.push(
-      websocketService.subscribe('order.canceled', (order: Order) => {
-        setWsOrders(prev => {
-          const updated = new Map(prev)
-          updated.delete(order.orderId)
-          return updated
-        })
-      }),
-    )
+      // Subscribe to order canceled events
+      unsubscribes.push(
+        websocketService.subscribe('order.canceled', (order: Order) => {
+          setWsOrders(prev => {
+            const updated = new Map(prev)
+            updated.delete(order.orderId)
+            return updated
+          })
+        }),
+      )
+    } catch {
+      // WebSocket not connected, subscriptions will be retried on reconnect
+    }
 
     return () => {
       unsubscribes.forEach(fn => fn())
@@ -137,9 +142,8 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
     try {
       setActionLoading(true)
       setActionError(null)
-      await apiClientRef.current.post('/trading/orders', order)
-      // Refresh orders list after placing
-      await refetch()
+      await websocketService.emitWithAck('placeOrder', order)
+      // No refetch needed - WebSocket broadcasts order.placed event
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to place order'
       setActionError(errorMsg)
@@ -149,13 +153,12 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
     }
   }
 
-  const cancelOrder = async (orderId: string) => {
+  const cancelOrder = async (orderId: string, symbol: string, venue: Venue) => {
     try {
       setActionLoading(true)
       setActionError(null)
-      await apiClientRef.current.delete(`/trading/orders/${orderId}`)
-      // Refresh orders list after canceling
-      await refetch()
+      await websocketService.emitWithAck('cancelOrder', { orderId, symbol, venue })
+      // No refetch needed - WebSocket broadcasts order.canceled event
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to cancel order'
       setActionError(errorMsg)

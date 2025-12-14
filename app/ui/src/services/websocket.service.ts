@@ -2,6 +2,13 @@ import { io, type Socket } from 'socket.io-client'
 import { MAX_RECONNECT_ATTEMPTS, RECONNECT_INTERVAL } from '@/config/constants'
 
 const AUTH_STORAGE_KEY = 'trading_auth'
+const DEFAULT_ACK_TIMEOUT = 10000
+
+export type WebSocketResponse<T = unknown> = {
+  success: boolean
+  data?: T
+  error?: string
+}
 
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null
@@ -117,6 +124,40 @@ export class WebSocketService {
 
   isConnected(): boolean {
     return this.socket?.connected ?? false
+  }
+
+  isReady(): boolean {
+    return this.socket?.connected ?? false
+  }
+
+  async emitWithAck<TReq, TRes = unknown>(
+    event: string,
+    data: TReq,
+    timeoutMs: number = DEFAULT_ACK_TIMEOUT,
+  ): Promise<WebSocketResponse<TRes>> {
+    if (!this.socket || !this.socket.connected) {
+      return Promise.reject(new Error('WebSocket is not connected'))
+    }
+
+    return new Promise((resolve, reject) => {
+      this.socket!.timeout(timeoutMs).emit(
+        event,
+        data,
+        (err: Error | null, response: WebSocketResponse<TRes>) => {
+          if (err) {
+            reject(err)
+            return
+          }
+
+          if (!response.success) {
+            reject(new Error(response.error || 'Unknown error'))
+            return
+          }
+
+          resolve(response)
+        },
+      )
+    })
   }
 
   // Reconnect with fresh auth token (call after login)
