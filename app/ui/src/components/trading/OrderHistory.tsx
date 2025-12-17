@@ -106,57 +106,42 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
         <div className="empty-state">No orders yet</div>
       ) : (
         <div className="order-history-table">
-          <div className="table-header">
-            <span>Order ID</span>
-            <span>Date/Time</span>
-            <span>Symbol</span>
-            <span>Type</span>
-            <span>Side</span>
-            <span>Price</span>
-            <span>Amount</span>
-            <span>Filled</span>
-            <span>Total</span>
-            <span>Status</span>
-            <span>Venue</span>
-          </div>
-
-          {sortedOrders.map(order => {
-            const statusTheme = deriveOrderStatusTheme(order.status)
-            return (
-              <div
-                key={order.orderId}
-                className="order-row"
-                data-testid={`order-row-${order.orderId}`}
-              >
-                <span className="order-id">{order.orderId.slice(-8)}</span>
-                <div className="order-date">
-                  <span>{new Date(order.createdAt).toLocaleDateString()}</span>
-                  <span className="order-time">{formatTime(order.createdAt)}</span>
-                </div>
-                <span className="symbol">{order.symbol}</span>
-                <span className="order-type">{order.type}</span>
-                <span className={`side-badge ${order.side.toLowerCase()}`}>{order.side}</span>
-                <span>{formatPrice(order)}</span>
-                <span>{order.quantity}</span>
-                <span>
-                  {order.executedQuantity ?? 0}
-                  {order.executedQuantity && order.quantity && (
-                    <span className="fill-percentage">
-                      {' '}
-                      ({Math.round((order.executedQuantity / order.quantity) * 100)}%)
-                    </span>
-                  )}
-                </span>
-                <span>
-                  {order.avgPrice && order.executedQuantity
-                    ? `$${(order.avgPrice * order.executedQuantity).toFixed(2)}`
-                    : '-'}
-                </span>
-                <span className={`status-badge ${statusTheme.statusClass}`}>{order.status}</span>
-                <span className="venue-badge">{order.venue}</span>
-              </div>
-            )
-          })}
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Type</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedOrders.map(order => {
+                const statusTheme = deriveOrderStatusTheme(order.status)
+                return (
+                  <tr key={order.orderId} data-testid={`order-row-${order.orderId}`}>
+                    <td className="order-time-cell">
+                      <div>{new Date(order.createdAt).toLocaleDateString()}</div>
+                      <div className="order-time">{formatTime(order.createdAt)}</div>
+                    </td>
+                    <td className="symbol">{order.symbol}</td>
+                    <td>
+                      <span className={`side-badge ${order.side.toLowerCase()}`}>{order.side}</span>
+                    </td>
+                    <td className="order-type">{order.type}</td>
+                    <td>{order.quantity}</td>
+                    <td>{formatPrice(order)}</td>
+                    <td>
+                      <span className={`status-badge ${statusTheme.statusClass}`}>{order.status}</span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

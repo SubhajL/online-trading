@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import websockets
@@ -19,6 +19,15 @@ from websockets.exceptions import ConnectionClosed, InvalidStatusCode
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
+from ..resilience.backoff import BackoffConfig, ExponentialBackoff
+from ..resilience.thread_safe_circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerState,
+)
+
+if TYPE_CHECKING:
+    from ..bus import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +66,11 @@ class BinanceWebSocketClient:
     - All market tickers stream
     - Partial book depth streams
     - Trade streams
+
+    Resilience features:
+    - Exponential backoff with jitter
+    - Circuit breaker integration
+    - Max retry limit
     """
 
     def __init__(
@@ -66,6 +80,11 @@ class BinanceWebSocketClient:
         reconnect_interval: int = 5,
         ping_interval: int = 20,
         ping_timeout: int = 10,
+        *,
+        max_reconnect_attempts: int = 50,
+        backoff_config: BackoffConfig | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
+        event_bus: "EventBus | None" = None,
     ) -> None:
         self.base_url = base_url
         if testnet:
@@ -82,7 +101,25 @@ class BinanceWebSocketClient:
         self._running = False
         self._reconnect_task: asyncio.Task[Any] | None = None
         self._handlers: dict[str, Callable[..., Any]] = {}
-        self._event_bus = get_event_bus()
+
+        # Event bus - use provided or get global
+        self._event_bus = event_bus if event_bus is not None else get_event_bus()
+
+        # Resilience: max retry limit
+        self._max_reconnect_attempts = max_reconnect_attempts
+        self._consecutive_failures = 0
+
+        # Resilience: exponential backoff
+        self._backoff = ExponentialBackoff(backoff_config or BackoffConfig())
+
+        # Resilience: circuit breaker
+        self._circuit_breaker = circuit_breaker or CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=5,
+                success_threshold=2,
+                timeout_seconds=60,
+            )
+        )
 
         # Stream message handlers
         self._handlers.update(
@@ -239,16 +276,58 @@ class BinanceWebSocketClient:
         logger.info(f"Unsubscribed from {len(streams)} streams")
 
     async def _connection_manager(self) -> None:
-        """Manage WebSocket connection with automatic reconnection"""
+        """Manage WebSocket connection with automatic reconnection and resilience."""
         while self._running:
+            # Check max retry limit
+            if self._consecutive_failures >= self._max_reconnect_attempts:
+                logger.critical(
+                    f"Max reconnection attempts ({self._max_reconnect_attempts}) "
+                    "exceeded. Stopping WebSocket client."
+                )
+                self._running = False
+                break
+
+            # Check circuit breaker
+            if not await self._circuit_breaker.should_allow_request():
+                circuit_state = await self._circuit_breaker.get_state()
+                logger.warning(
+                    f"Circuit breaker is {circuit_state.value}, "
+                    "skipping connection attempt"
+                )
+                delay = self._backoff.next_delay()
+                await asyncio.sleep(delay)
+                continue
+
             try:
                 await self._connect_and_listen()
+                # If we reach here, connection was successful but closed gracefully
+                await self._on_connection_success()
             except Exception as e:
                 logger.error(f"WebSocket connection error: {e}")
+                await self._on_connection_failure(e)
 
-            if self._running:
-                logger.info(f"Reconnecting in {self.reconnect_interval} seconds...")
-                await asyncio.sleep(self.reconnect_interval)
+                if self._running:
+                    delay = self._backoff.next_delay()
+                    logger.info(
+                        f"Reconnecting in {delay:.1f}s "
+                        f"(attempt {self._consecutive_failures}/{self._max_reconnect_attempts})..."
+                    )
+                    await asyncio.sleep(delay)
+
+    async def _on_connection_success(self) -> None:
+        """Handle successful connection: reset backoff and circuit breaker."""
+        self._consecutive_failures = 0
+        self._backoff.reset()
+        await self._circuit_breaker.record_success()
+        logger.info("Connection successful, resilience counters reset")
+
+    async def _on_connection_failure(self, error: Exception) -> None:
+        """Handle connection failure: record to circuit breaker, increment counter."""
+        self._consecutive_failures += 1
+        await self._circuit_breaker.record_failure()
+        logger.warning(
+            f"Connection failed ({self._consecutive_failures}/{self._max_reconnect_attempts}): {error}"
+        )
 
     async def _connect_and_listen(self) -> None:
         """Connect to WebSocket and listen for messages"""
@@ -275,6 +354,9 @@ class BinanceWebSocketClient:
             ) as websocket:
                 self._websocket = websocket
                 logger.info("WebSocket connected successfully")
+
+                # Mark connection as successful
+                await self._on_connection_success()
 
                 # Subscribe to streams if we have any
                 if self._subscriptions:
@@ -467,13 +549,19 @@ class BinanceWebSocketClient:
         return self._websocket is not None and not self._websocket.closed
 
     async def health_check(self) -> dict[str, Any]:
-        """Get health status"""
+        """Get health status including resilience metrics."""
+        circuit_state = await self._circuit_breaker.get_state()
         return {
             "connected": self.is_connected(),
             "subscriptions": len(self._subscriptions),
             "symbols": len(self._symbols),
             "timeframes": len(self._timeframes),
             "running": self._running,
+            # Resilience metrics
+            "consecutive_failures": self._consecutive_failures,
+            "circuit_state": circuit_state.value,
+            "backoff_attempt": self._backoff.current_attempt,
+            "max_reconnect_attempts": self._max_reconnect_attempts,
         }
 
 

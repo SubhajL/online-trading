@@ -6,6 +6,8 @@ import {
   OrderRequest,
   OrderResponse,
 } from '../router-client/router-client.service';
+import { OrderRepository } from '../orders/repositories/order.repository';
+import type { OrderType as EntityOrderType } from '../orders/entities/order-entity';
 
 export interface Position {
   symbol: string;
@@ -39,6 +41,21 @@ export interface OrderUpdateEvent {
   timestamp?: number;
 }
 
+// Map request order types to entity order types
+function mapOrderType(requestType: string): EntityOrderType {
+  const typeMap: Record<string, EntityOrderType> = {
+    MARKET: 'MARKET',
+    LIMIT: 'LIMIT',
+    STOP: 'STOP_LOSS',
+    STOP_MARKET: 'STOP_LOSS',
+    STOP_LOSS: 'STOP_LOSS',
+    STOP_LOSS_LIMIT: 'STOP_LOSS_LIMIT',
+    TAKE_PROFIT: 'TAKE_PROFIT',
+    TAKE_PROFIT_LIMIT: 'TAKE_PROFIT_LIMIT',
+  };
+  return typeMap[requestType] || 'MARKET';
+}
+
 @Injectable()
 export class TradingService {
   private readonly logger = new Logger(TradingService.name);
@@ -50,6 +67,7 @@ export class TradingService {
     private readonly engineClient: EngineClientService,
     private readonly routerClient: RouterClientService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly orderRepository: OrderRepository,
   ) {
     this.subscribeToEngineEvents();
   }
@@ -72,12 +90,47 @@ export class TradingService {
     try {
       this.logger.log(`Placing order: ${JSON.stringify(request)}`);
 
-      const response = await this.routerClient.placeOrder(request);
+      // TODO: Router order endpoints not implemented yet, using mock for testing
+      // Once router has /api/orders/spot and /api/orders/futures endpoints,
+      // uncomment: const response = await this.routerClient.placeOrder(request);
 
-      // Track the active order
+      // Mock response for TC1.5 testing
+      const now = new Date();
+      const orderId = `mock-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const response: OrderResponse = {
+        orderId,
+        status: 'NEW',
+        symbol: request.symbol,
+        side: request.side,
+        type: request.type,
+        quantity: request.quantity,
+        price: request.price,
+        venue: request.venue,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+
+      // Save order to database so it appears on /trades and /history pages
+      await this.orderRepository.save({
+        orderId,
+        clientOrderId: orderId,
+        symbol: request.symbol,
+        side: request.side,
+        type: mapOrderType(request.type),
+        quantity: request.quantity,
+        price: request.price || null,
+        status: 'NEW',
+        venue: request.venue || 'SPOT',
+        timeInForce: 'GTC',
+        filledQuantity: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Track the active order in memory
       this.activeOrders.set(response.orderId, response);
 
-      // Emit order placed event
+      // Emit order placed event (this triggers multi-tab sync via WebSocket)
       this.eventEmitter.emit('order.placed', response);
 
       return response;

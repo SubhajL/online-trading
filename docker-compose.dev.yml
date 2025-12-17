@@ -209,7 +209,7 @@ services:
     restart: unless-stopped
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:${BFF_PORT:-8002}/api
-      - NEXT_PUBLIC_WS_URL=ws://localhost:${BFF_PORT:-8002}/ws
+      - NEXT_PUBLIC_WS_URL=ws://localhost:${BFF_PORT:-8002}/trading
       - NEXT_INTERNAL_API_URL=http://bff:3001/api
       - NODE_ENV=development
       - FAST_REFRESH=true

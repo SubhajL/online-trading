@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState, useEffect } from 'react'
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { apiClient } from '@/services/api'
 import type { ApiClient } from '@/services/api.client'
 import type { Order, OrderStatus, Venue, OrderFormValues } from '@/types'
 import { useApiCache } from './useApiCache'
-import { websocketService } from '@/services/websocket'
+import { websocketService, type ConnectionState } from '@/services/websocket'
 
 type OrderFilters = {
   venue?: Venue
@@ -28,6 +28,15 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [wsOrders, setWsOrders] = useState<Map<string, Order>>(new Map())
+  const [wsConnected, setWsConnected] = useState(false)
+
+  // Track WebSocket connection state to re-subscribe when connected
+  useEffect(() => {
+    const unsubscribe = websocketService.onConnectionStateChange((state: ConnectionState) => {
+      setWsConnected(state.connected)
+    })
+    return unsubscribe
+  }, [])
 
   // Determine if we should use WebSocket for this query
   const isActiveOrdersQuery =
@@ -66,19 +75,28 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
 
   // Subscribe to WebSocket order events for active orders
   useEffect(() => {
-    if (!isActiveOrdersQuery) return
-    if (!websocketService.isReady()) return
+    if (!isActiveOrdersQuery) {
+      console.log('[useOrders] Skipping subscriptions: not active orders query')
+      return
+    }
+    if (!wsConnected) {
+      console.log('[useOrders] Skipping subscriptions: WebSocket not connected')
+      return
+    }
 
+    console.log('[useOrders] Setting up WebSocket subscriptions for order events')
     const unsubscribes: Array<() => void> = []
 
     try {
       // Subscribe to order placed events
       unsubscribes.push(
         websocketService.subscribe('order.placed', (order: Order) => {
+          console.log('[useOrders] Received order.placed event:', order)
           if (
             (!filters?.venue || order.venue === filters.venue) &&
             (!filters?.symbol || order.symbol === filters.symbol)
           ) {
+            console.log('[useOrders] Adding order to wsOrders:', order.orderId)
             setWsOrders(prev => {
               const updated = new Map(prev)
               updated.set(order.orderId, order)
@@ -118,19 +136,20 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
     return () => {
       unsubscribes.forEach(fn => fn())
     }
-  }, [isActiveOrdersQuery, filters?.venue, filters?.symbol])
+  }, [isActiveOrdersQuery, wsConnected, filters?.venue, filters?.symbol])
 
   // Merge REST and WebSocket orders
   const orders = useMemo(() => {
-    if (!isActiveOrdersQuery || !data) return data || []
+    // For non-active orders query (historical), just return REST data
+    if (!isActiveOrdersQuery) return data || []
 
-    // Create a map of REST orders
+    // Create a map of REST orders (even if empty/undefined)
     const orderMap = new Map<string, Order>()
-    data.forEach(order => {
+    ;(data || []).forEach(order => {
       orderMap.set(order.orderId, order)
     })
 
-    // Override/add WebSocket orders
+    // Always merge WebSocket orders - they should persist even if REST fails
     wsOrders.forEach((wsOrder, orderId) => {
       orderMap.set(orderId, wsOrder)
     })
@@ -142,7 +161,12 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
     try {
       setActionLoading(true)
       setActionError(null)
-      await websocketService.emitWithAck('placeOrder', order)
+      // Add default venue if not provided (BFF requires venue field)
+      const orderWithVenue = {
+        ...order,
+        venue: filters?.venue || 'SPOT',
+      }
+      await websocketService.emitWithAck('placeOrder', orderWithVenue)
       // No refetch needed - WebSocket broadcasts order.placed event
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to place order'

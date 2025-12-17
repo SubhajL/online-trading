@@ -27,6 +27,9 @@ export interface OrderResponse {
   price?: number;
   executedQty?: number;
   cummulativeQuoteQty?: number;
+  venue?: 'SPOT' | 'USD_M';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface HealthCheckResult {
@@ -50,10 +53,11 @@ export class RouterClientService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.baseUrl = this.configService.get<string>('router.url')!;
-    this.timeout = this.configService.get<number>('router.timeout') || 5000;
-    this.retryAttempts = this.configService.get<number>('router.retryAttempts') || 3;
-    this.retryDelay = this.configService.get<number>('router.retryDelay') || 1000;
+    // Use flat env var names since ConfigModule doesn't load nested config
+    this.baseUrl = this.configService.get<string>('ROUTER_URL') || 'http://localhost:8001';
+    this.timeout = this.configService.get<number>('ROUTER_TIMEOUT') || 5000;
+    this.retryAttempts = this.configService.get<number>('ROUTER_RETRY_ATTEMPTS') || 3;
+    this.retryDelay = this.configService.get<number>('ROUTER_RETRY_DELAY') || 1000;
   }
 
   async placeOrder(orderRequest: OrderRequest): Promise<OrderResponse> {

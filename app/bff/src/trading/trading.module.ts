@@ -5,6 +5,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { EngineClientModule } from '../engine-client/engine-client.module';
 import { RouterClientModule } from '../router-client/router-client.module';
 import { AuthModule } from '../auth/auth.module';
+import { OrdersModule } from '../orders/orders.module';
 import { TradingService } from './trading.service';
 import { TradingController } from './trading.controller';
 import { TradingGateway } from './trading.gateway';
@@ -19,6 +20,7 @@ import { CommandHandlers } from './commands/handlers';
     EngineClientModule,
     RouterClientModule,
     AuthModule,
+    OrdersModule,
   ],
   controllers: [TradingController],
   providers: [TradingService, TradingGateway, ...CommandHandlers],
