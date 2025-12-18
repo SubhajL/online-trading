@@ -126,6 +126,14 @@ class EventBusInterface(Protocol):
         ...
 
 
+class DatabaseAdapterInterface(Protocol):
+    """Protocol for database adapter implementations used by IngestService."""
+
+    async def insert_candles_batch(self, candles: list[Any]) -> int:
+        """Insert multiple candles in a batch. Returns count of inserted rows."""
+        ...
+
+
 class ClockInterface(Protocol):
     """Protocol for clock implementations."""
 

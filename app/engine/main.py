@@ -263,6 +263,7 @@ async def initialize_services(config: EngineConfig) -> None:
             symbols=symbols,
             timeframes=timeframes,
             binance_breakers_config=binance_breakers if binance_breakers else None,
+            db_adapter=db_adapter,  # For direct DB writes during backfill
         )
         services["ingest"] = ingest_service
 

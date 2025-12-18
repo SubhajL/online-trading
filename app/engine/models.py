@@ -82,6 +82,24 @@ class PositionSide(str, Enum):
     SHORT = "SHORT"
 
 
+class CandleOrigin(str, Enum):
+    """Origin of candle data for pipeline gating"""
+
+    REALTIME = "realtime"
+    BACKFILL = "backfill"
+    GAP_FILL = "gap_fill"
+
+
+def is_realtime_candle_event(origin: "CandleOrigin") -> bool:
+    """Check if candle origin should trigger trading pipeline.
+
+    Only REALTIME events should trigger full pipeline processing
+    (features calculation, SMC analysis, trading decisions).
+    BACKFILL and GAP_FILL events are for data seeding/warm-up only.
+    """
+    return origin == CandleOrigin.REALTIME
+
+
 class EventType(str, Enum):
     """Event type enumeration for the event bus"""
 
@@ -188,15 +206,23 @@ class Candle(BaseModel):
         "high_price",
         "low_price",
         "close_price",
+        mode="after",
+    )
+    def ensure_price_positive(cls, v: Decimal) -> Decimal:  # noqa: N805
+        if v <= 0:
+            raise ValueError("Price values must be positive")
+        return v
+
+    @field_validator(
         "volume",
         "quote_volume",
         "taker_buy_base_volume",
         "taker_buy_quote_volume",
         mode="after",
     )
-    def ensure_positive(cls, v: Decimal) -> Decimal:  # noqa: N805
-        if v <= 0:
-            raise ValueError("Price and volume values must be positive")
+    def ensure_volume_non_negative(cls, v: Decimal) -> Decimal:  # noqa: N805
+        if v < 0:
+            raise ValueError("Volume values must be non-negative")
         return v
 
     @field_serializer(
@@ -623,6 +649,7 @@ class CandleUpdateEvent(BaseEvent):
 
     event_type: EventType = EventType.CANDLE_UPDATE
     candle: Candle
+    origin: CandleOrigin = CandleOrigin.REALTIME
 
 
 class FeaturesCalculatedEvent(BaseEvent):

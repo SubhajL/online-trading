@@ -22,6 +22,7 @@ from ..models import (
     SupplyDemandZone,
     TimeFrame,
     ZoneType,
+    is_realtime_candle_event,
 )
 from .pivot_detector import PivotDetector
 from .zone_identifier import ZoneIdentifier
@@ -134,14 +135,27 @@ class SMCService:
         logger.info("SMCService stopped")
 
     async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
-        """Handle candle update events"""
+        """Handle candle update events.
+
+        Always stores candles for historical context.
+        Only performs full SMC analysis and signal generation for REALTIME events
+        to avoid generating trading signals on historical data.
+        """
         try:
             candle = event.candle
             symbol = candle.symbol
             timeframe = candle.timeframe
 
-            # Store candle in history
+            # Always store candle in history for context/warm-up
             self._store_candle(candle)
+
+            # Only process REALTIME events through the trading pipeline
+            if not is_realtime_candle_event(event.origin):
+                logger.debug(
+                    f"Skipping non-realtime candle for SMC {symbol} {timeframe.value} "
+                    f"(origin={event.origin.value})"
+                )
+                return
 
             # Get recent candles for analysis
             recent_candles = self._get_recent_candles(symbol, timeframe, 50)
@@ -472,8 +486,8 @@ class SMCService:
                         direction=OrderSide.SELL,
                         entry_price=current_candle.close_price,
                         stop_loss=zone.top_price,
-                        take_profit=current_candle.close_price * 0.99,
-                        confidence=0.65,
+                        take_profit=current_candle.close_price * Decimal("0.99"),
+                        confidence=Decimal("0.65"),
                         zone=zone,
                         reasoning="FVG fill with bearish bias",
                     )

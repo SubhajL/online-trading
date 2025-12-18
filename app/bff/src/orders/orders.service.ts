@@ -16,7 +16,7 @@ export class OrdersService {
     });
 
     return orderEntities.map((entity) => ({
-      id: entity.orderId,
+      orderId: entity.orderId,
       clientOrderId: entity.clientOrderId,
       symbol: entity.symbol,
       side: entity.side,
@@ -25,7 +25,8 @@ export class OrdersService {
       venue: entity.venue,
       price: entity.price ? Number(entity.price) : undefined,
       quantity: Number(entity.quantity),
-      executedQty: Number(entity.filledQuantity),
+      executedQuantity: Number(entity.filledQuantity),
+      avgPrice: entity.averageFillPrice ? Number(entity.averageFillPrice) : undefined,
       fee: Number(entity.commission),
       feeAsset: entity.commissionAsset || undefined,
       createdAt: entity.createdAt.toISOString(),

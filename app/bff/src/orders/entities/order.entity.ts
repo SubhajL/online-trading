@@ -16,7 +16,7 @@ export type OrderType =
 export type Venue = 'SPOT' | 'USD_M';
 
 export interface Order {
-  id: string;
+  orderId: string;
   clientOrderId: string;
   symbol: string;
   side: OrderSide;
@@ -25,7 +25,8 @@ export interface Order {
   venue: Venue;
   price?: number;
   quantity: number;
-  executedQty?: number;
+  executedQuantity?: number;
+  avgPrice?: number;
   fee?: number;
   feeAsset?: string;
   createdAt: string;

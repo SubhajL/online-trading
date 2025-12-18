@@ -345,8 +345,8 @@ class BinanceRestClient:
             candle = Candle(
                 symbol=symbol,
                 timeframe=timeframe,
-                open_time=datetime.fromtimestamp(kline[0] / 1000),
-                close_time=datetime.fromtimestamp(kline[6] / 1000),
+                open_time=datetime.fromtimestamp(kline[0] / 1000, tz=UTC),
+                close_time=datetime.fromtimestamp(kline[6] / 1000, tz=UTC),
                 open_price=Decimal(kline[1]),
                 high_price=Decimal(kline[2]),
                 low_price=Decimal(kline[3]),

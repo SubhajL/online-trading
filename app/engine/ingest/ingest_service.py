@@ -11,11 +11,15 @@ import logging
 from typing import Any
 
 from ..bus import get_event_bus
-from ..models import Candle, CandleUpdateEvent, TimeFrame
+from ..core.interfaces import DatabaseAdapterInterface
+from ..models import Candle, CandleOrigin, CandleUpdateEvent, TimeFrame
 from .binance_rest import BinanceRestClient
 from .binance_ws import BinanceWebSocketClient
 
 logger = logging.getLogger(__name__)
+
+# Number of recent candles to publish for pipeline warm-up during backfill
+WARMUP_CANDLE_COUNT = 10
 
 
 class IngestService:
@@ -39,12 +43,14 @@ class IngestService:
         enable_realtime: bool = True,
         enable_backfill: bool = True,
         binance_breakers_config: dict[str, Any] | None = None,
+        db_adapter: DatabaseAdapterInterface | None = None,
     ) -> None:
         self.symbols = symbols
         self.timeframes = timeframes
         self.backfill_days = backfill_days
         self.enable_realtime = enable_realtime
         self.enable_backfill = enable_backfill
+        self._db_adapter = db_adapter
 
         # Select credentials (supports nested shape with spot/futures)
         creds = self._select_binance_credentials(binance_config)
@@ -72,7 +78,7 @@ class IngestService:
 
         logger.info(
             f"IngestService initialized for {len(symbols)} symbols "
-            f"and {len(timeframes)} timeframes",
+            f"and {len(timeframes)} timeframes (db_adapter={'yes' if db_adapter else 'no'})",
         )
 
     # Provide a property to allow tests to inject a mockable client while preserving call assertions
@@ -213,7 +219,14 @@ class IngestService:
         symbol: str,
         timeframe: TimeFrame,
     ) -> None:
-        """Backfill historical data for a specific symbol and timeframe"""
+        """Backfill historical data for a specific symbol and timeframe.
+
+        If db_adapter is available, writes directly to database to avoid
+        saturating the event bus queue. Only publishes the last N candles
+        for pipeline warm-up with BACKFILL origin.
+
+        Without db_adapter, falls back to publishing all candles to event bus.
+        """
         try:
             logger.info(f"Starting backfill for {symbol} {timeframe.value}")
 
@@ -224,25 +237,50 @@ class IngestService:
                 days_back=self.backfill_days,
             )
 
+            if not candles:
+                logger.info(f"No candles retrieved for {symbol} {timeframe.value}")
+                return
+
             logger.info(
                 f"Retrieved {len(candles)} candles for {symbol} {timeframe.value}",
             )
 
-            # Publish historical candles as events
-            for candle in candles:
-                event = CandleUpdateEvent(
-                    timestamp=datetime.now(UTC),
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    candle=candle,
+            if self._db_adapter is not None:
+                # Optimized path: write directly to database
+                inserted = await self._db_adapter.insert_candles_batch(candles)
+                logger.info(
+                    f"Inserted {inserted} candles to DB for {symbol} {timeframe.value}",
                 )
-                event.metadata["is_historical"] = True
-                await self._event_bus.publish(event)
 
-                # Update latest candle tracking
-                if symbol not in self._latest_candles:
-                    self._latest_candles[symbol] = {}
-                self._latest_candles[symbol][timeframe] = candle
+                # Publish only the last N candles for pipeline warm-up
+                warmup_candles = candles[-WARMUP_CANDLE_COUNT:]
+                for candle in warmup_candles:
+                    event = CandleUpdateEvent(
+                        timestamp=datetime.now(UTC),
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        candle=candle,
+                        origin=CandleOrigin.BACKFILL,
+                    )
+                    event.metadata["is_historical"] = True
+                    await self._event_bus.publish(event)
+            else:
+                # Legacy path: publish all candles to event bus
+                for candle in candles:
+                    event = CandleUpdateEvent(
+                        timestamp=datetime.now(UTC),
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        candle=candle,
+                        origin=CandleOrigin.BACKFILL,
+                    )
+                    event.metadata["is_historical"] = True
+                    await self._event_bus.publish(event)
+
+            # Update latest candle tracking
+            if symbol not in self._latest_candles:
+                self._latest_candles[symbol] = {}
+            self._latest_candles[symbol][timeframe] = candles[-1]
 
             # Mark backfill as complete for this symbol-timeframe
             backfill_key = f"{symbol}_{timeframe.value}"

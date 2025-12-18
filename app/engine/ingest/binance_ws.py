@@ -88,7 +88,7 @@ class BinanceWebSocketClient:
     ) -> None:
         self.base_url = base_url
         if testnet:
-            self.base_url = "wss://testnet.binance.vision/ws/"
+            self.base_url = "wss://stream.testnet.binance.vision/ws/"
 
         self.reconnect_interval = reconnect_interval
         self.ping_interval = ping_interval

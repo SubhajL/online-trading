@@ -19,6 +19,7 @@ from ..models import (
     FeaturesCalculatedEvent,
     TechnicalIndicators,
     TimeFrame,
+    is_realtime_candle_event,
 )
 from .indicators import TechnicalIndicatorsCalculator
 
@@ -111,14 +112,27 @@ class FeatureService:
         logger.info("FeatureService stopped")
 
     async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
-        """Handle candle update events"""
+        """Handle candle update events.
+
+        Always adds candles to buffer for indicator calculation context.
+        Only publishes features for REALTIME events to avoid trading on
+        historical data.
+        """
         try:
             candle = event.candle
             symbol = candle.symbol
             timeframe = candle.timeframe
 
-            # Add candle to buffer
+            # Always add candle to buffer for warm-up/context
             self._candle_buffers[symbol][timeframe].append(candle)
+
+            # Only process REALTIME events through the trading pipeline
+            if not is_realtime_candle_event(event.origin):
+                logger.debug(
+                    f"Skipping non-realtime candle for {symbol} {timeframe.value} "
+                    f"(origin={event.origin.value})"
+                )
+                return
 
             # Calculate indicators if we have enough data
             min_required = max(
