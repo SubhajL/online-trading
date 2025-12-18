@@ -7,7 +7,8 @@ import {
   OrderResponse,
 } from '../router-client/router-client.service';
 import { OrderRepository } from '../orders/repositories/order.repository';
-import type { OrderType as EntityOrderType } from '../orders/entities/order-entity';
+import type { OrderType as EntityOrderType, OrderStatus } from '../orders/entities/order-entity';
+import { generateClientOrderId, mapRouterErrorToHttpException } from './mappers/order.mapper';
 
 export interface Position {
   symbol: string;
@@ -87,42 +88,27 @@ export class TradingService {
   }
 
   async placeOrder(request: OrderRequest): Promise<OrderResponse> {
+    const clientOrderId = generateClientOrderId();
+    const now = new Date();
+
     try {
       this.logger.log(`Placing order: ${JSON.stringify(request)}`);
 
-      // TODO: Router order endpoints not implemented yet, using mock for testing
-      // Once router has /api/orders/spot and /api/orders/futures endpoints,
-      // uncomment: const response = await this.routerClient.placeOrder(request);
-
-      // Mock response for TC1.5 testing
-      const now = new Date();
-      const orderId = `mock-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      const response: OrderResponse = {
-        orderId,
-        status: 'NEW',
-        symbol: request.symbol,
-        side: request.side,
-        type: request.type,
-        quantity: request.quantity,
-        price: request.price,
-        venue: request.venue,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
+      const response = await this.routerClient.placeOrder(request);
 
       // Save order to database so it appears on /trades and /history pages
       await this.orderRepository.save({
-        orderId,
-        clientOrderId: orderId,
+        orderId: response.orderId,
+        clientOrderId,
         symbol: request.symbol,
         side: request.side,
         type: mapOrderType(request.type),
         quantity: request.quantity,
         price: request.price || null,
-        status: 'NEW',
+        status: response.status as OrderStatus,
         venue: request.venue || 'SPOT',
-        timeInForce: 'GTC',
-        filledQuantity: 0,
+        timeInForce: request.timeInForce || 'GTC',
+        filledQuantity: response.executedQty || 0,
         createdAt: now,
         updatedAt: now,
       });
@@ -143,7 +129,7 @@ export class TradingService {
         error: errorMessage,
       });
 
-      throw error;
+      throw mapRouterErrorToHttpException(error);
     }
   }
 

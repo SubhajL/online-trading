@@ -248,4 +248,110 @@ describe('useBalances', () => {
       expect(Array.isArray(result.current.balances)).toBe(true)
     })
   })
+
+  describe('optimistic updates', () => {
+    const mockBalances = [
+      { asset: 'USDT', free: 10000, locked: 0, total: 10000, venue: 'SPOT' as const },
+      { asset: 'BTC', free: 0.5, locked: 0, total: 0.5, venue: 'SPOT' as const },
+    ]
+
+    const mockClient = {
+      get: async () => mockBalances,
+    }
+
+    it('provides applyOptimistic and rollback functions', async () => {
+      const { result } = renderHook(() => useBalances('SPOT', mockClient as any))
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      expect(typeof result.current.applyOptimistic).toBe('function')
+      expect(typeof result.current.rollback).toBe('function')
+    })
+
+    it('applyOptimistic updates balance immediately for BUY order', async () => {
+      const { result } = renderHook(() => useBalances('SPOT', mockClient as any))
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      const order = {
+        symbol: 'BTCUSDT',
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.1,
+      }
+
+      act(() => {
+        result.current.applyOptimistic(order, 50000)
+      })
+
+      const usdt = result.current.balances.find(b => b.asset === 'USDT')
+      const btc = result.current.balances.find(b => b.asset === 'BTC')
+
+      expect(usdt?.free).toBe(5000)
+      expect(btc?.free).toBe(0.6)
+    })
+
+    it('rollback restores original balance after failed order', async () => {
+      const { result } = renderHook(() => useBalances('SPOT', mockClient as any))
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      const order = {
+        symbol: 'BTCUSDT',
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.1,
+      }
+
+      let token: any
+      act(() => {
+        token = result.current.applyOptimistic(order, 50000)
+      })
+
+      const usdtAfterOptimistic = result.current.balances.find(b => b.asset === 'USDT')
+      expect(usdtAfterOptimistic?.free).toBe(5000)
+
+      act(() => {
+        result.current.rollback(token)
+      })
+
+      const usdtAfterRollback = result.current.balances.find(b => b.asset === 'USDT')
+      expect(usdtAfterRollback?.free).toBe(10000)
+    })
+
+    it('refresh clears optimistic state', async () => {
+      const { result } = renderHook(() => useBalances('SPOT', mockClient as any))
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      const order = {
+        symbol: 'BTCUSDT',
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.1,
+      }
+
+      act(() => {
+        result.current.applyOptimistic(order, 50000)
+      })
+
+      const usdtBefore = result.current.balances.find(b => b.asset === 'USDT')
+      expect(usdtBefore?.free).toBe(5000)
+
+      await act(async () => {
+        await result.current.refresh()
+      })
+
+      const usdtAfter = result.current.balances.find(b => b.asset === 'USDT')
+      expect(usdtAfter?.free).toBe(10000)
+    })
+  })
 })

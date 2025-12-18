@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TradingService } from './trading.service';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import { RouterClientService } from '../router-client/router-client.service';
+import { OrderRepository } from '../orders/repositories/order.repository';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 describe('TradingService', () => {
@@ -25,6 +26,12 @@ describe('TradingService', () => {
     on: jest.fn(),
   };
 
+  const mockOrderRepository = {
+    save: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -42,6 +49,10 @@ describe('TradingService', () => {
         {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
+        },
+        {
+          provide: OrderRepository,
+          useValue: mockOrderRepository,
         },
       ],
     }).compile();
