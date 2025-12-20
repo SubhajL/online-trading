@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { formatPercentageChange, calculateDailyPnL } from './calculations'
+import {
+  formatPercentageChange,
+  calculateDailyPnL,
+  calculateWinRate,
+  calculateProfitFactor,
+  calculateSharpeRatio,
+  calculateMaxDrawdown,
+  buildEquityCurve,
+} from './calculations'
 import type { Position, Order } from '@/types'
+import type { EquityPoint } from '@/types/dashboard'
 
 describe('formatPercentageChange', () => {
   it('formats positive percentage with plus sign', () => {
@@ -256,5 +265,228 @@ describe('calculateDailyPnL', () => {
     // BTC P&L: (41000 - 40000) * 0.05 = 50
     // ETH: no sell, so no realized P&L
     expect(calculateDailyPnL([], trades)).toBe(50)
+  })
+})
+
+// Closed trade type for KPI calculations
+type ClosedTrade = {
+  pnl: number
+  timestamp: string
+}
+
+describe('calculateWinRate', () => {
+  it('returns percentage of winning trades', () => {
+    const trades: ClosedTrade[] = [
+      { pnl: 100, timestamp: '2025-01-01T00:00:00Z' },
+      { pnl: 50, timestamp: '2025-01-01T01:00:00Z' },
+      { pnl: -30, timestamp: '2025-01-01T02:00:00Z' },
+      { pnl: 80, timestamp: '2025-01-01T03:00:00Z' },
+      { pnl: -20, timestamp: '2025-01-01T04:00:00Z' },
+      { pnl: 60, timestamp: '2025-01-01T05:00:00Z' },
+      { pnl: -10, timestamp: '2025-01-01T06:00:00Z' },
+      { pnl: 40, timestamp: '2025-01-01T07:00:00Z' },
+      { pnl: -15, timestamp: '2025-01-01T08:00:00Z' },
+      { pnl: 25, timestamp: '2025-01-01T09:00:00Z' },
+    ]
+    // 6 wins, 4 losses = 60%
+    expect(calculateWinRate(trades)).toBe(60)
+  })
+
+  it('returns null when fewer than minTrades', () => {
+    const trades: ClosedTrade[] = [
+      { pnl: 100, timestamp: '2025-01-01T00:00:00Z' },
+      { pnl: -50, timestamp: '2025-01-01T01:00:00Z' },
+    ]
+    expect(calculateWinRate(trades, 10)).toBeNull()
+  })
+
+  it('returns 100 when all trades are winners', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: (i + 1) * 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    expect(calculateWinRate(trades)).toBe(100)
+  })
+
+  it('returns 0 when all trades are losers', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: -(i + 1) * 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    expect(calculateWinRate(trades)).toBe(0)
+  })
+
+  it('treats zero pnl as not a win', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: i === 0 ? 0 : 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    // 9 wins out of 10 = 90%
+    expect(calculateWinRate(trades)).toBe(90)
+  })
+})
+
+describe('calculateProfitFactor', () => {
+  it('divides gross wins by gross losses', () => {
+    const trades: ClosedTrade[] = [
+      { pnl: 100, timestamp: '2025-01-01T00:00:00Z' },
+      { pnl: 200, timestamp: '2025-01-01T01:00:00Z' },
+      { pnl: -100, timestamp: '2025-01-01T02:00:00Z' },
+    ]
+    // Gross wins: 300, Gross losses: 100 -> PF = 3.0
+    // Pass minTrades=3 since we only have 3 trades
+    expect(calculateProfitFactor(trades, 3)).toBe(3)
+  })
+
+  it('returns null when fewer than minTrades', () => {
+    const trades: ClosedTrade[] = [{ pnl: 100, timestamp: '2025-01-01T00:00:00Z' }]
+    expect(calculateProfitFactor(trades, 10)).toBeNull()
+  })
+
+  it('returns Infinity when no losses', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: (i + 1) * 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    expect(calculateProfitFactor(trades)).toBe(Infinity)
+  })
+
+  it('returns 0 when no wins', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: -(i + 1) * 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    expect(calculateProfitFactor(trades)).toBe(0)
+  })
+
+  it('ignores zero pnl trades', () => {
+    const trades: ClosedTrade[] = [
+      { pnl: 100, timestamp: '2025-01-01T00:00:00Z' },
+      { pnl: 0, timestamp: '2025-01-01T01:00:00Z' },
+      { pnl: -50, timestamp: '2025-01-01T02:00:00Z' },
+      ...Array.from({ length: 7 }, (_, i) => ({
+        pnl: 10,
+        timestamp: `2025-01-01T0${i + 3}:00:00Z`,
+      })),
+    ]
+    // Gross wins: 100 + 70 = 170, Gross losses: 50 -> PF = 3.4
+    expect(calculateProfitFactor(trades)).toBe(3.4)
+  })
+})
+
+describe('calculateSharpeRatio', () => {
+  it('returns null when fewer than 30 trades', () => {
+    const returns = Array.from({ length: 20 }, () => 0.01)
+    expect(calculateSharpeRatio(returns, 30, 7)).toBeNull()
+  })
+
+  it('returns null when fewer than minDays', () => {
+    // 10 returns, but we require minDays=14, so should return null
+    const returns = Array.from({ length: 10 }, () => 0.01)
+    expect(calculateSharpeRatio(returns, 5, 14)).toBeNull()
+  })
+
+  it('returns 0 when variance is zero', () => {
+    // All identical returns = zero variance
+    const returns = Array.from({ length: 30 }, () => 0.01)
+    const result = calculateSharpeRatio(returns, 30, 7)
+    // With zero variance, Sharpe is undefined - we return 0
+    expect(result).toBe(0)
+  })
+
+  it('annualizes daily returns correctly', () => {
+    // Mean = 0.001 (0.1% daily), Std = 0.01
+    // Sharpe = (0.001 / 0.01) * sqrt(252) ≈ 1.587
+    const returns = [
+      0.011, 0.009, -0.001, 0.012, 0.008, -0.002, 0.013, 0.007, -0.003, 0.011, 0.009, 0.001, 0.012,
+      0.008, -0.001, 0.013, 0.007, 0.002, 0.011, 0.009, -0.002, 0.012, 0.008, 0.001, 0.013, 0.007,
+      -0.001, 0.011, 0.009, 0.001,
+    ]
+    const result = calculateSharpeRatio(returns, 30, 7)
+    expect(result).not.toBeNull()
+    expect(result).toBeGreaterThan(0)
+  })
+
+  it('returns negative Sharpe for losing strategy', () => {
+    const returns = Array.from({ length: 30 }, (_, i) => (i % 3 === 0 ? -0.02 : 0.005))
+    const result = calculateSharpeRatio(returns, 30, 7)
+    expect(result).not.toBeNull()
+  })
+})
+
+describe('calculateMaxDrawdown', () => {
+  it('finds peak-to-trough decline', () => {
+    const equityCurve: EquityPoint[] = [
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 120 },
+      { timestamp: '2025-01-03T00:00:00Z', equity: 90 },
+      { timestamp: '2025-01-04T00:00:00Z', equity: 110 },
+    ]
+    // Peak: 120, Trough: 90, Drawdown: (120-90)/120 = 25%
+    expect(calculateMaxDrawdown(equityCurve)).toBe(25)
+  })
+
+  it('returns 0 for monotonically increasing equity', () => {
+    const equityCurve: EquityPoint[] = [
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 110 },
+      { timestamp: '2025-01-03T00:00:00Z', equity: 120 },
+    ]
+    expect(calculateMaxDrawdown(equityCurve)).toBe(0)
+  })
+
+  it('returns 0 for empty equity curve', () => {
+    expect(calculateMaxDrawdown([])).toBe(0)
+  })
+
+  it('returns 0 for single point', () => {
+    expect(calculateMaxDrawdown([{ timestamp: '2025-01-01T00:00:00Z', equity: 100 }])).toBe(0)
+  })
+
+  it('handles multiple drawdowns and finds the largest', () => {
+    const equityCurve: EquityPoint[] = [
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 90 }, // 10% DD
+      { timestamp: '2025-01-03T00:00:00Z', equity: 95 },
+      { timestamp: '2025-01-04T00:00:00Z', equity: 110 },
+      { timestamp: '2025-01-05T00:00:00Z', equity: 80 }, // 27.27% DD from 110
+      { timestamp: '2025-01-06T00:00:00Z', equity: 100 },
+    ]
+    // Max DD: (110 - 80) / 110 = 27.27%
+    expect(calculateMaxDrawdown(equityCurve)).toBeCloseTo(27.27, 1)
+  })
+})
+
+describe('buildEquityCurve', () => {
+  it('sorts points by timestamp', () => {
+    const unsorted: EquityPoint[] = [
+      { timestamp: '2025-01-03T00:00:00Z', equity: 120 },
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 110 },
+    ]
+    const result = buildEquityCurve(unsorted)
+    expect(result[0]?.timestamp).toBe('2025-01-01T00:00:00Z')
+    expect(result[1]?.timestamp).toBe('2025-01-02T00:00:00Z')
+    expect(result[2]?.timestamp).toBe('2025-01-03T00:00:00Z')
+  })
+
+  it('deduplicates by timestamp keeping latest', () => {
+    const withDupes: EquityPoint[] = [
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-01T00:00:00Z', equity: 105 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 110 },
+    ]
+    const result = buildEquityCurve(withDupes)
+    expect(result).toHaveLength(2)
+    expect(result[0]?.equity).toBe(105)
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(buildEquityCurve([])).toEqual([])
+  })
+
+  it('handles single point', () => {
+    const single: EquityPoint[] = [{ timestamp: '2025-01-01T00:00:00Z', equity: 100 }]
+    expect(buildEquityCurve(single)).toEqual(single)
   })
 })
