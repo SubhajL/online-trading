@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef, type KeyboardEvent } from 'react'
 import type { ExposureSummary, EmergencyCloseScope } from '@/types/dashboard'
 import './EmergencyControls.css'
 
@@ -23,16 +23,24 @@ export function EmergencyControls({
   const [selectedScope, setSelectedScope] = useState<EmergencyCloseScope>('ALL')
   const [confirmationText, setConfirmationText] = useState('')
 
+  const closeAllBtnRef = useRef<HTMLButtonElement>(null)
+  const closeSpecificBtnRef = useRef<HTMLButtonElement>(null)
+  const confirmInputRef = useRef<HTMLInputElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
+  const lastTriggerRef = useRef<'close-all' | 'close-specific' | null>(null)
+
   const hasPositions = exposure && exposure.positionCount > 0
   const isConfirmValid = confirmationText === 'CLOSE ALL'
 
   const handleCloseAllClick = useCallback(() => {
+    lastTriggerRef.current = 'close-all'
     setSelectedScope('ALL')
     setConfirmationText('')
     setModalState('close-all')
   }, [])
 
   const handleCloseSpecificClick = useCallback(() => {
+    lastTriggerRef.current = 'close-specific'
     setConfirmationText('')
     setModalState('select-scope')
   }, [])
@@ -44,17 +52,70 @@ export function EmergencyControls({
   }, [])
 
   const handleConfirm = useCallback(() => {
-    if (isConfirmValid) {
+    if (isConfirmValid && !isClosing) {
       onCloseAll(selectedScope)
       setModalState('closed')
       setConfirmationText('')
+      // Return focus to the trigger button
+      if (lastTriggerRef.current === 'close-all') {
+        closeAllBtnRef.current?.focus()
+      } else if (lastTriggerRef.current === 'close-specific') {
+        closeSpecificBtnRef.current?.focus()
+      }
     }
-  }, [isConfirmValid, onCloseAll, selectedScope])
+  }, [isConfirmValid, isClosing, onCloseAll, selectedScope])
 
   const handleCancel = useCallback(() => {
     setModalState('closed')
     setConfirmationText('')
+    // Return focus to the trigger button
+    if (lastTriggerRef.current === 'close-all') {
+      closeAllBtnRef.current?.focus()
+    } else if (lastTriggerRef.current === 'close-specific') {
+      closeSpecificBtnRef.current?.focus()
+    }
   }, [])
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Escape') {
+        handleCancel()
+        return
+      }
+
+      // Enter key to confirm (only in confirm modal state)
+      if (e.key === 'Enter' && modalState === 'close-all' && isConfirmValid && !isClosing) {
+        e.preventDefault()
+        handleConfirm()
+        return
+      }
+
+      // Focus trap: cycle Tab within modal
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )
+        const firstElement = focusableElements[0]
+        const lastElement = focusableElements[focusableElements.length - 1]
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault()
+          lastElement?.focus()
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault()
+          firstElement?.focus()
+        }
+      }
+    },
+    [handleCancel, handleConfirm, modalState, isConfirmValid, isClosing],
+  )
+
+  // Focus management: focus input when modal opens
+  useEffect(() => {
+    if (modalState === 'close-all' && confirmInputRef.current) {
+      confirmInputRef.current.focus()
+    }
+  }, [modalState])
 
   const formatPositionCount = (count: number) => (count === 1 ? '1 position' : `${count} positions`)
 
@@ -63,14 +124,18 @@ export function EmergencyControls({
       <div className="emergency-header">
         <h3>Emergency Controls</h3>
         {isClosing && (
-          <div className="closing-indicator" data-testid="closing-spinner">
-            <span className="spinner" />
+          <div className="closing-indicator" data-testid="closing-spinner" aria-live="polite">
+            <span className="spinner" aria-hidden="true" />
             Closing...
           </div>
         )}
       </div>
 
-      {error && <div className="emergency-error">{error}</div>}
+      {error && (
+        <div className="emergency-error" role="alert">
+          {error}
+        </div>
+      )}
 
       {exposure && exposure.positionCount === 0 && (
         <div className="no-positions-message">No open positions</div>
@@ -78,12 +143,15 @@ export function EmergencyControls({
 
       <div className="emergency-buttons">
         <button
+          ref={closeAllBtnRef}
           type="button"
           className="emergency-btn close-all-btn"
           onClick={handleCloseAllClick}
           disabled={!hasPositions || isClosing}
         >
-          <span className="btn-icon">🔴</span>
+          <span className="btn-icon" aria-hidden="true">
+            🔴
+          </span>
           <span className="btn-text">CLOSE ALL POSITIONS</span>
           {exposure && exposure.positionCount > 0 && (
             <span className="btn-count" data-testid="close-all-count">
@@ -93,22 +161,33 @@ export function EmergencyControls({
         </button>
 
         <button
+          ref={closeSpecificBtnRef}
           type="button"
           className="emergency-btn close-specific-btn"
           onClick={handleCloseSpecificClick}
           disabled={!hasPositions || isClosing}
         >
-          <span className="btn-icon">⚙️</span>
+          <span className="btn-icon" aria-hidden="true">
+            ⚙️
+          </span>
           <span className="btn-text">Close Specific...</span>
         </button>
       </div>
 
       {modalState !== 'closed' && (
         <div className="emergency-modal-overlay">
-          <div className="emergency-modal" data-testid="emergency-modal">
+          <div
+            ref={modalRef}
+            className="emergency-modal"
+            data-testid="emergency-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="emergency-modal-title"
+            onKeyDown={handleKeyDown}
+          >
             {modalState === 'select-scope' ? (
               <>
-                <h4>Select Scope</h4>
+                <h4 id="emergency-modal-title">Select Scope</h4>
                 <div className="scope-selector" data-testid="scope-selector">
                   <button
                     type="button"
@@ -145,7 +224,7 @@ export function EmergencyControls({
               </>
             ) : (
               <>
-                <h4>Confirm Emergency Close</h4>
+                <h4 id="emergency-modal-title">Confirm Emergency Close</h4>
                 <div className="confirmation-details">
                   <p>
                     You are about to close{' '}
@@ -162,6 +241,7 @@ export function EmergencyControls({
                 <div className="confirmation-input-group">
                   <label htmlFor="confirm-input">Type &quot;CLOSE ALL&quot; to confirm:</label>
                   <input
+                    ref={confirmInputRef}
                     id="confirm-input"
                     type="text"
                     value={confirmationText}
@@ -169,6 +249,7 @@ export function EmergencyControls({
                     placeholder="CLOSE ALL"
                     data-testid="confirmation-input"
                     autoComplete="off"
+                    disabled={isClosing}
                   />
                 </div>
 
@@ -180,10 +261,10 @@ export function EmergencyControls({
                     type="button"
                     className="confirm-btn"
                     onClick={handleConfirm}
-                    disabled={!isConfirmValid}
+                    disabled={!isConfirmValid || isClosing}
                     data-testid="confirm-close-btn"
                   >
-                    Close Positions
+                    {isClosing ? 'Closing...' : 'Close Positions'}
                   </button>
                 </div>
               </>
