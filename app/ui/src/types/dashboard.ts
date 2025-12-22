@@ -1,4 +1,4 @@
-import type { Balance, Order, Position, Venue } from './index'
+import type { Balance, Order, Position } from './index'
 
 // Engine state types
 export type EngineState = 'ACTIVE' | 'PAUSED' | 'STOPPED'
@@ -41,8 +41,9 @@ export type TradingKPIs = {
   winRate: number | null
   profitFactor: number | null
   sharpeRatio: number | null
-  maxDrawdown: number
-  totalTrades: number
+  maxDrawdown: number | null
+  tradeCount: number
+  tradingDays: number
   totalPnL: number
   dailyPnL: number
 }

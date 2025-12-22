@@ -1,0 +1,174 @@
+.trading-kpis {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.kpis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.kpis-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.trade-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .kpis-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.kpi-card {
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-card.good {
+  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 5%, var(--color-surface-secondary));
+}
+
+.kpi-card.warning {
+  border-color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 5%, var(--color-surface-secondary));
+}
+
+.kpi-card.danger {
+  border-color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 5%, var(--color-surface-secondary));
+}
+
+.kpi-card.insufficient {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpi-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+.kpi-card.good .kpi-value {
+  color: var(--color-success);
+}
+
+.kpi-card.warning .kpi-value {
+  color: var(--color-warning);
+}
+
+.kpi-card.danger .kpi-value {
+  color: var(--color-error);
+}
+
+.kpi-card.insufficient .kpi-value {
+  color: var(--color-text-muted);
+}
+
+.kpi-description {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.insufficient-message {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+/* Loading skeleton */
+.kpis-skeleton {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .kpis-skeleton {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.kpi-card.skeleton {
+  animation: skeleton-pulse 1.5s infinite;
+}
+
+.skeleton-label {
+  height: 12px;
+  width: 60%;
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.skeleton-value {
+  height: 28px;
+  width: 80%;
+  background: var(--color-border);
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Error state */
+.kpis-error {
+  padding: 16px;
+  text-align: center;
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 5%, var(--color-surface));
+  border-radius: 6px;
+}
+
+/* Empty state */
+.kpis-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Accessibility: reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .kpi-card.skeleton {
+    animation: none;
+  }
+}

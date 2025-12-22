@@ -1,0 +1,128 @@
+.monitoring-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* Safety Section (Top) */
+.safety-section {
+  width: 100%;
+}
+
+.safety-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Main Content Grid */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 24px;
+}
+
+/* KPIs Section (Left) */
+.kpis-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Status Section (Right Sidebar) */
+.status-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Positions Section (Bottom) */
+.positions-section {
+  width: 100%;
+}
+
+.positions-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.positions-panel,
+.balances-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1400px) {
+  .main-grid {
+    grid-template-columns: 1fr 350px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .safety-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .safety-grid > :last-child {
+    grid-column: 1 / -1;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .status-section {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .status-section > * {
+    flex: 1 1 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  .monitoring-dashboard {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .safety-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .positions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .monitoring-dashboard {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .status-section {
+    flex-direction: column;
+  }
+
+  .status-section > * {
+    flex: 1 1 auto;
+  }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .positions-panel,
+  .balances-panel {
+    background: var(--color-surface);
+  }
+}
