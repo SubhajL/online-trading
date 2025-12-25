@@ -16,6 +16,8 @@ type OrderManager interface {
 	PlaceBracketOrder(ctx context.Context, req *orders.PlaceBracketRequest) (*orders.PlaceBracketResponse, error)
 	CancelOrder(ctx context.Context, req *orders.CancelRequest) error
 	CloseAllPositions(ctx context.Context, req *orders.CloseAllRequest) error
+	CancelOpenOrders(ctx context.Context, req *orders.CancelOpenOrdersRequest) (*orders.CancelOpenOrdersResponse, error)
+	ClosePositions(ctx context.Context, req *orders.ClosePositionsRequest) (*orders.ClosePositionsResponse, error)
 	ReconcileOrder(ctx context.Context, clientOrderID string) error
 }
 
@@ -200,6 +202,102 @@ func (h *Handlers) CloseAllHandler(w http.ResponseWriter, r *http.Request) {
 		Msg("All positions closed successfully")
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+}
+
+// CancelOpenOrdersHandler handles POST /cancel_open_orders
+func (h *Handlers) CancelOpenOrdersHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	if r.Method != http.MethodPost {
+		h.logger.Warn().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("remote_addr", r.RemoteAddr).
+			Msg("Invalid method for cancel_open_orders")
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req orders.CancelOpenOrdersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Error().
+			Err(err).
+			Str("path", r.URL.Path).
+			Str("remote_addr", r.RemoteAddr).
+			Msg("Failed to decode cancel open orders request")
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	h.logger.Info().
+		Str("scope", string(req.Scope)).
+		Int("symbols", len(req.Symbols)).
+		Msg("Processing cancel open orders request")
+
+	resp, err := h.orderManager.CancelOpenOrders(r.Context(), &req)
+	if err != nil {
+		h.logger.Error().
+			Err(err).
+			Dur("duration", time.Since(start)).
+			Msg("Failed to cancel open orders")
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.logger.Info().
+		Int("canceled_orders", resp.CanceledOrders).
+		Dur("duration", time.Since(start)).
+		Msg("Cancel open orders completed")
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ClosePositionsHandler handles POST /close_positions
+func (h *Handlers) ClosePositionsHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	if r.Method != http.MethodPost {
+		h.logger.Warn().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("remote_addr", r.RemoteAddr).
+			Msg("Invalid method for close_positions")
+		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req orders.ClosePositionsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Error().
+			Err(err).
+			Str("path", r.URL.Path).
+			Str("remote_addr", r.RemoteAddr).
+			Msg("Failed to decode close positions request")
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	h.logger.Info().
+		Str("scope", string(req.Scope)).
+		Int("symbols", len(req.Symbols)).
+		Msg("Processing close positions request")
+
+	resp, err := h.orderManager.ClosePositions(r.Context(), &req)
+	if err != nil {
+		h.logger.Error().
+			Err(err).
+			Dur("duration", time.Since(start)).
+			Msg("Failed to close positions")
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.logger.Info().
+		Int("closed_positions", resp.ClosedPositions).
+		Dur("duration", time.Since(start)).
+		Msg("Close positions completed")
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // HealthzHandler handles GET /healthz

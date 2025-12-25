@@ -1,47 +1,39 @@
-import { useEffect, useState, useRef } from 'react'
-import { WebSocketService } from '@/services/websocket.service'
+import { useEffect, useState } from 'react'
+import { websocketService } from '@/services/websocket'
 import type { ConnectionState } from '@/services/websocket.service'
-import { getWebSocketUrl } from '@/config/constants'
 
 type UseWebSocketReturn = {
-  service: WebSocketService
+  service: typeof websocketService
   connected: boolean
   connecting: boolean
   reconnectAttempts: number
 }
 
-export function useWebSocket(url?: string): UseWebSocketReturn {
-  const serviceRef = useRef<WebSocketService | null>(null)
+/**
+ * Hook to access the singleton WebSocket service.
+ * Uses a shared connection across all components.
+ * The connection is managed by the websocket module - do not disconnect manually.
+ */
+export function useWebSocket(): UseWebSocketReturn {
   const [connectionState, setConnectionState] = useState<ConnectionState>({
-    connected: false,
+    connected: websocketService.isConnected(),
     connecting: false,
     reconnectAttempts: 0,
   })
 
   useEffect(() => {
-    const wsUrl = url || getWebSocketUrl()
-
-    // Create service if it doesn't exist
-    if (!serviceRef.current) {
-      serviceRef.current = new WebSocketService()
-    }
-
-    const service = serviceRef.current
-
-    // Connect to WebSocket
-    service.connect(wsUrl)
-
     // Subscribe to connection state changes
-    const unsubscribe = service.onConnectionStateChange(setConnectionState)
+    const unsubscribe = websocketService.onConnectionStateChange(setConnectionState)
 
     return () => {
       unsubscribe()
-      service.disconnect()
+      // Note: We don't disconnect here - the singleton stays connected
+      // for use by other components
     }
-  }, [url])
+  }, [])
 
   return {
-    service: serviceRef.current!,
+    service: websocketService,
     connected: connectionState.connected,
     connecting: connectionState.connecting,
     reconnectAttempts: connectionState.reconnectAttempts,

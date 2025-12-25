@@ -1,22 +1,29 @@
 import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { useWebSocket } from './useWebSocket'
-import { WebSocketService } from '@/services/websocket.service'
 
-vi.mock('@/services/websocket.service')
+// Mock the singleton module
+const mockOnConnectionStateChange = vi.fn()
+const mockIsConnected = vi.fn()
+
+vi.mock('@/services/websocket', () => ({
+  websocketService: {
+    isConnected: () => mockIsConnected(),
+    onConnectionStateChange: (callback: (state: unknown) => void) =>
+      mockOnConnectionStateChange(callback),
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    subscribe: vi.fn(),
+    emit: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
+}))
 
 describe('useWebSocket', () => {
-  let mockService: WebSocketService
-
   beforeEach(() => {
-    mockService = new WebSocketService()
-    vi.mocked(WebSocketService).mockImplementation(() => mockService)
-
-    // Setup default mock implementations
-    mockService.connect = vi.fn()
-    mockService.disconnect = vi.fn()
-    mockService.isConnected = vi.fn().mockReturnValue(false)
-    mockService.onConnectionStateChange = vi.fn().mockImplementation(callback => {
+    mockIsConnected.mockReturnValue(false)
+    mockOnConnectionStateChange.mockImplementation(callback => {
       callback({ connected: false, connecting: false, reconnectAttempts: 0 })
       return vi.fn()
     })
@@ -26,26 +33,46 @@ describe('useWebSocket', () => {
     vi.clearAllMocks()
   })
 
-  it('connects to WebSocket on mount', () => {
+  it('returns connection state from singleton service', () => {
     const { result } = renderHook(() => useWebSocket())
 
-    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:8080')
     expect(result.current.connected).toBe(false)
     expect(result.current.connecting).toBe(false)
+    expect(result.current.reconnectAttempts).toBe(0)
   })
 
-  it('disconnects on unmount', () => {
-    const { unmount } = renderHook(() => useWebSocket())
+  it('returns the singleton WebSocket service', () => {
+    const { result } = renderHook(() => useWebSocket())
 
+    expect(result.current.service).toBeDefined()
+    expect(result.current.service.isConnected).toBeDefined()
+    expect(result.current.service.onConnectionStateChange).toBeDefined()
+  })
+
+  it('subscribes to connection state changes on mount', () => {
+    renderHook(() => useWebSocket())
+
+    expect(mockOnConnectionStateChange).toHaveBeenCalledTimes(1)
+    expect(mockOnConnectionStateChange).toHaveBeenCalledWith(expect.any(Function))
+  })
+
+  it('unsubscribes from connection state on unmount', () => {
+    const mockUnsubscribe = vi.fn()
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      callback({ connected: false, connecting: false, reconnectAttempts: 0 })
+      return mockUnsubscribe
+    })
+
+    const { unmount } = renderHook(() => useWebSocket())
     unmount()
 
-    expect(mockService.disconnect).toHaveBeenCalled()
+    expect(mockUnsubscribe).toHaveBeenCalled()
   })
 
   it('tracks connection state changes', () => {
-    let stateChangeCallback: any
+    let stateChangeCallback: ((state: unknown) => void) | null = null
 
-    mockService.onConnectionStateChange = vi.fn().mockImplementation(callback => {
+    mockOnConnectionStateChange.mockImplementation(callback => {
       stateChangeCallback = callback
       callback({ connected: false, connecting: true, reconnectAttempts: 0 })
       return vi.fn()
@@ -57,43 +84,53 @@ describe('useWebSocket', () => {
     expect(result.current.connecting).toBe(true)
 
     act(() => {
-      stateChangeCallback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      stateChangeCallback!({ connected: true, connecting: false, reconnectAttempts: 0 })
     })
 
     expect(result.current.connected).toBe(true)
     expect(result.current.connecting).toBe(false)
   })
 
-  it('returns the WebSocket service instance', () => {
-    const { result } = renderHook(() => useWebSocket())
+  it('tracks reconnect attempts', () => {
+    let stateChangeCallback: ((state: unknown) => void) | null = null
 
-    expect(result.current.service).toBe(mockService)
-  })
-
-  it('reconnects when URL changes', () => {
-    const { rerender } = renderHook(({ url }) => useWebSocket(url), {
-      initialProps: { url: 'ws://localhost:3000' },
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      stateChangeCallback = callback
+      callback({ connected: false, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
     })
 
-    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:8080')
-    expect(mockService.connect).toHaveBeenCalledTimes(1)
+    const { result } = renderHook(() => useWebSocket())
 
-    rerender({ url: 'ws://localhost:4000' })
+    expect(result.current.reconnectAttempts).toBe(0)
 
-    expect(mockService.disconnect).toHaveBeenCalled()
-    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:4000')
-    expect(mockService.connect).toHaveBeenCalledTimes(2)
+    act(() => {
+      stateChangeCallback!({ connected: false, connecting: true, reconnectAttempts: 3 })
+    })
+
+    expect(result.current.reconnectAttempts).toBe(3)
   })
 
-  it('uses default URL from constants when not provided', () => {
-    renderHook(() => useWebSocket())
+  it('does not disconnect on unmount (singleton pattern)', () => {
+    const { unmount, result } = renderHook(() => useWebSocket())
 
-    expect(mockService.connect).toHaveBeenCalledWith('ws://localhost:8080')
+    const disconnectSpy = vi.spyOn(result.current.service, 'disconnect')
+
+    unmount()
+
+    // Singleton should NOT be disconnected when component unmounts
+    expect(disconnectSpy).not.toHaveBeenCalled()
   })
 
-  it('uses custom URL when provided', () => {
-    renderHook(() => useWebSocket('wss://custom.server.com'))
+  it('initializes with current connection state', () => {
+    mockIsConnected.mockReturnValue(true)
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      callback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
+    })
 
-    expect(mockService.connect).toHaveBeenCalledWith('wss://custom.server.com')
+    const { result } = renderHook(() => useWebSocket())
+
+    expect(result.current.connected).toBe(true)
   })
 })

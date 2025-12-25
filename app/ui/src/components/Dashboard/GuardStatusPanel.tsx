@@ -1,4 +1,4 @@
-import type { GuardStatusResponse, GuardStatus, EngineState } from '@/types/dashboard'
+import type { GuardStatusResponse, GuardState, EngineState, Guards } from '@/types/dashboard'
 import './GuardStatusPanel.css'
 
 type GuardStatusPanelProps = {
@@ -68,7 +68,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
     return null
   }
 
-  const guardEntries = Object.entries(status.guards) as [string, GuardStatus][]
+  const guardEntries = Object.entries(status.guards) as [keyof Guards, GuardState][]
 
   return (
     <div className="guard-panel">

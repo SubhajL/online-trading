@@ -74,6 +74,9 @@ export type EquityTimeRange = '1D' | '1W' | '1M' | 'ALL'
 
 // Dashboard snapshot (unified response)
 export type DashboardSnapshot = {
+  guardStatus: GuardStatusResponse
+  pipelineHealth: PipelineHealthResponse
+  equityCurve: EquityPoint[]
   balances: Balance[]
   positions: Position[]
   recentOrders: Order[]
@@ -111,26 +114,37 @@ export type PipelineHealthResponse = {
 // Emergency close types - strict scope for type safety
 export type EmergencyCloseScope = 'ALL' | 'SPOT' | 'FUTURES'
 
-export type EmergencyCloseRequest = {
-  scope: EmergencyCloseScope
-  stopEngine: boolean
-  idempotencyKey: string
+export type EmergencyCloseStepName = 'CANCEL_OPEN_ORDERS' | 'CLOSE_POSITIONS' | 'STOP_AUTO_TRADING'
+
+export type EmergencyCloseStepStatus = 'SUCCESS' | 'FAILED' | 'SKIPPED'
+
+export type EmergencyCloseStep = {
+  name: EmergencyCloseStepName
+  status: EmergencyCloseStepStatus
+  startedAt: string
+  finishedAt: string
+  errors: string[]
+  result: {
+    canceledOrders?: number
+    closedPositions?: number
+    autoTradingDisabled?: boolean
+  }
 }
 
 export type EmergencyCloseResponse = {
   success: boolean
+  scope: EmergencyCloseScope
+  stopEngine: boolean
+  idempotencyKey: string
   canceledOrders: number
   closedPositions: number
-  engineStopped: boolean
-  errors: string[]
+  autoTradingDisabled: boolean
+  steps: EmergencyCloseStep[]
   executionTimeMs: number
 }
 
-// Result type used by useEmergencySell hook
-export type EmergencyCloseResult = {
-  success: boolean
-  closedCount: number
-}
+// Result type used by emergency-close UI
+export type EmergencyCloseResult = EmergencyCloseResponse
 
 // Emergency close state machine
 export type EmergencyCloseState = 'IDLE' | 'CONFIRMING' | 'EXECUTING' | 'COMPLETED' | 'FAILED'

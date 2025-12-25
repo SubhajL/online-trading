@@ -22,7 +22,12 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--color-success-500), var(--color-primary-500), var(--color-warning-500));
+  background: linear-gradient(
+    90deg,
+    var(--color-success-500),
+    var(--color-primary-500),
+    var(--color-warning-500)
+  );
   opacity: 0.5;
 }
 

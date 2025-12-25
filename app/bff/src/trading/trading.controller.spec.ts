@@ -3,6 +3,7 @@ import { TradingController } from './trading.controller';
 import { TradingService } from './trading.service';
 import { OrderRequest } from '../router-client/router-client.service';
 import { CommandBus } from '@nestjs/cqrs';
+import { EmergencyCloseService } from './emergency-close.service';
 
 describe('TradingController', () => {
   let controller: TradingController;
@@ -17,6 +18,11 @@ describe('TradingController', () => {
     getActiveOrders: jest.fn(),
     setAutoTrading: jest.fn(),
     isAutoTradingEnabled: jest.fn(),
+    emergencyClose: jest.fn(),
+  };
+
+  const mockEmergencyCloseService = {
+    execute: jest.fn(),
   };
 
   const mockCommandBus = {
@@ -36,6 +42,10 @@ describe('TradingController', () => {
         {
           provide: CommandBus,
           useValue: mockCommandBus,
+        },
+        {
+          provide: EmergencyCloseService,
+          useValue: mockEmergencyCloseService,
         },
       ],
     }).compile();
@@ -112,16 +122,13 @@ describe('TradingController', () => {
         status: 'CANCELED',
       };
 
-      mockTradingService.cancelOrder.mockResolvedValue(cancelResponse);
+      mockCommandBus.execute.mockResolvedValue(cancelResponse);
 
-      const result = await controller.cancelOrder(orderId, cancelRequest);
+      const mockRequest = { user: { sub: 'user-123' } };
+      const result = await controller.cancelOrder(mockRequest, orderId, cancelRequest);
 
       expect(result).toEqual(cancelResponse);
-      expect(service.cancelOrder).toHaveBeenCalledWith(
-        orderId,
-        cancelRequest.symbol,
-        cancelRequest.venue,
-      );
+      expect(commandBus.execute).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -173,21 +180,23 @@ describe('TradingController', () => {
 
   describe('POST /auto-trading', () => {
     it('should enable auto trading', async () => {
-      mockTradingService.isAutoTradingEnabled.mockReturnValue(true);
+      mockCommandBus.execute.mockResolvedValue(undefined);
 
-      const result = await controller.setAutoTrading({ enabled: true });
+      const mockRequest = { user: { sub: 'user-123' } };
+      const result = await controller.setAutoTrading(mockRequest, { enabled: true });
 
       expect(result).toEqual({ enabled: true, message: 'Auto trading enabled' });
-      expect(service.setAutoTrading).toHaveBeenCalledWith(true);
+      expect(commandBus.execute).toHaveBeenCalledTimes(1);
     });
 
     it('should disable auto trading', async () => {
-      mockTradingService.isAutoTradingEnabled.mockReturnValue(false);
+      mockCommandBus.execute.mockResolvedValue(undefined);
 
-      const result = await controller.setAutoTrading({ enabled: false });
+      const mockRequest = { user: { sub: 'user-123' } };
+      const result = await controller.setAutoTrading(mockRequest, { enabled: false });
 
       expect(result).toEqual({ enabled: false, message: 'Auto trading disabled' });
-      expect(service.setAutoTrading).toHaveBeenCalledWith(false);
+      expect(commandBus.execute).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -199,6 +208,107 @@ describe('TradingController', () => {
 
       expect(result).toEqual({ enabled: true });
       expect(service.isAutoTradingEnabled).toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /emergency-close', () => {
+    it('should close all positions successfully', async () => {
+      const dto = { scope: 'ALL' as const };
+      const idempotencyKey = 'test-key-123';
+
+      mockEmergencyCloseService.execute.mockResolvedValue({
+        success: true,
+        scope: 'ALL',
+        stopEngine: false,
+        idempotencyKey,
+        canceledOrders: 0,
+        closedPositions: 2,
+        autoTradingDisabled: false,
+        steps: [],
+        executionTimeMs: 1,
+      });
+
+      const result = await controller.emergencyClose(dto, idempotencyKey);
+
+      expect(result.success).toBe(true);
+      expect(result.closedPositions).toBe(2);
+      expect(mockEmergencyCloseService.execute).toHaveBeenCalledWith(dto, idempotencyKey);
+    });
+
+    it('should close SPOT positions only', async () => {
+      const dto = { scope: 'SPOT' as const };
+      const idempotencyKey = 'test-key-456';
+
+      mockEmergencyCloseService.execute.mockResolvedValue({
+        success: true,
+        scope: 'SPOT',
+        stopEngine: false,
+        idempotencyKey,
+        canceledOrders: 0,
+        closedPositions: 0,
+        autoTradingDisabled: false,
+        steps: [],
+        executionTimeMs: 1,
+      });
+
+      const result = await controller.emergencyClose(dto, idempotencyKey);
+
+      expect(result.success).toBe(true);
+      expect(mockEmergencyCloseService.execute).toHaveBeenCalledWith(dto, idempotencyKey);
+    });
+
+    it('should close FUTURES positions only', async () => {
+      const dto = { scope: 'FUTURES' as const };
+      const idempotencyKey = 'test-key-789';
+
+      mockEmergencyCloseService.execute.mockResolvedValue({
+        success: true,
+        scope: 'FUTURES',
+        stopEngine: false,
+        idempotencyKey,
+        canceledOrders: 0,
+        closedPositions: 1,
+        autoTradingDisabled: false,
+        steps: [],
+        executionTimeMs: 1,
+      });
+
+      const result = await controller.emergencyClose(dto, idempotencyKey);
+
+      expect(result.success).toBe(true);
+      expect(mockEmergencyCloseService.execute).toHaveBeenCalledWith(dto, idempotencyKey);
+    });
+
+    it('should stop engine when requested', async () => {
+      const dto = { scope: 'ALL' as const, stopEngine: true };
+      const idempotencyKey = 'test-key-stop';
+
+      mockEmergencyCloseService.execute.mockResolvedValue({
+        success: true,
+        scope: 'ALL',
+        stopEngine: true,
+        idempotencyKey,
+        canceledOrders: 0,
+        closedPositions: 2,
+        autoTradingDisabled: true,
+        steps: [],
+        executionTimeMs: 1,
+      });
+
+      await controller.emergencyClose(dto, idempotencyKey);
+
+      expect(mockEmergencyCloseService.execute).toHaveBeenCalledWith(dto, idempotencyKey);
+    });
+
+    it('should handle errors gracefully', async () => {
+      const dto = { scope: 'ALL' as const };
+      const idempotencyKey = 'test-key-error';
+
+      mockEmergencyCloseService.execute.mockRejectedValue(new Error('Connection failed'));
+
+      await expect(controller.emergencyClose(dto, idempotencyKey)).rejects.toThrow(
+        'Connection failed',
+      );
     });
   });
 });

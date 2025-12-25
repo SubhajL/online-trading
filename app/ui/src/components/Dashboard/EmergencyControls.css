@@ -271,3 +271,152 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Stop engine checkbox */
+.stop-engine-option {
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--color-surface-hover);
+  border-radius: 6px;
+}
+
+.stop-engine-option label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.stop-engine-option input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* Execution progress */
+.execution-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.progress-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+.execution-progress p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.progress-note {
+  font-size: 12px;
+  color: var(--color-text-secondary) !important;
+}
+
+/* Result states */
+.result-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.result-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.result-content.success .result-icon {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--color-success, #10b981);
+}
+
+.result-content.error .result-icon {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error, #ef4444);
+}
+
+.result-content p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.result-note {
+  font-size: 12px;
+  color: var(--color-text-secondary) !important;
+}
+
+.error-message {
+  color: var(--color-error, #ef4444) !important;
+}
+
+/* Modal title states */
+.success-title {
+  color: var(--color-success, #10b981) !important;
+}
+
+.error-title {
+  color: var(--color-error, #ef4444) !important;
+}
+
+/* Modal state variations */
+.modal-error {
+  border-color: var(--color-error, #ef4444);
+}
+
+.modal-success {
+  border-color: var(--color-success, #10b981);
+}
+
+/* Done/Retry buttons */
+.done-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-success, #10b981);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.done-btn:hover {
+  background: #059669;
+}
+
+.retry-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-primary, #3b82f6);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-btn:hover {
+  background: #2563eb;
+}

@@ -286,8 +286,12 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 		Int64("order_id", orderID).
 		Msg("Canceling order")
 
-	// Use REST client to cancel order
-	err := c.restClient.CancelOrder(ctx, symbol, orderID)
+	var err error
+	if c.isFutures {
+		err = c.restClient.CancelFuturesOrder(ctx, symbol, orderID)
+	} else {
+		err = c.restClient.CancelOrder(ctx, symbol, orderID)
+	}
 	if err != nil {
 		c.logger.Error().
 			Err(err).
@@ -316,7 +320,13 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]*Order, er
 		Msg("Retrieving open orders")
 
 	// Get open orders from REST client
-	restOrders, err := c.restClient.GetOpenOrders(ctx, symbol)
+	var restOrders []rest.Order
+	var err error
+	if c.isFutures {
+		restOrders, err = c.restClient.GetFuturesOpenOrders(ctx, symbol)
+	} else {
+		restOrders, err = c.restClient.GetOpenOrders(ctx, symbol)
+	}
 	if err != nil {
 		c.logger.Error().
 			Err(err).
@@ -350,6 +360,36 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]*Order, er
 		Msg("Retrieved open orders")
 
 	return orders, nil
+}
+
+type FuturesAccountResponse struct {
+	Positions []FuturesPosition `json:"positions"`
+}
+
+type FuturesPosition struct {
+	Symbol      string          `json:"symbol"`
+	PositionAmt decimal.Decimal `json:"positionAmt"`
+}
+
+func (c *Client) GetFuturesAccountInfo(ctx context.Context) (*FuturesAccountResponse, error) {
+	if !c.isFutures {
+		return nil, fmt.Errorf("futures account info not available on spot client")
+	}
+
+	account, err := c.restClient.GetFuturesAccount(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	positions := make([]FuturesPosition, 0, len(account.Positions))
+	for _, p := range account.Positions {
+		positions = append(positions, FuturesPosition{
+			Symbol:      p.Symbol,
+			PositionAmt: p.PositionAmt,
+		})
+	}
+
+	return &FuturesAccountResponse{Positions: positions}, nil
 }
 
 // Validation functions
@@ -416,7 +456,7 @@ func (c *Client) validateFuturesOrder(order FuturesOrderRequest) error {
 	if order.Type != "MARKET" && order.Type != "LIMIT" {
 		return fmt.Errorf("invalid order type: %s", order.Type)
 	}
-	if order.Quantity.LessThanOrEqual(decimal.Zero) {
+	if order.Quantity.LessThanOrEqual(decimal.Zero) && !order.ClosePosition {
 		return fmt.Errorf("quantity must be positive")
 	}
 

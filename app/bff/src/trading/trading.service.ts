@@ -5,7 +5,9 @@ import {
   RouterClientService,
   OrderRequest,
   OrderResponse,
+  CloseAllResponse,
 } from '../router-client/router-client.service';
+import type { EmergencyCloseScope } from './dto/emergency-close.dto';
 import { OrderRepository } from '../orders/repositories/order.repository';
 import type { OrderType as EntityOrderType, OrderStatus } from '../orders/entities/order-entity';
 import { generateClientOrderId, mapRouterErrorToHttpException } from './mappers/order.mapper';
@@ -169,6 +171,78 @@ export class TradingService {
 
   isAutoTradingEnabled(): boolean {
     return this.autoTrading;
+  }
+
+  async emergencyClose(
+    scope: EmergencyCloseScope,
+    stopEngine: boolean = false,
+  ): Promise<{ success: boolean; closedCount: number }> {
+    this.logger.warn(`Emergency close triggered: scope=${scope}, stopEngine=${stopEngine}`);
+
+    let closedCount = 0;
+
+    try {
+      // Close positions based on scope
+      if (scope === 'ALL' || scope === 'SPOT') {
+        const spotResult = await this.routerClient.closeAllPositions({
+          is_futures: false,
+        });
+        if (spotResult.success) {
+          closedCount += 1; // Router doesn't return count, so we estimate
+        }
+      }
+
+      if (scope === 'ALL' || scope === 'FUTURES') {
+        const futuresResult = await this.routerClient.closeAllPositions({
+          is_futures: true,
+        });
+        if (futuresResult.success) {
+          closedCount += 1;
+        }
+      }
+
+      // Clear local position cache
+      if (scope === 'ALL') {
+        this.positions.clear();
+      } else {
+        // Clear only positions for the specified venue
+        const venueToFilter = scope === 'SPOT' ? 'SPOT' : 'USD_M';
+        for (const [key, position] of this.positions) {
+          if (position.venue === venueToFilter) {
+            this.positions.delete(key);
+          }
+        }
+      }
+
+      // Clear active orders
+      this.activeOrders.clear();
+
+      // Optionally stop auto trading
+      if (stopEngine) {
+        await this.setAutoTrading(false);
+      }
+
+      this.eventEmitter.emit('emergency.close', {
+        scope,
+        closedCount,
+        stopEngine,
+        timestamp: Date.now(),
+      });
+
+      this.logger.log(`Emergency close completed: closedCount=${closedCount}`);
+      return { success: true, closedCount };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Emergency close failed: ${errorMessage}`);
+
+      this.eventEmitter.emit('emergency.close.failed', {
+        scope,
+        error: errorMessage,
+        timestamp: Date.now(),
+      });
+
+      throw error;
+    }
   }
 
   async handleDecisionEvent(decision: DecisionEvent): Promise<void> {

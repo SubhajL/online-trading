@@ -131,9 +131,9 @@ export function EquityCurve({
     [onTimeRangeChange],
   )
 
-  // Initialize chart
+  // Effect 1: Initialize chart ONCE - only recreate on height change
   useEffect(() => {
-    if (!containerRef.current || loading || error || filteredData.length < 2) return
+    if (!containerRef.current) return
 
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
@@ -161,11 +161,11 @@ export function EquityCurve({
 
     chartRef.current = chart
 
-    const isPositive = summary.change.isPositive || summary.change.isNeutral
+    // Create series with default colors (will be updated in data effect)
     const series = chart.addAreaSeries({
-      lineColor: isPositive ? 'var(--color-success)' : 'var(--color-error)',
-      topColor: isPositive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-      bottomColor: isPositive ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+      lineColor: 'var(--color-success)',
+      topColor: 'rgba(16, 185, 129, 0.3)',
+      bottomColor: 'rgba(16, 185, 129, 0.05)',
       lineWidth: 2,
       priceFormat: {
         type: 'price',
@@ -175,8 +175,6 @@ export function EquityCurve({
     })
 
     seriesRef.current = series
-    series.setData(convertToChartData(filteredData))
-    chart.timeScale().fitContent()
 
     // Handle resize
     const handleResize = () => {
@@ -193,15 +191,26 @@ export function EquityCurve({
       chartRef.current = null
       seriesRef.current = null
     }
-  }, [filteredData, loading, error, height, summary.change.isPositive, summary.change.isNeutral])
+  }, [height])
 
-  // Update chart data when filtered data changes
+  // Effect 2: Update chart data and colors when data or colors change
   useEffect(() => {
-    if (seriesRef.current && filteredData.length >= 2) {
-      seriesRef.current.setData(convertToChartData(filteredData))
-      chartRef.current?.timeScale().fitContent()
-    }
-  }, [filteredData])
+    if (!seriesRef.current || !chartRef.current) return
+    if (loading || error || filteredData.length < 2) return
+
+    const isPositive = summary.change.isPositive || summary.change.isNeutral
+
+    // Update series colors
+    seriesRef.current.applyOptions({
+      lineColor: isPositive ? 'var(--color-success)' : 'var(--color-error)',
+      topColor: isPositive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+      bottomColor: isPositive ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+    })
+
+    // Update data
+    seriesRef.current.setData(convertToChartData(filteredData))
+    chartRef.current.timeScale().fitContent()
+  }, [filteredData, loading, error, summary.change.isPositive, summary.change.isNeutral])
 
   if (loading) {
     return (

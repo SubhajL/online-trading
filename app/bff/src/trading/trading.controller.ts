@@ -10,6 +10,8 @@ import {
   HttpStatus,
   UseGuards,
   Request,
+  Headers,
+  Logger,
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { TradingService } from './trading.service';
@@ -18,6 +20,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PlaceOrderCommand } from './commands/place-order.command';
 import { CancelOrderCommand } from './commands/cancel-order.command';
 import { SetAutoTradingCommand } from './commands/set-auto-trading.command';
+import { EmergencyCloseDto, EmergencyCloseResponse } from './dto/emergency-close.dto';
+import { EmergencyCloseService } from './emergency-close.service';
 
 interface CancelOrderRequest {
   symbol: string;
@@ -36,9 +40,12 @@ interface AutoTradingResponse {
 @UseGuards(JwtAuthGuard)
 @Controller('trading')
 export class TradingController {
+  private readonly logger = new Logger(TradingController.name);
+
   constructor(
     private readonly tradingService: TradingService,
     private readonly commandBus: CommandBus,
+    private readonly emergencyCloseService: EmergencyCloseService,
   ) {}
 
   @Post('orders')
@@ -102,5 +109,18 @@ export class TradingController {
     return {
       enabled: this.tradingService.isAutoTradingEnabled(),
     };
+  }
+
+  @Post('emergency-close')
+  @HttpCode(HttpStatus.OK)
+  async emergencyClose(
+    @Body() dto: EmergencyCloseDto,
+    @Headers('X-Idempotency-Key') idempotencyKey: string,
+  ): Promise<EmergencyCloseResponse> {
+    this.logger.warn(
+      `Emergency close requested: scope=${dto.scope}, stopEngine=${dto.stopEngine}, idempotencyKey=${idempotencyKey}`,
+    );
+
+    return this.emergencyCloseService.execute(dto, idempotencyKey);
   }
 }

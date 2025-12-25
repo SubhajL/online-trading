@@ -5,33 +5,19 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Layout/Header'
 import { Sidebar } from '@/components/Layout/Sidebar'
 import { PageShell } from '@/components/Layout/PageShell'
-import { Dashboard } from '@/components/Dashboard/Dashboard'
+import { MonitoringDashboard } from '@/components/Dashboard/MonitoringDashboard'
 import { LogoutModal } from '@/components/common/LogoutModal'
 import { useAuth } from '@/context/AuthContext'
-import { useBalances } from '@/hooks/useBalances'
-import { usePositions } from '@/hooks/usePositions'
-import { useOrders } from '@/hooks/useOrders'
-import type { OrderFormValues } from '@/types'
+import { useDashboardData } from '@/hooks/useDashboardData'
 
 export default function Home() {
   const router = useRouter()
   const { state: authState, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [autoTradingEnabled, setAutoTradingEnabled] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
 
-  // API hooks - must be called before any conditional return
-  const { balances, loading: balancesLoading, error: balancesError } = useBalances()
-  const { positions, loading: positionsLoading, error: positionsError } = usePositions()
-  const {
-    orders,
-    loading: ordersLoading,
-    error: ordersError,
-    placeOrder,
-  } = useOrders({
-    status: 'NEW',
-    limit: 10,
-  })
+  // Aggregated dashboard data hook
+  const dashboardData = useDashboardData()
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -40,25 +26,13 @@ export default function Home() {
     }
   }, [authState.isLoading, authState.isAuthenticated, router])
 
-  const handleSubmitOrder = useCallback(async (order: OrderFormValues) => {
-    try {
-      await placeOrder(order)
-    } catch (err) {
-      console.error('Failed to place order:', err)
-    }
-  }, [placeOrder])
-
-  const handleToggleAutoTrading = useCallback((enabled: boolean) => {
-    setAutoTradingEnabled(enabled)
-  }, [])
-
   const handleLogoutClick = useCallback(() => {
-    if (positions.length > 0) {
+    if (dashboardData.positions.length > 0) {
       setShowLogoutModal(true)
     } else {
       logout()
     }
-  }, [positions.length, logout])
+  }, [dashboardData.positions.length, logout])
 
   const handleLogoutConfirm = useCallback(() => {
     setShowLogoutModal(false)
@@ -72,14 +46,14 @@ export default function Home() {
   // Show loading while checking auth or if not authenticated
   if (authState.isLoading || !authState.isAuthenticated) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
+      >
         <p>Loading...</p>
       </div>
     )
   }
 
-  const loading = balancesLoading || positionsLoading || ordersLoading
-  const error = balancesError || positionsError || ordersError
   const userName = authState.user?.email ?? authState.user?.username
 
   return (
@@ -90,23 +64,40 @@ export default function Home() {
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
         <main id="main-content" tabIndex={-1} style={{ flex: 1, padding: '1rem' }}>
-          <Dashboard
-            positions={positions}
-            orders={orders}
-            balances={balances}
-            loading={loading}
-            error={error || undefined}
-            autoTradingEnabled={autoTradingEnabled}
-            onSubmitOrder={handleSubmitOrder}
-            onToggleAutoTrading={handleToggleAutoTrading}
+          <MonitoringDashboard
+            guardStatus={dashboardData.guardStatus}
+            guardStatusLoading={dashboardData.guardStatusLoading}
+            guardStatusError={dashboardData.guardStatusError}
+            exposure={dashboardData.exposure}
+            exposureLoading={dashboardData.exposureLoading}
+            exposureError={dashboardData.exposureError}
+            kpis={dashboardData.kpis}
+            kpisLoading={dashboardData.kpisLoading}
+            kpisError={dashboardData.kpisError}
+            equityCurve={dashboardData.equityCurve}
+            equityCurveLoading={dashboardData.equityCurveLoading}
+            equityCurveError={dashboardData.equityCurveError}
+            pipelineHealth={dashboardData.pipelineHealth}
+            pipelineHealthLoading={dashboardData.pipelineHealthLoading}
+            pipelineHealthError={dashboardData.pipelineHealthError}
+            engineStatus={dashboardData.engineStatus}
+            engineStatusLoading={dashboardData.engineStatusLoading}
+            engineStatusError={dashboardData.engineStatusError}
+            activeSignals={dashboardData.activeSignals}
+            onToggleAutoTrading={dashboardData.onToggleAutoTrading}
+            onEmergencyClose={dashboardData.onEmergencyClose}
+            positions={dashboardData.positions}
+            positionsLoading={dashboardData.positionsLoading}
+            balances={dashboardData.balances}
+            balancesLoading={dashboardData.balancesLoading}
           />
         </main>
       </div>
 
       {showLogoutModal && (
         <LogoutModal
-          positions={positions}
-          loading={positionsLoading}
+          positions={dashboardData.positions}
+          loading={dashboardData.positionsLoading}
           onCancel={handleLogoutCancel}
           onConfirm={handleLogoutConfirm}
         />

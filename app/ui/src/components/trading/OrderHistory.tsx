@@ -135,7 +135,9 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
                     <td>{order.quantity}</td>
                     <td>{formatPrice(order)}</td>
                     <td>
-                      <span className={`status-badge ${statusTheme.statusClass}`}>{order.status}</span>
+                      <span className={`status-badge ${statusTheme.statusClass}`}>
+                        {order.status}
+                      </span>
                     </td>
                   </tr>
                 )

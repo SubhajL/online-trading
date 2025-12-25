@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { EmergencyControls } from './EmergencyControls'
-import type { ExposureSummary, EmergencyCloseScope } from '@/types/dashboard'
+import type { ExposureSummary } from '@/types/dashboard'
+import type { EmergencyCloseResult } from '@/types/dashboard'
 
 const mockExposure: ExposureSummary = {
   totalNotional: 15000,
@@ -20,19 +21,19 @@ const mockExposure: ExposureSummary = {
 describe('EmergencyControls', () => {
   describe('two button layout (Option C)', () => {
     it('renders CLOSE ALL button', () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       expect(screen.getByRole('button', { name: /close all/i })).toBeInTheDocument()
     })
 
     it('renders Close Specific button', () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       expect(screen.getByRole('button', { name: /close specific/i })).toBeInTheDocument()
     })
 
     it('shows position count on CLOSE ALL button', () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       expect(screen.getByTestId('close-all-count')).toHaveTextContent('3 positions')
     })
@@ -40,7 +41,7 @@ describe('EmergencyControls', () => {
 
   describe('CLOSE ALL confirmation flow', () => {
     it('opens confirmation modal when CLOSE ALL is clicked', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
 
@@ -49,7 +50,7 @@ describe('EmergencyControls', () => {
     })
 
     it('requires typing CLOSE ALL to enable confirm button', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
 
@@ -63,9 +64,12 @@ describe('EmergencyControls', () => {
       expect(confirmBtn).not.toBeDisabled()
     })
 
-    it('calls onCloseAll with ALL scope when confirmed', async () => {
-      const onCloseAll = vi.fn()
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={onCloseAll} />)
+    it('calls onEmergencyClose with ALL scope, stopEngine=false, and idempotency key', async () => {
+      vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
+      const onEmergencyClose = vi
+        .fn()
+        .mockResolvedValue({ success: true } satisfies Partial<EmergencyCloseResult>)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
       await fireEvent.change(screen.getByTestId('confirmation-input'), {
@@ -73,11 +77,32 @@ describe('EmergencyControls', () => {
       })
       await fireEvent.click(screen.getByTestId('confirm-close-btn'))
 
-      expect(onCloseAll).toHaveBeenCalledWith('ALL')
+      await waitFor(() => {
+        expect(onEmergencyClose).toHaveBeenCalledWith('ALL', false, 'uuid-1')
+      })
+    })
+
+    it('calls onEmergencyClose with stopEngine=true when checkbox is checked', async () => {
+      vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
+      const onEmergencyClose = vi
+        .fn()
+        .mockResolvedValue({ success: true } satisfies Partial<EmergencyCloseResult>)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
+
+      await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
+      await fireEvent.click(screen.getByTestId('stop-engine-checkbox'))
+      await fireEvent.change(screen.getByTestId('confirmation-input'), {
+        target: { value: 'CLOSE ALL' },
+      })
+      await fireEvent.click(screen.getByTestId('confirm-close-btn'))
+
+      await waitFor(() => {
+        expect(onEmergencyClose).toHaveBeenCalledWith('ALL', true, 'uuid-1')
+      })
     })
 
     it('closes modal when Cancel is clicked', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
       expect(screen.getByTestId('emergency-modal')).toBeInTheDocument()
@@ -89,7 +114,7 @@ describe('EmergencyControls', () => {
 
   describe('Close Specific flow', () => {
     it('opens scope selector when Close Specific is clicked', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close specific/i }))
 
@@ -97,7 +122,7 @@ describe('EmergencyControls', () => {
     })
 
     it('shows SPOT option with position count', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close specific/i }))
 
@@ -106,7 +131,7 @@ describe('EmergencyControls', () => {
     })
 
     it('shows FUTURES option with position count', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close specific/i }))
 
@@ -114,9 +139,12 @@ describe('EmergencyControls', () => {
       expect(screen.getByTestId('scope-futures-count')).toHaveTextContent('2 positions')
     })
 
-    it('calls onCloseAll with selected scope when confirmed', async () => {
-      const onCloseAll = vi.fn()
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={onCloseAll} />)
+    it('calls onEmergencyClose with selected scope when confirmed', async () => {
+      vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
+      const onEmergencyClose = vi
+        .fn()
+        .mockResolvedValue({ success: true } satisfies Partial<EmergencyCloseResult>)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close specific/i }))
       await fireEvent.click(screen.getByTestId('scope-spot'))
@@ -125,22 +153,142 @@ describe('EmergencyControls', () => {
       })
       await fireEvent.click(screen.getByTestId('confirm-close-btn'))
 
-      expect(onCloseAll).toHaveBeenCalledWith('SPOT')
+      await waitFor(() => {
+        expect(onEmergencyClose).toHaveBeenCalledWith('SPOT', false, 'uuid-1')
+      })
     })
   })
 
-  describe('loading state', () => {
-    it('shows loading spinner when isClosing is true', () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} isClosing />)
+  describe('result states', () => {
+    it('shows execution progress while awaiting response', async () => {
+      vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
+      let resolvePromise: (value: EmergencyCloseResult) => void
+      const onEmergencyClose = vi.fn(
+        () =>
+          new Promise<EmergencyCloseResult>(resolve => {
+            resolvePromise = resolve
+          }),
+      )
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
 
-      expect(screen.getByTestId('closing-spinner')).toBeInTheDocument()
+      await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
+      await fireEvent.change(screen.getByTestId('confirmation-input'), {
+        target: { value: 'CLOSE ALL' },
+      })
+      await fireEvent.click(screen.getByTestId('confirm-close-btn'))
+
+      expect(screen.getByTestId('execution-progress')).toBeInTheDocument()
+
+      act(() => {
+        resolvePromise({
+          success: true,
+          scope: 'ALL',
+          stopEngine: false,
+          idempotencyKey: 'uuid-1',
+          canceledOrders: 0,
+          closedPositions: 3,
+          autoTradingDisabled: false,
+          steps: [],
+          executionTimeMs: 10,
+        })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result-success')).toBeInTheDocument()
+      })
     })
 
-    it('disables buttons when isClosing is true', () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} isClosing />)
+    it('keeps idempotency key stable when retrying after a network error', async () => {
+      vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
 
-      expect(screen.getByRole('button', { name: /close all/i })).toBeDisabled()
-      expect(screen.getByRole('button', { name: /close specific/i })).toBeDisabled()
+      const onEmergencyClose = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Network down'))
+        .mockResolvedValueOnce({
+          success: true,
+          scope: 'ALL',
+          stopEngine: false,
+          idempotencyKey: 'uuid-1',
+          canceledOrders: 0,
+          closedPositions: 1,
+          autoTradingDisabled: false,
+          steps: [],
+          executionTimeMs: 10,
+        } satisfies EmergencyCloseResult)
+
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
+
+      await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
+      await fireEvent.change(screen.getByTestId('confirmation-input'), {
+        target: { value: 'CLOSE ALL' },
+      })
+      await fireEvent.click(screen.getByTestId('confirm-close-btn'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result-error')).toBeInTheDocument()
+      })
+
+      await fireEvent.click(screen.getByTestId('retry-btn'))
+
+      await waitFor(() => {
+        expect(onEmergencyClose).toHaveBeenNthCalledWith(1, 'ALL', false, 'uuid-1')
+        expect(onEmergencyClose).toHaveBeenNthCalledWith(2, 'ALL', false, 'uuid-1')
+      })
+    })
+
+    it('renders the step timeline for completed results', async () => {
+      vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
+      const onEmergencyClose = vi.fn().mockResolvedValue({
+        success: true,
+        scope: 'ALL',
+        stopEngine: true,
+        idempotencyKey: 'uuid-1',
+        canceledOrders: 2,
+        closedPositions: 3,
+        autoTradingDisabled: true,
+        steps: [
+          {
+            name: 'CANCEL_OPEN_ORDERS',
+            status: 'SUCCESS',
+            startedAt: new Date().toISOString(),
+            finishedAt: new Date().toISOString(),
+            errors: [],
+            result: { canceledOrders: 2 },
+          },
+          {
+            name: 'CLOSE_POSITIONS',
+            status: 'SUCCESS',
+            startedAt: new Date().toISOString(),
+            finishedAt: new Date().toISOString(),
+            errors: [],
+            result: { closedPositions: 3 },
+          },
+          {
+            name: 'STOP_AUTO_TRADING',
+            status: 'SUCCESS',
+            startedAt: new Date().toISOString(),
+            finishedAt: new Date().toISOString(),
+            errors: [],
+            result: { autoTradingDisabled: true },
+          },
+        ],
+        executionTimeMs: 10,
+      } satisfies EmergencyCloseResult)
+
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
+
+      await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
+      await fireEvent.click(screen.getByTestId('stop-engine-checkbox'))
+      await fireEvent.change(screen.getByTestId('confirmation-input'), {
+        target: { value: 'CLOSE ALL' },
+      })
+      await fireEvent.click(screen.getByTestId('confirm-close-btn'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('result-success')).toBeInTheDocument()
+      })
+
+      expect(screen.getByTestId('emergency-steps')).toBeInTheDocument()
     })
   })
 
@@ -152,7 +300,7 @@ describe('EmergencyControls', () => {
         spotPositionCount: 0,
         futuresPositionCount: 0,
       }
-      render(<EmergencyControls exposure={noPositions} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={noPositions} onEmergencyClose={vi.fn()} />)
 
       expect(screen.getByRole('button', { name: /close all/i })).toBeDisabled()
       expect(screen.getByRole('button', { name: /close specific/i })).toBeDisabled()
@@ -165,29 +313,15 @@ describe('EmergencyControls', () => {
         spotPositionCount: 0,
         futuresPositionCount: 0,
       }
-      render(<EmergencyControls exposure={noPositions} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={noPositions} onEmergencyClose={vi.fn()} />)
 
       expect(screen.getByText(/no open positions/i)).toBeInTheDocument()
     })
   })
 
-  describe('error handling', () => {
-    it('displays error message when error prop is set', () => {
-      render(
-        <EmergencyControls
-          exposure={mockExposure}
-          onCloseAll={vi.fn()}
-          error="Failed to close positions"
-        />,
-      )
-
-      expect(screen.getByText('Failed to close positions')).toBeInTheDocument()
-    })
-  })
-
   describe('accessibility', () => {
     it('modal has dialog role and aria-modal', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
 
@@ -197,7 +331,7 @@ describe('EmergencyControls', () => {
     })
 
     it('modal has accessible label', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
 
@@ -206,7 +340,7 @@ describe('EmergencyControls', () => {
     })
 
     it('focuses confirmation input when modal opens', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
 
@@ -216,7 +350,7 @@ describe('EmergencyControls', () => {
     })
 
     it('closes modal on Escape key press', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
       expect(screen.getByTestId('emergency-modal')).toBeInTheDocument()
@@ -230,7 +364,7 @@ describe('EmergencyControls', () => {
     })
 
     it('returns focus to trigger button when modal closes', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       const closeAllBtn = screen.getByRole('button', { name: /close all/i })
       await fireEvent.click(closeAllBtn)
@@ -243,7 +377,7 @@ describe('EmergencyControls', () => {
     })
 
     it('scope selector buttons navigate to confirmation screen on click', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close specific/i }))
 
@@ -257,8 +391,11 @@ describe('EmergencyControls', () => {
     })
 
     it('confirms with Enter key when input is valid', async () => {
-      const onCloseAll = vi.fn()
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={onCloseAll} />)
+      vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
+      const onEmergencyClose = vi
+        .fn()
+        .mockResolvedValue({ success: true } satisfies Partial<EmergencyCloseResult>)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
 
@@ -271,12 +408,14 @@ describe('EmergencyControls', () => {
         code: 'Enter',
       })
 
-      expect(onCloseAll).toHaveBeenCalledWith('ALL')
+      await waitFor(() => {
+        expect(onEmergencyClose).toHaveBeenCalledWith('ALL', false, 'uuid-1')
+      })
     })
 
     it('does not confirm with Enter when input is invalid', async () => {
-      const onCloseAll = vi.fn()
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={onCloseAll} />)
+      const onEmergencyClose = vi.fn()
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
 
@@ -288,11 +427,11 @@ describe('EmergencyControls', () => {
         code: 'Enter',
       })
 
-      expect(onCloseAll).not.toHaveBeenCalled()
+      expect(onEmergencyClose).not.toHaveBeenCalled()
     })
 
     it('closes modal on Escape from scope selector', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close specific/i }))
       expect(screen.getByTestId('scope-selector')).toBeInTheDocument()
@@ -305,15 +444,8 @@ describe('EmergencyControls', () => {
       expect(screen.queryByTestId('emergency-modal')).not.toBeInTheDocument()
     })
 
-    it('disables confirm button and input while closing', () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} isClosing />)
-
-      // Modal should not be openable while closing (buttons disabled)
-      expect(screen.getByRole('button', { name: /close all/i })).toBeDisabled()
-    })
-
     it('confirm button has aria-disabled when not valid', async () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} />)
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={vi.fn()} />)
 
       await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
 
@@ -321,24 +453,44 @@ describe('EmergencyControls', () => {
       expect(confirmBtn).toBeDisabled()
     })
 
-    it('error message has alert role', () => {
-      render(
-        <EmergencyControls
-          exposure={mockExposure}
-          onCloseAll={vi.fn()}
-          error="Failed to close positions"
-        />,
+    it('does not close modal on Escape during execution', async () => {
+      vi.stubGlobal('crypto', { randomUUID: () => 'uuid-1' })
+      let resolvePromise: (value: EmergencyCloseResult) => void
+      const onEmergencyClose = vi.fn(
+        () =>
+          new Promise<EmergencyCloseResult>(resolve => {
+            resolvePromise = resolve
+          }),
       )
+      render(<EmergencyControls exposure={mockExposure} onEmergencyClose={onEmergencyClose} />)
 
-      const errorEl = screen.getByRole('alert')
-      expect(errorEl).toHaveTextContent('Failed to close positions')
-    })
+      await fireEvent.click(screen.getByRole('button', { name: /close all/i }))
+      await fireEvent.change(screen.getByTestId('confirmation-input'), {
+        target: { value: 'CLOSE ALL' },
+      })
+      await fireEvent.click(screen.getByTestId('confirm-close-btn'))
 
-    it('loading spinner has aria-live region', () => {
-      render(<EmergencyControls exposure={mockExposure} onCloseAll={vi.fn()} isClosing />)
+      await fireEvent.keyDown(screen.getByTestId('emergency-modal'), {
+        key: 'Escape',
+        code: 'Escape',
+      })
 
-      const spinner = screen.getByTestId('closing-spinner')
-      expect(spinner).toHaveAttribute('aria-live', 'polite')
+      // Modal should still be visible during execution
+      expect(screen.getByTestId('emergency-modal')).toBeInTheDocument()
+
+      act(() => {
+        resolvePromise({
+          success: true,
+          scope: 'ALL',
+          stopEngine: false,
+          idempotencyKey: 'uuid-1',
+          canceledOrders: 0,
+          closedPositions: 1,
+          autoTradingDisabled: false,
+          steps: [],
+          executionTimeMs: 10,
+        })
+      })
     })
   })
 })

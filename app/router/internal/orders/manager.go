@@ -46,6 +46,123 @@ func NewManager(spotClient, futuresClient *binance.Client, eventEmitter EventEmi
 	}
 }
 
+func (m *Manager) CancelOpenOrders(
+	ctx context.Context,
+	req *CancelOpenOrdersRequest,
+) (*CancelOpenOrdersResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if req.Scope != EmergencyScopeAll && req.Scope != EmergencyScopeSpot && req.Scope != EmergencyScopeFutures {
+		return nil, fmt.Errorf("invalid scope: %s", req.Scope)
+	}
+
+	resp := &CancelOpenOrdersResponse{CanceledOrders: 0, Errors: nil}
+
+	cancelForClient := func(client *binance.Client, symbols []string) {
+		if client == nil {
+			resp.Errors = append(resp.Errors, "client not configured")
+			return
+		}
+		for _, symbol := range symbols {
+			openOrders, err := client.GetOpenOrders(ctx, symbol)
+			if err != nil {
+				resp.Errors = append(resp.Errors, fmt.Sprintf("%s: list open orders failed: %v", symbol, err))
+				continue
+			}
+			for _, order := range openOrders {
+				if err := client.CancelOrder(ctx, symbol, order.OrderID); err != nil {
+					resp.Errors = append(resp.Errors, fmt.Sprintf("%s: cancel order %d failed: %v", symbol, order.OrderID, err))
+					continue
+				}
+				resp.CanceledOrders += 1
+			}
+		}
+	}
+
+	switch req.Scope {
+	case EmergencyScopeSpot:
+		cancelForClient(m.spotClient, req.Symbols)
+	case EmergencyScopeFutures:
+		cancelForClient(m.futuresClient, req.Symbols)
+	case EmergencyScopeAll:
+		cancelForClient(m.spotClient, req.Symbols)
+		cancelForClient(m.futuresClient, req.Symbols)
+	}
+
+	return resp, nil
+}
+
+func (m *Manager) ClosePositions(
+	ctx context.Context,
+	req *ClosePositionsRequest,
+) (*ClosePositionsResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if req.Scope != EmergencyScopeAll && req.Scope != EmergencyScopeSpot && req.Scope != EmergencyScopeFutures {
+		return nil, fmt.Errorf("invalid scope: %s", req.Scope)
+	}
+
+	resp := &ClosePositionsResponse{ClosedPositions: 0, Errors: nil}
+
+	if req.Scope == EmergencyScopeSpot {
+		resp.Errors = append(resp.Errors, "spot position closing not supported")
+		return resp, nil
+	}
+
+	if m.futuresClient == nil {
+		resp.Errors = append(resp.Errors, "futures client not configured")
+		return resp, nil
+	}
+
+	account, err := m.futuresClient.GetFuturesAccountInfo(ctx)
+	if err != nil {
+		resp.Errors = append(resp.Errors, fmt.Sprintf("get futures account failed: %v", err))
+		return resp, nil
+	}
+
+	allowedSymbols := map[string]struct{}{}
+	if len(req.Symbols) > 0 {
+		for _, s := range req.Symbols {
+			allowedSymbols[s] = struct{}{}
+		}
+	}
+
+	for _, p := range account.Positions {
+		if p.PositionAmt.IsZero() {
+			continue
+		}
+		if len(allowedSymbols) > 0 {
+			if _, ok := allowedSymbols[p.Symbol]; !ok {
+				continue
+			}
+		}
+
+		side := "SELL"
+		if p.PositionAmt.IsNegative() {
+			side = "BUY"
+		}
+
+		_, placeErr := m.futuresClient.PlaceFuturesOrder(ctx, binance.FuturesOrderRequest{
+			Symbol:        p.Symbol,
+			Side:          side,
+			Type:          "MARKET",
+			Quantity:      decimal.Zero,
+			ReduceOnly:    true,
+			ClosePosition: true,
+		})
+		if placeErr != nil {
+			resp.Errors = append(resp.Errors, fmt.Sprintf("%s: close position failed: %v", p.Symbol, placeErr))
+			continue
+		}
+
+		resp.ClosedPositions += 1
+	}
+
+	return resp, nil
+}
+
 // PlaceBracketOrder places a bracket order with idempotency
 func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketRequest) (*PlaceBracketResponse, error) {
 	// Validate request

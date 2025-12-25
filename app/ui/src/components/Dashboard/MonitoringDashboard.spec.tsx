@@ -1,21 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MonitoringDashboard } from './MonitoringDashboard'
-import type {
-  GuardStatusResponse,
-  ExposureSummary,
-  TradingKPIs,
-  EquityPoint,
-  PipelineHealthResponse,
-  EngineStatus,
-  PositionSummary,
-} from '@/types/dashboard'
-import type { Position, Balance } from '@/types'
 
 // Mock child components to isolate dashboard layout testing
 vi.mock('./GuardStatusPanel', () => ({
   GuardStatusPanel: ({
-    status,
+    status: _status,
     loading,
     error,
   }: {
@@ -31,7 +21,7 @@ vi.mock('./GuardStatusPanel', () => ({
 
 vi.mock('./ExposurePanel', () => ({
   ExposurePanel: ({
-    exposure,
+    exposure: _exposure,
     loading,
     error,
   }: {
@@ -46,7 +36,15 @@ vi.mock('./ExposurePanel', () => ({
 }))
 
 vi.mock('./TradingKPIs', () => ({
-  TradingKPIs: ({ kpis, loading, error }: { kpis: unknown; loading?: boolean; error?: string }) => (
+  TradingKPIs: ({
+    kpis: _kpis,
+    loading,
+    error,
+  }: {
+    kpis: unknown
+    loading?: boolean
+    error?: string
+  }) => (
     <div data-testid="trading-kpis" data-loading={loading} data-error={error}>
       TradingKPIs
     </div>
@@ -55,7 +53,7 @@ vi.mock('./TradingKPIs', () => ({
 
 vi.mock('./EquityCurve', () => ({
   EquityCurve: ({
-    data,
+    data: _data,
     loading,
     error,
   }: {
@@ -71,7 +69,7 @@ vi.mock('./EquityCurve', () => ({
 
 vi.mock('./PipelineHealth', () => ({
   PipelineHealth: ({
-    data,
+    data: _data,
     loading,
     error,
   }: {
@@ -87,7 +85,7 @@ vi.mock('./PipelineHealth', () => ({
 
 vi.mock('./AutoTradingStatus', () => ({
   AutoTradingStatus: ({
-    status,
+    status: _status,
     loading,
     error,
   }: {
@@ -102,13 +100,17 @@ vi.mock('./AutoTradingStatus', () => ({
 }))
 
 vi.mock('./EmergencyControls', () => ({
-  EmergencyControls: ({ positionSummary }: { positionSummary: unknown }) => (
-    <div data-testid="emergency-controls">EmergencyControls</div>
-  ),
+  EmergencyControls: () => <div data-testid="emergency-controls">EmergencyControls</div>,
 }))
 
 vi.mock('../trading/PositionsList', () => ({
-  PositionsList: ({ positions, loading }: { positions: unknown[]; loading?: boolean }) => (
+  PositionsList: ({
+    positions: _positions,
+    loading,
+  }: {
+    positions: unknown[]
+    loading?: boolean
+  }) => (
     <div data-testid="positions-list" data-loading={loading}>
       PositionsList
     </div>
@@ -116,7 +118,13 @@ vi.mock('../trading/PositionsList', () => ({
 }))
 
 vi.mock('../trading/AccountBalance', () => ({
-  AccountBalance: ({ balances, loading }: { balances: unknown[]; loading?: boolean }) => (
+  AccountBalance: ({
+    balances: _balances,
+    loading,
+  }: {
+    balances: unknown[]
+    loading?: boolean
+  }) => (
     <div data-testid="account-balance" data-loading={loading}>
       AccountBalance
     </div>
@@ -130,7 +138,7 @@ const defaultProps = {
   equityCurve: [],
   pipelineHealth: null,
   engineStatus: null,
-  positionSummary: null,
+  onEmergencyClose: vi.fn(),
   positions: [],
   balances: [],
 }

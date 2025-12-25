@@ -88,3 +88,31 @@ type CloseAllRequest struct {
 	Symbol    string `json:"symbol,omitempty"`
 	IsFutures bool   `json:"is_futures"`
 }
+
+type EmergencyScope string
+
+const (
+	EmergencyScopeAll     EmergencyScope = "ALL"
+	EmergencyScopeSpot    EmergencyScope = "SPOT"
+	EmergencyScopeFutures EmergencyScope = "FUTURES"
+)
+
+type CancelOpenOrdersRequest struct {
+	Scope   EmergencyScope `json:"scope"`
+	Symbols []string       `json:"symbols,omitempty"`
+}
+
+type CancelOpenOrdersResponse struct {
+	CanceledOrders int      `json:"canceled_orders"`
+	Errors         []string `json:"errors,omitempty"`
+}
+
+type ClosePositionsRequest struct {
+	Scope   EmergencyScope `json:"scope"`
+	Symbols []string       `json:"symbols,omitempty"`
+}
+
+type ClosePositionsResponse struct {
+	ClosedPositions int      `json:"closed_positions"`
+	Errors          []string `json:"errors,omitempty"`
+}

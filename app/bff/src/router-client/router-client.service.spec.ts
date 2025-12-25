@@ -13,10 +13,10 @@ describe('RouterClientService', () => {
   const mockConfigService = {
     get: jest.fn((key: string) => {
       const config: any = {
-        'router.url': 'http://localhost:8080',
-        'router.timeout': 5000,
-        'router.retryAttempts': 3,
-        'router.retryDelay': 10, // Very short delay for tests
+        ROUTER_URL: 'http://localhost:8080',
+        ROUTER_TIMEOUT: 5000,
+        ROUTER_RETRY_ATTEMPTS: 3,
+        ROUTER_RETRY_DELAY: 10, // Very short delay for tests
       };
       return config[key];
     }),
@@ -156,8 +156,8 @@ describe('RouterClientService', () => {
 
       expect(result).toEqual(mockResponse.data);
       // Verify that retry configuration is loaded
-      expect(configService.get).toHaveBeenCalledWith('router.retryAttempts');
-      expect(configService.get).toHaveBeenCalledWith('router.retryDelay');
+      expect(configService.get).toHaveBeenCalledWith('ROUTER_RETRY_ATTEMPTS');
+      expect(configService.get).toHaveBeenCalledWith('ROUTER_RETRY_DELAY');
     });
 
     it('should throw error on failure', async () => {
@@ -239,6 +239,75 @@ describe('RouterClientService', () => {
         { symbol },
         expect.any(Object),
       );
+    });
+  });
+
+  describe('closeAllPositions', () => {
+    it('should close all positions successfully', async () => {
+      const request = {
+        is_futures: false,
+      };
+
+      const mockResponse: AxiosResponse = {
+        data: {
+          success: true,
+          message: 'All positions closed',
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {},
+      } as any;
+
+      mockHttpService.post.mockReturnValue(of(mockResponse));
+
+      const result = await service.closeAllPositions(request);
+
+      expect(result).toEqual(mockResponse.data);
+      expect(httpService.post).toHaveBeenCalledWith(
+        'http://localhost:8080/close_all',
+        request,
+        expect.any(Object),
+      );
+    });
+
+    it('should close futures positions', async () => {
+      const request = {
+        is_futures: true,
+      };
+
+      const mockResponse: AxiosResponse = {
+        data: {
+          success: true,
+          message: 'All futures positions closed',
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {},
+      } as any;
+
+      mockHttpService.post.mockReturnValue(of(mockResponse));
+
+      const result = await service.closeAllPositions(request);
+
+      expect(result).toEqual(mockResponse.data);
+      expect(httpService.post).toHaveBeenCalledWith(
+        'http://localhost:8080/close_all',
+        request,
+        expect.any(Object),
+      );
+    });
+
+    it('should throw error on failure', async () => {
+      const request = {
+        is_futures: false,
+      };
+
+      const error = new Error('Connection refused');
+      mockHttpService.post.mockReturnValue(throwError(() => error));
+
+      await expect(service.closeAllPositions(request)).rejects.toThrow('Connection refused');
     });
   });
 

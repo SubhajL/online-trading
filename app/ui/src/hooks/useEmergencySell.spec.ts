@@ -1,40 +1,47 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useEmergencySell } from './useEmergencySell'
-import type { EmergencyCloseScope } from '@/types/dashboard'
 
-const mockFetch = vi.fn()
+vi.mock('@/services/api', () => ({
+  apiClient: {
+    post: vi.fn(),
+  },
+}))
+
+import { apiClient } from '@/services/api'
+
+const mockApiClient = vi.mocked(apiClient)
+
+const successResponse = {
+  success: true,
+  scope: 'ALL' as const,
+  stopEngine: false,
+  idempotencyKey: 'idem-1',
+  canceledOrders: 2,
+  closedPositions: 1,
+  autoTradingDisabled: false,
+  steps: [],
+  executionTimeMs: 1,
+}
 
 describe('useEmergencySell', () => {
   beforeEach(() => {
-    mockFetch.mockReset()
-    vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    mockFetch.mockReset()
+    vi.clearAllMocks()
   })
 
   describe('initial state', () => {
     it('starts with isClosing false', () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) })
       const { result } = renderHook(() => useEmergencySell())
-
       expect(result.current.isClosing).toBe(false)
     })
 
     it('starts with no error', () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) })
       const { result } = renderHook(() => useEmergencySell())
-
       expect(result.current.error).toBeNull()
     })
 
     it('starts with no lastResult', () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) })
       const { result } = renderHook(() => useEmergencySell())
-
       expect(result.current.lastResult).toBeNull()
     })
   })
@@ -45,131 +52,118 @@ describe('useEmergencySell', () => {
       const pendingPromise = new Promise(resolve => {
         resolvePromise = resolve
       })
-      mockFetch.mockReturnValueOnce(pendingPromise)
+      mockApiClient.post.mockReturnValueOnce(pendingPromise as Promise<unknown>)
 
       const { result } = renderHook(() => useEmergencySell())
 
       act(() => {
-        result.current.closePositions('ALL')
+        void result.current.closePositions({
+          scope: 'ALL',
+          stopEngine: false,
+          idempotencyKey: 'idem-1',
+        })
       })
 
       expect(result.current.isClosing).toBe(true)
 
       await act(async () => {
-        resolvePromise!({ ok: true, json: async () => ({ success: true }) })
+        resolvePromise!(successResponse)
       })
     })
 
-    it('calls API with correct scope for ALL', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, closedCount: 3 }),
-      })
+    it('calls apiClient.post with body and X-Idempotency-Key header', async () => {
+      mockApiClient.post.mockResolvedValueOnce(successResponse)
 
       const { result } = renderHook(() => useEmergencySell())
 
       await act(async () => {
-        await result.current.closePositions('ALL')
+        await result.current.closePositions({
+          scope: 'ALL',
+          stopEngine: false,
+          idempotencyKey: 'idem-1',
+        })
       })
 
-      expect(mockFetch).toHaveBeenCalledTimes(1)
-      const [url, options] = mockFetch.mock.calls[0]
-      expect(url).toBe('/api/trading/emergency-close')
-      expect(options.method).toBe('POST')
-      expect(options.headers['Content-Type']).toBe('application/json')
-      expect(options.body).toBe(JSON.stringify({ scope: 'ALL' }))
+      expect(mockApiClient.post).toHaveBeenCalledWith(
+        '/trading/emergency-close',
+        { scope: 'ALL', stopEngine: false },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-Idempotency-Key': 'idem-1',
+          }),
+        }),
+      )
     })
 
-    it('calls API with correct scope for SPOT', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, closedCount: 1 }),
+    it('sets lastResult on success and returns response', async () => {
+      mockApiClient.post.mockResolvedValueOnce(successResponse)
+
+      const { result } = renderHook(() => useEmergencySell())
+
+      let returned: unknown
+      await act(async () => {
+        returned = await result.current.closePositions({
+          scope: 'ALL',
+          stopEngine: false,
+          idempotencyKey: 'idem-1',
+        })
       })
+
+      expect(result.current.lastResult).toEqual(successResponse)
+      expect(returned).toEqual(successResponse)
+    })
+
+    it('sets lastResult and error on unsuccessful response and returns response', async () => {
+      const failedResponse = { ...successResponse, success: false }
+      mockApiClient.post.mockResolvedValueOnce(failedResponse)
+
+      const { result } = renderHook(() => useEmergencySell())
+
+      let returned: unknown
+      await act(async () => {
+        returned = await result.current.closePositions({
+          scope: 'ALL',
+          stopEngine: false,
+          idempotencyKey: 'idem-1',
+        })
+      })
+
+      expect(result.current.lastResult).toEqual(failedResponse)
+      expect(result.current.error).toBe('Emergency close failed')
+      expect(returned).toEqual(failedResponse)
+    })
+
+    it('sets error on network failure and throws', async () => {
+      mockApiClient.post.mockRejectedValueOnce(new Error('Network error'))
 
       const { result } = renderHook(() => useEmergencySell())
 
       await act(async () => {
-        await result.current.closePositions('SPOT')
+        await expect(
+          result.current.closePositions({
+            scope: 'ALL',
+            stopEngine: false,
+            idempotencyKey: 'idem-1',
+          }),
+        ).rejects.toThrow('Network error')
       })
 
-      expect(mockFetch).toHaveBeenCalledTimes(1)
-      const [, options] = mockFetch.mock.calls[0]
-      expect(options.body).toBe(JSON.stringify({ scope: 'SPOT' }))
+      await waitFor(() => {
+        expect(result.current.error).toBe('Network error')
+      })
     })
 
-    it('calls API with correct scope for FUTURES', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, closedCount: 2 }),
-      })
+    it('clears isClosing when request completes', async () => {
+      mockApiClient.post.mockResolvedValueOnce(successResponse)
 
       const { result } = renderHook(() => useEmergencySell())
 
       await act(async () => {
-        await result.current.closePositions('FUTURES')
-      })
-
-      expect(mockFetch).toHaveBeenCalledTimes(1)
-      const [, options] = mockFetch.mock.calls[0]
-      expect(options.body).toBe(JSON.stringify({ scope: 'FUTURES' }))
-    })
-
-    it('sets lastResult on successful close', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, closedCount: 3 }),
-      })
-
-      const { result } = renderHook(() => useEmergencySell())
-
-      await act(async () => {
-        await result.current.closePositions('ALL')
-      })
-
-      expect(result.current.lastResult).toEqual({
-        success: true,
-        closedCount: 3,
-      })
-    })
-
-    it('sets error on failed close', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({ error: 'Internal server error' }),
-      })
-
-      const { result } = renderHook(() => useEmergencySell())
-
-      await act(async () => {
-        await result.current.closePositions('ALL')
-      })
-
-      expect(result.current.error).toBe('Internal server error')
-    })
-
-    it('sets error on network failure', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'))
-
-      const { result } = renderHook(() => useEmergencySell())
-
-      await act(async () => {
-        await result.current.closePositions('ALL')
-      })
-
-      expect(result.current.error).toBe('Network error')
-    })
-
-    it('resets isClosing to false after request completes', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
-
-      const { result } = renderHook(() => useEmergencySell())
-
-      await act(async () => {
-        await result.current.closePositions('ALL')
+        await result.current.closePositions({
+          scope: 'ALL',
+          stopEngine: false,
+          idempotencyKey: 'idem-1',
+        })
       })
 
       expect(result.current.isClosing).toBe(false)
@@ -178,50 +172,31 @@ describe('useEmergencySell', () => {
 
   describe('clearError', () => {
     it('clears the error state', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'))
+      mockApiClient.post.mockRejectedValueOnce(new Error('Network error'))
 
       const { result } = renderHook(() => useEmergencySell())
 
       await act(async () => {
-        await result.current.closePositions('ALL')
+        try {
+          await result.current.closePositions({
+            scope: 'ALL',
+            stopEngine: false,
+            idempotencyKey: 'idem-1',
+          })
+        } catch {
+          // expected
+        }
       })
 
-      expect(result.current.error).toBe('Network error')
+      await waitFor(() => {
+        expect(result.current.error).toBe('Network error')
+      })
 
       act(() => {
         result.current.clearError()
       })
 
       expect(result.current.error).toBeNull()
-    })
-  })
-
-  describe('idempotency', () => {
-    it('generates unique idempotency key for each request', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
-
-      const { result } = renderHook(() => useEmergencySell())
-
-      await act(async () => {
-        await result.current.closePositions('ALL')
-      })
-
-      const firstCall = mockFetch.mock.calls[0]
-      const firstHeaders = firstCall[1].headers
-
-      await act(async () => {
-        await result.current.closePositions('ALL')
-      })
-
-      const secondCall = mockFetch.mock.calls[1]
-      const secondHeaders = secondCall[1].headers
-
-      expect(firstHeaders['X-Idempotency-Key']).toBeDefined()
-      expect(secondHeaders['X-Idempotency-Key']).toBeDefined()
-      expect(firstHeaders['X-Idempotency-Key']).not.toBe(secondHeaders['X-Idempotency-Key'])
     })
   })
 })

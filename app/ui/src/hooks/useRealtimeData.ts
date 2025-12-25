@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { WebSocketService } from '@/services/websocket.service'
-import { getWebSocketUrl } from '@/config/constants'
+import { websocketService } from '@/services/websocket'
 import type { Symbol } from '@/types'
 
 export type Subscription = {
@@ -9,45 +8,38 @@ export type Subscription = {
   onData?: (data: unknown) => void
 }
 
+/**
+ * Hook for managing real-time data subscriptions.
+ * Uses the singleton WebSocket service for shared connection.
+ */
 export function useRealtimeData(subscriptions: Subscription[]) {
-  const [isConnected, setIsConnected] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isConnected, setIsConnected] = useState(websocketService.isConnected())
+  const [isLoading, setIsLoading] = useState(!websocketService.isConnected())
   const [error, setError] = useState<Error | null>(null)
-  const wsRef = useRef<WebSocketService | null>(null)
   const handlersRef = useRef<Map<string, (data: unknown) => void>>(new Map())
   const activeSubscriptionsRef = useRef<Set<string>>(new Set())
 
-  // Initialize WebSocket connection
+  // Subscribe to connection state changes from singleton
   useEffect(() => {
-    const ws = new WebSocketService()
-    wsRef.current = ws
-
-    const connect = async () => {
-      try {
-        setIsLoading(true)
+    const unsubscribe = websocketService.onConnectionStateChange(state => {
+      setIsConnected(state.connected)
+      setIsLoading(state.connecting)
+      if (!state.connected && !state.connecting && state.reconnectAttempts > 0) {
+        setError(new Error('Connection lost'))
+      } else if (state.connected) {
         setError(null)
-        ws.connect(getWebSocketUrl())
-        const connected = ws.isConnected()
-        setIsConnected(connected)
-      } catch (err) {
-        setError(err as Error)
-      } finally {
-        setIsLoading(false)
       }
-    }
-
-    connect()
+    })
 
     return () => {
-      ws.disconnect()
+      unsubscribe()
     }
   }, [])
 
   // Manage subscriptions
   useEffect(() => {
-    if (!wsRef.current || !isConnected) return
+    if (!isConnected) return
 
-    const ws = wsRef.current
     const currentSubscriptions = new Set<string>()
     const newHandlers = new Map<string, (data: unknown) => void>()
 
@@ -73,7 +65,7 @@ export function useRealtimeData(subscriptions: Subscription[]) {
 
       // Subscribe if not already subscribed
       if (!activeSubscriptionsRef.current.has(key)) {
-        ws.on(sub.channel, handler)
+        websocketService.on(sub.channel, handler)
       }
     })
 
@@ -84,7 +76,7 @@ export function useRealtimeData(subscriptions: Subscription[]) {
         const handler = handlersRef.current.get(key)
 
         if (handler) {
-          ws.off(channel!, handler)
+          websocketService.off(channel!, handler)
         }
       }
     })
@@ -100,35 +92,23 @@ export function useRealtimeData(subscriptions: Subscription[]) {
         const [channel] = key.split(':')
         const handler = newHandlers.get(key)
         if (handler) {
-          ws.off(channel!, handler)
+          websocketService.off(channel!, handler)
         }
       })
     }
   }, [subscriptions, isConnected])
 
+  // Note: These don't disconnect/reconnect the singleton - they just update local state
+  // In a real implementation, you might want to trigger a reconnect via the service
   const disconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.disconnect()
-      setIsConnected(false)
-    }
+    // Just update local state - don't actually disconnect the singleton
+    // as other components may be using it
+    setIsConnected(false)
   }, [])
 
-  const reconnect = useCallback(async () => {
-    if (wsRef.current) {
-      wsRef.current.disconnect()
-      setIsConnected(false)
-      setIsLoading(true)
-      setError(null)
-
-      try {
-        wsRef.current.connect(getWebSocketUrl())
-        setIsConnected(wsRef.current.isConnected())
-      } catch (err) {
-        setError(err as Error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  const reconnect = useCallback(() => {
+    // Trigger reconnection via the service's reconnectWithAuth
+    websocketService.reconnectWithAuth()
   }, [])
 
   return {

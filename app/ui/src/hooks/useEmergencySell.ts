@@ -1,18 +1,23 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import type { EmergencyCloseScope, EmergencyCloseResult } from '@/types/dashboard'
+import { apiClient } from '@/services/api'
+import type {
+  EmergencyCloseScope,
+  EmergencyCloseResult,
+  EmergencyCloseResponse,
+} from '@/types/dashboard'
 
 type UseEmergencySellReturn = {
   isClosing: boolean
   error: string | null
   lastResult: EmergencyCloseResult | null
-  closePositions: (scope: EmergencyCloseScope) => Promise<void>
+  closePositions: (args: {
+    scope: EmergencyCloseScope
+    stopEngine: boolean
+    idempotencyKey: string
+  }) => Promise<EmergencyCloseResponse>
   clearError: () => void
-}
-
-function generateIdempotencyKey(): string {
-  return `emergency-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
 }
 
 export function useEmergencySell(): UseEmergencySellReturn {
@@ -20,39 +25,45 @@ export function useEmergencySell(): UseEmergencySellReturn {
   const [error, setError] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<EmergencyCloseResult | null>(null)
 
-  const closePositions = useCallback(async (scope: EmergencyCloseScope) => {
-    setIsClosing(true)
-    setError(null)
+  const closePositions = useCallback(
+    async ({
+      scope,
+      stopEngine,
+      idempotencyKey,
+    }: {
+      scope: EmergencyCloseScope
+      stopEngine: boolean
+      idempotencyKey: string
+    }) => {
+      setIsClosing(true)
+      setError(null)
 
-    const idempotencyKey = generateIdempotencyKey()
+      try {
+        const data = await apiClient.post<EmergencyCloseResponse>(
+          '/trading/emergency-close',
+          { scope, stopEngine },
+          {
+            headers: {
+              'X-Idempotency-Key': idempotencyKey,
+            },
+          },
+        )
 
-    try {
-      const response = await fetch('/api/trading/emergency-close', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify({ scope }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || `Failed with status ${response.status}`)
-        return
+        setLastResult(data)
+        if (!data.success) {
+          setError('Emergency close failed')
+        }
+        return data
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error occurred'
+        setError(message)
+        throw err instanceof Error ? err : new Error(message)
+      } finally {
+        setIsClosing(false)
       }
-
-      setLastResult({
-        success: data.success,
-        closedCount: data.closedCount,
-      })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred')
-    } finally {
-      setIsClosing(false)
-    }
-  }, [])
+    },
+    [],
+  )
 
   const clearError = useCallback(() => {
     setError(null)

@@ -9,7 +9,7 @@ import type {
   PipelineHealthResponse,
   EngineStatus,
   EmergencyCloseScope,
-  PositionSummary,
+  EmergencyCloseResult,
 } from '@/types/dashboard'
 import { GuardStatusPanel } from './GuardStatusPanel'
 import { ExposurePanel } from './ExposurePanel'
@@ -56,8 +56,11 @@ type MonitoringDashboardProps = {
   onToggleAutoTrading?: (enabled: boolean) => void
 
   // Emergency controls
-  positionSummary: PositionSummary | null
-  onEmergencyClose?: (scope: EmergencyCloseScope, stopEngine: boolean) => Promise<void>
+  onEmergencyClose: (
+    scope: EmergencyCloseScope,
+    stopEngine: boolean,
+    idempotencyKey: string,
+  ) => Promise<EmergencyCloseResult>
 
   // Positions
   positions: Position[]
@@ -91,7 +94,6 @@ export function MonitoringDashboard({
   engineStatusError,
   activeSignals,
   onToggleAutoTrading,
-  positionSummary,
   onEmergencyClose,
   positions,
   positionsLoading,
@@ -110,7 +112,7 @@ export function MonitoringDashboard({
             error={guardStatusError}
           />
           <ExposurePanel exposure={exposure} loading={exposureLoading} error={exposureError} />
-          <EmergencyControls positionSummary={positionSummary} onClose={onEmergencyClose} />
+          <EmergencyControls exposure={exposure} onEmergencyClose={onEmergencyClose} />
         </div>
       </section>
 

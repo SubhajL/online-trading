@@ -283,7 +283,7 @@
   /* ===== CONSTRAINTS ===== */
   /* Reusable constraint values for consistent UX */
   --constraint-max-scroll-height: 300px; /* Max height for scrollable code blocks */
-  --constraint-min-touch-target: 44px;   /* Minimum touch target size (iOS HIG / WCAG) */
+  --constraint-min-touch-target: 44px; /* Minimum touch target size (iOS HIG / WCAG) */
 }
 
 /**

@@ -268,6 +268,30 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 	return nil
 }
 
+// CancelFuturesOrder cancels an active futures order
+func (c *Client) CancelFuturesOrder(ctx context.Context, symbol string, orderID int64) error {
+	if c.signer == nil {
+		return fmt.Errorf("signer required for CancelFuturesOrder")
+	}
+	if symbol == "" {
+		return fmt.Errorf("symbol is required")
+	}
+	if orderID <= 0 {
+		return fmt.Errorf("orderID is required")
+	}
+
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("orderId", strconv.FormatInt(orderID, 10))
+
+	_, err := c.doRequest(ctx, "DELETE", "/fapi/v1/order", params, true)
+	if err != nil {
+		return ErrorWithContext(err, "CancelFuturesOrder")
+	}
+
+	return nil
+}
+
 // GetTicker24hr retrieves 24 hour ticker statistics for a symbol
 func (c *Client) GetTicker24hr(ctx context.Context, symbol string) (*Ticker24hr, error) {
 	params := url.Values{}
@@ -306,6 +330,31 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]Order, err
 	var orders []Order
 	if err := json.Unmarshal(body, &orders); err != nil {
 		return nil, ErrorWithContext(err, "GetOpenOrders")
+	}
+
+	return orders, nil
+}
+
+// GetFuturesOpenOrders lists all open futures orders for a symbol
+func (c *Client) GetFuturesOpenOrders(ctx context.Context, symbol string) ([]Order, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for GetFuturesOpenOrders")
+	}
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+
+	params := url.Values{}
+	params.Set("symbol", symbol)
+
+	body, err := c.doRequest(ctx, "GET", "/fapi/v1/openOrders", params, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesOpenOrders")
+	}
+
+	var orders []Order
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesOpenOrders")
 	}
 
 	return orders, nil

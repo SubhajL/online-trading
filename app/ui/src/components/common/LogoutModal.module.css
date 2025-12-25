@@ -134,7 +134,9 @@
   color: hsl(220, 15%, 70%);
   font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
 }
 
 .cancelButton:hover {
@@ -161,4 +163,3 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
-
