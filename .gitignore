@@ -457,6 +457,10 @@ $RECYCLE.BIN/
 *.env.*
 !.env.example
 
+# Telethon session files (external Telegram channel monitoring)
+.telegram_sessions/
+captain_trading_session.session*
+
 # Trading data and logs
 /data/
 /logs/

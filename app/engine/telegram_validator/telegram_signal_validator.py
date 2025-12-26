@@ -8,7 +8,7 @@ This helps verify your SMC implementation accuracy.
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import logging
 import re
 
@@ -131,7 +131,7 @@ class SignalParser:
                         raw_text=message,
                     )
 
-                except (ValueError, decimal.InvalidOperation):
+                except (ValueError, InvalidOperation):
                     logger.warning(f"Failed to parse prices from: {message}")
 
         return None

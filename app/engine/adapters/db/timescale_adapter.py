@@ -317,6 +317,72 @@ class TimescaleDBAdapter:
             """,
             )
 
+            # External Telegram messages table (Captain benchmark ingestion)
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS external_telegram_messages (
+                    source VARCHAR(50) NOT NULL,
+                    chat_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    grouped_id BIGINT,
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    text TEXT,
+                    has_photo BOOLEAN NOT NULL DEFAULT FALSE,
+                    photo_path TEXT,
+                    raw_json JSONB,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(source, chat_id, message_id)
+                );
+            """,
+            )
+
+            # External Telegram signals table (parsed trade/news signals)
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS external_telegram_signals (
+                    source VARCHAR(50) NOT NULL,
+                    chat_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    kind VARCHAR(30) NOT NULL,
+                    strategy VARCHAR(50),
+                    symbol VARCHAR(20),
+                    timeframe VARCHAR(10),
+                    direction VARCHAR(4),
+                    entry_price DECIMAL(20,8),
+                    stop_loss DECIMAL(20,8),
+                    take_profits JSONB,
+                    parse_confidence DECIMAL(4,3),
+                    parse_sources JSONB,
+                    ocr_raw_text TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(source, chat_id, message_id)
+                );
+            """,
+            )
+
+            # External Telegram signal validations table (agreement vs internal system)
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS external_telegram_signal_validations (
+                    source VARCHAR(50) NOT NULL,
+                    chat_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    internal_kind VARCHAR(30),
+                    internal_id UUID,
+                    internal_timestamp TIMESTAMPTZ,
+                    score DECIMAL(4,3) NOT NULL,
+                    breakdown JSONB,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(source, chat_id, message_id)
+                );
+            """,
+            )
+
     async def _create_hypertables(self) -> None:
         """Create TimescaleDB hypertables for time-series data"""
         async with self.get_connection() as conn:
@@ -370,6 +436,10 @@ class TimescaleDBAdapter:
                 # Events indexes
                 "CREATE INDEX IF NOT EXISTS idx_events_type_timestamp ON events (event_type, timestamp DESC);",
                 "CREATE INDEX IF NOT EXISTS idx_events_symbol ON events (symbol, timestamp DESC) WHERE symbol IS NOT NULL;",
+                # External telegram benchmark ingestion indexes
+                "CREATE INDEX IF NOT EXISTS idx_ext_tg_messages_timestamp ON external_telegram_messages (timestamp DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_ext_tg_signals_symbol_timeframe_timestamp ON external_telegram_signals (symbol, timeframe, timestamp DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_ext_tg_validations_timestamp ON external_telegram_signal_validations (timestamp DESC);",
             ]
 
             for index_sql in indexes:
@@ -472,6 +542,246 @@ class TimescaleDBAdapter:
         except Exception as e:
             logger.error(f"Error inserting candles batch: {e}")
             return 0
+
+    # ============================================================================
+    # External Captain Benchmark Operations
+    # ============================================================================
+
+    async def upsert_external_telegram_message(
+        self,
+        *,
+        source: str,
+        chat_id: int,
+        message_id: int,
+        grouped_id: int | None,
+        timestamp: datetime,
+        text: str | None,
+        has_photo: bool,
+        photo_path: str | None,
+        raw_json: dict[str, Any] | None,
+    ) -> None:
+        """Insert or update a raw external Telegram message record."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO external_telegram_messages (
+                    source,
+                    chat_id,
+                    message_id,
+                    grouped_id,
+                    timestamp,
+                    text,
+                    has_photo,
+                    photo_path,
+                    raw_json,
+                    updated_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+                ON CONFLICT (source, chat_id, message_id)
+                DO UPDATE SET
+                    grouped_id = EXCLUDED.grouped_id,
+                    timestamp = EXCLUDED.timestamp,
+                    text = EXCLUDED.text,
+                    has_photo = EXCLUDED.has_photo,
+                    photo_path = EXCLUDED.photo_path,
+                    raw_json = EXCLUDED.raw_json,
+                    updated_at = NOW();
+            """,
+                source,
+                chat_id,
+                message_id,
+                grouped_id,
+                timestamp,
+                text,
+                has_photo,
+                photo_path,
+                raw_json,
+            )
+
+    async def upsert_external_telegram_signal(
+        self,
+        *,
+        source: str,
+        chat_id: int,
+        message_id: int,
+        timestamp: datetime,
+        kind: str,
+        strategy: str | None,
+        symbol: str | None,
+        timeframe: str | None,
+        direction: str | None,
+        entry_price: str | None,
+        stop_loss: str | None,
+        take_profits: list[str] | None,
+        parse_confidence: float | None,
+        parse_sources: list[str] | None,
+        ocr_raw_text: str | None,
+    ) -> None:
+        """Insert or update a parsed external Telegram signal."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO external_telegram_signals (
+                    source,
+                    chat_id,
+                    message_id,
+                    timestamp,
+                    kind,
+                    strategy,
+                    symbol,
+                    timeframe,
+                    direction,
+                    entry_price,
+                    stop_loss,
+                    take_profits,
+                    parse_confidence,
+                    parse_sources,
+                    ocr_raw_text,
+                    updated_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+                ON CONFLICT (source, chat_id, message_id)
+                DO UPDATE SET
+                    timestamp = EXCLUDED.timestamp,
+                    kind = EXCLUDED.kind,
+                    strategy = EXCLUDED.strategy,
+                    symbol = EXCLUDED.symbol,
+                    timeframe = EXCLUDED.timeframe,
+                    direction = EXCLUDED.direction,
+                    entry_price = EXCLUDED.entry_price,
+                    stop_loss = EXCLUDED.stop_loss,
+                    take_profits = EXCLUDED.take_profits,
+                    parse_confidence = EXCLUDED.parse_confidence,
+                    parse_sources = EXCLUDED.parse_sources,
+                    ocr_raw_text = EXCLUDED.ocr_raw_text,
+                    updated_at = NOW();
+            """,
+                source,
+                chat_id,
+                message_id,
+                timestamp,
+                kind,
+                strategy,
+                symbol,
+                timeframe,
+                direction,
+                entry_price,
+                stop_loss,
+                take_profits,
+                parse_confidence,
+                parse_sources,
+                ocr_raw_text,
+            )
+
+    async def upsert_external_telegram_signal_validation(
+        self,
+        *,
+        source: str,
+        chat_id: int,
+        message_id: int,
+        timestamp: datetime,
+        internal_kind: str | None,
+        internal_id: str | None,
+        internal_timestamp: datetime | None,
+        score: float,
+        breakdown: dict[str, Any] | None,
+    ) -> None:
+        """Insert or update agreement scoring for an external Telegram signal."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO external_telegram_signal_validations (
+                    source,
+                    chat_id,
+                    message_id,
+                    timestamp,
+                    internal_kind,
+                    internal_id,
+                    internal_timestamp,
+                    score,
+                    breakdown,
+                    updated_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+                ON CONFLICT (source, chat_id, message_id)
+                DO UPDATE SET
+                    timestamp = EXCLUDED.timestamp,
+                    internal_kind = EXCLUDED.internal_kind,
+                    internal_id = EXCLUDED.internal_id,
+                    internal_timestamp = EXCLUDED.internal_timestamp,
+                    score = EXCLUDED.score,
+                    breakdown = EXCLUDED.breakdown,
+                    updated_at = NOW();
+            """,
+                source,
+                chat_id,
+                message_id,
+                timestamp,
+                internal_kind,
+                internal_id,
+                internal_timestamp,
+                score,
+                breakdown,
+            )
+
+    async def get_external_telegram_signals(
+        self,
+        *,
+        source: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000,
+    ) -> list[dict[Any, Any]]:
+        """Get external Telegram signals for a source and time window."""
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT *
+                    FROM external_telegram_signals
+                    WHERE source = $1
+                      AND timestamp >= $2
+                      AND timestamp <= $3
+                    ORDER BY timestamp DESC
+                    LIMIT $4
+                """,
+                    source,
+                    start_time,
+                    end_time,
+                    limit,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving external telegram signals: {e}")
+            return []
+
+    async def get_external_telegram_signal_validations(
+        self,
+        *,
+        source: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000,
+    ) -> list[dict[Any, Any]]:
+        """Get external signal validations for a source and time window."""
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT *
+                    FROM external_telegram_signal_validations
+                    WHERE source = $1
+                      AND timestamp >= $2
+                      AND timestamp <= $3
+                    ORDER BY timestamp DESC
+                    LIMIT $4
+                """,
+                    source,
+                    start_time,
+                    end_time,
+                    limit,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving external telegram validations: {e}")
+            return []
 
     async def insert_candles_copy(self, candles: list[Candle]) -> int:
         """Insert multiple candles using COPY for high throughput."""
@@ -718,6 +1028,71 @@ class TimescaleDBAdapter:
 
         except Exception as e:
             logger.error(f"Error retrieving recent decisions: {e}")
+            return []
+
+    async def get_trading_decisions_in_window(
+        self,
+        *,
+        symbol: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000,
+    ) -> list[dict[Any, Any]]:
+        """Get trading decisions for a symbol in a time window."""
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT *
+                    FROM trading_decisions
+                    WHERE symbol = $1
+                      AND timestamp >= $2
+                      AND timestamp <= $3
+                    ORDER BY timestamp DESC
+                    LIMIT $4
+                """,
+                    symbol,
+                    start_time,
+                    end_time,
+                    limit,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving trading decisions: {e}")
+            return []
+
+    async def get_smc_signals_in_window(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000,
+    ) -> list[dict[Any, Any]]:
+        """Get SMC signals for a symbol/timeframe in a time window."""
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT *
+                    FROM smc_signals
+                    WHERE symbol = $1
+                      AND timeframe = $2
+                      AND timestamp >= $3
+                      AND timestamp <= $4
+                    ORDER BY timestamp DESC
+                    LIMIT $5
+                """,
+                    symbol,
+                    timeframe,
+                    start_time,
+                    end_time,
+                    limit,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving smc signals: {e}")
             return []
 
     # ============================================================================

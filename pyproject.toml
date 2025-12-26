@@ -90,6 +90,8 @@ dependencies = [
     "click>=8.1.7",
     "rich>=13.7.0",
     "tenacity>=8.2.3",
+    "telethon>=1.42.0",
+    "pytesseract>=0.3.10",
 
     # Schema validation
     "jsonschema>=4.20.0",
