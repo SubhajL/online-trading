@@ -15,6 +15,11 @@ from .benchmark_matcher import (
     score_match,
     select_best_candidate,
 )
+from .validation_snapshot import (
+    InternalMatchSnapshot,
+    build_validation_snapshot,
+    serialize_snapshot_payload,
+)
 
 
 def _as_decimal(value: object) -> Decimal | None:
@@ -147,6 +152,7 @@ async def validate_external_signals(
             internal_kind = None
             internal_id = None
             internal_ts = None
+            internal_match = None
         else:
             score = score_match(
                 external,
@@ -157,6 +163,38 @@ async def validate_external_signals(
             internal_kind = best.kind
             internal_id = best.id
             internal_ts = best.timestamp
+            # Build internal match snapshot for reproducibility
+            internal_match = InternalMatchSnapshot(
+                kind=best.kind,  # type: ignore[arg-type]
+                internal_id=best.id,
+                timestamp=best.timestamp.isoformat(),
+                direction=best.direction,
+                entry_price=str(best.entry_price) if best.entry_price else None,
+            )
+
+        # Build and persist validation snapshot for reproducibility
+        snapshot = await build_validation_snapshot(
+            adapter,
+            source=external.source,
+            chat_id=external.chat_id,
+            message_id=external.message_id,
+            symbol=external.symbol,
+            timeframe=external.timeframe,
+            validated_at=external.timestamp,
+            internal_match=internal_match,
+        )
+
+        # Serialize and persist the snapshot
+        payload = serialize_snapshot_payload(snapshot.payload)
+        await adapter.upsert_benchmark_validation_snapshot(
+            source=snapshot.source,
+            chat_id=snapshot.chat_id,
+            message_id=snapshot.message_id,
+            validated_at=snapshot.validated_at,
+            symbol=snapshot.symbol,
+            timeframe=snapshot.timeframe,
+            payload=payload,
+        )
 
         await adapter.upsert_external_telegram_signal_validation(
             source=external.source,

@@ -282,6 +282,50 @@ async def initialize_services(config: EngineConfig) -> None:
         )
         services["decision"] = decision_engine
 
+        # Initialize alert subscriber (if Telegram configured)
+        telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if telegram_bot_token:
+            from .adapters.alert.telegram import TelegramAlertAdapter
+            from .adapters.alert.alert_subscriber import AlertSubscriber
+
+            telegram_adapter = TelegramAlertAdapter(
+                bot_token=telegram_bot_token,
+                chat_id=os.getenv("TELEGRAM_CHAT_ID", ""),
+            )
+            await telegram_adapter.start()
+            services["telegram_adapter"] = telegram_adapter
+
+            alert_subscriber = AlertSubscriber(telegram_adapter=telegram_adapter)
+            await alert_subscriber.register(event_bus)
+            services["alert_subscriber"] = alert_subscriber
+
+            logger.info("Alert subscriber initialized with Telegram")
+
+        # Initialize BFF API client (for signal alerts with snapshots)
+        bff_base_url = os.getenv("BFF_BASE_URL")
+        bff_api_key = os.getenv("BFF_API_KEY")
+        if bff_base_url and bff_api_key:
+            from .adapters.alert.bff_api_client import BffApiClient
+            from .adapters.alert.signal_emitter import SignalEmitter
+            from .adapters.alert.signal_emitter_subscriber import (
+                SignalEmitterSubscriber,
+            )
+
+            bff_client = BffApiClient(base_url=bff_base_url, api_key=bff_api_key)
+            services["bff_client"] = bff_client
+
+            signal_emitter = SignalEmitter(bff_client=bff_client)
+            services["signal_emitter"] = signal_emitter
+
+            signal_emitter_subscriber = SignalEmitterSubscriber(
+                bus=event_bus,
+                signal_emitter=signal_emitter,
+                venue=os.getenv("TRADING_VENUE", "SPOT"),
+            )
+            services["signal_emitter_subscriber"] = signal_emitter_subscriber
+
+            logger.info("Signal emitter subscriber initialized with BFF client")
+
         logger.info("All services initialized successfully")
 
     except Exception as e:
@@ -299,6 +343,14 @@ async def start_services() -> None:
         await services["smc"].start()
         await services["decision"].start()
 
+        # Start BFF client and signal emitter subscriber
+        if "bff_client" in services:
+            await services["bff_client"].start()
+            logger.info("Started bff_client")
+        if "signal_emitter_subscriber" in services:
+            await services["signal_emitter_subscriber"].start()
+            logger.info("Started signal_emitter_subscriber")
+
         logger.info("All services started successfully")
 
     except Exception as e:
@@ -309,6 +361,38 @@ async def start_services() -> None:
 async def shutdown_services() -> None:
     """Shutdown all services"""
     try:
+        # Stop signal emitter subscriber first (to stop receiving events)
+        if "signal_emitter_subscriber" in services:
+            try:
+                await services["signal_emitter_subscriber"].stop()
+                logger.info("Stopped signal_emitter_subscriber")
+            except Exception as e:
+                logger.error(f"Error stopping signal_emitter_subscriber: {e}")
+
+        # Stop BFF client
+        if "bff_client" in services:
+            try:
+                await services["bff_client"].stop()
+                logger.info("Stopped bff_client")
+            except Exception as e:
+                logger.error(f"Error stopping bff_client: {e}")
+
+        # Stop alert subscriber
+        if "alert_subscriber" in services:
+            try:
+                await services["alert_subscriber"].stop()
+                logger.info("Stopped alert_subscriber")
+            except Exception as e:
+                logger.error(f"Error stopping alert_subscriber: {e}")
+
+        # Stop telegram adapter
+        if "telegram_adapter" in services:
+            try:
+                await services["telegram_adapter"].stop()
+                logger.info("Stopped telegram_adapter")
+            except Exception as e:
+                logger.error(f"Error stopping telegram_adapter: {e}")
+
         # Stop services in reverse order
         for service_name in ["decision", "smc", "features", "ingest", "event_bus"]:
             if service_name in services:

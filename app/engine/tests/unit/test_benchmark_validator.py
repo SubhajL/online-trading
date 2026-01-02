@@ -12,6 +12,7 @@ from app.engine.telegram_validator.benchmark_validator import validate_external_
 class _FakeAdapter:
     def __init__(self) -> None:
         self.validations: list[dict[str, object]] = []
+        self.snapshots: list[dict[str, object]] = []
 
     async def get_external_telegram_signals(self, **kwargs):  # noqa: D401, ANN001
         start = kwargs["start_time"]
@@ -45,6 +46,19 @@ class _FakeAdapter:
 
     async def get_smc_signals_in_window(self, **kwargs):  # noqa: D401, ANN001
         return []
+
+    async def get_active_zones_at_time(self, **kwargs):  # noqa: D401, ANN001
+        """Return empty zones for unit test."""
+        return []
+
+    async def get_structure_events_at_time(self, **kwargs):  # noqa: D401, ANN001
+        """Return empty events for unit test."""
+        return []
+
+    async def upsert_benchmark_validation_snapshot(self, **kwargs: object) -> str:  # noqa: D401
+        """Store snapshot and return fake ID."""
+        self.snapshots.append(kwargs)
+        return "fake-snapshot-id"
 
     async def upsert_external_telegram_signal_validation(self, **kwargs: object) -> None:  # noqa: D401
         self.validations.append(kwargs)

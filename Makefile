@@ -580,5 +580,69 @@ contracts: ## Generate typed models from JSONSchema contracts
 	@python3 scripts/codegen_contracts.py
 	@echo "$(GREEN)✅ Contract generation complete$(RESET)"
 
+# ==================================================================================
+# Captain Trading Benchmark
+# ==================================================================================
+
+# Captain benchmark configuration (can be overridden)
+CAPTAIN_LIMIT ?= 100
+CAPTAIN_HOURS ?= 168
+CAPTAIN_PRESET ?= moderate
+CAPTAIN_SOURCE ?= captain
+
+.PHONY: captain-ingest
+captain-ingest: ## Ingest Captain Trading signals from Telegram
+	@echo "$(BLUE)📥 Ingesting Captain Trading signals...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_ingest.py --limit $(CAPTAIN_LIMIT) --source $(CAPTAIN_SOURCE)
+
+.PHONY: captain-listen
+captain-listen: ## Listen for live Captain Trading signals
+	@echo "$(BLUE)📡 Listening for live Captain Trading signals...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_ingest.py --listen --source $(CAPTAIN_SOURCE)
+
+.PHONY: captain-validate
+captain-validate: ## Validate Captain signals against internal data
+	@echo "$(BLUE)✅ Validating Captain Trading signals...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_validate.py --hours $(CAPTAIN_HOURS) --source $(CAPTAIN_SOURCE)
+
+.PHONY: captain-report
+captain-report: ## Generate Captain benchmark report
+	@echo "$(BLUE)📊 Generating Captain benchmark report...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_report.py --hours $(CAPTAIN_HOURS) --outcomes --json
+
+.PHONY: captain-sweep
+captain-sweep: ## Run robustness sweep on Captain signals
+	@echo "$(BLUE)🔬 Running robustness sweep...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_report.py --hours $(CAPTAIN_HOURS) --outcomes --sweep --sweep-preset $(CAPTAIN_PRESET) --json
+
+.PHONY: captain-benchmark
+captain-benchmark: captain-validate captain-report ## Run full Captain benchmark pipeline
+	@echo "$(GREEN)✅ Captain benchmark complete. See reports/captain_benchmark_*.json$(RESET)"
+
+.PHONY: captain-full
+captain-full: captain-validate captain-sweep ## Run full benchmark with robustness sweep
+	@echo "$(GREEN)✅ Captain full benchmark with sweep complete$(RESET)"
+
+.PHONY: captain-test
+captain-test: ## Run Captain benchmark unit tests
+	@echo "$(BLUE)🧪 Running Captain benchmark tests...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python -m pytest \
+			app/engine/tests/unit/test_captain_*.py \
+			app/engine/tests/unit/test_benchmark_*.py \
+			app/engine/tests/unit/test_validation_snapshot.py \
+			app/engine/tests/unit/test_fill_model.py \
+			app/engine/tests/unit/test_robustness_sweeps.py \
+			app/engine/tests/unit/test_outcome_comparison.py \
+			app/engine/tests/unit/test_outcome_eval.py \
+			app/engine/tests/unit/test_alert_subscriber.py \
+			app/engine/tests/unit/test_telegram_alerts.py \
+			-v --tb=short
+
 # Prevent make from interpreting file names as targets
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | awk -F':' '{print $$1}')

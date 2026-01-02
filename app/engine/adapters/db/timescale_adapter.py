@@ -383,6 +383,37 @@ class TimescaleDBAdapter:
             """,
             )
 
+            # Benchmark validation snapshots for reproducibility
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS benchmark_validation_snapshots (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    source TEXT NOT NULL,
+                    chat_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    validated_at TIMESTAMPTZ NOT NULL,
+                    symbol TEXT NOT NULL,
+                    timeframe TEXT,
+                    snapshot_version INT NOT NULL DEFAULT 1,
+                    payload JSONB NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    CONSTRAINT uq_snapshot_key UNIQUE (
+                        source, chat_id, message_id, validated_at, snapshot_version
+                    )
+                );
+            """,
+            )
+
+            # Indexes for benchmark_validation_snapshots
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_bvs_symbol_time
+                    ON benchmark_validation_snapshots (symbol, validated_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_bvs_source_time
+                    ON benchmark_validation_snapshots (source, validated_at DESC);
+            """,
+            )
+
     async def _create_hypertables(self) -> None:
         """Create TimescaleDB hypertables for time-series data"""
         async with self.get_connection() as conn:
@@ -1061,6 +1092,26 @@ class TimescaleDBAdapter:
             logger.error(f"Error retrieving trading decisions: {e}")
             return []
 
+    async def get_trading_decision_by_id(
+        self,
+        decision_id: str,
+    ) -> dict[Any, Any] | None:
+        """Get a single trading decision by its ID."""
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT *
+                    FROM trading_decisions
+                    WHERE id = $1::uuid
+                """,
+                    decision_id,
+                )
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Error retrieving trading decision by id: {e}")
+            return None
+
     async def get_smc_signals_in_window(
         self,
         *,
@@ -1093,6 +1144,249 @@ class TimescaleDBAdapter:
                 return [dict(row) for row in rows]
         except Exception as e:
             logger.error(f"Error retrieving smc signals: {e}")
+            return []
+
+    # ============================================================================
+    # Validation Snapshots
+    # ============================================================================
+
+    async def get_active_zones_at_time(
+        self,
+        *,
+        symbol: str,
+        timestamp: datetime,
+        lookback_bars: int = 100,
+        max_zones: int = 20,
+    ) -> list[dict[Any, Any]]:
+        """Get active zones valid at the given timestamp.
+
+        Returns zones created before timestamp that are still active
+        (not invalidated) at that time.
+        """
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT
+                        zone_id::text as zone_id,
+                        zone_type,
+                        top_price,
+                        bottom_price,
+                        strength,
+                        is_active,
+                        created_at
+                    FROM zones
+                    WHERE symbol = $1
+                      AND created_at <= $2
+                      AND (is_active = TRUE OR invalidated_at > $2)
+                    ORDER BY strength DESC, created_at DESC
+                    LIMIT $3
+                """,
+                    symbol,
+                    timestamp,
+                    max_zones,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving zones at time: {e}")
+            return []
+
+    async def get_structure_events_at_time(
+        self,
+        *,
+        symbol: str,
+        timeframe: str | None,
+        timestamp: datetime,
+        lookback_bars: int = 50,
+        max_events: int = 30,
+    ) -> list[dict[Any, Any]]:
+        """Get SMC structure events (CHOCH/BOS) near the given timestamp.
+
+        Returns events within lookback window before timestamp.
+        """
+        try:
+            async with self.get_read_connection() as conn:
+                if timeframe:
+                    rows = await conn.fetch(
+                        """
+                        SELECT
+                            venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text as event_id,
+                            event_type,
+                            timestamp,
+                            trend_direction as direction,
+                            price
+                        FROM smc_events
+                        WHERE symbol = $1
+                          AND timeframe = $2
+                          AND timestamp <= $3
+                        ORDER BY timestamp DESC
+                        LIMIT $4
+                    """,
+                        symbol,
+                        timeframe,
+                        timestamp,
+                        max_events,
+                    )
+                else:
+                    rows = await conn.fetch(
+                        """
+                        SELECT
+                            venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text as event_id,
+                            event_type,
+                            timestamp,
+                            trend_direction as direction,
+                            price
+                        FROM smc_events
+                        WHERE symbol = $1
+                          AND timestamp <= $2
+                        ORDER BY timestamp DESC
+                        LIMIT $3
+                    """,
+                        symbol,
+                        timestamp,
+                        max_events,
+                    )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving structure events: {e}")
+            return []
+
+    async def upsert_benchmark_validation_snapshot(
+        self,
+        *,
+        source: str,
+        chat_id: int,
+        message_id: int,
+        validated_at: datetime,
+        symbol: str,
+        timeframe: str | None,
+        payload: dict[Any, Any],
+    ) -> str | None:
+        """Insert or update a benchmark validation snapshot.
+
+        Returns the snapshot_id on success, None on failure.
+        """
+        import json
+        from uuid import uuid4
+
+        try:
+            async with self.get_connection() as conn:
+                snapshot_id = str(uuid4())
+                snapshot_version = payload.get("version", 1)
+
+                await conn.execute(
+                    """
+                    INSERT INTO benchmark_validation_snapshots (
+                        id, source, chat_id, message_id, validated_at,
+                        symbol, timeframe, snapshot_version, payload
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+                    ON CONFLICT (source, chat_id, message_id, validated_at, snapshot_version)
+                    DO UPDATE SET
+                        symbol = EXCLUDED.symbol,
+                        timeframe = EXCLUDED.timeframe,
+                        payload = EXCLUDED.payload
+                """,
+                    snapshot_id,
+                    source,
+                    chat_id,
+                    message_id,
+                    validated_at,
+                    symbol,
+                    timeframe,
+                    snapshot_version,
+                    json.dumps(payload),
+                )
+                return snapshot_id
+        except Exception as e:
+            logger.error(f"Error upserting validation snapshot: {e}")
+            return None
+
+    async def get_benchmark_validation_snapshot(
+        self,
+        snapshot_id: str,
+    ) -> dict[Any, Any] | None:
+        """Fetch a single validation snapshot by ID."""
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        id::text as snapshot_id,
+                        source,
+                        chat_id,
+                        message_id,
+                        validated_at,
+                        symbol,
+                        timeframe,
+                        snapshot_version,
+                        payload,
+                        created_at
+                    FROM benchmark_validation_snapshots
+                    WHERE id = $1::uuid
+                """,
+                    snapshot_id,
+                )
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Error retrieving validation snapshot: {e}")
+            return None
+
+    async def get_benchmark_validation_snapshots(
+        self,
+        *,
+        source: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+    ) -> list[dict[Any, Any]]:
+        """Fetch validation snapshots in a time range."""
+        try:
+            async with self.get_read_connection() as conn:
+                # Build query dynamically based on filters
+                conditions = []
+                params = []
+                param_idx = 1
+
+                if source:
+                    conditions.append(f"source = ${param_idx}")
+                    params.append(source)
+                    param_idx += 1
+
+                if start_time:
+                    conditions.append(f"validated_at >= ${param_idx}")
+                    params.append(start_time)
+                    param_idx += 1
+
+                if end_time:
+                    conditions.append(f"validated_at <= ${param_idx}")
+                    params.append(end_time)
+                    param_idx += 1
+
+                where_clause = " AND ".join(conditions) if conditions else "TRUE"
+                params.append(limit)
+
+                query = f"""
+                    SELECT
+                        id::text as snapshot_id,
+                        source,
+                        chat_id,
+                        message_id,
+                        validated_at,
+                        symbol,
+                        timeframe,
+                        snapshot_version,
+                        payload,
+                        created_at
+                    FROM benchmark_validation_snapshots
+                    WHERE {where_clause}
+                    ORDER BY validated_at DESC
+                    LIMIT ${param_idx}
+                """
+
+                rows = await conn.fetch(query, *params)
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving validation snapshots: {e}")
             return []
 
     # ============================================================================

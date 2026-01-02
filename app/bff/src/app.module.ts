@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { HealthModule } from './health/health.module';
 import { EngineClientModule } from './engine-client/engine-client.module';
 import { RouterClientModule } from './router-client/router-client.module';
@@ -14,6 +15,7 @@ import { SnapshotsModule } from './snapshots/snapshots.module';
 import { BalancesModule } from './balances/balances.module';
 import { OrdersModule } from './orders/orders.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { SignalsModule } from './signals/signals.module';
 
 @Module({
   imports: [
@@ -32,6 +34,20 @@ import { DashboardModule } from './dashboard/dashboard.module';
         },
       }),
     }),
+    ServeStaticModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => [
+        {
+          rootPath: configService.get<string>('SNAPSHOT_STORAGE_DIR', '/var/app/snapshots'),
+          serveRoot: '/api/snapshots',
+          serveStaticOptions: {
+            index: false,
+            maxAge: 86400000, // 1 day cache
+          },
+        },
+      ],
+    }),
     DatabaseModule,
     AuthModule,
     HealthModule,
@@ -44,6 +60,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     BalancesModule,
     OrdersModule,
     DashboardModule,
+    SignalsModule,
   ],
 })
 export class AppModule {}
