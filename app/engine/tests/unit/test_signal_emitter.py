@@ -1,20 +1,18 @@
-"""Unit tests for signal emitter."""
+"""Unit tests for SignalEmitter."""
 
-import asyncio
-from unittest.mock import Mock, AsyncMock, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, Mock
+
 import pytest
-from datetime import datetime
-import uuid
 
-from app.engine.adapters.alert.signal_emitter import SignalEmitter, MockBffClient
+from app.engine.adapters.alert.signal_emitter import MockBffClient, SignalEmitter
+from app.engine.models import TradingDecisionEvent
 
 
 @pytest.fixture
 def mock_event_bus():
     """Mock event bus fixture."""
-    return Mock(
-        publish=AsyncMock()
-    )
+    return Mock(publish=AsyncMock())
 
 
 @pytest.fixture
@@ -24,8 +22,8 @@ def mock_bff_client():
         post=AsyncMock(return_value={
             'success': True,
             'signalId': 'test-signal-123',
-            'imageUrl': '/snapshots/test-signal-123.png'
-        })
+            'imageUrl': '/api/snapshots/test-signal-123.png',
+        }),
     )
 
 
@@ -57,20 +55,19 @@ async def test_emit_signal_basic(signal_emitter, mock_event_bus, mock_bff_client
     # Check event was published
     mock_event_bus.publish.assert_called_once()
     call_args = mock_event_bus.publish.call_args
-    assert call_args[0][0] == 'decision.v1'
+    event = call_args[0][0]
+    assert isinstance(event, TradingDecisionEvent)
+    assert event.metadata["signal_id"] == signal_id
+    assert event.metadata["venue"] == "SPOT"
+    assert event.metadata["timeframe"] == "15m"
 
     # Check event content
-    event = call_args[0][1]
-    assert event['signal_id'] == signal_id
-    assert event['symbol'] == "BTCUSDT"
-    assert event['venue'] == "SPOT"
-    assert event['side'] == "long"
-    assert event['entry_price'] == 50000
-    assert event['stop_loss'] == 49000
-    assert event['take_profit'] == 52000
-    assert event['confidence'] == 0.85
-    assert event['reasons'] == ["SMC Break", "Trend Alignment"]
-    assert event['timeframe'] == "15m"
+    assert event.symbol == "BTCUSDT"
+    assert event.decision.action == "BUY"
+    assert event.decision.entry_price == 50000
+    assert event.decision.stop_loss == 49000
+    assert event.decision.take_profit == 52000
+    assert float(event.decision.confidence) == 0.85
 
     # Check BFF was notified
     mock_bff_client.post.assert_called_once_with(
@@ -86,7 +83,7 @@ async def test_emit_signal_basic(signal_emitter, mock_event_bus, mock_bff_client
             'confidence': 0.85,
             'reasons': ["SMC Break", "Trend Alignment"],
             'timeframe': '15m',
-            'signalTime': event['decision_time'],
+            'signalTime': event.timestamp.isoformat(),
         }
     )
 
@@ -131,9 +128,9 @@ async def test_emit_signal_with_custom_time(signal_emitter, mock_event_bus):
 
     # Check event has custom time
     call_args = mock_event_bus.publish.call_args
-    event = call_args[0][1]
-    assert event['timestamp'] == custom_time.isoformat()
-    assert event['decision_time'] == custom_time.isoformat()
+    event = call_args[0][0]
+    assert isinstance(event, TradingDecisionEvent)
+    assert event.timestamp == custom_time.replace(tzinfo=UTC)
 
 
 @pytest.mark.asyncio
@@ -193,7 +190,7 @@ async def test_mock_bff_client():
 
     assert response['success'] is True
     assert response['signalId'] == 'test-123'
-    assert response['imageUrl'] == '/snapshots/test-123.png'
+    assert response['imageUrl'] == '/api/snapshots/test-123.png'
 
     # Check signal was recorded
     assert len(client.posted_signals) == 1

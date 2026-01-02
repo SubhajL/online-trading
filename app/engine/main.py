@@ -302,19 +302,19 @@ async def initialize_services(config: EngineConfig) -> None:
             logger.info("Alert subscriber initialized with Telegram")
 
         # Initialize BFF API client (for signal alerts with snapshots)
-        bff_base_url = os.getenv("BFF_BASE_URL")
-        bff_api_key = os.getenv("BFF_API_KEY")
-        if bff_base_url and bff_api_key:
+        bff_url = os.getenv("BFF_URL")
+        internal_alerts_token = os.getenv("INTERNAL_ALERTS_TOKEN")
+        if bff_url and internal_alerts_token:
             from .adapters.alert.bff_api_client import BffApiClient
             from .adapters.alert.signal_emitter import SignalEmitter
             from .adapters.alert.signal_emitter_subscriber import (
                 SignalEmitterSubscriber,
             )
 
-            bff_client = BffApiClient(base_url=bff_base_url, api_key=bff_api_key)
+            bff_client = BffApiClient(base_url=bff_url, token=internal_alerts_token)
             services["bff_client"] = bff_client
 
-            signal_emitter = SignalEmitter(bff_client=bff_client)
+            signal_emitter = SignalEmitter(event_bus=event_bus, bff_client=bff_client)
             services["signal_emitter"] = signal_emitter
 
             signal_emitter_subscriber = SignalEmitterSubscriber(

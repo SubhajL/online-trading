@@ -128,7 +128,8 @@ async def test_get_snapshot_url_success(telegram_adapter):
     telegram_adapter.session = mock_session
 
     with patch.dict(
-        "os.environ", {"BFF_URL": "http://bff:3000", "INTERNAL_API_KEY": "test-key"},
+        "os.environ",
+        {"BFF_URL": "http://bff:3000", "INTERNAL_ALERTS_TOKEN": "test-key"},
     ):
         url = await telegram_adapter._get_snapshot_url("signal-123")
 

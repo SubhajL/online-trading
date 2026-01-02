@@ -72,7 +72,7 @@ class TelegramAlertAdapter:
 
         # Get BFF URL from environment - default to port 3001 (BFF port)
         bff_url = os.getenv("BFF_URL", "http://localhost:3001")
-        api_key = os.getenv("INTERNAL_API_KEY", "")
+        api_key = os.getenv("INTERNAL_ALERTS_TOKEN", "")
 
         url = f"{bff_url}/api/signals/{signal_id}/snapshot"
         headers = {"Authorization": f"Bearer {api_key}"}

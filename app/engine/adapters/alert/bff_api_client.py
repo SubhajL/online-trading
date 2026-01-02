@@ -12,15 +12,15 @@ logger = logging.getLogger(__name__)
 class BffApiClient:
     """Async HTTP client for posting to BFF API endpoints."""
 
-    def __init__(self, base_url: str, api_key: str) -> None:
-        """Initialize client with base URL and API key.
+    def __init__(self, base_url: str, token: str) -> None:
+        """Initialize client with base URL and bearer token.
 
         Args:
             base_url: BFF base URL (e.g., http://localhost:8002)
-            api_key: API key for Authorization header
+            token: Token for Authorization header (Bearer)
         """
         self._base_url = base_url.rstrip("/")
-        self._api_key = api_key
+        self._token = token
         self._session: aiohttp.ClientSession | None = None
 
     async def start(self) -> None:
@@ -52,7 +52,7 @@ class BffApiClient:
             return None
 
         url = f"{self._base_url}{path}"
-        headers = {"Authorization": f"Bearer {self._api_key}"}
+        headers = {"Authorization": f"Bearer {self._token}"}
 
         try:
             async with self._session.post(url, json=payload, headers=headers) as resp:

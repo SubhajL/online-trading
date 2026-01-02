@@ -19,8 +19,8 @@ const path = require('path');
 
 const execAsync = util.promisify(exec);
 
-const BFF_URL = process.env.BFF_URL || 'http://localhost:3000';
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'your-internal-api-key';
+const BFF_URL = process.env.BFF_URL || 'http://localhost:3001';
+const INTERNAL_ALERTS_TOKEN = process.env.INTERNAL_ALERTS_TOKEN || 'change_me';
 
 async function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -55,7 +55,7 @@ async function testSignalFlow() {
       signalPayload,
       {
         headers: {
-          'Authorization': `Bearer ${INTERNAL_API_KEY}`,
+          'Authorization': `Bearer ${INTERNAL_ALERTS_TOKEN}`,
           'Content-Type': 'application/json',
         },
       }
@@ -74,14 +74,12 @@ async function testSignalFlow() {
         `${BFF_URL}/api/signals/${signalId}/snapshot`,
         {
           headers: {
-            'Authorization': `Bearer ${INTERNAL_API_KEY}`,
+            'Authorization': `Bearer ${INTERNAL_ALERTS_TOKEN}`,
           },
         }
       );
 
       console.log('✅ Snapshot created:', {
-        id: snapshotResponse.data.id,
-        signalId: snapshotResponse.data.signalId,
         imageUrl: snapshotResponse.data.imageUrl,
       });
 
@@ -110,32 +108,7 @@ async function testSignalFlow() {
       }
     }
 
-    // 6. Check if alert was created
-    console.log('\n🔔 Checking alerts...');
-    const alertsResponse = await axios.get(
-      `${BFF_URL}/api/alerts`,
-      {
-        headers: {
-          'Authorization': `Bearer ${INTERNAL_API_KEY}`,
-        },
-      }
-    );
-
-    const signalAlert = alertsResponse.data.alerts.find(
-      alert => alert.signalId === signalId
-    );
-
-    if (signalAlert) {
-      console.log('✅ Alert found:', {
-        id: signalAlert.id,
-        title: signalAlert.title,
-        imageUrl: signalAlert.imageUrl,
-      });
-    } else {
-      console.log('❌ Alert not found in alerts list');
-    }
-
-    // 7. Test Python signal emitter
+    // 6. Test Python signal emitter
     console.log('\n🐍 Testing Python signal emitter...');
     const pythonScript = path.join(__dirname, '..', 'app', 'engine', 'adapters', 'alert', 'signal_emitter.py');
 

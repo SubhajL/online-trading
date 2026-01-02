@@ -16,13 +16,13 @@ class EventBusProtocol(Protocol):
 
     async def subscribe(
         self,
-        name: str,
+        subscriber_id: str,
         handler: Any,  # noqa: ANN401
         event_types: list[EventType] | None = None,
         priority: int = 0,
     ) -> str: ...
 
-    async def unsubscribe(self, sub_id: str) -> bool: ...
+    async def unsubscribe(self, subscription_id: str) -> bool: ...
 
 
 class SignalEmitterSubscriber:
@@ -49,7 +49,7 @@ class SignalEmitterSubscriber:
     async def start(self) -> None:
         """Subscribe to SMC_SIGNAL events."""
         self._subscription_id = await self._bus.subscribe(
-            name="signal_emitter_subscriber",
+            subscriber_id="signal_emitter_subscriber",
             handler=self._handle_smc_signal,
             event_types=[EventType.SMC_SIGNAL],
             priority=5,

@@ -164,7 +164,7 @@ class MockBffClient:
         return {
             "success": True,
             "signalId": payload["signalId"],
-            "imageUrl": f"/snapshots/{payload['signalId']}.png",
+            "imageUrl": f"/api/snapshots/{payload['signalId']}.png",
         }
 
 

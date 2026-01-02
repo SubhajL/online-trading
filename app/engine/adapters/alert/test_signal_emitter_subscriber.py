@@ -78,7 +78,7 @@ class MockEventBus:
 
     async def subscribe(
         self,
-        name: str,  # noqa: ARG002
+        subscriber_id: str,  # noqa: ARG002
         handler: Any,  # noqa: ANN401
         event_types: list[EventType] | None = None,
         priority: int = 0,  # noqa: ARG002
@@ -89,10 +89,10 @@ class MockEventBus:
         self.subscriptions[sub_id] = (handler, event_types or [])
         return sub_id
 
-    async def unsubscribe(self, sub_id: str) -> bool:
+    async def unsubscribe(self, subscription_id: str) -> bool:
         """Remove subscription."""
-        if sub_id in self.subscriptions:
-            del self.subscriptions[sub_id]
+        if subscription_id in self.subscriptions:
+            del self.subscriptions[subscription_id]
             return True
         return False
 
