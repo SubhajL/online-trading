@@ -31,6 +31,11 @@ def _as_decimal(value: object) -> Decimal | None:
 
 
 def _empty_score() -> ValidationScore:
+    """Create empty score for signals with no match or missing required fields.
+
+    timing_delta_seconds is omitted (not present) when there's no match,
+    to avoid polluting latency analysis with artificial zeros.
+    """
     return ValidationScore(
         score=0.0,
         breakdown={
@@ -134,7 +139,9 @@ async def validate_external_signals(
                         id=str(s["id"]),
                         timestamp=s["timestamp"],
                         symbol=str(s["symbol"]),
-                        timeframe=str(s.get("timeframe")) if s.get("timeframe") else None,
+                        timeframe=str(s.get("timeframe"))
+                        if s.get("timeframe")
+                        else None,
                         direction=direction,  # type: ignore[arg-type]
                         entry_price=_as_decimal(s.get("entry_price")),
                     ),

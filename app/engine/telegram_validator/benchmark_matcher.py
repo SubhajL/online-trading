@@ -55,7 +55,13 @@ def score_match(
     time_window_seconds: int,
     entry_tolerance: Decimal,
 ) -> ValidationScore:
-    if external.direction and candidate.direction and external.direction != candidate.direction:
+    if (
+        external.direction
+        and candidate.direction
+        and external.direction != candidate.direction
+    ):
+        # Still calculate timing_delta_seconds for analysis even on direction mismatch
+        timing_delta = (candidate.timestamp - external.timestamp).total_seconds()
         return ValidationScore(
             score=0.0,
             breakdown={
@@ -64,6 +70,7 @@ def score_match(
                 "entry": 0.0,
                 "symbol": 0.0,
                 "timeframe": 0.0,
+                "timing_delta_seconds": timing_delta,
             },
         )
 
@@ -71,22 +78,33 @@ def score_match(
 
     breakdown["direction"] = (
         1.0
-        if external.direction and candidate.direction and external.direction == candidate.direction
+        if external.direction
+        and candidate.direction
+        and external.direction == candidate.direction
         else 0.0
         if external.direction and candidate.direction
         else 0.0
     )
 
     delta = abs((candidate.timestamp - external.timestamp).total_seconds())
+    # Store raw timing delta for analysis (positive = internal after external)
+    breakdown["timing_delta_seconds"] = (
+        candidate.timestamp - external.timestamp
+    ).total_seconds()
+
     if delta >= time_window_seconds:
         breakdown["time"] = 0.0
     else:
         breakdown["time"] = 1.0 - (delta / float(time_window_seconds))
 
-    breakdown["symbol"] = 1.0 if external.symbol and external.symbol == candidate.symbol else 0.0
+    breakdown["symbol"] = (
+        1.0 if external.symbol and external.symbol == candidate.symbol else 0.0
+    )
     breakdown["timeframe"] = (
         1.0
-        if external.timeframe and candidate.timeframe and external.timeframe == candidate.timeframe
+        if external.timeframe
+        and candidate.timeframe
+        and external.timeframe == candidate.timeframe
         else 0.0
         if external.timeframe and candidate.timeframe
         else 0.0
@@ -97,7 +115,9 @@ def score_match(
         if external.entry_price == 0:
             entry_component = 0.0
         else:
-            rel_err = abs(candidate.entry_price - external.entry_price) / external.entry_price
+            rel_err = (
+                abs(candidate.entry_price - external.entry_price) / external.entry_price
+            )
             if rel_err >= entry_tolerance:
                 entry_component = 0.0
             else:
@@ -147,10 +167,11 @@ def select_best_candidate(
             time_window_seconds=time_window_seconds,
             entry_tolerance=entry_tolerance,
         )
-        if scored.score > best_score or (scored.score == best_score and delta < best_delta):
+        if scored.score > best_score or (
+            scored.score == best_score and delta < best_delta
+        ):
             best = candidate
             best_score = scored.score
             best_delta = delta
 
     return best
-
