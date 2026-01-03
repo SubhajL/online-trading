@@ -175,7 +175,10 @@ class TestHarnessOrderPersistence:
     """Tests for order persistence to paper_orders table."""
 
     @pytest.mark.asyncio
-    async def test_on_decision_creates_paper_orders(self) -> None:
+    async def test_on_decision_creates_paper_orders(
+        self,
+        db_adapter: TimescaleDBAdapter,
+    ) -> None:
         """_on_decision creates paper_orders rows with paper_session_id."""
         from app.engine.paper.live_harness import LivePaperTradingHarness
 
@@ -190,16 +193,19 @@ class TestHarnessOrderPersistence:
         }
         harness = LivePaperTradingHarness(config)
 
+        # Use test db_adapter for decision persistence
+        harness.db_adapter = db_adapter
+
         # Initialize broker for real DB connection
         await harness.broker.initialize()
 
         try:
-            # Mock _persist_decision to avoid separate DB call
-            harness._persist_decision = AsyncMock()
-
-            # Create and process decision
+            # Create and process decision (real persistence, no mocking)
             event = _make_trading_decision_event()
             await harness._on_decision(event)
+
+            # Verify decision was persisted (no mock)
+            assert harness._metrics.error_count == 0
 
             # Verify orders were created
             assert harness._metrics.order_count >= 1
@@ -207,10 +213,15 @@ class TestHarnessOrderPersistence:
             # Verify order is in active_orders (in-memory check)
             assert len(harness.broker.active_orders) >= 1
 
-            # All orders should have correct paper_session_id
-            for order in harness.broker.active_orders.values():
-                # Orders are linked to harness session
-                pass  # Orders don't store session_id directly
+            # Verify decision persisted to DB
+            decisions = await db_adapter.get_recent_decisions(
+                symbol="BTCUSDT",
+                limit=10,
+            )
+            decision_found = any(
+                d.get("id") == event.decision.decision_id for d in decisions
+            )
+            assert decision_found, "Decision should be persisted to trading_decisions"
 
         finally:
             await harness.broker.close()
