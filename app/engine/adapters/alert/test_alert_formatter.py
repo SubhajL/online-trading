@@ -101,7 +101,7 @@ class TestAlertFormatter:
         assert "BTCUSDT" in result
         assert "Funding Rate: 1.50%" in result
         assert "Threshold: 1.00%" in result
-        assert "Action: Trading disabled" in result
+        assert "Action: Trading Disabled" in result
 
     def test_format_with_empty_reasons(self) -> None:
         decision = {

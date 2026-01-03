@@ -13,6 +13,10 @@ from app.engine.models import Position, TradingDecisionEvent
 from app.engine.paper.broker import OrderUpdate
 
 
+@pytest.mark.skip(
+    reason="Outdated: uses deprecated TelegramAlertAdapter API (formatter/deduplicator args, send_alert method). "
+    "See tests/unit/test_telegram_alerts.py for current tests."
+)
 class TestTelegramIntegration:
     """Integration tests for Telegram alert adapter"""
 

@@ -107,9 +107,9 @@ dev: ## Start all services in development mode
 .PHONY: dev-engine
 dev-engine: ## Start Python engine in development mode
 	@echo "$(BLUE)🐍 Starting Python engine...$(RESET)"
-	@cd $(ENGINE_DIR) && \
-		source .venv/bin/activate && \
-		uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	@set -a && source .env 2>/dev/null; set +a && \
+		source $(ENGINE_DIR)/.venv/bin/activate && \
+		PYTHONPATH=. uvicorn app.engine.main:app --reload --host 0.0.0.0 --port 8000
 
 .PHONY: dev-router
 dev-router: ## Start Go router in development mode
@@ -120,7 +120,8 @@ dev-router: ## Start Go router in development mode
 .PHONY: dev-bff
 dev-bff: ## Start NestJS BFF in development mode
 	@echo "$(BLUE)📱 Starting NestJS BFF...$(RESET)"
-	@cd $(BFF_DIR) && \
+	@set -a && source .env 2>/dev/null; set +a && \
+		cd $(BFF_DIR) && \
 		pnpm run start:dev
 
 .PHONY: dev-ui

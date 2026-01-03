@@ -2,8 +2,9 @@ import asyncio
 from typing import Any
 from unittest.mock import Mock, patch
 
-from alert_deduplicator import AlertDeduplicator
 import pytest
+
+from app.engine.adapters.alert.alert_deduplicator import AlertDeduplicator
 
 
 class TestAlertDeduplicator:
@@ -17,11 +18,11 @@ class TestAlertDeduplicator:
 
     @pytest.fixture
     def deduplicator(self, mock_redis: Any) -> Any:
-        with patch("alert_deduplicator.redis.Redis", return_value=mock_redis):
+        with patch("app.engine.adapters.alert.alert_deduplicator.redis.Redis", return_value=mock_redis):
             return AlertDeduplicator(ttl_seconds=60)
 
     def test_is_duplicate_new_key(
-        self, deduplicator: Any, mock_redis: dict[str, Any]
+        self, deduplicator: Any, mock_redis: Any
     ) -> None:
         key = "test:key:123"
         mock_redis.get.return_value = None
@@ -32,7 +33,7 @@ class TestAlertDeduplicator:
         mock_redis.get.assert_called_once_with(f"alert:dedup:{key}")
 
     def test_is_duplicate_existing_key(
-        self, deduplicator: Any, mock_redis: dict[str, Any]
+        self, deduplicator: Any, mock_redis: Any
     ) -> None:
         key = "test:key:123"
         mock_redis.get.return_value = b"1"
@@ -61,18 +62,18 @@ class TestAlertDeduplicator:
         mock_redis.delete.assert_called_once_with(f"alert:dedup:{key}")
 
     def test_custom_ttl(self, mock_redis: Any) -> None:
-        with patch("alert_deduplicator.redis.Redis", return_value=mock_redis):
+        with patch("app.engine.adapters.alert.alert_deduplicator.redis.Redis", return_value=mock_redis):
             dedup = AlertDeduplicator(ttl_seconds=300)
             dedup.add("key")
 
-            mock_redis.setex.assert_called_with(
+            mock_redis.setex.assert_called_once_with(
                 "alert:dedup:key",
                 300,
                 "1",
             )
 
     def test_redis_connection_error(
-        self, deduplicator: Any, mock_redis: dict[str, Any]
+        self, deduplicator: Any, mock_redis: Any
     ) -> None:
         mock_redis.get.side_effect = Exception("Redis connection error")
 

@@ -13,6 +13,10 @@ from app.engine.models import Position, SMCSignalEvent, TradingDecisionEvent
 from app.engine.paper.broker import OrderUpdate
 
 
+@pytest.mark.skip(
+    reason="Outdated: uses deprecated alert adapter API (formatter/deduplicator args, send_alert method). "
+    "See tests/unit/test_telegram_alerts.py and AlertSubscriber tests for current implementation."
+)
 class TestAlertSystemIntegration:
     """End-to-end integration tests for the alert system"""
 
