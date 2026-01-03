@@ -175,6 +175,14 @@ class BaseEvent(BaseModel):
             v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
+    def __lt__(self, other: "BaseEvent") -> bool:
+        """Compare events by event_id for priority queue ordering.
+
+        This is required when events have equal priority and timestamp
+        in asyncio.PriorityQueue to provide stable ordering.
+        """
+        return str(self.event_id) < str(other.event_id)
+
 
 # ============================================================================
 # Market Data Models

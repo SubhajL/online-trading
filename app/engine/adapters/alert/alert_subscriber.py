@@ -105,6 +105,13 @@ def _error_event_to_text(event: ErrorEvent) -> str:
     )
 
 
+DEFAULT_ALERT_EVENT_TYPES: list[EventType] = [
+    EventType.TRADING_DECISION,
+    EventType.ORDER_FILLED,
+    EventType.ERROR,
+]
+
+
 class AlertSubscriber:
     """
     Subscribes to trading events and routes to alert channels.
@@ -116,14 +123,18 @@ class AlertSubscriber:
     def __init__(
         self,
         telegram_adapter: TelegramAlertAdapter | None = None,
+        event_types: list[EventType] | None = None,
     ) -> None:
         """
         Initialize the alert subscriber.
 
         Args:
             telegram_adapter: Optional Telegram adapter for sending alerts
+            event_types: Optional list of event types to subscribe to.
+                         Defaults to TRADING_DECISION, ORDER_FILLED, and ERROR.
         """
         self.telegram = telegram_adapter
+        self._event_types = event_types if event_types is not None else DEFAULT_ALERT_EVENT_TYPES
         self._subscription_id: str | None = None
         self._event_bus: _EventBus | None = None
 
@@ -131,7 +142,7 @@ class AlertSubscriber:
         """
         Register with the event bus using the correct API.
 
-        Subscribes to TRADING_DECISION, ORDER_FILLED, and ERROR events
+        Uses configured event_types (or defaults to all alert-relevant types)
         with low priority (alerts are non-critical).
         """
         self._event_bus = event_bus
@@ -139,17 +150,14 @@ class AlertSubscriber:
         self._subscription_id = await event_bus.subscribe(
             subscriber_id="alert-subscriber",
             handler=self._handle_event,
-            event_types=[
-                EventType.TRADING_DECISION,
-                EventType.ORDER_FILLED,
-                EventType.ERROR,
-            ],
+            event_types=self._event_types,
             priority=10,  # Low priority (higher = processed first)
         )
 
         logger.info(
-            "AlertSubscriber registered with subscription_id: %s",
+            "AlertSubscriber registered with subscription_id: %s, event_types: %s",
             self._subscription_id,
+            [et.value for et in self._event_types],
         )
 
     async def unregister(self) -> None:

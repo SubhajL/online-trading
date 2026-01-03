@@ -115,7 +115,7 @@ dev-engine: ## Start Python engine in development mode
 dev-router: ## Start Go router in development mode
 	@echo "$(BLUE)🔧 Starting Go router...$(RESET)"
 	@cd $(ROUTER_DIR) && \
-		go run main.go
+		PORT=8001 go run cmd/router/main.go
 
 .PHONY: dev-bff
 dev-bff: ## Start NestJS BFF in development mode
@@ -601,7 +601,7 @@ captain-ingest: ## Ingest Captain Trading signals from Telegram
 captain-listen: ## Listen for live Captain Trading signals
 	@echo "$(BLUE)📡 Listening for live Captain Trading signals...$(RESET)"
 	@source venv/bin/activate && \
-		PYTHONPATH=. python scripts/captain_benchmark_ingest.py --listen --source $(CAPTAIN_SOURCE)
+		PYTHONPATH=. python scripts/captain_benchmark_ingest.py --listen
 
 .PHONY: captain-validate
 captain-validate: ## Validate Captain signals against internal data

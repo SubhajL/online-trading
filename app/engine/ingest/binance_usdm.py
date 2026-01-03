@@ -13,6 +13,7 @@ from typing import Any
 
 import aiohttp
 import websockets
+from websockets import State as WebSocketState
 from websockets.exceptions import ConnectionClosed
 
 from ..adapters.db import TimescaleDBAdapter
@@ -418,8 +419,10 @@ class BinanceUSDMIngester:
         return {
             "venue": self.venue,
             "running": self._running,
-            "websocket_connected": self._websocket is not None
-            and not self._websocket.closed,
+            "websocket_connected": (
+                self._websocket is not None
+                and self._websocket.state == WebSocketState.OPEN
+            ),
             "reconnect_count": self._reconnect_count,
             "time_sync_errors": self._time_sync_errors,
             "recv_window": self.recv_window,

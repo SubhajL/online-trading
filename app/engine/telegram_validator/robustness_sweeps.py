@@ -169,3 +169,10 @@ AGGRESSIVE_SWEEP = build_sweep_grid(
     slippage_range=(Decimal("20"), Decimal("50"), Decimal("100")),
     funding_range=(Decimal("20"), Decimal("50"), Decimal("100")),
 )
+
+# Dictionary mapping preset names to sweep configurations
+SWEEP_PRESETS: dict[str, list[CostConfig]] = {
+    "conservative": CONSERVATIVE_SWEEP,
+    "moderate": MODERATE_SWEEP,
+    "aggressive": AGGRESSIVE_SWEEP,
+}

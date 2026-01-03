@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import websockets
+from websockets import State as WebSocketState
 from websockets.exceptions import ConnectionClosed, InvalidStatusCode
 
 from ..bus import get_event_bus
@@ -136,6 +137,16 @@ class BinanceWebSocketClient:
             f"BinanceWebSocketClient initialized with base_url: {self.base_url}",
         )
 
+    def _is_websocket_open(self) -> bool:
+        """Check if WebSocket connection is open.
+
+        Uses websockets 13+ State API instead of deprecated .closed attribute.
+        """
+        return (
+            self._websocket is not None
+            and self._websocket.state == WebSocketState.OPEN
+        )
+
     async def start(self) -> None:
         """Start the WebSocket client"""
         if self._running:
@@ -187,7 +198,7 @@ class BinanceWebSocketClient:
         self._symbols.update(symbols)
         self._timeframes.update(timeframes)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams(streams)
 
         logger.info(
@@ -205,7 +216,7 @@ class BinanceWebSocketClient:
         self._subscriptions.update(streams)
         self._symbols.update(symbols)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams(streams)
 
         logger.info(f"Subscribed to ticker for {len(symbols)} symbols")
@@ -215,7 +226,7 @@ class BinanceWebSocketClient:
         stream = "!ticker@arr"
         self._subscriptions.add(stream)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams([stream])
 
         logger.info("Subscribed to all market tickers")
@@ -240,7 +251,7 @@ class BinanceWebSocketClient:
         self._subscriptions.update(streams)
         self._symbols.update(symbols)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams(streams)
 
         logger.info(f"Subscribed to depth for {len(symbols)} symbols")
@@ -256,7 +267,7 @@ class BinanceWebSocketClient:
         self._subscriptions.update(streams)
         self._symbols.update(symbols)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams(streams)
 
         logger.info(f"Subscribed to trades for {len(symbols)} symbols")
@@ -270,7 +281,7 @@ class BinanceWebSocketClient:
         """
         self._subscriptions.difference_update(streams)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._unsubscribe_streams(streams)
 
         logger.info(f"Unsubscribed from {len(streams)} streams")
@@ -546,7 +557,7 @@ class BinanceWebSocketClient:
 
     def is_connected(self) -> bool:
         """Check if WebSocket is connected"""
-        return self._websocket is not None and not self._websocket.closed
+        return self._is_websocket_open()
 
     async def health_check(self) -> dict[str, Any]:
         """Get health status including resilience metrics."""

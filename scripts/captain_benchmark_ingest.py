@@ -21,7 +21,7 @@ import sys
 from typing import Any
 
 from telethon import TelegramClient, events
-from telethon.tl.types import Message
+from telethon.tl.types import Message, PeerChannel
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -47,12 +47,24 @@ def _load_env_file(path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def _parse_channel_identifier(value: str) -> str | int:
+def _parse_channel_identifier(value: str) -> str | int | PeerChannel:
+    """Parse channel identifier from env variable.
+
+    Supports:
+    - @username: Returns username string
+    - Negative number (e.g., -1002194468323): Returns int as-is
+    - Positive number (e.g., 2194468323): Wraps in PeerChannel for Telethon
+    """
     stripped = value.strip()
     if stripped.startswith("@"):
         return stripped
     if stripped.lstrip("-").isdigit():
-        return int(stripped)
+        num = int(stripped)
+        # Positive channel IDs need to be wrapped in PeerChannel for Telethon
+        # Negative IDs (with -100 prefix) work directly
+        if num > 0:
+            return PeerChannel(num)
+        return num
     return stripped
 
 
@@ -82,7 +94,7 @@ def _safe_message_json(message: Message) -> dict[str, Any]:
     }
 
 
-async def ingest_recent_messages(*, limit: int, listen: bool) -> None:
+async def ingest_recent_messages(*, limit: int, listen: bool, source: str) -> None:
     _load_env_file(PROJECT_ROOT / ".env.telegram")
 
     api_id = os.getenv("TELEGRAM_API_ID")
@@ -116,7 +128,6 @@ async def ingest_recent_messages(*, limit: int, listen: bool) -> None:
     await client.start(phone=phone)
 
     entity = await client.get_entity(channel)
-    source = "captain"
 
     async def _ingest_message(message: Message) -> None:
         text = message.message
@@ -166,8 +177,20 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--listen", action="store_true")
+    parser.add_argument(
+        "--source",
+        type=str,
+        default="captain",
+        help="Source identifier for the ingested messages (default: captain)",
+    )
     args = parser.parse_args()
-    asyncio.run(ingest_recent_messages(limit=args.limit, listen=args.listen))
+    asyncio.run(
+        ingest_recent_messages(
+            limit=args.limit,
+            listen=args.listen,
+            source=args.source,
+        ),
+    )
 
 
 if __name__ == "__main__":

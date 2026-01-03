@@ -58,9 +58,9 @@ def _make_trading_decision_event(*, timestamp: datetime) -> TradingDecisionEvent
         symbol="BTCUSDT",
         timestamp=timestamp,
         action="BUY",
-        entry_price=Decimal("50000"),
-        stop_loss=Decimal("49000"),
-        take_profit=Decimal("52000"),
+        entry_price=Decimal(50000),
+        stop_loss=Decimal(49000),
+        take_profit=Decimal(52000),
         quantity=Decimal("0.01"),
         confidence=Decimal("0.85"),
         reasoning="SMC Break; Trend Alignment",
@@ -164,9 +164,9 @@ class TestAlertSubscriberHandleEvent:
         payload = mock_telegram._handle_decision.call_args[0][0]
         assert payload["symbol"] == "BTCUSDT"
         assert payload["side"] == "long"
-        assert payload["entry_price"] == Decimal("50000")
-        assert payload["stop_loss"] == Decimal("49000")
-        assert payload["take_profit"] == Decimal("52000")
+        assert payload["entry_price"] == Decimal(50000)
+        assert payload["stop_loss"] == Decimal(49000)
+        assert payload["take_profit"] == Decimal(52000)
         assert payload["quantity"] == Decimal("0.01")
         assert payload["signal_id"] == "sig_123"
         assert payload["reasons"] == ["SMC Break", "Trend Alignment"]
@@ -213,7 +213,7 @@ class TestAlertSubscriberHandleEvent:
     async def test_handles_telegram_error_gracefully(self) -> None:
         mock_telegram = MagicMock()
         mock_telegram._handle_decision = AsyncMock(
-            side_effect=Exception("Network error")
+            side_effect=Exception("Network error"),
         )
 
         subscriber = AlertSubscriber(telegram_adapter=mock_telegram)
@@ -231,3 +231,61 @@ class TestAlertSubscriberStop:
         await subscriber.stop()
 
         assert "sub-0" in bus.unsubscribed
+
+
+class TestAlertSubscriberEventTypesParameter:
+    """Tests for configurable event_types parameter."""
+
+    @pytest.mark.asyncio
+    async def test_default_event_types_when_none(self) -> None:
+        """When event_types=None, uses default list of all three types."""
+        bus = _FakeBus()
+        subscriber = AlertSubscriber(event_types=None)
+
+        await subscriber.register(bus)
+
+        event_types = bus.subscriptions[0]["event_types"]
+        assert event_types is not None
+        assert len(event_types) == 3
+        assert EventType.TRADING_DECISION in event_types
+        assert EventType.ORDER_FILLED in event_types
+        assert EventType.ERROR in event_types
+
+    @pytest.mark.asyncio
+    async def test_custom_event_types_override(self) -> None:
+        """When event_types provided, uses only those types."""
+        bus = _FakeBus()
+        custom_types = [EventType.TRADING_DECISION]
+        subscriber = AlertSubscriber(event_types=custom_types)
+
+        await subscriber.register(bus)
+
+        event_types = bus.subscriptions[0]["event_types"]
+        assert event_types == [EventType.TRADING_DECISION]
+
+    @pytest.mark.asyncio
+    async def test_decision_only_subscriber_ignores_order_filled(self) -> None:
+        """Subscriber with only TRADING_DECISION doesn't receive ORDER_FILLED."""
+        bus = _FakeBus()
+        subscriber = AlertSubscriber(event_types=[EventType.TRADING_DECISION])
+
+        await subscriber.register(bus)
+
+        event_types = bus.subscriptions[0]["event_types"]
+        assert EventType.ORDER_FILLED not in event_types
+        assert EventType.ERROR not in event_types
+
+    @pytest.mark.asyncio
+    async def test_multiple_custom_event_types(self) -> None:
+        """Can specify multiple custom event types."""
+        bus = _FakeBus()
+        custom_types = [EventType.TRADING_DECISION, EventType.ERROR]
+        subscriber = AlertSubscriber(event_types=custom_types)
+
+        await subscriber.register(bus)
+
+        event_types = bus.subscriptions[0]["event_types"]
+        assert len(event_types) == 2
+        assert EventType.TRADING_DECISION in event_types
+        assert EventType.ERROR in event_types
+        assert EventType.ORDER_FILLED not in event_types
