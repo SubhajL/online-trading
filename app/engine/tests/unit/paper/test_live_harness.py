@@ -8,6 +8,7 @@ with decision persistence and Telegram alerts (decision only).
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -54,6 +55,58 @@ class TestLivePaperTradingHarnessInit:
         harness = LivePaperTradingHarness(config)
 
         assert harness.broker is not None
+
+    @pytest.mark.asyncio
+    async def test_harness_creates_db_adapter_from_config(self) -> None:
+        """Harness creates TimescaleDBAdapter with parsed database URL."""
+        from app.engine.paper.live_harness import LivePaperTradingHarness
+
+        config = _make_harness_config()
+        config["database_url"] = "postgresql://testuser:testpass@dbhost:5433/testdb"
+        harness = LivePaperTradingHarness(config)
+
+        assert harness.db_adapter is not None
+        assert harness.db_adapter.host == "dbhost"
+        assert harness.db_adapter.port == 5433
+        assert harness.db_adapter.database == "testdb"
+        assert harness.db_adapter.username == "testuser"
+        assert harness.db_adapter.password == "testpass"
+
+    @pytest.mark.asyncio
+    async def test_harness_has_unique_paper_session_id(self) -> None:
+        """Harness has a unique UUID paper_session_id, different per instance."""
+        from app.engine.paper.live_harness import LivePaperTradingHarness
+
+        config1 = _make_harness_config()
+        config2 = _make_harness_config()
+        harness1 = LivePaperTradingHarness(config1)
+        harness2 = LivePaperTradingHarness(config2)
+
+        assert isinstance(harness1.paper_session_id, UUID)
+        assert isinstance(harness2.paper_session_id, UUID)
+        assert harness1.paper_session_id != harness2.paper_session_id
+
+    @pytest.mark.asyncio
+    async def test_harness_accepts_custom_paper_session_id(self) -> None:
+        """Harness uses provided paper_session_id from config."""
+        from app.engine.paper.live_harness import LivePaperTradingHarness
+
+        custom_session_id = uuid4()
+        config = _make_harness_config()
+        config["paper_session_id"] = custom_session_id
+        harness = LivePaperTradingHarness(config)
+
+        assert harness.paper_session_id == custom_session_id
+
+    @pytest.mark.asyncio
+    async def test_harness_shares_session_id_with_broker(self) -> None:
+        """Harness and broker use the same paper_session_id."""
+        from app.engine.paper.live_harness import LivePaperTradingHarness
+
+        config = _make_harness_config()
+        harness = LivePaperTradingHarness(config)
+
+        assert harness.paper_session_id == harness.broker.paper_session_id
 
 
 class TestLivePaperTradingHarnessAlerts:
@@ -139,6 +192,81 @@ class TestLivePaperTradingHarnessOnDecision:
         metrics = harness.get_metrics()
         assert "decision_count" in metrics
         assert metrics["decision_count"] >= 1
+
+
+class TestLivePaperTradingHarnessPersistDecision:
+    """Tests for decision persistence via db_adapter."""
+
+    @pytest.mark.asyncio
+    async def test_persist_decision_calls_insert_trading_decision(self) -> None:
+        """_persist_decision calls db_adapter.insert_trading_decision."""
+        from app.engine.paper.live_harness import LivePaperTradingHarness
+
+        config = _make_harness_config()
+        harness = LivePaperTradingHarness(config)
+
+        # Mock db_adapter.insert_trading_decision
+        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=True)
+
+        event = _make_trading_decision_event()
+        await harness._persist_decision(event)
+
+        harness.db_adapter.insert_trading_decision.assert_called_once_with(
+            event.decision,
+        )
+
+    @pytest.mark.asyncio
+    async def test_persist_decision_increments_error_on_failure(self) -> None:
+        """_persist_decision increments error_count when insert returns False."""
+        from app.engine.paper.live_harness import LivePaperTradingHarness
+
+        config = _make_harness_config()
+        harness = LivePaperTradingHarness(config)
+
+        # Mock db_adapter.insert_trading_decision to return False
+        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=False)
+
+        initial_error_count = harness._metrics.error_count
+        event = _make_trading_decision_event()
+        await harness._persist_decision(event)
+
+        assert harness._metrics.error_count == initial_error_count + 1
+
+    @pytest.mark.asyncio
+    async def test_persist_decision_increments_error_on_exception(self) -> None:
+        """_persist_decision increments error_count on exception."""
+        from app.engine.paper.live_harness import LivePaperTradingHarness
+
+        config = _make_harness_config()
+        harness = LivePaperTradingHarness(config)
+
+        # Mock db_adapter.insert_trading_decision to raise exception
+        harness.db_adapter.insert_trading_decision = AsyncMock(
+            side_effect=Exception("DB connection error"),
+        )
+
+        initial_error_count = harness._metrics.error_count
+        event = _make_trading_decision_event()
+        await harness._persist_decision(event)
+
+        assert harness._metrics.error_count == initial_error_count + 1
+
+    @pytest.mark.asyncio
+    async def test_persist_decision_success_does_not_increment_error(self) -> None:
+        """_persist_decision does not increment error_count on success."""
+        from app.engine.paper.live_harness import LivePaperTradingHarness
+
+        config = _make_harness_config()
+        harness = LivePaperTradingHarness(config)
+
+        # Mock db_adapter.insert_trading_decision to return True
+        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=True)
+
+        initial_error_count = harness._metrics.error_count
+        event = _make_trading_decision_event()
+        await harness._persist_decision(event)
+
+        assert harness._metrics.error_count == initial_error_count
 
 
 class TestLivePaperTradingHarnessOnCandle:
