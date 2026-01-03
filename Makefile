@@ -582,6 +582,38 @@ contracts: ## Generate typed models from JSONSchema contracts
 	@echo "$(GREEN)✅ Contract generation complete$(RESET)"
 
 # ==================================================================================
+# Paper Trading
+# ==================================================================================
+
+.PHONY: paper-live
+paper-live: ## Run live paper trading with testnet WebSocket
+	@echo "$(BLUE)📄 Starting live paper trading...$(RESET)"
+	@source venv/bin/activate && \
+		RUN_LIVE_PAPER_TRADING=1 PYTHONPATH=. python -m app.engine.paper.live_harness
+
+.PHONY: paper-compare-live
+paper-compare-live: ## Run paper trading + Captain signal comparison
+	@echo "$(BLUE)📊 Starting paper trading with Captain comparison...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/live_paper_vs_captain.py --source captain
+
+.PHONY: paper-test
+paper-test: ## Run paper trading unit tests
+	@echo "$(BLUE)🧪 Running paper trading tests...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python -m pytest \
+			app/engine/tests/unit/paper/ \
+			-v --tb=short --no-cov
+
+.PHONY: paper-test-live
+paper-test-live: ## Run live paper trading integration tests (requires RUN_LIVE_PAPER_TRADING=1)
+	@echo "$(BLUE)🌐 Running live paper trading tests...$(RESET)"
+	@source venv/bin/activate && \
+		RUN_LIVE_PAPER_TRADING=1 PYTHONPATH=. python -m pytest \
+			app/engine/tests/integration/test_live_paper_trading.py \
+			-v --tb=short --no-cov
+
+# ==================================================================================
 # Captain Trading Benchmark
 # ==================================================================================
 
