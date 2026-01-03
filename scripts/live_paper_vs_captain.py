@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from asyncio import StreamReader
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 import logging
 import os
 from pathlib import Path
-import subprocess
 import sys
 from typing import Any
 
@@ -34,6 +35,25 @@ from app.engine.telegram_validator.outcome_comparison import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _drain_stream(stream: StreamReader, prefix: str) -> AsyncIterator[str]:
+    """Drain lines from async stream, yielding each decoded line.
+
+    Args:
+        stream: Async stream reader (stdout or stderr from subprocess)
+        prefix: Log prefix for identifying stream source
+
+    Yields:
+        Decoded line with trailing whitespace stripped
+    """
+    while True:
+        line = await stream.readline()
+        if not line:
+            break
+        decoded = line.decode("utf-8", errors="replace").rstrip()
+        logger.debug("[%s] %s", prefix, decoded)
+        yield decoded
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -86,15 +106,48 @@ def build_captain_listener_command(source: str) -> list[str]:
     ]
 
 
-def start_captain_listener(source: str) -> subprocess.Popen[bytes]:
-    """Spawn captain_benchmark_ingest.py as a background listener."""
-    cmd = build_captain_listener_command(source)
+async def _consume_drain(drain_gen: AsyncIterator[str]) -> None:
+    """Consume all lines from a drain generator, logging each line."""
+    async for _ in drain_gen:
+        pass
+
+
+async def start_captain_listener_async(
+    source: str,
+    command: list[str] | None = None,
+) -> tuple[asyncio.subprocess.Process, list[asyncio.Task[None]]]:
+    """Spawn captain_benchmark_ingest.py as async subprocess with drain tasks.
+
+    Args:
+        source: Signal source identifier
+        command: Optional command override (for testing)
+
+    Returns:
+        Tuple of (process, drain_tasks) where drain_tasks continuously read
+        stdout/stderr to prevent pipe buffer deadlock.
+    """
+    cmd = command if command is not None else build_captain_listener_command(source)
     logger.info("Starting Captain listener: %s", " ".join(cmd))
-    return subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
+
+    drain_tasks: list[asyncio.Task[None]] = []
+    if process.stdout:
+        stdout_task = asyncio.create_task(
+            _consume_drain(_drain_stream(process.stdout, f"captain-{source}-stdout"))
+        )
+        drain_tasks.append(stdout_task)
+    if process.stderr:
+        stderr_task = asyncio.create_task(
+            _consume_drain(_drain_stream(process.stderr, f"captain-{source}-stderr"))
+        )
+        drain_tasks.append(stderr_task)
+
+    return process, drain_tasks
 
 
 def format_comparison_metrics(metrics: dict[str, Any]) -> str:
@@ -202,8 +255,8 @@ async def async_main(args: argparse.Namespace) -> None:
     )
     await db.initialize()
 
-    # Start Captain listener (subprocess)
-    captain_process = start_captain_listener(args.source)
+    # Start Captain listener (async subprocess with drain tasks)
+    captain_process, drain_tasks = await start_captain_listener_async(args.source)
 
     # Build database URL from components
     db_user = os.getenv("DB_USER", "postgres")
@@ -237,11 +290,32 @@ async def async_main(args: argparse.Namespace) -> None:
     except KeyboardInterrupt:
         logger.info("Shutting down...")
     finally:
-        # Clean up
-        await harness.stop()
-        captain_process.terminate()
-        captain_process.wait()
-        await db.close()
+        # Clean up each resource independently to ensure all get cleaned up
+        try:
+            await harness.stop()
+        except Exception:
+            logger.exception("Error stopping harness")
+
+        # Cancel drain tasks
+        for task in drain_tasks:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        # Terminate subprocess
+        try:
+            captain_process.terminate()
+            await captain_process.wait()
+        except Exception:
+            logger.exception("Error terminating captain process")
+
+        # Close database
+        try:
+            await db.close()
+        except Exception:
+            logger.exception("Error closing database")
 
 
 def main() -> None:
