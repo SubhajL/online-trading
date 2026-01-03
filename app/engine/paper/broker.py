@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 import logging
 from typing import Any
-import uuid
+from uuid import UUID, uuid4
 
 import asyncpg
 from fastapi import FastAPI, HTTPException
@@ -30,6 +30,13 @@ from ..backtest.types import (
     OrderType,
 )
 from ..models import Candle
+from .schema import (
+    PositionParams,
+    build_insert_paper_fill,
+    build_insert_paper_order,
+    build_upsert_paper_position,
+    cancel_oco_siblings_sql,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -134,9 +141,9 @@ class PaperPosition:
         self.created_at = datetime.now(UTC)
         self.updated_at = datetime.now(UTC)
 
-    def update_position(self, fill: BacktestFill, current_price: Decimal):
-        """Update position with new fill"""
-        fill_qty = fill.quantity if fill.order.side == OrderSide.BUY else -fill.quantity
+    def update_position(self, fill: BacktestFill, current_price: Decimal) -> None:
+        """Update position with new fill."""
+        fill_qty = fill.quantity if fill.side == OrderSide.BUY else -fill.quantity
 
         if self.net_quantity.is_zero():
             # Opening new position
@@ -199,16 +206,17 @@ class PaperBroker:
         cost_calculator: CostCalculator | None = None,
         fill_engine: FillEngine | None = None,
         event_publisher: Any | None = None,  # Event bus for publishing order updates
+        paper_session_id: UUID | None = None,
     ):
         self.database_url = database_url
         self.cost_calculator = cost_calculator or CostCalculator()
         self.fill_engine = fill_engine or FillEngine()
         self.event_publisher = event_publisher
+        self.paper_session_id = paper_session_id or uuid4()
 
         # In-memory state
         self.active_orders: dict[str, BacktestOrder] = {}  # client_order_id -> order
         self.positions: dict[str, PaperPosition] = {}  # symbol -> position
-        self.bracket_orders: dict[str, list[str]] = {}  # bracket_id -> [order_ids]
 
         # Database pool
         self.db_pool: asyncpg.Pool | None = None
@@ -217,7 +225,7 @@ class PaperBroker:
         self.current_prices: dict[str, Decimal] = {}
         self.latest_candles: dict[str, Candle] = {}
 
-        logger.info("Paper broker initialized")
+        logger.info("Paper broker initialized with session %s", self.paper_session_id)
 
     async def initialize(self):
         """Initialize database connection and load state"""
@@ -235,56 +243,83 @@ class PaperBroker:
             await self.db_pool.close()
         logger.info("Paper broker closed")
 
-    async def _load_state_from_db(self):
-        """Load active orders and positions from database"""
+    async def _load_state_from_db(self) -> None:
+        """Load active orders and positions from database.
+
+        Uses schema-aligned column names and status values.
+        Only loads orders for the current paper_session_id.
+        """
+        from .schema import status_from_db
+
         async with self.db_pool.acquire() as conn:
-            # Load active orders
-            orders = await conn.fetch("""
+            # Load active orders for this session (using schema-aligned status)
+            orders = await conn.fetch(
+                """
                 SELECT * FROM paper_orders
-                WHERE status IN ('PENDING', 'PARTIALLY_FILLED')
-                ORDER BY created_at
-            """)
+                WHERE paper_session_id = $1
+                  AND status IN ('NEW', 'PARTIALLY_FILLED')
+                ORDER BY order_time
+                """,
+                self.paper_session_id,
+            )
 
             for order_row in orders:
                 order = self._order_from_db_row(order_row)
                 self.active_orders[order.client_order_id] = order
 
-            # Load positions
-            positions = await conn.fetch("""
+            # Load positions for this session (using schema-aligned columns)
+            positions = await conn.fetch(
+                """
                 SELECT * FROM paper_positions
-                WHERE abs(net_quantity) > 0
-            """)
+                WHERE paper_session_id = $1
+                  AND quantity > 0
+                """,
+                self.paper_session_id,
+            )
 
             for pos_row in positions:
-                position = PaperPosition(pos_row["symbol"], pos_row["is_futures"])
-                position.net_quantity = pos_row["net_quantity"]
-                position.avg_entry_price = pos_row["avg_entry_price"]
-                position.unrealized_pnl = pos_row["unrealized_pnl"]
-                position.total_fees = pos_row["total_fees"]
-                position.total_funding = pos_row["total_funding"]
+                # Determine is_futures from symbol pattern (no column in schema)
+                is_futures = pos_row["symbol"].endswith("USDT")
+                position = PaperPosition(pos_row["symbol"], is_futures)
+                # Map schema columns to PaperPosition fields
+                position.net_quantity = pos_row["quantity"]
+                if pos_row["side"] == "SHORT":
+                    position.net_quantity = -position.net_quantity
+                position.avg_entry_price = pos_row["entry_price"]
+                position.unrealized_pnl = pos_row["unrealized_pnl"] or Decimal(0)
+                position.total_fees = pos_row["total_fees"] or Decimal(0)
+                position.total_funding = pos_row["total_funding"] or Decimal(0)
                 position.created_at = pos_row["created_at"]
                 position.updated_at = pos_row["updated_at"]
 
                 self.positions[pos_row["symbol"]] = position
 
         logger.info(
-            f"Loaded {len(self.active_orders)} orders and {len(self.positions)} positions",
+            "Loaded %d orders and %d positions for session %s",
+            len(self.active_orders),
+            len(self.positions),
+            self.paper_session_id,
         )
 
     def _order_from_db_row(self, row) -> BacktestOrder:
-        """Convert database row to BacktestOrder"""
+        """Convert database row to BacktestOrder using schema-aligned columns."""
+        from .schema import status_from_db
+
         return BacktestOrder(
             id=row["id"],
             symbol=row["symbol"],
             side=OrderSide(row["side"]),
             type=OrderType(row["type"]),
             quantity=row["quantity"],
-            price=row["price"] if row["price"] else Decimal(0),
-            stop_price=row["stop_price"] if row["stop_price"] else Decimal(0),
+            price=row["price"],
+            stop_price=row["stop_price"],
             client_order_id=row["client_order_id"],
-            status=OrderStatus(row["status"]),
-            created_at=row["created_at"],
-            bracket_order_id=row["bracket_order_id"],
+            status=status_from_db(row["status"]),
+            filled_quantity=row["filled_quantity"] or Decimal(0),
+            remaining_quantity=row["remaining_quantity"],
+            reduce_only=row["reduce_only"] or False,
+            order_time=row["order_time"],
+            fill_time=row["fill_time"],
         )
 
     async def update_market_data(self, candle: Candle):
@@ -295,21 +330,22 @@ class PaperBroker:
         # Check for fills on existing orders
         await self._process_pending_fills(candle)
 
-    async def _process_pending_fills(self, candle: Candle):
-        """Check if any pending orders can be filled with this candle"""
+    async def _process_pending_fills(self, candle: Candle) -> None:
+        """Check if any NEW orders can be filled with this candle."""
         symbol_orders = [
             o
             for o in self.active_orders.values()
-            if o.symbol == candle.symbol and o.status == OrderStatus.PENDING
+            if o.symbol == candle.symbol and o.status == OrderStatus.NEW
         ]
 
         for order in symbol_orders:
             if self.fill_engine.can_fill_order(order, candle):
                 await self._execute_fill(order, candle)
 
-    async def _execute_fill(self, order: BacktestOrder, candle: Candle):
-        """Execute a fill for an order"""
+    async def _execute_fill(self, order: BacktestOrder, candle: Candle) -> None:
+        """Execute a fill for an order using schema-aligned fields."""
         fill_price = self.fill_engine.get_fill_price(order, candle)
+        now = datetime.now(UTC)
 
         # Calculate costs
         notional = order.quantity * fill_price
@@ -323,24 +359,34 @@ class PaperBroker:
             candle.volume,
         )
 
-        # Create fill
+        # Determine fill reason based on order type
+        fill_reason = FillReason.MARKET
+        if order.type == OrderType.LIMIT:
+            fill_reason = FillReason.LIMIT
+        elif order.type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
+            fill_reason = FillReason.STOP
+
+        # Create fill with schema-aligned fields
         fill = BacktestFill(
-            order=order,
+            order_id=order.id,
+            symbol=order.symbol,
+            side=order.side,
             quantity=order.quantity,
             price=fill_price,
             fee=fee,
             slippage=slippage,
-            timestamp=candle.open_time,
-            reason=FillReason.MARKET_ORDER
-            if order.type == OrderType.MARKET
-            else FillReason.LIMIT_TOUCHED,
+            fill_time=now,
+            fill_reason=fill_reason,
+            candle_open_time=candle.open_time,
+            candle_high=candle.high_price,
+            candle_low=candle.low_price,
         )
 
-        # Update order status
+        # Update order status with schema-aligned fields
         order.status = OrderStatus.FILLED
         order.filled_quantity = order.quantity
-        order.fill_price = fill_price
-        order.updated_at = datetime.now(UTC)
+        order.remaining_quantity = Decimal(0)
+        order.fill_time = now
 
         # Update position
         if order.symbol not in self.positions:
@@ -351,10 +397,14 @@ class PaperBroker:
 
         self.positions[order.symbol].update_position(fill, candle.close_price)
 
-        # Save to database
-        await self._save_fill_to_db(fill)
+        # Save to database using schema-aligned methods
+        await self._insert_paper_fill(fill)
         await self._update_order_in_db(order)
-        await self._update_position_in_db(self.positions[order.symbol])
+        await self._upsert_paper_position(self.positions[order.symbol])
+
+        # Cancel OCO siblings if this is a reduce_only (TP/SL) order
+        if order.reduce_only:
+            await self._cancel_oco_siblings(order.id, symbol=order.symbol)
 
         # Publish order update event
         await self._publish_order_update(order, "FILLED")
@@ -363,73 +413,94 @@ class PaperBroker:
         del self.active_orders[order.client_order_id]
 
         logger.info(
-            f"Filled order {order.client_order_id}: {order.quantity} {order.symbol} @ {fill_price}",
+            "Filled order %s: %s %s @ %s",
+            order.client_order_id,
+            order.quantity,
+            order.symbol,
+            fill_price,
         )
 
-    async def _save_fill_to_db(self, fill: BacktestFill):
-        """Save fill to database"""
+    async def _insert_paper_fill(
+        self,
+        fill: BacktestFill,
+        position_id: UUID | None = None,
+    ) -> None:
+        """Insert fill to database using schema-aligned SQL builder."""
+        sql, params = build_insert_paper_fill(fill, position_id)
         async with self.db_pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO paper_fills (
-                    id, order_id, symbol, side, quantity, price,
-                    fee, slippage, timestamp, reason
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            """,
-                fill.id,
-                fill.order.id,
-                fill.order.symbol,
-                fill.order.side.value,
-                fill.quantity,
-                fill.price,
-                fill.fee,
-                fill.slippage,
-                fill.timestamp,
-                fill.reason.value,
-            )
+            await conn.execute(sql, *params)
 
-    async def _update_order_in_db(self, order: BacktestOrder):
-        """Update order in database"""
+    async def _update_order_in_db(self, order: BacktestOrder) -> None:
+        """Update order status and fill info in database using schema-aligned columns."""
+        from .schema import status_to_db
+
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
                 UPDATE paper_orders SET
-                    status = $2, filled_quantity = $3, fill_price = $4, updated_at = $5
+                    status = $2,
+                    filled_quantity = $3,
+                    remaining_quantity = $4,
+                    fill_time = $5,
+                    updated_at = $6
                 WHERE id = $1
-            """,
+                """,
                 order.id,
-                order.status.value,
+                status_to_db(order.status),
                 order.filled_quantity,
-                order.fill_price,
-                order.updated_at,
+                order.remaining_quantity,
+                order.fill_time,
+                datetime.now(UTC),
             )
 
-    async def _update_position_in_db(self, position: PaperPosition):
-        """Update position in database"""
+    async def _upsert_paper_position(self, position: PaperPosition) -> None:
+        """Upsert position to database using schema-aligned SQL builder."""
+        params = PositionParams(
+            symbol=position.symbol,
+            paper_session_id=self.paper_session_id,
+            side="LONG" if position.net_quantity > 0 else "SHORT" if position.net_quantity < 0 else None,
+            quantity=abs(position.net_quantity),
+            entry_price=position.avg_entry_price,
+            mark_price=position.avg_entry_price,  # Updated on next candle
+            unrealized_pnl=position.unrealized_pnl,
+            realized_pnl=Decimal(0),
+            total_fees=position.total_fees,
+            total_funding=position.total_funding,
+        )
+        sql, sql_params = build_upsert_paper_position(params)
         async with self.db_pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO paper_positions (
-                    symbol, is_futures, net_quantity, avg_entry_price,
-                    unrealized_pnl, total_fees, total_funding, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                ON CONFLICT (symbol) DO UPDATE SET
-                    net_quantity = $3, avg_entry_price = $4, unrealized_pnl = $5,
-                    total_fees = $6, total_funding = $7, updated_at = $9
-            """,
-                position.symbol,
-                position.is_futures,
-                position.net_quantity,
-                position.avg_entry_price,
-                position.unrealized_pnl,
-                position.total_fees,
-                position.total_funding,
-                position.created_at,
-                position.updated_at,
-            )
+            await conn.execute(sql, *sql_params)
 
-    async def _publish_order_update(self, order: BacktestOrder, event_type: str):
-        """Publish order update event"""
+    async def _cancel_oco_siblings(
+        self,
+        filled_order_id: UUID,
+        symbol: str | None = None,
+    ) -> None:
+        """Cancel OCO sibling orders when one fills (e.g., cancel SL when TP fills).
+
+        Only cancels reduce_only orders for the same symbol within this session.
+        This prevents accidentally canceling unrelated orders.
+        """
+        sql, params = cancel_oco_siblings_sql(
+            self.paper_session_id,
+            filled_order_id,
+        )
+        async with self.db_pool.acquire() as conn:
+            await conn.execute(sql, *params)
+
+        # Also update in-memory state (only reduce_only orders for same symbol)
+        for client_order_id, order in list(self.active_orders.items()):
+            if (
+                order.id != filled_order_id
+                and order.status == OrderStatus.NEW
+                and order.reduce_only  # Only cancel TP/SL orders
+                and (symbol is None or order.symbol == symbol)  # Same symbol
+            ):
+                order.status = OrderStatus.CANCELLED
+                del self.active_orders[client_order_id]
+
+    async def _publish_order_update(self, order: BacktestOrder, event_type: str) -> None:
+        """Publish order update event."""
         if not self.event_publisher:
             return
 
@@ -441,15 +512,15 @@ class PaperBroker:
             status=order.status.value,
             side=order.side.value,
             order_type=order.type.value,
-            price=order.price,
+            price=order.price or Decimal(0),
             quantity=order.quantity,
             executed_qty=order.filled_quantity,
-            update_time=order.updated_at,
+            update_time=order.fill_time or datetime.now(UTC),
             reason=None,
         )
 
         # Publish via event bus
-        await self.event_publisher.publish("order_update.v1", update.dict())
+        await self.event_publisher.publish("order_update.v1", update.model_dump())
 
     # ============================================================================
     # API Endpoints (Same as Go Router)
@@ -459,22 +530,26 @@ class PaperBroker:
         self,
         request: PlaceBracketRequest,
     ) -> PlaceBracketResponse:
-        """Place bracket order with entry, TPs, and SL"""
-        bracket_id = str(uuid.uuid4())
+        """Place bracket order with entry, TPs, and SL.
+
+        All orders in a bracket share the same paper_session_id for OCO tracking.
+        TP/SL orders are marked reduce_only=True per schema.
+        """
+        now = datetime.now(UTC)
         client_order_ids = ClientOrderIDs(
-            main=f"paper_{uuid.uuid4().hex[:8]}",
+            main=f"paper_{uuid4().hex[:8]}",
             take_profits=[
-                f"paper_tp_{i}_{uuid.uuid4().hex[:8]}"
+                f"paper_tp_{i}_{uuid4().hex[:8]}"
                 for i in range(len(request.take_profit_prices))
             ],
-            stop_loss=f"paper_sl_{uuid.uuid4().hex[:8]}",
+            stop_loss=f"paper_sl_{uuid4().hex[:8]}",
         )
 
-        orders = []
-        errors = []
+        orders: list[BacktestOrder] = []
+        errors: list[str] = []
 
         try:
-            # 1. Entry order
+            # 1. Entry order (reduce_only=False)
             entry_order = BacktestOrder(
                 symbol=request.symbol,
                 side=OrderSide(request.side),
@@ -484,32 +559,32 @@ class PaperBroker:
                 quantity=request.quantity,
                 price=request.entry_price
                 if request.order_type == "LIMIT"
-                else Decimal(0),
+                else None,
                 client_order_id=client_order_ids.main,
-                bracket_order_id=bracket_id,
-                status=OrderStatus.PENDING,
-                created_at=datetime.now(UTC),
+                status=OrderStatus.NEW,
+                reduce_only=False,
+                order_time=now,
             )
             orders.append(entry_order)
 
-            # 2. Take profit orders (OCO with entry)
+            # 2. Take profit orders (OCO, reduce_only=True)
+            tp_side = OrderSide.SELL if request.side == "BUY" else OrderSide.BUY
+            tp_qty = request.quantity / len(request.take_profit_prices)
             for i, tp_price in enumerate(request.take_profit_prices):
-                tp_side = OrderSide.SELL if request.side == "BUY" else OrderSide.BUY
                 tp_order = BacktestOrder(
                     symbol=request.symbol,
                     side=tp_side,
                     type=OrderType.LIMIT,
-                    quantity=request.quantity
-                    / len(request.take_profit_prices),  # Split quantity
+                    quantity=tp_qty,
                     price=tp_price,
                     client_order_id=client_order_ids.take_profits[i],
-                    bracket_order_id=bracket_id,
-                    status=OrderStatus.PENDING_TRIGGER,  # Will activate after entry fills
-                    created_at=datetime.now(UTC),
+                    status=OrderStatus.NEW,
+                    reduce_only=True,
+                    order_time=now,
                 )
                 orders.append(tp_order)
 
-            # 3. Stop loss order
+            # 3. Stop loss order (OCO, reduce_only=True)
             sl_side = OrderSide.SELL if request.side == "BUY" else OrderSide.BUY
             sl_order = BacktestOrder(
                 symbol=request.symbol,
@@ -518,20 +593,16 @@ class PaperBroker:
                 quantity=request.quantity,
                 stop_price=request.stop_loss_price,
                 client_order_id=client_order_ids.stop_loss,
-                bracket_order_id=bracket_id,
-                status=OrderStatus.PENDING_TRIGGER,
-                created_at=datetime.now(UTC),
+                status=OrderStatus.NEW,
+                reduce_only=True,
+                order_time=now,
             )
             orders.append(sl_order)
 
-            # Save orders to database and memory
+            # Insert orders to database and track in memory
             for order in orders:
-                await self._save_order_to_db(order)
-                if order.status == OrderStatus.PENDING:
-                    self.active_orders[order.client_order_id] = order
-
-            # Track bracket relationship
-            self.bracket_orders[bracket_id] = [o.client_order_id for o in orders]
+                await self._insert_paper_order(order)
+                self.active_orders[order.client_order_id] = order
 
             # If market order, try immediate fill
             if request.order_type == "MARKET" and request.symbol in self.latest_candles:
@@ -540,46 +611,32 @@ class PaperBroker:
                     await self._execute_fill(entry_order, candle)
 
             response = PlaceBracketResponse(
-                bracket_order_id=bracket_id,
+                bracket_order_id=str(self.paper_session_id),
                 client_order_ids=client_order_ids,
                 symbol=request.symbol,
                 side=request.side,
                 quantity=request.quantity,
-                created_at=datetime.now(UTC),
+                created_at=now,
                 partial_failure=len(errors) > 0,
                 errors=errors,
             )
 
-            logger.info(f"Placed bracket order {bracket_id} for {request.symbol}")
+            logger.info(
+                "Placed bracket order for %s (session=%s)",
+                request.symbol,
+                self.paper_session_id,
+            )
             return response
 
         except Exception as e:
-            logger.error(f"Error placing bracket order: {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.error("Error placing bracket order: %s", e)
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
-    async def _save_order_to_db(self, order: BacktestOrder):
-        """Save order to database"""
+    async def _insert_paper_order(self, order: BacktestOrder) -> None:
+        """Insert order to database using schema-aligned SQL builder."""
+        sql, params = build_insert_paper_order(order, self.paper_session_id)
         async with self.db_pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO paper_orders (
-                    id, symbol, side, type, quantity, price, stop_price,
-                    client_order_id, bracket_order_id, status, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            """,
-                order.id,
-                order.symbol,
-                order.side.value,
-                order.type.value,
-                order.quantity,
-                order.price,
-                order.stop_price,
-                order.client_order_id,
-                order.bracket_order_id,
-                order.status.value,
-                order.created_at,
-                order.updated_at,
-            )
+            await conn.execute(sql, *params)
 
     async def cancel_order(self, request: CancelRequest) -> dict[str, str]:
         """Cancel an order"""
@@ -626,12 +683,13 @@ class PaperBroker:
             else:
                 symbols_to_close = list(self.positions.keys())
 
+            now = datetime.now(UTC)
             for symbol in symbols_to_close:
                 position = self.positions[symbol]
                 if position.net_quantity.is_zero():
                     continue
 
-                # Create market order to close position
+                # Create market order to close position (schema-aligned)
                 close_side = (
                     OrderSide.SELL if position.net_quantity > 0 else OrderSide.BUY
                 )
@@ -640,13 +698,14 @@ class PaperBroker:
                     side=close_side,
                     type=OrderType.MARKET,
                     quantity=abs(position.net_quantity),
-                    client_order_id=f"paper_close_{uuid.uuid4().hex[:8]}",
-                    status=OrderStatus.PENDING,
-                    created_at=datetime.now(UTC),
+                    client_order_id=f"paper_close_{uuid4().hex[:8]}",
+                    status=OrderStatus.NEW,
+                    reduce_only=True,  # Closing position
+                    order_time=now,
                 )
 
-                # Save and activate order
-                await self._save_order_to_db(close_order)
+                # Save and activate order using schema-aligned method
+                await self._insert_paper_order(close_order)
                 self.active_orders[close_order.client_order_id] = close_order
 
                 # Try immediate fill if market data available
@@ -655,12 +714,12 @@ class PaperBroker:
                     if self.fill_engine.can_fill_order(close_order, candle):
                         await self._execute_fill(close_order, candle)
 
-            logger.info(f"Initiated close for {len(symbols_to_close)} positions")
+            logger.info("Initiated close for %d positions", len(symbols_to_close))
             return {"status": "success"}
 
         except Exception as e:
-            logger.error(f"Error closing positions: {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.exception("Error closing positions")
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # ============================================================================

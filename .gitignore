@@ -529,3 +529,6 @@ db/_migrations_contiguous_event_flow/
 
 # UX test screenshots
 tests/UX/
+
+# Runtime report artifacts
+reports/*.json

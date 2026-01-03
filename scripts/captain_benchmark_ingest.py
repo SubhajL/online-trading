@@ -15,13 +15,21 @@ from __future__ import annotations
 import argparse
 import asyncio
 from datetime import UTC, datetime
+import logging
 import os
 from pathlib import Path
 import sys
 from typing import Any
 
 from telethon import TelegramClient, events
+from telethon.errors import FloodWaitError
 from telethon.tl.types import Message, PeerChannel
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -160,7 +168,48 @@ async def ingest_recent_messages(*, limit: int, listen: bool, source: str) -> No
             await _ingest_message(event.message)
 
         print(f"Listening for new messages on {channel_raw}… (Ctrl+C to stop)")
-        await client.run_until_disconnected()
+
+        # Reconnection loop with exponential backoff
+        max_consecutive_failures = 10
+        base_delay = 5
+        max_delay = 300  # 5 minutes max
+        consecutive_failures = 0
+
+        while consecutive_failures < max_consecutive_failures:
+            try:
+                if not client.is_connected():
+                    logger.info(f"Reconnecting (failures: {consecutive_failures})...")
+                    await client.connect()
+                    if not await client.is_user_authorized():
+                        await client.start(phone=phone)
+                    logger.info("Reconnected successfully")
+                    consecutive_failures = 0  # Reset on successful connection
+
+                logger.info("Connection active, listening for messages...")
+                await client.run_until_disconnected()
+                logger.warning("Disconnected from Telegram")
+
+            except FloodWaitError as e:
+                wait_time = e.seconds
+                logger.warning(f"FloodWait: sleeping {wait_time}s before retry")
+                await asyncio.sleep(wait_time)
+                # Don't count FloodWait as failure
+
+            except (ConnectionError, OSError, TimeoutError) as e:
+                consecutive_failures += 1
+                delay = min(base_delay * (2 ** consecutive_failures), max_delay)
+                logger.warning(
+                    f"Connection error: {e}. Retry {consecutive_failures}/{max_consecutive_failures} in {delay}s"
+                )
+                await asyncio.sleep(delay)
+
+            except Exception as e:
+                consecutive_failures += 1
+                delay = min(base_delay * (2 ** consecutive_failures), max_delay)
+                logger.error(f"Unexpected error: {e}. Retrying in {delay}s...")
+                await asyncio.sleep(delay)
+
+        logger.error(f"Too many consecutive failures ({max_consecutive_failures}). Exiting.")
         return
 
     count = 0

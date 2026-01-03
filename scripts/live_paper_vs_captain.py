@@ -68,8 +68,8 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--entry-tolerance",
         type=float,
-        default=0.005,
-        help="Entry price tolerance for matching (default: 0.005 = 0.5%%)",
+        default=0.002,
+        help="Entry price tolerance for matching (default: 0.002 = 0.2%%)",
     )
     return parser
 
