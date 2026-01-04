@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 import enum as _enum
-from typing import Any
+from typing import Any, Literal
 import uuid
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
@@ -28,6 +28,8 @@ Enum = _enum.Enum
 
 class TimeFrame(str, Enum):
     """Supported timeframes for candle data"""
+
+    __slots__ = ()
 
     M1 = "1m"
     M3 = "3m"
@@ -49,12 +51,16 @@ class TimeFrame(str, Enum):
 class OrderSide(str, Enum):
     """Order side enumeration"""
 
+    __slots__ = ()
+
     BUY = "BUY"
     SELL = "SELL"
 
 
 class OrderType(str, Enum):
     """Order type enumeration"""
+
+    __slots__ = ()
 
     MARKET = "MARKET"
     LIMIT = "LIMIT"
@@ -67,6 +73,8 @@ class OrderType(str, Enum):
 class OrderStatus(str, Enum):
     """Order status enumeration"""
 
+    __slots__ = ()
+
     NEW = "NEW"
     PARTIALLY_FILLED = "PARTIALLY_FILLED"
     FILLED = "FILLED"
@@ -78,6 +86,8 @@ class OrderStatus(str, Enum):
 class PositionSide(str, Enum):
     """Position side enumeration"""
 
+    __slots__ = ()
+
     LONG = "LONG"
     SHORT = "SHORT"
 
@@ -85,12 +95,14 @@ class PositionSide(str, Enum):
 class CandleOrigin(str, Enum):
     """Origin of candle data for pipeline gating"""
 
+    __slots__ = ()
+
     REALTIME = "realtime"
     BACKFILL = "backfill"
     GAP_FILL = "gap_fill"
 
 
-def is_realtime_candle_event(origin: "CandleOrigin") -> bool:
+def is_realtime_candle_event(origin: CandleOrigin) -> bool:
     """Check if candle origin should trigger trading pipeline.
 
     Only REALTIME events should trigger full pipeline processing
@@ -102,6 +114,8 @@ def is_realtime_candle_event(origin: "CandleOrigin") -> bool:
 
 class EventType(str, Enum):
     """Event type enumeration for the event bus"""
+
+    __slots__ = ()
 
     CANDLE_UPDATE = "candle_update"
     FEATURES_CALCULATED = "features_calculated"
@@ -122,6 +136,8 @@ class EventType(str, Enum):
 class MarketRegime(str, Enum):
     """Market regime classification"""
 
+    __slots__ = ()
+
     TRENDING_UP = "trending_up"
     TRENDING_DOWN = "trending_down"
     RANGING = "ranging"
@@ -131,6 +147,8 @@ class MarketRegime(str, Enum):
 
 class SMCStructure(str, Enum):
     """Smart Money Concepts structure types"""
+
+    __slots__ = ()
 
     HIGHER_HIGH = "HH"
     HIGHER_LOW = "HL"
@@ -142,6 +160,8 @@ class SMCStructure(str, Enum):
 
 class ZoneType(str, Enum):
     """Supply/Demand zone types"""
+
+    __slots__ = ()
 
     SUPPLY = "SUPPLY"
     DEMAND = "DEMAND"
@@ -175,13 +195,23 @@ class BaseEvent(BaseModel):
             v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
-    def __lt__(self, other: "BaseEvent") -> bool:
+    def __lt__(self, other: BaseEvent) -> bool:
         """Compare events by event_id for priority queue ordering.
 
         This is required when events have equal priority and timestamp
         in asyncio.PriorityQueue to provide stable ordering.
         """
         return str(self.event_id) < str(other.event_id)
+
+
+class NonPositivePriceError(ValueError):
+    def __init__(self) -> None:
+        super().__init__("Price values must be positive")
+
+
+class NegativeVolumeError(ValueError):
+    def __init__(self) -> None:
+        super().__init__("Volume values must be non-negative")
 
 
 # ============================================================================
@@ -218,7 +248,7 @@ class Candle(BaseModel):
     )
     def ensure_price_positive(cls, v: Decimal) -> Decimal:  # noqa: N805
         if v <= 0:
-            raise ValueError("Price values must be positive")
+            raise NonPositivePriceError
         return v
 
     @field_validator(
@@ -230,7 +260,7 @@ class Candle(BaseModel):
     )
     def ensure_volume_non_negative(cls, v: Decimal) -> Decimal:  # noqa: N805
         if v < 0:
-            raise ValueError("Volume values must be non-negative")
+            raise NegativeVolumeError
         return v
 
     @field_serializer(
@@ -494,6 +524,9 @@ class RetestSignal(BaseModel):
     timeframe: TimeFrame
     timestamp: datetime
     level_price: Decimal
+    direction: Literal["BUY", "SELL"]
+    stop_loss: Decimal
+    take_profit: Decimal
     retest_type: str  # "support_retest", "resistance_retest", "zone_retest"
     success_probability: Decimal = Field(ge=0, le=1)
     volume_confirmation: bool
@@ -505,7 +538,7 @@ class RetestSignal(BaseModel):
             v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
-    @field_serializer("level_price", "success_probability")
+    @field_serializer("level_price", "stop_loss", "take_profit", "success_probability")
     def _ser_retest_decimals(self, v: Decimal) -> str:
         return str(v)
 
@@ -877,7 +910,7 @@ class EngineConfig(BaseModel):
 # ============================================================================
 
 
-def kline_to_candle(data: dict[str, Any], venue: str) -> Candle:
+def kline_to_candle(data: dict[str, Any], _venue: str) -> Candle:
     """
     Convert Binance WebSocket kline data to Candle model.
 
@@ -891,8 +924,8 @@ def kline_to_candle(data: dict[str, Any], venue: str) -> Candle:
     return Candle(
         symbol=data["s"],
         timeframe=TimeFrame(data["i"]),
-        open_time=datetime.fromtimestamp(data["t"] / 1000),
-        close_time=datetime.fromtimestamp(data["T"] / 1000),
+        open_time=datetime.fromtimestamp(data["t"] / 1000, tz=UTC),
+        close_time=datetime.fromtimestamp(data["T"] / 1000, tz=UTC),
         open_price=Decimal(data["o"]),
         high_price=Decimal(data["h"]),
         low_price=Decimal(data["l"]),
@@ -909,7 +942,7 @@ def rest_kline_to_candle(
     data: list[Any],
     symbol: str,
     timeframe: str,
-    venue: str,
+    _venue: str,
 ) -> Candle:
     """
     Convert Binance REST API kline array to Candle model.
@@ -931,8 +964,8 @@ def rest_kline_to_candle(
     return Candle(
         symbol=symbol,
         timeframe=TimeFrame(timeframe),
-        open_time=datetime.fromtimestamp(data[0] / 1000),
-        close_time=datetime.fromtimestamp(data[6] / 1000),
+        open_time=datetime.fromtimestamp(data[0] / 1000, tz=UTC),
+        close_time=datetime.fromtimestamp(data[6] / 1000, tz=UTC),
         open_price=Decimal(data[1]),
         high_price=Decimal(data[2]),
         low_price=Decimal(data[3]),
@@ -950,57 +983,49 @@ def rest_kline_to_candle(
 # ============================================================================
 
 __all__ = [
-    # Enums
-    "TimeFrame",
-    "OrderSide",
-    "OrderType",
-    "OrderStatus",
-    "EventType",
-    "MarketRegime",
-    "SMCStructure",
-    "ZoneType",
-    # Base types
     "BaseEvent",
-    # Market data
-    "Candle",
-    "Ticker",
-    # Technical analysis
-    "TechnicalIndicators",
-    # Smart Money Concepts
-    "PivotPoint",
-    "SupplyDemandZone",
-    "MarketStructure",
-    # Signals
-    "SMCSignal",
-    "RetestSignal",
-    # Risk management
-    "RiskParameters",
-    "PositionSizing",
-    # Trading
-    "TradingDecision",
-    "Order",
-    "Position",
-    # Events
-    "CandleUpdateEvent",
-    "FeaturesCalculatedEvent",
-    "FeatureUpdateEvent",
-    "SMCSignalEvent",
-    "RetestSignalEvent",
-    "TradingDecisionEvent",
-    "OrderPlacedEvent",
-    "OrderFilledEvent",
-    "PositionUpdateEvent",
-    "ErrorEvent",
-    # Health and metrics
-    "HealthStatus",
-    "SystemMetrics",
-    "TradingMetrics",
-    # Configuration
-    "DatabaseConfig",
-    "RedisConfig",
     "BinanceConfig",
+    "Candle",
+    "CandleOrigin",
+    "CandleUpdateEvent",
+    "DatabaseConfig",
     "EngineConfig",
-    # Transform utilities
+    "ErrorEvent",
+    "EventType",
+    "FeatureUpdateEvent",
+    "FeaturesCalculatedEvent",
+    "HealthStatus",
+    "MarketRegime",
+    "MarketStructure",
+    "NegativeVolumeError",
+    "NonPositivePriceError",
+    "Order",
+    "OrderFilledEvent",
+    "OrderPlacedEvent",
+    "OrderSide",
+    "OrderStatus",
+    "OrderType",
+    "PivotPoint",
+    "Position",
+    "PositionSide",
+    "PositionSizing",
+    "PositionUpdateEvent",
+    "RedisConfig",
+    "RetestSignal",
+    "RetestSignalEvent",
+    "RiskParameters",
+    "SMCSignal",
+    "SMCSignalEvent",
+    "SMCStructure",
+    "SupplyDemandZone",
+    "SystemMetrics",
+    "TechnicalIndicators",
+    "Ticker",
+    "TimeFrame",
+    "TradingDecision",
+    "TradingDecisionEvent",
+    "TradingMetrics",
+    "ZoneType",
     "kline_to_candle",
     "rest_kline_to_candle",
 ]

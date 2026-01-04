@@ -13,48 +13,105 @@ For deterministic unit tests, see:
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
+import asyncio
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import os
+from typing import TYPE_CHECKING, Protocol
 from unittest.mock import AsyncMock, MagicMock
-from urllib.parse import urlparse
+from uuid import UUID
 
+import asyncpg
 import pytest
+import pytest_asyncio
 
 from app.engine.adapters.db.timescale_adapter import TimescaleDBAdapter
 from app.engine.models import (
+    Candle,
     EventType,
     TimeFrame,
     TradingDecision,
     TradingDecisionEvent,
 )
+from app.engine.paper.broker import PaperBroker, PlaceBracketRequest
+from app.engine.paper.live_harness import LivePaperTradingHarness
+from app.engine.tests.integration.db_config import load_test_database_config
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+BRACKET_ORDER_COUNT = 3
+BRACKET_FILL_COUNT_ENTRY_ONLY = 1
+BRACKET_FILL_COUNT_WITH_TP = 2
+
+
+class _TestDbCfg(Protocol):
+    host: str
+    port: int
+    username: str
+    password: str
+    database: str
+
+
+async def _connect_test_db(cfg: _TestDbCfg) -> asyncpg.Connection:
+    return await asyncpg.connect(
+        host=cfg.host,
+        port=cfg.port,
+        user=cfg.username,
+        password=cfg.password,
+        database=cfg.database,
+    )
+
+
+def _make_candle(
+    *,
+    symbol: str,
+    ohlc: tuple[Decimal, Decimal, Decimal, Decimal],
+    now: datetime | None = None,
+    timeframe: TimeFrame = TimeFrame.M1,
+) -> Candle:
+    open_price, high_price, low_price, close_price = ohlc
+    if now is None:
+        now = datetime.now(UTC).replace(microsecond=0)
+
+    volume = Decimal(1)
+    quote_volume = close_price * volume
+
+    return Candle(
+        symbol=symbol,
+        timeframe=timeframe,
+        open_time=now,
+        close_time=now + timedelta(minutes=1),
+        open_price=open_price,
+        high_price=high_price,
+        low_price=low_price,
+        close_price=close_price,
+        volume=volume,
+        quote_volume=quote_volume,
+        trades=1,
+        taker_buy_base_volume=Decimal(0),
+        taker_buy_quote_volume=Decimal(0),
+    )
 
 # =============================================================================
 # DB Integration Tests (require PostgreSQL)
 # =============================================================================
 
 
-@pytest.fixture
-async def db_adapter() -> AsyncGenerator[TimescaleDBAdapter, None]:
+@pytest_asyncio.fixture
+async def db_adapter() -> AsyncIterator[TimescaleDBAdapter]:
     """Create a test database adapter.
 
     Uses TEST_DATABASE_URL env var or falls back to default.
     """
-    database_url = os.getenv(
-        "TEST_DATABASE_URL",
-        "postgresql://trading:trading@localhost:5432/trading_test",
-    )
-
-    # Parse the URL
-    parsed = urlparse(database_url)
+    cfg = load_test_database_config()
 
     adapter = TimescaleDBAdapter(
-        host=parsed.hostname or "localhost",
-        port=parsed.port or 5432,
-        database=parsed.path.lstrip("/") or "trading_test",
-        username=parsed.username or "trading",
-        password=parsed.password or "trading",
+        host=cfg.host,
+        port=cfg.port,
+        database=cfg.database,
+        username=cfg.username,
+        password=cfg.password,
         pool_size=2,
     )
 
@@ -102,7 +159,7 @@ class TestHarnessDecisionPersistence:
     @pytest.mark.asyncio
     async def test_on_decision_persists_to_trading_decisions_table(
         self,
-        db_adapter,
+        db_adapter: TimescaleDBAdapter,
     ) -> None:
         """Decision is persisted to trading_decisions table via db_adapter."""
         # Create decision
@@ -133,11 +190,9 @@ class TestHarnessDecisionPersistence:
     @pytest.mark.asyncio
     async def test_persist_decision_via_harness_writes_to_db(
         self,
-        db_adapter,
+        db_adapter: TimescaleDBAdapter,
     ) -> None:
         """Harness._persist_decision writes to trading_decisions table."""
-        from app.engine.paper.live_harness import LivePaperTradingHarness
-
         # Create harness with real db_adapter
         config = {
             "symbols": ["BTCUSDT"],
@@ -155,10 +210,10 @@ class TestHarnessDecisionPersistence:
 
         # Create and persist decision
         event = _make_trading_decision_event()
-        await harness._persist_decision(event)
+        await harness._persist_decision(event)  # noqa: SLF001
 
         # Verify no error occurred
-        assert harness._metrics.error_count == 0
+        assert harness.get_metrics()["error_count"] == 0
 
         # Verify row exists in DB
         decisions = await db_adapter.get_recent_decisions(
@@ -180,8 +235,6 @@ class TestHarnessOrderPersistence:
         db_adapter: TimescaleDBAdapter,
     ) -> None:
         """_on_decision creates paper_orders rows with paper_session_id."""
-        from app.engine.paper.live_harness import LivePaperTradingHarness
-
         config = {
             "symbols": ["BTCUSDT"],
             "timeframes": [TimeFrame.M1],
@@ -202,13 +255,13 @@ class TestHarnessOrderPersistence:
         try:
             # Create and process decision (real persistence, no mocking)
             event = _make_trading_decision_event()
-            await harness._on_decision(event)
+            await harness._on_decision(event)  # noqa: SLF001
 
             # Verify decision was persisted (no mock)
-            assert harness._metrics.error_count == 0
+            assert harness.get_metrics()["error_count"] == 0
 
             # Verify orders were created
-            assert harness._metrics.order_count >= 1
+            assert harness.get_metrics()["order_count"] >= 1
 
             # Verify order is in active_orders (in-memory check)
             assert len(harness.broker.active_orders) >= 1
@@ -234,11 +287,9 @@ class TestHarnessLifecycle:
     @pytest.mark.asyncio
     async def test_harness_decision_to_order_lifecycle(
         self,
-        db_adapter,
+        db_adapter: TimescaleDBAdapter,
     ) -> None:
         """Full lifecycle: Decision → trading_decisions → paper_orders."""
-        from app.engine.paper.live_harness import LivePaperTradingHarness
-
         config = {
             "symbols": ["BTCUSDT"],
             "timeframes": [TimeFrame.M1],
@@ -259,7 +310,7 @@ class TestHarnessLifecycle:
         try:
             # Create and process decision
             event = _make_trading_decision_event()
-            await harness._on_decision(event)
+            await harness._on_decision(event)  # noqa: SLF001
 
             # Verify decision was persisted
             decisions = await db_adapter.get_recent_decisions(
@@ -272,14 +323,176 @@ class TestHarnessLifecycle:
             assert decision_found, "Decision not in trading_decisions table"
 
             # Verify orders were created
-            assert harness._metrics.order_count >= 1
+            assert harness.get_metrics()["order_count"] >= 1
 
             # Verify metrics
-            assert harness._metrics.decision_count >= 1
-            assert harness._metrics.error_count == 0
+            metrics = harness.get_metrics()
+            assert metrics["decision_count"] >= 1
+            assert metrics["error_count"] == 0
 
         finally:
             await harness.broker.close()
+
+
+@pytest.mark.integration
+class TestPaperBrokerDbPersistence:
+    @pytest.mark.asyncio
+    async def test_db_bracket_fill_writes_paper_orders_positions_fills(self) -> None:
+        """Entry fill persists paper_orders/paper_positions/paper_fills."""
+        database_url = os.environ["TEST_DATABASE_URL"]
+        cfg = load_test_database_config()
+
+        conn = await _connect_test_db(cfg)
+        try:
+            await conn.execute("TRUNCATE TABLE paper_orders CASCADE")
+        finally:
+            await conn.close()
+
+        broker = PaperBroker(database_url=database_url)
+        await broker.initialize()
+        try:
+            candle = _make_candle(
+                symbol="BTCUSDT",
+                ohlc=(
+                    Decimal(50000),
+                    Decimal(50500),
+                    Decimal(49500),
+                    Decimal(50200),
+                ),
+            )
+            await broker.update_market_data(candle)
+
+            response = await broker.place_bracket_order(
+                PlaceBracketRequest(
+                    symbol="BTCUSDT",
+                    side="BUY",
+                    quantity=Decimal("0.01"),
+                    entry_price=Decimal(0),
+                    take_profit_prices=[Decimal(52000)],
+                    stop_loss_price=Decimal(49000),
+                    order_type="MARKET",
+                    is_futures=False,
+                ),
+            )
+
+            bracket_id = UUID(response.bracket_order_id)
+            conn = await _connect_test_db(cfg)
+            try:
+                order_rows = await conn.fetch(
+                    """
+                    SELECT status, reduce_only
+                    FROM paper_orders
+                    WHERE paper_session_id = $1
+                    ORDER BY reduce_only ASC
+                    """,
+                    bracket_id,
+                )
+                assert len(order_rows) == BRACKET_ORDER_COUNT
+                assert order_rows[0]["status"] == "FILLED"
+                assert order_rows[0]["reduce_only"] is False
+                assert [r["status"] for r in order_rows[1:]] == ["NEW", "NEW"]
+                assert [r["reduce_only"] for r in order_rows[1:]] == [True, True]
+
+                fills_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM paper_fills WHERE symbol = 'BTCUSDT'",
+                )
+                assert fills_count == BRACKET_FILL_COUNT_ENTRY_ONLY
+
+                position = await conn.fetchrow(
+                    """
+                    SELECT side, quantity
+                    FROM paper_positions
+                    WHERE symbol = 'BTCUSDT' AND paper_session_id = $1
+                    """,
+                    bracket_id,
+                )
+                assert position is not None
+                assert position["side"] == "LONG"
+                assert position["quantity"] == Decimal("0.01")
+            finally:
+                await conn.close()
+        finally:
+            await broker.close()
+
+    @pytest.mark.asyncio
+    async def test_db_tp_fill_cancels_sl_sibling_in_db(self) -> None:
+        """TP fill cancels SL sibling order (OCO)."""
+        database_url = os.environ["TEST_DATABASE_URL"]
+        cfg = load_test_database_config()
+
+        conn = await _connect_test_db(cfg)
+        try:
+            await conn.execute("TRUNCATE TABLE paper_orders CASCADE")
+        finally:
+            await conn.close()
+
+        broker = PaperBroker(database_url=database_url)
+        await broker.initialize()
+        try:
+            entry_candle = _make_candle(
+                symbol="BTCUSDT",
+                ohlc=(
+                    Decimal(50000),
+                    Decimal(50100),
+                    Decimal(49900),
+                    Decimal(50050),
+                ),
+            )
+            await broker.update_market_data(entry_candle)
+
+            response = await broker.place_bracket_order(
+                PlaceBracketRequest(
+                    symbol="BTCUSDT",
+                    side="BUY",
+                    quantity=Decimal("0.01"),
+                    entry_price=Decimal(0),
+                    take_profit_prices=[Decimal(51000)],
+                    stop_loss_price=Decimal(49000),
+                    order_type="MARKET",
+                    is_futures=False,
+                ),
+            )
+
+            tp_candle = _make_candle(
+                symbol="BTCUSDT",
+                ohlc=(
+                    Decimal(50050),
+                    Decimal(52000),
+                    Decimal(49500),
+                    Decimal(51500),
+                ),
+            )
+            await broker.update_market_data(tp_candle)
+
+            bracket_id = UUID(response.bracket_order_id)
+            conn = await _connect_test_db(cfg)
+            try:
+                statuses = await conn.fetch(
+                    """
+                    SELECT client_order_id, reduce_only, status
+                    FROM paper_orders
+                    WHERE paper_session_id = $1
+                    ORDER BY client_order_id ASC
+                    """,
+                    bracket_id,
+                )
+                assert len(statuses) == BRACKET_ORDER_COUNT
+
+                filled = [r for r in statuses if r["status"] == "FILLED"]
+                canceled = [r for r in statuses if r["status"] == "CANCELED"]
+
+                assert len(filled) == BRACKET_FILL_COUNT_WITH_TP
+                assert len(canceled) == 1
+                assert canceled[0]["reduce_only"] is True
+
+                fills_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM paper_fills WHERE symbol = 'BTCUSDT'",
+                )
+                assert fills_count == BRACKET_FILL_COUNT_WITH_TP
+            finally:
+                await conn.close()
+        finally:
+            await broker.close()
 
 
 # =============================================================================
@@ -298,13 +511,8 @@ class TestLiveTestnetConnection:
     """Live tests that connect to Binance testnet."""
 
     @pytest.mark.asyncio
-    @pytest.mark.timeout(180)  # 3 minute timeout
-    async def test_live_testnet_receives_closed_candle(self):
+    async def test_live_testnet_receives_closed_candle(self) -> None:
         """Harness receives at least one closed candle (k.x==true) from testnet."""
-        import asyncio
-
-        from app.engine.paper.live_harness import LivePaperTradingHarness
-
         config = {
             "symbols": ["BTCUSDT"],
             "timeframes": [TimeFrame.M1],
@@ -320,15 +528,31 @@ class TestLiveTestnetConnection:
 
         try:
             await harness.start()
-            # Wait for at least one candle (up to 2 minutes for 1m candle)
-            for _ in range(120):
-                await asyncio.sleep(1)
-                if harness._metrics.candle_count >= 1:
-                    break
+            await asyncio.wait_for(_await_first_candle(harness), timeout=180)
 
-            assert harness._metrics.candle_count >= 1, "No closed candles received"
+            assert (
+                harness.get_metrics()["candle_count"] >= 1
+            ), "No closed candles received"
         finally:
             await harness.stop()
+
+
+async def _await_first_candle(harness: LivePaperTradingHarness) -> None:
+    first = asyncio.Event()
+
+    async def _on_candle(_event: object) -> None:
+        first.set()
+
+    subscription_id = await harness.event_bus.subscribe(
+        subscriber_id="test-first-candle",
+        handler=_on_candle,
+        event_types=[EventType.CANDLE_UPDATE],
+        priority=0,
+    )
+    try:
+        await first.wait()
+    finally:
+        await harness.event_bus.unsubscribe(subscription_id)
 
 
 @live_testnet_skip
@@ -336,10 +560,8 @@ class TestLiveDecisionHandling:
     """Live tests for decision handling."""
 
     @pytest.mark.asyncio
-    async def test_live_decision_routes_to_paper_broker(self):
+    async def test_live_decision_routes_to_paper_broker(self) -> None:
         """Trading decision event routes to paper broker."""
-        from app.engine.paper.live_harness import LivePaperTradingHarness
-
         config = {
             "symbols": ["BTCUSDT"],
             "timeframes": [TimeFrame.M1],
@@ -352,7 +574,7 @@ class TestLiveDecisionHandling:
         harness.broker.initialize = AsyncMock()
         harness.broker.close = AsyncMock()
         harness.broker.place_bracket_order = AsyncMock(return_value=MagicMock())
-        harness._persist_decision = AsyncMock()
+        harness._persist_decision = AsyncMock()  # noqa: SLF001
 
         # Create test decision event
         decision = TradingDecision(
@@ -374,12 +596,13 @@ class TestLiveDecisionHandling:
         )
 
         # Process decision
-        await harness._on_decision(event)
+        await harness._on_decision(event)  # noqa: SLF001
 
         # Verify broker was called
         harness.broker.place_bracket_order.assert_called_once()
-        assert harness._metrics.decision_count == 1
-        assert harness._metrics.order_count == 1
+        metrics = harness.get_metrics()
+        assert metrics["decision_count"] == 1
+        assert metrics["order_count"] == 1
 
 
 @live_testnet_skip
@@ -387,10 +610,8 @@ class TestLiveAlertFiltering:
     """Live tests for alert filtering."""
 
     @pytest.mark.asyncio
-    async def test_live_alert_subscriber_filters_to_decision_only(self):
+    async def test_live_alert_subscriber_filters_to_decision_only(self) -> None:
         """Alert subscriber only handles TRADING_DECISION events."""
-        from app.engine.paper.live_harness import LivePaperTradingHarness
-
         config = {
             "symbols": ["BTCUSDT"],
             "timeframes": [TimeFrame.M1],
@@ -400,4 +621,4 @@ class TestLiveAlertFiltering:
         harness = LivePaperTradingHarness(config)
 
         # Verify alert subscriber only subscribes to TRADING_DECISION
-        assert harness.alert_subscriber._event_types == [EventType.TRADING_DECISION]
+        assert harness.alert_subscriber._event_types == [EventType.TRADING_DECISION]  # noqa: SLF001

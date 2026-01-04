@@ -23,8 +23,11 @@ from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from app.engine.adapters.alert.alert_subscriber import AlertSubscriber
+from app.engine.adapters.alert.telegram import TelegramAlertAdapter
 from app.engine.adapters.db.timescale_adapter import TimescaleDBAdapter
-from app.engine.bus import create_event_bus, set_event_bus
+from app.engine.bus import create_event_bus, publish_event, set_event_bus
+from app.engine.decision.decision_publisher import DecisionPublisher
+from app.engine.features.feature_service import FeatureService
 from app.engine.ingest.binance_ws import BinanceWebSocketClient
 from app.engine.models import (
     Candle,
@@ -35,12 +38,16 @@ from app.engine.models import (
     TradingDecisionEvent,
 )
 from app.engine.paper.broker import PaperBroker, PlaceBracketRequest
+from app.engine.retest.engine import RetestEngine
+from app.engine.smc.smc_service import SMCService
 
 # Max latency samples to keep in memory
 MAX_LATENCY_SAMPLES = 1000
 
 if TYPE_CHECKING:
-    from app.engine.adapters.alert.telegram import TelegramAlertAdapter
+    from collections.abc import Awaitable, Callable
+
+    StopFn = Callable[[], Awaitable[None]]
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +62,8 @@ class HarnessConfig:
     testnet: bool = True
     telegram_adapter: TelegramAlertAdapter | None = None
     paper_session_id: UUID = field(default_factory=uuid4)
+    paper_account_balance: Decimal = Decimal(10_000)
+    paper_risk_per_trade: Decimal = Decimal("0.01")
 
 
 @dataclass
@@ -91,13 +100,13 @@ class LivePaperTradingHarness:
                 - database_url: PostgreSQL connection URL
                 - testnet: Always True for paper trading
                 - telegram_adapter: Optional Telegram adapter
-                - paper_session_id: Optional UUID for session grouping
+                - paper_session_id: Optional UUID for harness-run correlation
         """
         self._config = self._parse_config(config)
         self._metrics = HarnessMetrics()
         self._running = False
 
-        # Unique session ID for this harness run (shared with broker)
+        # Unique session ID for this harness run (not the per-bracket OCO group id)
         self.paper_session_id = self._config.paper_session_id
 
         # Create event bus
@@ -113,11 +122,10 @@ class LivePaperTradingHarness:
         # Create TimescaleDBAdapter from database_url
         self.db_adapter = self._create_db_adapter(self._config.database_url)
 
-        # Create paper broker with shared session ID
+        # PaperBroker assigns a per-bracket `paper_session_id` (OCO scope) internally.
         self.broker = PaperBroker(
             database_url=self._config.database_url,
-            event_publisher=self.event_bus,
-            paper_session_id=self.paper_session_id,
+            event_publisher=publish_event,
         )
 
         # Create alert subscriber with TRADING_DECISION only
@@ -125,6 +133,11 @@ class LivePaperTradingHarness:
             telegram_adapter=self._config.telegram_adapter,
             event_types=[EventType.TRADING_DECISION],
         )
+
+        self.feature_service: FeatureService | None = None
+        self.smc_service: SMCService | None = None
+        self.retest_engine: RetestEngine | None = None
+        self.decision_publisher: DecisionPublisher | None = None
 
         logger.info(
             "LivePaperTradingHarness initialized with session %s",
@@ -148,7 +161,28 @@ class LivePaperTradingHarness:
             testnet=config.get("testnet", True),
             telegram_adapter=config.get("telegram_adapter"),
             paper_session_id=session_id or uuid4(),
+            paper_account_balance=Decimal(
+                str(config.get("paper_account_balance", "10000")),
+            ),
+            paper_risk_per_trade=Decimal(
+                str(config.get("paper_risk_per_trade", "0.01")),
+            ),
         )
+
+    async def _stop_component(
+        self,
+        errors: list[str],
+        *,
+        name: str,
+        stop_fn: StopFn | None,
+    ) -> None:
+        if stop_fn is None:
+            return
+        try:
+            await stop_fn()
+        except Exception:
+            logger.exception("Error stopping %s", name)
+            errors.append(name)
 
     def _create_db_adapter(self, database_url: str) -> TimescaleDBAdapter:
         """Create TimescaleDBAdapter from database URL.
@@ -164,6 +198,25 @@ class LivePaperTradingHarness:
             password=parsed.password or "",
             pool_size=5,
         )
+
+    async def _maybe_create_telegram_adapter_from_env(
+        self,
+    ) -> TelegramAlertAdapter | None:
+        if self._config.telegram_adapter is not None:
+            return self._config.telegram_adapter
+
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+        if not bot_token or not chat_id:
+            return None
+
+        adapter = TelegramAlertAdapter(
+            bot_token=bot_token,
+            chat_id=chat_id,
+        )
+        await adapter.start()
+        return adapter
 
     async def start(self) -> None:
         """Start the harness.
@@ -192,6 +245,12 @@ class LivePaperTradingHarness:
 
             # Wire pipeline subscriptions
             await self._wire_pipeline()
+
+            # Start Telegram adapter (if configured via env)
+            telegram_adapter = await self._maybe_create_telegram_adapter_from_env()
+            if telegram_adapter is not None:
+                self._config.telegram_adapter = telegram_adapter
+                self.alert_subscriber.telegram = telegram_adapter
 
             # Register alert subscriber
             await self.alert_subscriber.register(self.event_bus)
@@ -250,40 +309,56 @@ class LivePaperTradingHarness:
         self._running = False
         errors: list[str] = []
 
-        # Stop WebSocket
-        try:
-            await self.ws_client.stop()
-        except Exception:
-            logger.exception("Error stopping WebSocket client")
-            errors.append("ws_client")
+        await self._stop_component(
+            errors,
+            name="ws_client",
+            stop_fn=self.ws_client.stop,
+        )
 
-        # Unregister alert subscriber
-        try:
-            await self.alert_subscriber.stop()
-        except Exception:
-            logger.exception("Error stopping alert subscriber")
-            errors.append("alert_subscriber")
+        await self._stop_component(
+            errors,
+            name="decision_publisher",
+            stop_fn=self.decision_publisher.stop if self.decision_publisher else None,
+        )
+        await self._stop_component(
+            errors,
+            name="retest_engine",
+            stop_fn=self.retest_engine.stop if self.retest_engine else None,
+        )
+        await self._stop_component(
+            errors,
+            name="smc_service",
+            stop_fn=self.smc_service.stop if self.smc_service else None,
+        )
+        await self._stop_component(
+            errors,
+            name="feature_service",
+            stop_fn=self.feature_service.stop if self.feature_service else None,
+        )
 
-        # Stop event bus
-        try:
-            await self.event_bus.stop()
-        except Exception:
-            logger.exception("Error stopping event bus")
-            errors.append("event_bus")
-
-        # Close broker (it has its own pool)
-        try:
-            await self.broker.close()
-        except Exception:
-            logger.exception("Error closing broker")
-            errors.append("broker")
-
-        # Close db_adapter last
-        try:
-            await self.db_adapter.close()
-        except Exception:
-            logger.exception("Error closing db_adapter")
-            errors.append("db_adapter")
+        await self._stop_component(
+            errors,
+            name="alert_subscriber",
+            stop_fn=self.alert_subscriber.stop,
+        )
+        await self._stop_component(
+            errors,
+            name="telegram_adapter",
+            stop_fn=self._config.telegram_adapter.stop
+            if self._config.telegram_adapter
+            else None,
+        )
+        await self._stop_component(
+            errors,
+            name="event_bus",
+            stop_fn=self.event_bus.stop,
+        )
+        await self._stop_component(errors, name="broker", stop_fn=self.broker.close)
+        await self._stop_component(
+            errors,
+            name="db_adapter",
+            stop_fn=self.db_adapter.close,
+        )
 
         if errors:
             logger.warning(
@@ -299,9 +374,24 @@ class LivePaperTradingHarness:
         Pipeline: candles → features → smc → retest → decision
         Each stage publishes to the bus and the next stage subscribes.
         """
-        # Pipeline handlers would be wired here in a full implementation
-        # For now, the harness focuses on decision handling
-        logger.info("Trading pipeline wired")
+        if self.feature_service is None:
+            self.feature_service = FeatureService()
+        if self.smc_service is None:
+            self.smc_service = SMCService()
+        if self.retest_engine is None:
+            self.retest_engine = RetestEngine(config={"retest": {}})
+        if self.decision_publisher is None:
+            self.decision_publisher = DecisionPublisher(
+                account_balance=self._config.paper_account_balance,
+                risk_per_trade=self._config.paper_risk_per_trade,
+            )
+
+        await self.feature_service.start()
+        await self.smc_service.start()
+        await self.retest_engine.start()
+        await self.decision_publisher.start()
+
+        logger.info("Trading pipeline wired and started")
 
     async def _handle_candle_event(self, event: CandleUpdateEvent) -> None:
         """Handle candle update event."""

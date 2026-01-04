@@ -69,12 +69,18 @@ class MockSignalGenerator:
 
     def generate_signal(self) -> RetestSignal:
         """Generate a mock retest signal."""
+        level_price = Decimal(str(self.base_price * 0.98))
+        stop_loss = level_price * Decimal("0.99")
+        take_profit = level_price * Decimal("1.01")
         return RetestSignal(
             timestamp=datetime.now(),
             symbol=self.symbol,
             timeframe=self.timeframe,
             retest_type="support_retest",
-            level_price=Decimal(str(self.base_price * 0.98)),
+            level_price=level_price,
+            direction="BUY",
+            stop_loss=stop_loss,
+            take_profit=take_profit,
             level_strength=3,
             level_touches=4,
             approach_angle=35.5,

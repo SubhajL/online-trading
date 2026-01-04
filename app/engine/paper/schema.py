@@ -252,11 +252,14 @@ def build_upsert_paper_position(
 def cancel_oco_siblings_sql(
     paper_session_id: UUID,
     filled_order_id: UUID,
+    *,
+    symbol: str,
     now: datetime | None = None,
 ) -> tuple[str, list[object]]:
     """Build SQL to cancel OCO siblings when one order fills.
 
-    Cancels all NEW orders in the same paper_session_id except the filled one.
+    Cancels all NEW reduce-only orders in the same paper_session_id and symbol,
+    excluding the filled order.
     Uses 'CANCELED' (single L) per schema.
 
     Args:
@@ -268,8 +271,10 @@ def cancel_oco_siblings_sql(
         UPDATE paper_orders
         SET status = $1, updated_at = $2
         WHERE paper_session_id = $3
-          AND id != $4
-          AND status = $5
+          AND symbol = $4
+          AND reduce_only = TRUE
+          AND id != $5
+          AND status = $6
     """
 
     if now is None:
@@ -279,6 +284,7 @@ def cancel_oco_siblings_sql(
         status_to_db(OrderStatus.CANCELLED),
         now,
         paper_session_id,
+        symbol,
         filled_order_id,
         status_to_db(OrderStatus.NEW),
     ]

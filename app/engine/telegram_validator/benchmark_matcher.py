@@ -5,9 +5,11 @@ Matching and scoring for external Telegram signals vs internal signals/decisions
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,42 @@ _WEIGHTS: dict[str, float] = {
 }
 
 
+def _compute_direction_match(
+    external_direction: Literal["BUY", "SELL"] | None,
+    candidate_direction: Literal["BUY", "SELL"] | None,
+) -> float | None:
+    if external_direction is None or candidate_direction is None:
+        return None
+    return 1.0 if external_direction == candidate_direction else 0.0
+
+
+def _compute_entry_delta_bps(
+    external_entry: Decimal | None,
+    candidate_entry: Decimal | None,
+) -> float | None:
+    if external_entry is None or candidate_entry is None:
+        return None
+    if external_entry == 0:
+        return None
+    rel_err = abs(candidate_entry - external_entry) / external_entry
+    return float(rel_err * Decimal(10_000))
+
+
+def _compute_entry_component(
+    external_entry: Decimal | None,
+    candidate_entry: Decimal | None,
+    entry_tolerance: Decimal,
+) -> float | None:
+    if external_entry is None or candidate_entry is None:
+        return None
+    if external_entry == 0:
+        return 0.0
+    rel_err = abs(candidate_entry - external_entry) / external_entry
+    if rel_err >= entry_tolerance:
+        return 0.0
+    return float(Decimal(1) - (rel_err / entry_tolerance))
+
+
 def score_match(
     external: ExternalSignal,
     candidate: InternalSignalCandidate,
@@ -55,74 +93,58 @@ def score_match(
     time_window_seconds: int,
     entry_tolerance: Decimal,
 ) -> ValidationScore:
-    if (
-        external.direction
-        and candidate.direction
-        and external.direction != candidate.direction
-    ):
-        # Still calculate timing_delta_seconds for analysis even on direction mismatch
-        timing_delta = (candidate.timestamp - external.timestamp).total_seconds()
-        return ValidationScore(
-            score=0.0,
-            breakdown={
-                "direction": 0.0,
-                "time": 0.0,
-                "entry": 0.0,
-                "symbol": 0.0,
-                "timeframe": 0.0,
-                "timing_delta_seconds": timing_delta,
-            },
-        )
-
-    breakdown: dict[str, float] = {}
-
-    breakdown["direction"] = (
-        1.0
-        if external.direction
-        and candidate.direction
-        and external.direction == candidate.direction
-        else 0.0
-        if external.direction and candidate.direction
-        else 0.0
+    direction_match = _compute_direction_match(external.direction, candidate.direction)
+    entry_delta_bps = _compute_entry_delta_bps(
+        external.entry_price,
+        candidate.entry_price,
+    )
+    entry_component = _compute_entry_component(
+        external.entry_price,
+        candidate.entry_price,
+        entry_tolerance,
     )
 
-    delta = abs((candidate.timestamp - external.timestamp).total_seconds())
-    # Store raw timing delta for analysis (positive = internal after external)
-    breakdown["timing_delta_seconds"] = (
-        candidate.timestamp - external.timestamp
-    ).total_seconds()
+    timing_delta = (candidate.timestamp - external.timestamp).total_seconds()
+    delta = abs(timing_delta)
 
-    if delta >= time_window_seconds:
-        breakdown["time"] = 0.0
-    else:
-        breakdown["time"] = 1.0 - (delta / float(time_window_seconds))
-
-    breakdown["symbol"] = (
-        1.0 if external.symbol and external.symbol == candidate.symbol else 0.0
+    is_direction_mismatch = direction_match == 0.0 and (
+        external.direction is not None and candidate.direction is not None
     )
-    breakdown["timeframe"] = (
-        1.0
+    if is_direction_mismatch:
+        breakdown: dict[str, float] = {
+            "direction": 0.0,
+            "time": 0.0,
+            "entry": 0.0,
+            "symbol": 0.0,
+            "timeframe": 0.0,
+            "timing_delta_seconds": timing_delta,
+        }
+        if direction_match is not None:
+            breakdown["direction_match"] = direction_match
+        if entry_delta_bps is not None:
+            breakdown["entry_delta_bps"] = entry_delta_bps
+        return ValidationScore(score=0.0, breakdown=breakdown)
+
+    breakdown: dict[str, float] = {
+        "direction": direction_match if direction_match is not None else 0.0,
+        "time": max(0.0, 1.0 - (delta / float(time_window_seconds))),
+        "entry": entry_component if entry_component is not None else 0.0,
+        "symbol": (
+            1.0
+            if external.symbol and external.symbol == candidate.symbol
+            else 0.0
+        ),
+        "timeframe": 1.0
         if external.timeframe
         and candidate.timeframe
         and external.timeframe == candidate.timeframe
-        else 0.0
-        if external.timeframe and candidate.timeframe
-        else 0.0
-    )
-
-    entry_component: float | None = None
-    if external.entry_price is not None and candidate.entry_price is not None:
-        if external.entry_price == 0:
-            entry_component = 0.0
-        else:
-            rel_err = (
-                abs(candidate.entry_price - external.entry_price) / external.entry_price
-            )
-            if rel_err >= entry_tolerance:
-                entry_component = 0.0
-            else:
-                entry_component = float(Decimal("1") - (rel_err / entry_tolerance))
-    breakdown["entry"] = entry_component if entry_component is not None else 0.0
+        else 0.0,
+        "timing_delta_seconds": timing_delta,
+    }
+    if direction_match is not None:
+        breakdown["direction_match"] = direction_match
+    if entry_delta_bps is not None:
+        breakdown["entry_delta_bps"] = entry_delta_bps
 
     available = {
         "direction": breakdown["direction"],
@@ -153,9 +175,8 @@ def select_best_candidate(
         if external.symbol and candidate.symbol != external.symbol:
             continue
 
-        if external.direction:
-            if candidate.direction != external.direction:
-                continue
+        if external.direction and candidate.direction != external.direction:
+            continue
 
         delta = abs((candidate.timestamp - external.timestamp).total_seconds())
         if delta > time_window_seconds:

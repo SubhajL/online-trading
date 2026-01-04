@@ -4,6 +4,8 @@ Tests verify that broker methods call the correct schema-aligned SQL builders
 and execute the generated SQL.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -19,11 +21,16 @@ from app.engine.backtest.types import (
     OrderStatus,
     OrderType,
 )
-from app.engine.paper.broker import PaperBroker, PaperPosition
+from app.engine.paper.broker import PaperBroker, PaperPosition, PlaceBracketRequest
+
+# Accessing broker internals is intentional in these SQL-shape tests.
+# ruff: noqa: SLF001
+
+EXPECTED_BRACKET_ORDER_COUNT = 3
 
 
 @pytest.fixture
-def mock_pool():
+def mock_pool() -> tuple[MagicMock, AsyncMock]:
     """Create a mock database pool."""
     pool = MagicMock()
     conn = AsyncMock()
@@ -33,13 +40,11 @@ def mock_pool():
 
 
 @pytest.fixture
-def paper_broker(mock_pool):
+def paper_broker(mock_pool: tuple[MagicMock, AsyncMock]) -> PaperBroker:
     """Create a PaperBroker with mocked database pool."""
     pool, _conn = mock_pool
-    session_id = uuid4()
     broker = PaperBroker(
         database_url="postgresql://test:test@localhost/test",
-        paper_session_id=session_id,
     )
     broker.db_pool = pool
     return broker
@@ -52,10 +57,11 @@ class TestInsertPaperOrder:
     async def test_insert_paper_order_uses_paper_session_id(
         self,
         paper_broker: PaperBroker,
-        mock_pool,
+        mock_pool: tuple[MagicMock, AsyncMock],
     ) -> None:
-        """Order is inserted with paper_session_id from broker."""
+        """Order is inserted with provided bracket_id."""
         _pool, conn = mock_pool
+        bracket_id = uuid4()
         order = BacktestOrder(
             id=uuid4(),
             client_order_id=f"test_{uuid4().hex[:8]}",
@@ -67,7 +73,7 @@ class TestInsertPaperOrder:
             order_time=datetime.now(UTC),
         )
 
-        await paper_broker._insert_paper_order(order)
+        await paper_broker._insert_paper_order(order, bracket_id)
 
         # Verify execute was called with SQL containing paper_session_id
         conn.execute.assert_called_once()
@@ -76,13 +82,13 @@ class TestInsertPaperOrder:
         params = call_args[0][1:]
 
         assert "paper_session_id" in sql
-        assert paper_broker.paper_session_id in params
+        assert bracket_id in params
 
     @pytest.mark.asyncio
     async def test_insert_paper_order_uses_order_time_column(
         self,
         paper_broker: PaperBroker,
-        mock_pool,
+        mock_pool: tuple[MagicMock, AsyncMock],
     ) -> None:
         """SQL uses order_time column for order placement time."""
         _pool, conn = mock_pool
@@ -99,7 +105,7 @@ class TestInsertPaperOrder:
             order_time=order_time,
         )
 
-        await paper_broker._insert_paper_order(order)
+        await paper_broker._insert_paper_order(order, uuid4())
 
         call_args = conn.execute.call_args
         sql = call_args[0][0]
@@ -112,7 +118,7 @@ class TestInsertPaperOrder:
     async def test_insert_paper_order_sets_reduce_only_for_exits(
         self,
         paper_broker: PaperBroker,
-        mock_pool,
+        mock_pool: tuple[MagicMock, AsyncMock],
     ) -> None:
         """TP/SL orders have reduce_only=True in SQL params."""
         _pool, conn = mock_pool
@@ -131,7 +137,7 @@ class TestInsertPaperOrder:
             order_time=datetime.now(UTC),
         )
 
-        await paper_broker._insert_paper_order(tp_order)
+        await paper_broker._insert_paper_order(tp_order, uuid4())
 
         call_args = conn.execute.call_args
         sql = call_args[0][0]
@@ -148,7 +154,7 @@ class TestInsertPaperFill:
     async def test_insert_paper_fill_uses_fill_reason_and_candle_context(
         self,
         paper_broker: PaperBroker,
-        mock_pool,
+        mock_pool: tuple[MagicMock, AsyncMock],
     ) -> None:
         """SQL includes fill_reason and candle context columns."""
         _pool, conn = mock_pool
@@ -192,7 +198,7 @@ class TestUpsertPaperPosition:
     async def test_upsert_paper_position_uses_composite_key(
         self,
         paper_broker: PaperBroker,
-        mock_pool,
+        mock_pool: tuple[MagicMock, AsyncMock],
     ) -> None:
         """Upsert uses (symbol, paper_session_id) as unique constraint."""
         _pool, conn = mock_pool
@@ -202,7 +208,8 @@ class TestUpsertPaperPosition:
         position.unrealized_pnl = Decimal(10)
         position.total_fees = Decimal("0.5")
 
-        await paper_broker._upsert_paper_position(position)
+        bracket_id = uuid4()
+        await paper_broker._upsert_paper_position(position, bracket_id)
 
         call_args = conn.execute.call_args
         sql = call_args[0][0]
@@ -212,7 +219,7 @@ class TestUpsertPaperPosition:
         assert "symbol" in sql
         assert "paper_session_id" in sql
         assert "BTCUSDT" in params
-        assert paper_broker.paper_session_id in params
+        assert bracket_id in params
 
 
 class TestCancelOcoSiblings:
@@ -222,11 +229,12 @@ class TestCancelOcoSiblings:
     async def test_cancel_oco_siblings_sets_status_canceled(
         self,
         paper_broker: PaperBroker,
-        mock_pool,
+        mock_pool: tuple[MagicMock, AsyncMock],
     ) -> None:
         """SQL updates siblings to CANCELED status."""
         _pool, conn = mock_pool
         filled_order_id = uuid4()
+        bracket_id = uuid4()
 
         # Add some orders to active_orders
         sl_order = BacktestOrder(
@@ -235,10 +243,16 @@ class TestCancelOcoSiblings:
             symbol="BTCUSDT",
             side=OrderSide.SELL,
             status=OrderStatus.NEW,
+            reduce_only=True,
         )
         paper_broker.active_orders["test_sl"] = sl_order
+        paper_broker._order_bracket_ids["test_sl"] = bracket_id
 
-        await paper_broker._cancel_oco_siblings(filled_order_id)
+        await paper_broker._cancel_oco_siblings(
+            filled_order_id,
+            bracket_id=bracket_id,
+            symbol="BTCUSDT",
+        )
 
         call_args = conn.execute.call_args
         sql = call_args[0][0]
@@ -246,7 +260,8 @@ class TestCancelOcoSiblings:
 
         assert "UPDATE paper_orders" in sql
         assert "CANCELED" in params  # Single L per schema
-        assert paper_broker.paper_session_id in params
+        assert bracket_id in params
+        assert "BTCUSDT" in params
         assert filled_order_id in params
 
 
@@ -257,11 +272,9 @@ class TestBracketLifecycle:
     async def test_place_bracket_creates_orders_with_correct_reduce_only(
         self,
         paper_broker: PaperBroker,
-        mock_pool,
+        mock_pool: tuple[MagicMock, AsyncMock],
     ) -> None:
         """Entry has reduce_only=False, TP/SL have reduce_only=True."""
-        from app.engine.paper.broker import PlaceBracketRequest
-
         _pool, conn = mock_pool
 
         request = PlaceBracketRequest(
@@ -277,10 +290,11 @@ class TestBracketLifecycle:
         await paper_broker.place_bracket_order(request)
 
         # Should have 3 orders: entry, 1 TP, 1 SL
-        assert conn.execute.call_count == 3
+        assert conn.execute.call_count == EXPECTED_BRACKET_ORDER_COUNT
 
         # Check each order's reduce_only flag
         calls = conn.execute.call_args_list
+        call_bracket_ids = []
         reduce_only_values = []
         for call in calls:
             params = call[0][1:]
@@ -290,9 +304,15 @@ class TestBracketLifecycle:
                 if isinstance(param, bool):
                     reduce_only_values.append(param)
                     break
+            call_uuids = {p for p in params if isinstance(p, type(uuid4()))}
+            call_bracket_ids.append(call_uuids)
 
         # First order (entry) should have reduce_only=False
         # Second and third (TP, SL) should have reduce_only=True
         assert reduce_only_values[0] is False
         assert reduce_only_values[1] is True
         assert reduce_only_values[2] is True
+
+        # The same bracket_id (paper_session_id) is used for all three orders.
+        common = set.intersection(*call_bracket_ids)
+        assert len(common) == 1

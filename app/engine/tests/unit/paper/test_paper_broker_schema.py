@@ -295,7 +295,11 @@ class TestCancelOcoSiblings:
         """SQL updates orders in same paper_session_id."""
         paper_session_id = uuid4()
         filled_order_id = uuid4()
-        sql, _ = cancel_oco_siblings_sql(paper_session_id, filled_order_id)
+        sql, _ = cancel_oco_siblings_sql(
+            paper_session_id,
+            filled_order_id,
+            symbol="BTCUSDT",
+        )
         assert "UPDATE paper_orders" in sql
         assert "paper_session_id" in sql
 
@@ -303,19 +307,31 @@ class TestCancelOcoSiblings:
         """SQL excludes the order that was just filled."""
         paper_session_id = uuid4()
         filled_order_id = uuid4()
-        sql, _ = cancel_oco_siblings_sql(paper_session_id, filled_order_id)
+        sql, _ = cancel_oco_siblings_sql(
+            paper_session_id,
+            filled_order_id,
+            symbol="BTCUSDT",
+        )
         assert "!=" in sql or "<>" in sql or "NOT" in sql
 
     def test_sets_status_to_canceled(self) -> None:
         """SQL sets status to CANCELED (single L)."""
         paper_session_id = uuid4()
         filled_order_id = uuid4()
-        sql, params = cancel_oco_siblings_sql(paper_session_id, filled_order_id)
+        sql, params = cancel_oco_siblings_sql(
+            paper_session_id,
+            filled_order_id,
+            symbol="BTCUSDT",
+        )
         assert "CANCELED" in params or "CANCELED" in sql
 
     def test_only_cancels_active_orders(self) -> None:
         """SQL only affects orders with active status (NEW)."""
         paper_session_id = uuid4()
         filled_order_id = uuid4()
-        sql, params = cancel_oco_siblings_sql(paper_session_id, filled_order_id)
+        sql, params = cancel_oco_siblings_sql(
+            paper_session_id,
+            filled_order_id,
+            symbol="BTCUSDT",
+        )
         assert "NEW" in sql or "NEW" in params

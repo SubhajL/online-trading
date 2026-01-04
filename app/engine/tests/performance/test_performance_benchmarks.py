@@ -381,11 +381,15 @@ class TestSignalGenerationPerformance:
             # Check if price retests any zone
             for zone in zones:
                 if zone["low"] <= price <= zone["high"]:
+                    stop_distance = price * Decimal("0.002")
                     signal = RetestSignal(
                         symbol="BTCUSDT",
                         timeframe=TimeFrame.M15,
                         timestamp=datetime.now(),
                         level_price=price,
+                        direction="BUY",
+                        stop_loss=price - stop_distance,
+                        take_profit=price + (stop_distance * Decimal("1.5")),
                         retest_type="zone_retest",
                         success_probability=Decimal("0.80"),
                         volume_confirmation=True,
@@ -582,6 +586,9 @@ class TestEndToEndPerformance:
             timeframe=TimeFrame.M15,
             timestamp=datetime.now(),
             level_price=Decimal("50000"),
+            direction="BUY",
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
             retest_type="zone_retest",
             success_probability=Decimal("0.85"),
             volume_confirmation=True,

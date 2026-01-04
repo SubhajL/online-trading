@@ -3,11 +3,13 @@ Retest Analyzer Engine - Detects zone retests after Break of Structure (BOS)
 
 Requirements:
 - Retests within ≤8 bars after BOS
-- Price touches/enters zone band with tolerance 0.25×ATR
+- Price touches/enters zone band with tolerance 0.25xATR
 - Confirmation by close in direction or micro-BOS on sub-TF
 - MACD histogram uptick
 - RSI 40-55 bounce for longs
 """
+
+# ruff: noqa: ANN401
 
 from collections import deque
 from datetime import UTC, datetime
@@ -15,8 +17,8 @@ from decimal import Decimal
 import logging
 from typing import Any, NewType
 
-from ..bus import get_event_bus
-from ..models import (
+from app.engine.bus import get_event_bus
+from app.engine.models import (
     Candle,
     CandleUpdateEvent,
     EventType,
@@ -35,7 +37,7 @@ ZoneId = NewType("ZoneId", str)
 SignalId = NewType("SignalId", str)
 
 
-async def analyze_retest(
+async def analyze_retest(  # noqa: PLR0913
     symbol: str,
     timeframe: str,
     candles: list[Any],
@@ -137,17 +139,17 @@ def is_within_zone(
 
 def has_confirmation(
     candle: Any,
-    zone: Any,
+    _zone: Any,
     micro_bos: Any | None,
     direction: str,
 ) -> bool:
     """Validate close direction or micro-BOS confirmation."""
     # Check micro-BOS confirmation first
-    if micro_bos:
-        if (direction == "LONG" and micro_bos.get("type") == "BULLISH_BOS") or (
-            direction == "SHORT" and micro_bos.get("type") == "BEARISH_BOS"
-        ):
-            return True
+    if micro_bos and (
+        (direction == "LONG" and micro_bos.get("type") == "BULLISH_BOS")
+        or (direction == "SHORT" and micro_bos.get("type") == "BEARISH_BOS")
+    ):
+        return True
 
     # Check candle confirmation
     if candle:
@@ -306,8 +308,8 @@ class RetestEngine:
             # Check for retests
             await self._check_for_retests(candle)
 
-        except Exception as e:
-            logger.error(f"Error processing candle event: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error processing candle event")
 
     async def _process_features_event(self, event: FeaturesCalculatedEvent) -> None:
         """Process incoming features events."""
@@ -316,8 +318,8 @@ class RetestEngine:
             key = f"{features.symbol}:{features.timeframe.value}"
             self._features[key] = features
 
-        except Exception as e:
-            logger.error(f"Error processing features event: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error processing features event")
 
     async def _process_smc_event(self, event: SMCSignalEvent) -> None:
         """Process incoming SMC events (BOS/CHOCH)."""
@@ -359,8 +361,8 @@ class RetestEngine:
                     },
                 )
 
-        except Exception as e:
-            logger.error(f"Error processing SMC event: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error processing SMC event")
 
     async def _check_for_retests(self, candle: Candle) -> None:
         """Check if current candle represents a valid retest."""
@@ -407,11 +409,15 @@ class RetestEngine:
     async def _emit_signal(self, signal_data: dict[str, Any]) -> None:
         """Emit signal_raw.v1 event."""
         try:
+            direction = "BUY" if signal_data["direction"] == "LONG" else "SELL"
             signal = RetestSignal(
                 symbol=signal_data["symbol"],
                 timeframe=TimeFrame(signal_data["timeframe"]),
                 timestamp=signal_data["timestamp"],
                 level_price=signal_data["entry"],
+                direction=direction,
+                stop_loss=signal_data["stop_loss"],
+                take_profit=signal_data["tp1"],
                 retest_type="zone_retest",
                 success_probability=Decimal("0.7"),  # Would calculate properly
                 volume_confirmation=True,
@@ -427,8 +433,10 @@ class RetestEngine:
 
             await self.event_bus.publish(event, priority=8)
             logger.info(
-                f"Published retest signal for {signal.symbol} at {signal.level_price}",
+                "Published retest signal for %s at %s",
+                signal.symbol,
+                signal.level_price,
             )
 
-        except Exception as e:
-            logger.error(f"Error emitting signal: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error emitting signal")
