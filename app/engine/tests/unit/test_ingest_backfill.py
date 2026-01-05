@@ -30,6 +30,7 @@ def make_test_candles(count: int, symbol: str = "BTCUSDT") -> list[Candle]:
     for i in range(count):
         candles.append(
             Candle(
+                venue="spot",
                 symbol=symbol,
                 timeframe=TimeFrame.M15,
                 open_time=base_time + timedelta(minutes=i * 15),

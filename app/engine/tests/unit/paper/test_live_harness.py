@@ -331,6 +331,7 @@ class TestLivePaperTradingHarnessOnCandle:
         harness.broker.update_market_data = AsyncMock()
 
         candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M1,
             open_time=datetime.now(UTC),

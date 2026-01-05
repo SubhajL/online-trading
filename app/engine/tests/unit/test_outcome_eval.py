@@ -11,6 +11,7 @@ from app.engine.telegram_validator.outcome_eval import evaluate_trade_outcome
 
 def _candle(*, t: datetime, high: str, low: str, close: str) -> Candle:
     return Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.M30,
         open_time=t,

@@ -9,6 +9,7 @@ from app.engine.smc.pivots import detect_zigzag_pivots, detect_zigzag_pivots_np
 
 def _make_candle(ts, o, h, l, c, idx):
     return Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.M5,
         open_time=ts,

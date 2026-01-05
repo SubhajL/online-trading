@@ -38,6 +38,7 @@ def make_test_candle(
     """Create a test candle with valid data."""
     base_time = datetime.now(UTC) - timedelta(hours=100)
     return Candle(
+        venue="spot",
         symbol=symbol,
         timeframe=timeframe,
         open_time=base_time + timedelta(minutes=idx * 15),

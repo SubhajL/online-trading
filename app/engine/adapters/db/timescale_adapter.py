@@ -8,6 +8,8 @@ for trading data including candles, indicators, signals, and trading events.
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+import json
 import logging
 from typing import Any
 
@@ -154,23 +156,24 @@ class TimescaleDBAdapter:
     async def _create_tables(self) -> None:
         """Create all required tables"""
         async with self.get_connection() as conn:
-            # Candles table
+            # Candles table - matches Docker schema in infra/postgres/init/02-create-hypertables.sql
             await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS candles (
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    timeframe VARCHAR(5) NOT NULL,
-                    open_price DECIMAL(20,8) NOT NULL,
-                    high_price DECIMAL(20,8) NOT NULL,
-                    low_price DECIMAL(20,8) NOT NULL,
-                    close_price DECIMAL(20,8) NOT NULL,
-                    volume DECIMAL(20,8) NOT NULL,
-                    quote_volume DECIMAL(20,8) NOT NULL,
-                    trades INTEGER NOT NULL,
-                    taker_buy_base_volume DECIMAL(20,8) NOT NULL,
-                    taker_buy_quote_volume DECIMAL(20,8) NOT NULL,
-                    UNIQUE(timestamp, symbol, timeframe)
+                    time TIMESTAMPTZ NOT NULL,
+                    venue TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    timeframe TEXT NOT NULL,
+                    open NUMERIC NOT NULL,
+                    high NUMERIC NOT NULL,
+                    low NUMERIC NOT NULL,
+                    close NUMERIC NOT NULL,
+                    volume NUMERIC NOT NULL,
+                    quote_volume NUMERIC,
+                    trade_count INTEGER,
+                    taker_buy_volume NUMERIC,
+                    taker_buy_quote_volume NUMERIC,
+                    UNIQUE (venue, symbol, timeframe, time)
                 );
             """,
             )
@@ -420,7 +423,7 @@ class TimescaleDBAdapter:
             try:
                 # Create hypertables (only if not already created)
                 hypertables = [
-                    ("candles", "timestamp"),
+                    ("candles", "time"),  # Docker schema uses "time"
                     ("technical_indicators", "timestamp"),
                     ("events", "timestamp"),
                 ]
@@ -447,9 +450,9 @@ class TimescaleDBAdapter:
         """Create indexes for better query performance"""
         async with self.get_connection() as conn:
             indexes = [
-                # Candles indexes
-                "CREATE INDEX IF NOT EXISTS idx_candles_symbol_timeframe ON candles (symbol, timeframe, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_candles_timestamp ON candles (timestamp DESC);",
+                # Candles indexes - use Docker schema column names
+                "CREATE INDEX IF NOT EXISTS idx_candles_venue_symbol_timeframe ON candles (venue, symbol, timeframe, time DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_candles_time ON candles (time DESC);",
                 # Technical indicators indexes
                 "CREATE INDEX IF NOT EXISTS idx_indicators_symbol_timeframe ON technical_indicators (symbol, timeframe, timestamp DESC);",
                 # SMC signals indexes
@@ -484,28 +487,29 @@ class TimescaleDBAdapter:
     # ============================================================================
 
     async def insert_candle(self, candle: Candle) -> bool:
-        """Insert a single candle"""
+        """Insert a single candle using Docker schema column names"""
         try:
             async with self.get_write_connection() as conn:
                 await conn.execute(
                     """
                     INSERT INTO candles (
-                        timestamp, symbol, timeframe, open_price, high_price, low_price,
-                        close_price, volume, quote_volume, trades,
-                        taker_buy_base_volume, taker_buy_quote_volume
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                    ON CONFLICT (timestamp, symbol, timeframe) DO UPDATE SET
-                        open_price = EXCLUDED.open_price,
-                        high_price = EXCLUDED.high_price,
-                        low_price = EXCLUDED.low_price,
-                        close_price = EXCLUDED.close_price,
+                        time, venue, symbol, timeframe, open, high, low,
+                        close, volume, quote_volume, trade_count,
+                        taker_buy_volume, taker_buy_quote_volume
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ON CONFLICT (venue, symbol, timeframe, time) DO UPDATE SET
+                        open = EXCLUDED.open,
+                        high = EXCLUDED.high,
+                        low = EXCLUDED.low,
+                        close = EXCLUDED.close,
                         volume = EXCLUDED.volume,
                         quote_volume = EXCLUDED.quote_volume,
-                        trades = EXCLUDED.trades,
-                        taker_buy_base_volume = EXCLUDED.taker_buy_base_volume,
+                        trade_count = EXCLUDED.trade_count,
+                        taker_buy_volume = EXCLUDED.taker_buy_volume,
                         taker_buy_quote_volume = EXCLUDED.taker_buy_quote_volume
                 """,
                     candle.open_time,
+                    candle.venue,
                     candle.symbol,
                     candle.timeframe.value,
                     candle.open_price,
@@ -541,6 +545,7 @@ class TimescaleDBAdapter:
                 records = [
                     (
                         c.open_time,
+                        c.venue,
                         c.symbol,
                         c.timeframe.value,
                         c.open_price,
@@ -559,11 +564,11 @@ class TimescaleDBAdapter:
                 await conn.executemany(
                     """
                     INSERT INTO candles (
-                        timestamp, symbol, timeframe, open_price, high_price, low_price,
-                        close_price, volume, quote_volume, trades,
-                        taker_buy_base_volume, taker_buy_quote_volume
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                    ON CONFLICT (timestamp, symbol, timeframe) DO NOTHING
+                        time, venue, symbol, timeframe, open, high, low,
+                        close, volume, quote_volume, trade_count,
+                        taker_buy_volume, taker_buy_quote_volume
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ON CONFLICT (venue, symbol, timeframe, time) DO NOTHING
                 """,
                     records,
                 )
@@ -625,7 +630,7 @@ class TimescaleDBAdapter:
                 text,
                 has_photo,
                 photo_path,
-                raw_json,
+                json.dumps(raw_json) if raw_json else None,
             )
 
     async def upsert_external_telegram_signal(
@@ -819,22 +824,24 @@ class TimescaleDBAdapter:
         try:
             async with self.get_write_connection() as conn:
                 columns = [
-                    "timestamp",
+                    "time",
+                    "venue",
                     "symbol",
                     "timeframe",
-                    "open_price",
-                    "high_price",
-                    "low_price",
-                    "close_price",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
                     "volume",
                     "quote_volume",
-                    "trades",
-                    "taker_buy_base_volume",
+                    "trade_count",
+                    "taker_buy_volume",
                     "taker_buy_quote_volume",
                 ]
                 records = [
                     (
                         c.open_time,
+                        c.venue,
                         c.symbol,
                         c.timeframe.value,
                         str(c.open_price),
@@ -861,10 +868,21 @@ class TimescaleDBAdapter:
             logger.error(f"Error inserting candles via COPY: {e}")
             return 0
 
+    def _infer_close_time(self, open_time: datetime, timeframe: TimeFrame) -> datetime:
+        """Infer close_time from open_time and timeframe (not stored in DB)."""
+        tf_minutes = {
+            "1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
+            "1h": 60, "2h": 120, "4h": 240, "6h": 360, "8h": 480, "12h": 720,
+            "1d": 1440, "3d": 4320, "1w": 10080, "1M": 43200,
+        }
+        minutes = tf_minutes.get(timeframe.value, 1)
+        return open_time + timedelta(minutes=minutes)
+
     async def get_latest_candle(
         self,
         symbol: str,
         timeframe: TimeFrame,
+        venue: str | None = None,
     ) -> Candle | None:
         """
         Get the latest candle for a symbol and timeframe.
@@ -872,11 +890,14 @@ class TimescaleDBAdapter:
         Args:
             symbol: Trading symbol
             timeframe: Candle timeframe
+            venue: Trading venue (optional for backward compatibility)
 
         Returns:
             Latest candle or None if no data
         """
-        candles = await self.get_candles(symbol=symbol, timeframe=timeframe, limit=1)
+        candles = await self.get_candles(
+            symbol=symbol, timeframe=timeframe, venue=venue, limit=1
+        )
         return candles[0] if candles else None
 
     async def get_candles(
@@ -886,48 +907,56 @@ class TimescaleDBAdapter:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 1000,
+        venue: str | None = None,
     ) -> list[Candle]:
-        """Retrieve candles for a symbol and timeframe"""
+        """Retrieve candles for a symbol and timeframe using Docker schema columns"""
         try:
             async with self.get_read_connection() as conn:
                 query = """
-                    SELECT timestamp, symbol, timeframe, open_price, high_price, low_price,
-                           close_price, volume, quote_volume, trades,
-                           taker_buy_base_volume, taker_buy_quote_volume
+                    SELECT time, venue, symbol, timeframe, open, high, low,
+                           close, volume, quote_volume, trade_count,
+                           taker_buy_volume, taker_buy_quote_volume
                     FROM candles
                     WHERE symbol = $1 AND timeframe = $2
                 """
-                params = [symbol, timeframe.value]
+                params: list[Any] = [symbol, timeframe.value]
+
+                if venue:
+                    query += " AND venue = $" + str(len(params) + 1)
+                    params.append(venue)
 
                 if start_time:
-                    query += " AND timestamp >= $" + str(len(params) + 1)
+                    query += " AND time >= $" + str(len(params) + 1)
                     params.append(start_time)
 
                 if end_time:
-                    query += " AND timestamp <= $" + str(len(params) + 1)
+                    query += " AND time <= $" + str(len(params) + 1)
                     params.append(end_time)
 
-                query += " ORDER BY timestamp DESC LIMIT $" + str(len(params) + 1)
+                query += " ORDER BY time DESC LIMIT $" + str(len(params) + 1)
                 params.append(limit)
 
                 rows = await conn.fetch(query, *params)
 
                 candles = []
                 for row in rows:
+                    open_time = row["time"]
+                    tf = TimeFrame(row["timeframe"])
                     candle = Candle(
+                        venue=row["venue"],
                         symbol=row["symbol"],
-                        timeframe=TimeFrame(row["timeframe"]),
-                        open_time=row["timestamp"],
-                        close_time=row["timestamp"],  # Simplified
-                        open_price=row["open_price"],
-                        high_price=row["high_price"],
-                        low_price=row["low_price"],
-                        close_price=row["close_price"],
+                        timeframe=tf,
+                        open_time=open_time,
+                        close_time=self._infer_close_time(open_time, tf),
+                        open_price=row["open"],
+                        high_price=row["high"],
+                        low_price=row["low"],
+                        close_price=row["close"],
                         volume=row["volume"],
-                        quote_volume=row["quote_volume"],
-                        trades=row["trades"],
-                        taker_buy_base_volume=row["taker_buy_base_volume"],
-                        taker_buy_quote_volume=row["taker_buy_quote_volume"],
+                        quote_volume=row["quote_volume"] if row["quote_volume"] is not None else Decimal(0),
+                        trades=row["trade_count"] if row["trade_count"] is not None else 0,
+                        taker_buy_base_volume=row["taker_buy_volume"] if row["taker_buy_volume"] is not None else Decimal(0),
+                        taker_buy_quote_volume=row["taker_buy_quote_volume"] if row["taker_buy_quote_volume"] is not None else Decimal(0),
                     )
                     candles.append(candle)
 

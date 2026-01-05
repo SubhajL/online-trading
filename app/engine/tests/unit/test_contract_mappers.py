@@ -83,6 +83,7 @@ ZONES_REQUIRED_FIELDS = {
 def sample_candle() -> Candle:
     """Create a sample candle for testing."""
     return Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.H1,
         open_time=datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC),

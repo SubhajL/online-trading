@@ -30,6 +30,7 @@ def make_candle(
 ) -> Candle:
     """Helper to create test candles."""
     return Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.H1,
         open_time=open_time,

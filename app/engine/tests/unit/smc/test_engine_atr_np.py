@@ -12,6 +12,7 @@ from app.engine.smc.numutils import to_float_ohlc_arrays
 
 def _make_candle(ts: datetime, o: float, h: float, l: float, c: float, idx: int) -> Candle:
     return Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.M5,
         open_time=ts,

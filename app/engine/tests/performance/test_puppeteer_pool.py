@@ -46,6 +46,7 @@ class MockSignalGenerator:
             low_price = min(open_price, close_price) * (1 - abs(np.random.normal(0, 0.0002)))
 
             candle = Candle(
+                venue="spot",
                 symbol=self.symbol,
                 timeframe=self.timeframe,
                 open_time=base_time + timedelta(minutes=15 * i),

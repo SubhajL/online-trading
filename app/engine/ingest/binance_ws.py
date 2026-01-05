@@ -431,6 +431,7 @@ class BinanceWebSocketClient:
 
             # Parse candle data
             candle = Candle(
+                venue="spot",
                 symbol=kline_data["s"],
                 timeframe=TimeFrame(kline_data["i"]),
                 open_time=datetime.fromtimestamp(kline_data["t"] / 1000),

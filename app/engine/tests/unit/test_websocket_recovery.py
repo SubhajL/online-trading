@@ -204,6 +204,7 @@ class TestDataBackfill:
             # Generate mock historical candles
             for i in range(100):  # 100 candles
                 candle = Candle(
+                    venue="spot",
                     symbol=symbol,
                     timeframe=timeframe,
                     open_time=base_time + timedelta(minutes=5*i),
@@ -291,6 +292,7 @@ class TestDataBackfill:
         ingest_service._latest_candles = {
             "BTCUSDT": {
                 TimeFrame.M5: Candle(
+                    venue="spot",
                     symbol="BTCUSDT",
                     timeframe=TimeFrame.M5,
                     open_time=last_candle_time - timedelta(minutes=5),
@@ -323,6 +325,7 @@ class TestDataBackfill:
         """Test that duplicate candles are not processed twice."""
         # Create a candle
         test_candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             open_time=datetime.now() - timedelta(minutes=5),
@@ -466,6 +469,7 @@ class TestDataIntegrity:
         # Generate sequence of candles
         for i in range(10):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
                 open_time=base_time + timedelta(minutes=5*i),

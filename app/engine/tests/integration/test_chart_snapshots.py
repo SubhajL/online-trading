@@ -59,6 +59,7 @@ def candles_data():
             price = base_price + Decimal("300") + Decimal(str((i - 80) * 20))
 
         candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M15,
             open_time=base_time + timedelta(minutes=15 * i),

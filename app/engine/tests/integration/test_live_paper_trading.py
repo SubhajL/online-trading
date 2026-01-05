@@ -78,6 +78,7 @@ def _make_candle(
     quote_volume = close_price * volume
 
     return Candle(
+        venue="spot",
         symbol=symbol,
         timeframe=timeframe,
         open_time=now,

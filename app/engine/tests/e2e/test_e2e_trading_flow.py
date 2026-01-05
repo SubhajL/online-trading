@@ -57,6 +57,7 @@ class TestE2ETradingFlow:
 
         for i, price in enumerate(prices):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
                 open_time=base_time + timedelta(minutes=5*i),
@@ -340,6 +341,7 @@ class TestE2ETradingFlow:
         for i in range(count):
             price = Decimal("50000") + Decimal(str(i * 10))
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=timeframe,
                 open_time=base_time + interval * i,
@@ -370,6 +372,7 @@ class TestE2ETradingFlow:
 
         # Simulate candle event
         candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             open_time=datetime.now() - timedelta(minutes=5),

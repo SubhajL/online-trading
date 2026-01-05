@@ -92,6 +92,7 @@ class TestCandleProcessingPerformance:
 
             for i in range(count):
                 candle = Candle(
+                    venue="spot",
                     symbol=symbol,
                     timeframe=TimeFrame.M15,
                     open_time=base_time + timedelta(minutes=15 * i),
@@ -342,6 +343,7 @@ class TestSignalGenerationPerformance:
         candles = []
         for i in range(100):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M15,
                 open_time=datetime.now() - timedelta(minutes=15 * (100 - i)),
@@ -535,6 +537,7 @@ class TestEndToEndPerformance:
 
         # Create test candle
         candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M15,
             open_time=datetime.now() - timedelta(minutes=15),

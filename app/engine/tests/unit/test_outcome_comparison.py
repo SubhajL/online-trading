@@ -30,6 +30,7 @@ def make_candle(
 
     open_time = timestamp or datetime(2025, 1, 1, 10, 0, tzinfo=UTC)
     return Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.H1,
         open_time=open_time,

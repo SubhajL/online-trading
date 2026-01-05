@@ -21,6 +21,7 @@ from app.engine.models import (
 def make_test_candle(symbol: str = "BTCUSDT") -> Candle:
     """Create a test candle with valid data."""
     return Candle(
+        venue="spot",
         symbol=symbol,
         timeframe=TimeFrame.M15,
         open_time=datetime.now(UTC),

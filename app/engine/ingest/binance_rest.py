@@ -343,6 +343,7 @@ class BinanceRestClient:
         candles = []
         for kline in data:
             candle = Candle(
+                venue="spot",
                 symbol=symbol,
                 timeframe=timeframe,
                 open_time=datetime.fromtimestamp(kline[0] / 1000, tz=UTC),

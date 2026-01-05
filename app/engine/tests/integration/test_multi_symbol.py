@@ -146,6 +146,7 @@ class MultiSymbolTestFramework:
         close_price = open_price * Decimal("1.0005")
 
         return Candle(
+            venue="spot",
             symbol=symbol,
             timeframe=timeframe,
             open_time=base_time + timedelta(minutes=15 * index),

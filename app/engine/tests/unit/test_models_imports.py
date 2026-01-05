@@ -55,6 +55,7 @@ def test_models_imports() -> None:
     from datetime import datetime
 
     candle = Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.M1,
         open_time=datetime.fromtimestamp(1234567890),

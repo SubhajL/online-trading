@@ -53,6 +53,7 @@ async def clean_db(pool):
 @pytest.mark.asyncio
 async def test_upsert_candle_and_retrieve(pool) -> None:
     candle = Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.H1,
         open_time=datetime.utcnow().replace(microsecond=0),
@@ -100,6 +101,7 @@ async def test_get_candles_with_filters(pool) -> None:
     base = datetime.utcnow().replace(microsecond=0)
     for i in range(6):
         c = Candle(
+            venue="spot",
             symbol="ETHUSDT",
             timeframe=TimeFrame.M15,
             open_time=base + timedelta(minutes=15 * i),

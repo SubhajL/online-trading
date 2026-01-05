@@ -70,6 +70,7 @@ class TestCandleOperations:
         """Test inserting and retrieving candles with Decimal precision."""
         # Create test candle
         candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.H1,
             open_time=datetime.utcnow(),
@@ -114,6 +115,7 @@ class TestCandleOperations:
     async def test_candle_upsert_idempotent(self, test_pool) -> None:
         """Test candle upsert is idempotent."""
         candle = Candle(
+            venue="spot",
             symbol="ETHUSDT",
             timeframe=TimeFrame.M15,
             open_time=datetime.utcnow(),
@@ -149,6 +151,7 @@ class TestCandleOperations:
         # Insert multiple candles
         for i in range(10):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.H1,
                 open_time=base_time + timedelta(hours=i),
@@ -465,6 +468,7 @@ class TestConnectionPoolResilience:
 
         async def insert_candle(i) -> None:
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
                 open_time=datetime.utcnow() + timedelta(minutes=i * 5),
@@ -496,6 +500,7 @@ class TestErrorHandling:
         """Test DAL functions handle errors gracefully."""
         # Test with invalid data
         invalid_candle = Candle(
+            venue="spot",
             symbol="X" * 50,  # Too long
             timeframe=TimeFrame.H1,
             open_time=datetime.utcnow(),

@@ -13,6 +13,7 @@ from app.engine.models import Candle, TimeFrame
 
 def make_candle(symbol: str, t: datetime) -> Candle:
     return Candle(
+        venue="spot",
         symbol=symbol,
         timeframe=TimeFrame.M15,
         open_time=t,

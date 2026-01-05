@@ -24,6 +24,7 @@ from app.engine.smc.smc_service import SMCService
 def create_test_candle(symbol="BTCUSDT", price_offset=0):
     """Create a valid test candle."""
     return Candle(
+        venue="spot",
         symbol=symbol,
         timeframe=TimeFrame.M5,
         open_time=datetime.now(),
@@ -153,6 +154,7 @@ class TestEventSubscription:
 
         # Create test candle event
         candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             open_time=datetime.now(),
@@ -191,6 +193,7 @@ class TestEventSubscription:
         # Need to send at least 3 candles (max of our periods)
         for i in range(3):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
                 open_time=datetime.now(),

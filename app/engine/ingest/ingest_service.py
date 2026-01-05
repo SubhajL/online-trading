@@ -12,7 +12,7 @@ from typing import Any
 
 from ..bus import get_event_bus
 from ..core.interfaces import DatabaseAdapterInterface
-from ..models import Candle, CandleOrigin, CandleUpdateEvent, TimeFrame
+from ..models import Candle, CandleOrigin, CandleUpdateEvent, EventType, TimeFrame
 from .binance_rest import BinanceRestClient
 from .binance_ws import BinanceWebSocketClient
 
@@ -75,6 +75,7 @@ class IngestService:
         self._backfill_tasks: list[asyncio.Task[Any]] = []
         self._latest_candles: dict[str, dict[TimeFrame, Candle]] = {}
         self._backfill_complete: set[str] = set()
+        self._candle_subscription_id: str | None = None
 
         logger.info(
             f"IngestService initialized for {len(symbols)} symbols "
@@ -149,6 +150,15 @@ class IngestService:
                 await self.ws_client.start()
                 await self._setup_realtime_streams()
 
+            # Subscribe to candle updates for persistence (when db_adapter is present)
+            if self._db_adapter is not None:
+                self._candle_subscription_id = await self._event_bus.subscribe(
+                    subscriber_id="ingest-candle-persistence",
+                    handler=self._on_candle_update,
+                    event_types=[EventType.CANDLE_UPDATE],
+                )
+                logger.info("IngestService subscribed to candle updates for DB persistence")
+
             # Start historical data backfill if enabled
             if self.enable_backfill:
                 await self._start_backfill()
@@ -174,6 +184,12 @@ class IngestService:
         await asyncio.gather(*self._backfill_tasks, return_exceptions=True)
         self._backfill_tasks.clear()
 
+        # Unsubscribe from candle updates
+        if self._candle_subscription_id is not None:
+            await self._event_bus.unsubscribe(self._candle_subscription_id)
+            self._candle_subscription_id = None
+            logger.info("IngestService unsubscribed from candle updates")
+
         # Stop clients
         if self.ws_client:
             await self.ws_client.stop()
@@ -197,6 +213,32 @@ class IngestService:
         except Exception as e:
             logger.error(f"Error setting up real-time streams: {e}")
             raise
+
+    async def _on_candle_update(self, event: CandleUpdateEvent) -> None:
+        """Handle CandleUpdateEvent and persist REALTIME/GAP_FILL candles to DB.
+
+        BACKFILL candles are skipped since they're already written during backfill.
+        """
+        # Update latest candles tracking
+        symbol = event.symbol
+        timeframe = event.timeframe
+        if symbol not in self._latest_candles:
+            self._latest_candles[symbol] = {}
+        self._latest_candles[symbol][timeframe] = event.candle
+
+        # Skip BACKFILL events - already written during backfill
+        if event.origin == CandleOrigin.BACKFILL:
+            return
+
+        # Persist REALTIME and GAP_FILL candles to DB
+        if self._db_adapter is not None:
+            try:
+                await self._db_adapter.insert_candle(event.candle)
+                logger.debug(
+                    f"Persisted {event.origin.value} candle: {symbol} {timeframe.value}",
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist candle {symbol} {timeframe.value}: {e}")
 
     async def _start_backfill(self) -> None:
         """Start historical data backfill for all symbols and timeframes"""

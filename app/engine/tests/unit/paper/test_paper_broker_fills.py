@@ -40,6 +40,7 @@ def _make_candle(
 ) -> Candle:
     now = datetime.now(UTC)
     return Candle(
+        venue="spot",
         symbol=symbol,
         timeframe=TimeFrame.M1,
         open_time=now,

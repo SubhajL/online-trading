@@ -28,6 +28,7 @@ class TestDatabaseIntegration:
         """Test CRUD operations on candles hypertable."""
         # Insert test candle
         test_candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             open_time=datetime.now(),

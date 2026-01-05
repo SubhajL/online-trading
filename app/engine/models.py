@@ -222,6 +222,7 @@ class NegativeVolumeError(ValueError):
 class Candle(BaseModel):
     """OHLCV candle data"""
 
+    venue: str
     symbol: str
     timeframe: TimeFrame
     open_time: datetime
@@ -922,6 +923,7 @@ def kline_to_candle(data: dict[str, Any], _venue: str) -> Candle:
         Candle instance
     """
     return Candle(
+        venue=_venue,
         symbol=data["s"],
         timeframe=TimeFrame(data["i"]),
         open_time=datetime.fromtimestamp(data["t"] / 1000, tz=UTC),
@@ -962,6 +964,7 @@ def rest_kline_to_candle(
         Candle instance
     """
     return Candle(
+        venue=_venue,
         symbol=symbol,
         timeframe=TimeFrame(timeframe),
         open_time=datetime.fromtimestamp(data[0] / 1000, tz=UTC),

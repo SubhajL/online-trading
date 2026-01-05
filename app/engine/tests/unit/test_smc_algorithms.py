@@ -34,6 +34,7 @@ class TestPivotDetection:
         """Helper to create a candle."""
         from app.engine.models import TimeFrame
         return Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             open_time=base_time + timedelta(minutes=5*index),
@@ -428,6 +429,7 @@ class TestSMCIntegration:
         candles = []
         for i, (o, h, l, c) in enumerate(candle_data):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
                 open_time=base_time + timedelta(minutes=5*i),

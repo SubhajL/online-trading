@@ -57,6 +57,7 @@ class E2ETestOrchestrator:
         self.log_event("INGESTION", "WebSocket candle received")
 
         candle = Candle(
+            venue="spot",
             symbol=self.symbol,
             timeframe=self.timeframe,
             open_time=datetime.now() - timedelta(minutes=15),

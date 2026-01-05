@@ -66,6 +66,7 @@ async def test_insert_candles_batch_calls_executemany(monkeypatch) -> None:
     t0 = datetime.now(UTC)
     candles = [
         Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M15,
             open_time=t0 + timedelta(minutes=i * 15),
@@ -127,6 +128,7 @@ async def test_insert_candles_batch_uses_copy_for_large_batches(monkeypatch) -> 
     t0 = datetime.now(UTC)
     candles = [
         Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M1,
             open_time=t0,
@@ -151,16 +153,17 @@ async def test_insert_candles_batch_uses_copy_for_large_batches(monkeypatch) -> 
     args = fake_conn.copy_args
     assert args is not None and args["table"] == "candles"
     assert set(args["columns"]) == {
-        "timestamp",
+        "time",
+        "venue",
         "symbol",
         "timeframe",
-        "open_price",
-        "high_price",
-        "low_price",
-        "close_price",
+        "open",
+        "high",
+        "low",
+        "close",
         "volume",
         "quote_volume",
-        "trades",
-        "taker_buy_base_volume",
+        "trade_count",
+        "taker_buy_volume",
         "taker_buy_quote_volume",
     }

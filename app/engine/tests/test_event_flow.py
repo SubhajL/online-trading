@@ -96,6 +96,7 @@ def create_test_candle(symbol="BTCUSDT", price_base=50000, offset=0, timeframe=T
     """Create a test candle with realistic data."""
     base_time = datetime.utcnow() - timedelta(minutes=(10 - offset) * 5)
     return Candle(
+        venue="spot",
         symbol=symbol,
         timeframe=timeframe,
         open_time=base_time,

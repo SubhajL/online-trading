@@ -32,6 +32,7 @@ async def run_integration_example() -> None:
 
         # Test 1: Insert candle with Decimal precision
         candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.H1,
             open_time=datetime.utcnow(),
