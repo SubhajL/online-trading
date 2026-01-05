@@ -6,7 +6,7 @@ Handles kline/candlestick data, ticker updates, and order book streams.
 """
 
 import asyncio
-from collections.abc import Callable
+import contextlib
 from datetime import UTC, datetime
 from decimal import Decimal
 import json
@@ -24,13 +24,43 @@ from ..resilience.backoff import BackoffConfig, ExponentialBackoff
 from ..resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
-    CircuitBreakerState,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ..bus import EventBus
 
 logger = logging.getLogger(__name__)
+
+
+def unwrap_combined_stream_message(data: Any) -> Any:
+    """
+    Unwrap combined stream message wrapper if present.
+
+    Binance combined streams (via /stream?streams=...) wrap messages in:
+    {"stream": "btcusdt@kline_5m", "data": {"e": "kline", ...}}
+
+    This function extracts the inner 'data' dict when the wrapper is detected.
+    For direct messages or non-dict inputs, returns the original unchanged.
+
+    Args:
+        data: Parsed JSON message (can be dict, list, or primitive)
+
+    Returns:
+        Inner 'data' dict if combined stream wrapper detected, else original
+    """
+    if not isinstance(data, dict):
+        return data
+
+    if "stream" not in data or "data" not in data:
+        return data
+
+    inner = data["data"]
+    if not isinstance(inner, dict):
+        return data
+
+    return inner
 
 
 def build_combined_stream_url(base_url: str, streams: list[str]) -> str:
@@ -74,7 +104,7 @@ class BinanceWebSocketClient:
     - Max retry limit
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         base_url: str = "wss://stream.binance.com:9443/ws/",
         testnet: bool = False,
@@ -142,10 +172,7 @@ class BinanceWebSocketClient:
 
         Uses websockets 13+ State API instead of deprecated .closed attribute.
         """
-        return (
-            self._websocket is not None
-            and self._websocket.state == WebSocketState.OPEN
-        )
+        return self._websocket is not None and self._websocket.state == WebSocketState.OPEN
 
     async def start(self) -> None:
         """Start the WebSocket client"""
@@ -166,10 +193,8 @@ class BinanceWebSocketClient:
 
         if self._reconnect_task:
             self._reconnect_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._reconnect_task
-            except asyncio.CancelledError:
-                pass
 
         if self._websocket:
             await self._websocket.close()
@@ -245,9 +270,7 @@ class BinanceWebSocketClient:
             levels: Number of price levels (5, 10, or 20)
             update_speed: Update speed (1000ms or 100ms)
         """
-        streams = [
-            f"{symbol.lower()}@depth{levels}@{update_speed}" for symbol in symbols
-        ]
+        streams = [f"{symbol.lower()}@depth{levels}@{update_speed}" for symbol in symbols]
         self._subscriptions.update(streams)
         self._symbols.update(symbols)
 
@@ -302,8 +325,7 @@ class BinanceWebSocketClient:
             if not await self._circuit_breaker.should_allow_request():
                 circuit_state = await self._circuit_breaker.get_state()
                 logger.warning(
-                    f"Circuit breaker is {circuit_state.value}, "
-                    "skipping connection attempt",
+                    f"Circuit breaker is {circuit_state.value}, skipping connection attempt",
                 )
                 delay = self._backoff.next_delay()
                 await asyncio.sleep(delay)
@@ -337,7 +359,10 @@ class BinanceWebSocketClient:
         self._consecutive_failures += 1
         await self._circuit_breaker.record_failure()
         logger.warning(
-            f"Connection failed ({self._consecutive_failures}/{self._max_reconnect_attempts}): {error}",
+            "Connection failed (%d/%d): %s",
+            self._consecutive_failures,
+            self._max_reconnect_attempts,
+            error,
         )
 
     async def _connect_and_listen(self) -> None:
@@ -374,7 +399,11 @@ class BinanceWebSocketClient:
                     await self._resubscribe_all()
 
                 # Listen for messages
+                msg_count = 0
                 async for message in websocket:
+                    msg_count += 1
+                    if msg_count <= 3 or msg_count % 50 == 0:
+                        logger.info(f"WS msg #{msg_count} received (len={len(message)})")
                     try:
                         await self._handle_message(message)
                     except Exception as e:
@@ -391,18 +420,24 @@ class BinanceWebSocketClient:
         """Handle incoming WebSocket message"""
         try:
             data = json.loads(message)
-
-            # Handle array of ticker data (all market tickers)
-            if isinstance(data, list):
-                for item in data:
-                    await self._route_message(item)
-            else:
-                await self._route_message(data)
-
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode JSON message: {e}")
-        except Exception as e:
-            logger.error(f"Error processing message: {e}")
+            return
+
+        # Handle array of ticker data (all market tickers)
+        if isinstance(data, list):
+            for item in data:
+                try:
+                    unwrapped = unwrap_combined_stream_message(item)
+                    await self._route_message(unwrapped)
+                except Exception:
+                    logger.exception("Error processing list item")
+        else:
+            try:
+                unwrapped = unwrap_combined_stream_message(data)
+                await self._route_message(unwrapped)
+            except Exception:
+                logger.exception("Error processing message")
 
     async def _route_message(self, data: dict[str, Any]) -> None:
         """Route message to appropriate handler"""
@@ -463,7 +498,10 @@ class BinanceWebSocketClient:
             published = await self._event_bus.publish(event)
 
             logger.info(
-                f"Published candle event: {candle.symbol} {candle.timeframe} (published={published})",
+                "Published candle event: %s %s (published=%s)",
+                candle.symbol,
+                candle.timeframe,
+                published,
             )
 
         except Exception as e:
@@ -582,7 +620,7 @@ class BinanceWebSocketClient:
         }
 
 
-def get_ws_connector():
+def get_ws_connector() -> "Callable[..., Any]":
     """Return the WebSocket connector callable.
 
     Allows tests to inject a fake connector without importing external modules.
