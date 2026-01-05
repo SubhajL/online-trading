@@ -9,7 +9,6 @@ Requirements:
 - RSI 40-55 bounce for longs
 """
 
-# ruff: noqa: ANN401
 
 from collections import deque
 from datetime import UTC, datetime
@@ -37,7 +36,7 @@ ZoneId = NewType("ZoneId", str)
 SignalId = NewType("SignalId", str)
 
 
-async def analyze_retest(  # noqa: PLR0913
+async def analyze_retest(
     symbol: str,
     timeframe: str,
     candles: list[Any],

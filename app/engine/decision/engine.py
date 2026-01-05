@@ -156,7 +156,7 @@ def evaluate_current_positions(
     return True
 
 
-def generate_decision(  # noqa: PLR0913
+def generate_decision(
     signal: dict[str, Any],
     account_balance: Decimal,
     risk_percentage: Decimal,

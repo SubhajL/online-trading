@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 class SignalEmitter:
     """Emit trading signals that trigger snapshots and alerts."""
 
-    def __init__(self, event_bus: Any, bff_client: Any) -> None:  # noqa: ANN401
+    def __init__(self, event_bus: Any, bff_client: Any) -> None:
         self.event_bus = event_bus
         self.bff_client = bff_client
 
-    async def emit_signal(  # noqa: PLR0913
+    async def emit_signal(
         self,
         symbol: str,
         venue: str,
@@ -170,7 +170,7 @@ class MockBffClient:
 
 async def emit_test_signal() -> None:
     """Emit a test signal for demonstration."""
-    from unittest.mock import AsyncMock, Mock  # noqa: PLC0415
+    from unittest.mock import AsyncMock, Mock
 
     event_bus = Mock(
         publish=AsyncMock(),

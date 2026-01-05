@@ -247,7 +247,7 @@ class Candle(BaseModel):
         "close_price",
         mode="after",
     )
-    def ensure_price_positive(cls, v: Decimal) -> Decimal:  # noqa: N805
+    def ensure_price_positive(cls, v: Decimal) -> Decimal:
         if v <= 0:
             raise NonPositivePriceError
         return v
@@ -259,7 +259,7 @@ class Candle(BaseModel):
         "taker_buy_quote_volume",
         mode="after",
     )
-    def ensure_volume_non_negative(cls, v: Decimal) -> Decimal:  # noqa: N805
+    def ensure_volume_non_negative(cls, v: Decimal) -> Decimal:
         if v < 0:
             raise NegativeVolumeError
         return v

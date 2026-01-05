@@ -31,7 +31,7 @@ async def check_redis_connectivity(timeout_seconds: float = 5.0) -> None:
         try:
             await asyncio.wait_for(client.ping(), timeout=timeout_seconds)
             return
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise RedisPreflightError(
                 f"Unable to connect to Redis using REDIS_URL: {e}",
             )
@@ -62,7 +62,7 @@ async def check_redis_connectivity(timeout_seconds: float = 5.0) -> None:
 
     try:
         await asyncio.wait_for(client.ping(), timeout=timeout_seconds)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise RedisPreflightError(
             f"Unable to connect to Redis at {host}:{port}/{db}: {e}",
         )

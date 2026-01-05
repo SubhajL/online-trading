@@ -176,17 +176,17 @@ class AlertSubscriber:
                 payload = _decision_event_to_alert_payload(event)
                 if payload is None:
                     return
-                await self.telegram._handle_decision(payload)  # noqa: SLF001
+                await self.telegram._handle_decision(payload)
                 return
 
             if isinstance(event, OrderFilledEvent):
                 payload = _order_filled_event_to_order_update_payload(event)
-                await self.telegram._handle_order_update(payload)  # noqa: SLF001
+                await self.telegram._handle_order_update(payload)
                 return
 
             if isinstance(event, ErrorEvent):
                 message = _error_event_to_text(event)
-                await self.telegram._send_alert(message)  # noqa: SLF001
+                await self.telegram._send_alert(message)
                 return
 
             logger.debug("Unhandled event type: %s", event.event_type)

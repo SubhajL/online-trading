@@ -88,7 +88,7 @@ def split_position_for_targets(
     return TPSplits(tp1=tp1_size, tp2=tp2_size, tp3=tp3_size)
 
 
-def create_bracket_orders(  # noqa: PLR0913
+def create_bracket_orders(
     symbol: str,
     side: str,
     entry_price: Decimal,

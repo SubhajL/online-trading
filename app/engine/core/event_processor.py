@@ -153,7 +153,7 @@ class EventProcessor:
                     await circuit_breaker.record_success()
 
                 return True, subscription, None
-            except Exception as exc:  # noqa: BLE001 - we reclassify below
+            except Exception as exc:
                 # Record failure to circuit breaker
                 if self._config.circuit_breaker_enabled:
                     circuit_breaker = await self._get_circuit_breaker(

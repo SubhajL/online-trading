@@ -17,7 +17,7 @@ class EventBusProtocol(Protocol):
     async def subscribe(
         self,
         subscriber_id: str,
-        handler: Any,  # noqa: ANN401
+        handler: Any,
         event_types: list[EventType] | None = None,
         priority: int = 0,
     ) -> str: ...

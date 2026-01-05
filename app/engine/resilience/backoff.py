@@ -62,7 +62,7 @@ class ExponentialBackoff:
 
         # Apply jitter
         if jitter_pct > 0:
-            jitter_factor = random.uniform(1 - jitter_pct, 1 + jitter_pct)  # noqa: S311
+            jitter_factor = random.uniform(1 - jitter_pct, 1 + jitter_pct)
             final_delay = capped_delay * jitter_factor
         else:
             final_delay = capped_delay

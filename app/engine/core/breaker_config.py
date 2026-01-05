@@ -32,7 +32,7 @@ def _parse_breakers_json(env_value: str) -> dict[str, CircuitBreakerConfig]:
                 timeout_seconds=float(to),
             )
         return result
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise ValueError(f"Invalid breaker JSON: {e}")
 
 

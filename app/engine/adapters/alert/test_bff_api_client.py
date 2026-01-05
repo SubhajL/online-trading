@@ -14,17 +14,17 @@ class TestBffApiClientInit:
     def test_init_stores_base_url(self) -> None:
         """BffApiClient stores base_url from constructor."""
         client = BffApiClient(base_url="http://localhost:8002", token="test-key")
-        assert client._base_url == "http://localhost:8002"  # noqa: SLF001
+        assert client._base_url == "http://localhost:8002"
 
     def test_init_stores_token(self) -> None:
         """BffApiClient stores token from constructor."""
         client = BffApiClient(base_url="http://localhost:8002", token="secret-key")
-        assert client._token == "secret-key"  # noqa: SLF001
+        assert client._token == "secret-key"
 
     def test_init_session_is_none(self) -> None:
         """BffApiClient session is None before start."""
         client = BffApiClient(base_url="http://localhost:8002", token="test-key")
-        assert client._session is None  # noqa: SLF001
+        assert client._session is None
 
 
 class TestBffApiClientLifecycle:
@@ -36,7 +36,7 @@ class TestBffApiClientLifecycle:
         client = BffApiClient(base_url="http://localhost:8002", token="test-key")
         await client.start()
         try:
-            assert client._session is not None  # noqa: SLF001
+            assert client._session is not None
         finally:
             await client.stop()
 
@@ -45,9 +45,9 @@ class TestBffApiClientLifecycle:
         """stop() closes the aiohttp session."""
         client = BffApiClient(base_url="http://localhost:8002", token="test-key")
         await client.start()
-        session = client._session  # noqa: SLF001
+        session = client._session
         await client.stop()
-        assert client._session is None  # noqa: SLF001
+        assert client._session is None
         assert session.closed
 
     @pytest.mark.asyncio
@@ -73,7 +73,7 @@ class TestBffApiClientPost:
             mock_response.__aexit__ = AsyncMock(return_value=None)
 
             with patch.object(
-                client._session,  # noqa: SLF001
+                client._session,
                 "post",
                 return_value=mock_response,
             ) as mock_post:
@@ -97,7 +97,7 @@ class TestBffApiClientPost:
             mock_response.__aexit__ = AsyncMock(return_value=None)
 
             with patch.object(
-                client._session,  # noqa: SLF001
+                client._session,
                 "post",
                 return_value=mock_response,
             ) as mock_post:
@@ -122,7 +122,7 @@ class TestBffApiClientPost:
 
             payload = {"symbol": "BTCUSDT", "side": "BUY"}
             with patch.object(
-                client._session,  # noqa: SLF001
+                client._session,
                 "post",
                 return_value=mock_response,
             ) as mock_post:
@@ -146,7 +146,7 @@ class TestBffApiClientPost:
             mock_response.__aexit__ = AsyncMock(return_value=None)
 
             with patch.object(
-                client._session,  # noqa: SLF001
+                client._session,
                 "post",
                 return_value=mock_response,
             ):
@@ -168,7 +168,7 @@ class TestBffApiClientPost:
             mock_response.__aexit__ = AsyncMock(return_value=None)
 
             with patch.object(
-                client._session,  # noqa: SLF001
+                client._session,
                 "post",
                 return_value=mock_response,
             ):
@@ -190,7 +190,7 @@ class TestBffApiClientPost:
             mock_response.__aexit__ = AsyncMock(return_value=None)
 
             with patch.object(
-                client._session,  # noqa: SLF001
+                client._session,
                 "post",
                 return_value=mock_response,
             ):
@@ -206,7 +206,7 @@ class TestBffApiClientPost:
         await client.start()
         try:
             with patch.object(
-                client._session,  # noqa: SLF001
+                client._session,
                 "post",
                 side_effect=TimeoutError(),
             ):
@@ -222,7 +222,7 @@ class TestBffApiClientPost:
         await client.start()
         try:
             with patch.object(
-                client._session,  # noqa: SLF001
+                client._session,
                 "post",
                 side_effect=aiohttp.ClientError("Connection refused"),
             ):

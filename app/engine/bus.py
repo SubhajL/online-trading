@@ -396,7 +396,7 @@ class EventBus:
                                     else "all_handlers_failed"
                                 ),
                             )
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.error(f"DLQ enqueue error: {e}")
                 elapsed = (asyncio.get_event_loop().time() - start) * 1000.0
 

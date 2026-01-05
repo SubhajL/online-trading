@@ -169,8 +169,8 @@ packages = ["app/engine"]
 # Ruff Configuration
 # ===========================
 [tool.ruff]
-# Increase the maximum line length to 88 characters (Black's default)
-line-length = 88
+# Increase the maximum line length to 100 characters
+line-length = 100
 indent-width = 4
 
 # Assume Python 3.11+
@@ -465,7 +465,7 @@ skips = ["B101", "B601"]
 # Black Configuration (if using Black instead of Ruff format)
 # ===========================
 [tool.black]
-line-length = 88
+line-length = 100
 target-version = ['py311']
 include = '\.pyi?$'
 extend-exclude = '''

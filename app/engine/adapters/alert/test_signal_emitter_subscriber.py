@@ -27,7 +27,7 @@ TAKE_PROFIT_PRICE = 52000.0
 CONFIDENCE_VALUE = 0.85
 
 
-def make_smc_signal(  # noqa: PLR0913
+def make_smc_signal(
     symbol: str = "BTCUSDT",
     entry: float = ENTRY_PRICE,
     stop_loss: float | None = STOP_LOSS_PRICE,
@@ -78,10 +78,10 @@ class MockEventBus:
 
     async def subscribe(
         self,
-        subscriber_id: str,  # noqa: ARG002
-        handler: Any,  # noqa: ANN401
+        subscriber_id: str,
+        handler: Any,
         event_types: list[EventType] | None = None,
-        priority: int = 0,  # noqa: ARG002
+        priority: int = 0,
     ) -> str:
         """Record subscription."""
         sub_id = f"sub-{self._next_id}"
@@ -109,14 +109,14 @@ class TestSignalEmitterSubscriberInit:
         bus = MockEventBus()
         emitter = MagicMock()
         subscriber = SignalEmitterSubscriber(bus=bus, signal_emitter=emitter)
-        assert subscriber._bus is bus  # noqa: SLF001
+        assert subscriber._bus is bus
 
     def test_init_stores_signal_emitter(self) -> None:
         """SignalEmitterSubscriber stores signal emitter reference."""
         bus = MockEventBus()
         emitter = MagicMock()
         subscriber = SignalEmitterSubscriber(bus=bus, signal_emitter=emitter)
-        assert subscriber._signal_emitter is emitter  # noqa: SLF001
+        assert subscriber._signal_emitter is emitter
 
 
 class TestSignalEmitterSubscriberLifecycle:
