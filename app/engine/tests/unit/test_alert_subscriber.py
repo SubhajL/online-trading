@@ -169,7 +169,53 @@ class TestAlertSubscriberHandleEvent:
         assert payload["take_profit"] == Decimal(52000)
         assert payload["quantity"] == Decimal("0.01")
         assert payload["signal_id"] == "sig_123"
+        assert payload["timeframe"] == "1h"
+        assert payload["venue"] is None
         assert payload["reasons"] == ["SMC Break", "Trend Alignment"]
+
+    @pytest.mark.asyncio
+    async def test_routes_zone_metadata_to_telegram_payload(self) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_decision = AsyncMock()
+
+        subscriber = AlertSubscriber(telegram_adapter=mock_telegram)
+        ts = datetime.now(UTC)
+
+        decision = TradingDecision(
+            symbol="ETHUSDT",
+            timestamp=ts,
+            action="SELL",
+            entry_price=Decimal("3184.36"),
+            stop_loss=Decimal("3187.16"),
+            take_profit=Decimal("3152.52"),
+            quantity=Decimal("0.01"),
+            confidence=Decimal("0.65"),
+            reasoning="FVG fill with bearish bias",
+        )
+        event = TradingDecisionEvent(
+            timestamp=ts,
+            symbol="ETHUSDT",
+            timeframe=TimeFrame.M15,
+            decision=decision,
+            metadata={
+                "signal_id": "sig_456",
+                "timeframe": "15m",
+                "zone": {
+                    "zone_type": "FAIR_VALUE_GAP",
+                    "top_price": Decimal(3190),
+                    "bottom_price": Decimal(3180),
+                },
+            },
+        )
+
+        await subscriber._handle_event(event)
+
+        payload = mock_telegram._handle_decision.call_args[0][0]
+        assert payload["zone"] == {
+            "zone_type": "FAIR_VALUE_GAP",
+            "top_price": Decimal(3190),
+            "bottom_price": Decimal(3180),
+        }
 
     @pytest.mark.asyncio
     async def test_routes_order_filled_to_telegram(self) -> None:

@@ -91,6 +91,16 @@ class SignalEmitterSubscriber:
         # Split reasoning into list
         reasons = [r.strip() for r in signal.reasoning.split(";")]
 
+        zone = signal.zone
+        zone_evidence: dict[str, Any] | None = None
+        if zone is not None:
+            zone_evidence = {
+                "zone_id": str(zone.zone_id),
+                "zone_type": zone.zone_type.value,
+                "top_price": zone.top_price,
+                "bottom_price": zone.bottom_price,
+            }
+
         try:
             await self._signal_emitter.emit_signal(
                 symbol=signal.symbol,
@@ -103,6 +113,7 @@ class SignalEmitterSubscriber:
                 reasons=reasons,
                 timeframe=signal.timeframe.value,
                 decision_time=signal.timestamp,
+                zone=zone_evidence,
             )
         except Exception:
             logger.exception(

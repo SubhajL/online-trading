@@ -11,6 +11,9 @@ class AlertFormatter:
         """Format a trading decision into an alert message."""
         symbol = decision["symbol"]
         side = decision["side"]
+        timeframe = decision.get("timeframe")
+        signal_id = decision.get("signal_id")
+        zone = decision.get("zone")
         entry = decision["entry_price"]
         sl = decision["stop_loss"]
         tp = decision["take_profit"]
@@ -36,18 +39,43 @@ class AlertFormatter:
         # Build message
         lines = [
             f"{emoji} {side_text}: {symbol}",
-            f"Entry: {self._format_currency(entry)}",
-            f"SL: {self._format_currency(sl)} ({sl_pct:+.2f}%)",
-            f"TP: {self._format_currency(tp)} ({tp_pct:+.2f}%)",
-            f"Size: {quantity} {base_currency}",
-            f"Confidence: {int(confidence * 100)}%",
         ]
+
+        if isinstance(timeframe, str) and timeframe:
+            lines.append(f"TF: {timeframe}")
+
+        if isinstance(signal_id, str) and signal_id:
+            lines.append(f"Signal: {signal_id}")
+
+        if isinstance(zone, dict):
+            zone_type = zone.get("zone_type")
+            top_price = zone.get("top_price")
+            bottom_price = zone.get("bottom_price")
+            if (
+                isinstance(zone_type, str)
+                and isinstance(top_price, Decimal)
+                and isinstance(bottom_price, Decimal)
+            ):
+                lines.append(
+                    "Zone: "
+                    f"{zone_type} [{self._format_currency(bottom_price)} - "
+                    f"{self._format_currency(top_price)}]",
+                )
+
+        lines.extend(
+            [
+                f"Entry: {self._format_currency(entry)}",
+                f"SL: {self._format_currency(sl)} ({sl_pct:+.2f}%)",
+                f"TP: {self._format_currency(tp)} ({tp_pct:+.2f}%)",
+                f"Size: {quantity} {base_currency}",
+                f"Confidence: {int(confidence * 100)}%",
+            ],
+        )
 
         if reasons:
             lines.append("")
             lines.append("Reasons:")
-            for reason in reasons:
-                lines.append(f"• {reason}")
+            lines.extend([f"• {reason}" for reason in reasons])
 
         return "\n".join(lines)
 
@@ -64,7 +92,7 @@ class AlertFormatter:
             "partially_filled": "🔄",
             "cancelled": "❌",
             "rejected": "🚫",
-        }.get(status, "ℹ️")
+        }.get(status, "ℹ️")  # noqa: RUF001
 
         # Build message
         lines = [f"{status_emoji} Order {status.title()}"]

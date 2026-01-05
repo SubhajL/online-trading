@@ -18,7 +18,7 @@ class SignalEmitter:
         self.event_bus = event_bus
         self.bff_client = bff_client
 
-    async def emit_signal(
+    async def emit_signal(  # noqa: PLR0913
         self,
         symbol: str,
         venue: str,
@@ -30,6 +30,7 @@ class SignalEmitter:
         reasons: list[str],
         timeframe: str = "15m",
         decision_time: datetime | None = None,
+        zone: dict[str, Any] | None = None,
     ) -> str:
         """
         Emit a trading signal that will trigger alerts and snapshots.
@@ -78,6 +79,7 @@ class SignalEmitter:
                     "signal_id": signal_id,
                     "venue": venue,
                     "timeframe": timeframe,
+                    **({"zone": zone} if zone is not None else {}),
                 },
             )
 

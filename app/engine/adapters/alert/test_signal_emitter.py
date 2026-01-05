@@ -202,3 +202,38 @@ class TestSignalEmitterPublishesBaseEvent:
 
         if isinstance(published_event, TradingDecisionEvent):
             assert published_event.decision.action == "SELL"
+
+    @pytest.mark.asyncio
+    async def test_signal_emitter_populates_metadata_for_audit(
+        self,
+        emitter: SignalEmitter,
+        mock_event_bus: Mock,
+    ) -> None:
+        """Metadata includes signal_id, venue, timeframe, and optional zone."""
+        decision_time = datetime(2025, 7, 1, 9, 0, 0, tzinfo=UTC)
+        zone = {
+            "zone_type": "FAIR_VALUE_GAP",
+            "top_price": Decimal(3190),
+            "bottom_price": Decimal(3180),
+        }
+
+        signal_id = await emitter.emit_signal(
+            symbol="ETHUSDT",
+            venue="SPOT",
+            side="short",
+            entry=3184.36,
+            stop_loss=3187.16,
+            take_profit=3152.52,
+            confidence=0.65,
+            reasons=["FVG fill with bearish bias"],
+            timeframe="15m",
+            decision_time=decision_time,
+            zone=zone,
+        )
+
+        published_event = mock_event_bus.publish.call_args[0][0]
+        assert isinstance(published_event, TradingDecisionEvent)
+        assert published_event.metadata["signal_id"] == signal_id
+        assert published_event.metadata["venue"] == "SPOT"
+        assert published_event.metadata["timeframe"] == "15m"
+        assert published_event.metadata["zone"] == zone

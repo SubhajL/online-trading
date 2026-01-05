@@ -45,32 +45,43 @@ def _decision_event_to_alert_payload(
     if action not in {"BUY", "SELL"}:
         return None
 
+    metadata_timeframe = event.metadata.get("timeframe")
+    timeframe = (
+        metadata_timeframe
+        if isinstance(metadata_timeframe, str) and metadata_timeframe
+        else (event.timeframe.value if event.timeframe else None)
+    )
+
     entry_price = decision.entry_price
     stop_loss = decision.stop_loss
     take_profit = decision.take_profit
     quantity = decision.quantity
 
-    if (
-        entry_price is None
-        or stop_loss is None
-        or take_profit is None
-        or quantity is None
-    ):
+    if entry_price is None or stop_loss is None or take_profit is None or quantity is None:
         return None
 
     side = "long" if action == "BUY" else "short"
-    reasons = (
-        [r for r in decision.reasoning.split("; ") if r] if decision.reasoning else []
-    )
+    reasons = [r for r in decision.reasoning.split("; ") if r] if decision.reasoning else []
 
     signal_id = event.metadata.get("signal_id")
     if not isinstance(signal_id, str):
         signal_id = None
 
+    venue = event.metadata.get("venue")
+    if not isinstance(venue, str):
+        venue = None
+
+    zone = event.metadata.get("zone")
+    if not isinstance(zone, dict):
+        zone = None
+
     return {
         "symbol": event.symbol,
         "side": side,
         "timestamp": event.timestamp,
+        "timeframe": timeframe,
+        "venue": venue,
+        "zone": zone,
         "signal_id": signal_id,
         "entry_price": entry_price,
         "stop_loss": stop_loss,
