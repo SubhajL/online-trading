@@ -85,7 +85,7 @@ class SignalParser:
 
     @staticmethod
     def parse_message(
-        message: str, source: str, message_id: int
+        message: str, source: str, message_id: int,
     ) -> TelegramSignal | None:
         """Parse Telegram message into structured signal"""
 
@@ -173,7 +173,7 @@ class TelegramSignalValidator:
 
         # Monitor specific groups/channels
         @self.telegram_client.on(
-            events.NewMessage(chats=self.config["telegram_channels"])
+            events.NewMessage(chats=self.config["telegram_channels"]),
         )
         async def handle_new_message(event):
             await self.process_telegram_message(event.message)
@@ -201,7 +201,7 @@ class TelegramSignalValidator:
                 await self.alert_mismatch(result)
 
     async def validate_signal(
-        self, telegram_signal: TelegramSignal
+        self, telegram_signal: TelegramSignal,
     ) -> ValidationResult:
         """Validate external signal against your system"""
 
@@ -301,7 +301,7 @@ class TelegramSignalValidator:
         return match.group(1) if match else "4H"  # Default to 4H
 
     def _find_matching_signal(
-        self, our_analysis: dict, timestamp: datetime
+        self, our_analysis: dict, timestamp: datetime,
     ) -> dict | None:
         """Find signal from our system near the timestamp"""
         if not our_analysis or "signals" not in our_analysis:
@@ -316,7 +316,7 @@ class TelegramSignalValidator:
         return None
 
     def _check_smc_pattern_match(
-        self, telegram_reasoning: str, our_patterns: list[str]
+        self, telegram_reasoning: str, our_patterns: list[str],
     ) -> bool:
         """Check if SMC patterns match"""
         telegram_reasoning = telegram_reasoning.upper()
@@ -331,7 +331,7 @@ class TelegramSignalValidator:
         return bool(set(telegram_patterns) & set(our_patterns_upper))
 
     def _check_zone_match(
-        self, telegram_signal: TelegramSignal, our_zones: list[dict]
+        self, telegram_signal: TelegramSignal, our_zones: list[dict],
     ) -> bool:
         """Check if entry is near same supply/demand zone"""
         for zone in our_zones:

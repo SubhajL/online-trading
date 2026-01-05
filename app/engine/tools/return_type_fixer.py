@@ -39,7 +39,7 @@ def detect_missing_return_types(code: str) -> list[dict[str, Any]]:
                         "line": node.lineno - 1,  # 0-based for consistency
                         "is_async": False,
                         "should_be_none": should_be_none,
-                    }
+                    },
                 )
             self.generic_visit(node)
 
@@ -52,7 +52,7 @@ def detect_missing_return_types(code: str) -> list[dict[str, Any]]:
                         "line": node.lineno - 1,  # 0-based
                         "is_async": True,
                         "should_be_none": False,
-                    }
+                    },
                 )
             self.generic_visit(node)
 

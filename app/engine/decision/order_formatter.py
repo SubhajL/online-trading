@@ -124,7 +124,7 @@ class OrderFormatter:
         return True, "Quantity valid"
 
     def validate_notional(
-        self, symbol: str, price: Decimal, quantity: Decimal
+        self, symbol: str, price: Decimal, quantity: Decimal,
     ) -> tuple[bool, str]:
         """Validate order meets minimum notional value."""
         if symbol not in self.exchange_info:
@@ -139,7 +139,7 @@ class OrderFormatter:
         return True, f"Notional {notional} valid"
 
     def adjust_quantity_for_notional(
-        self, symbol: str, price: Decimal, quantity: Decimal
+        self, symbol: str, price: Decimal, quantity: Decimal,
     ) -> Decimal:
         """Adjust quantity up to meet minimum notional if needed."""
         if symbol not in self.exchange_info:
@@ -193,7 +193,7 @@ class OrderFormatter:
             )
             if adjusted_qty != formatted["quantity"]:
                 logger.info(
-                    f"Adjusted quantity from {formatted['quantity']} to {adjusted_qty} for min notional"
+                    f"Adjusted quantity from {formatted['quantity']} to {adjusted_qty} for min notional",
                 )
                 formatted["quantity"] = adjusted_qty
 
@@ -237,7 +237,7 @@ class OrderFormatter:
         # Validate notional (for limit orders)
         if order.get("type") == "LIMIT" and "price" in order and "quantity" in order:
             is_valid, reason = self.validate_notional(
-                symbol, order["price"], order["quantity"]
+                symbol, order["price"], order["quantity"],
             )
             if not is_valid:
                 errors.append(f"Notional: {reason}")

@@ -91,7 +91,7 @@ def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
                 context = "unknown"
                 within_union = "Union[" in line and match.start() > line.find("Union[")
                 within_optional = "Optional[" in line and match.start() > line.find(
-                    "Optional["
+                    "Optional[",
                 )
 
                 if "->" in line and match.start() > line.find("->"):
@@ -110,14 +110,14 @@ def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
                         "within_union": within_union,
                         "within_optional": within_optional,
                         "full_line": line,
-                    }
+                    },
                 )
 
     return missing_generics
 
 
 def infer_generic_parameters(
-    code: str, type_name: str, function_name: str | None, line_num: int
+    code: str, type_name: str, function_name: str | None, line_num: int,
 ) -> str:
     """
     Try to infer the generic parameters based on usage
@@ -316,7 +316,7 @@ def add_generic_type_parameters(code: str) -> str:
     # Process each line with missing generics
     for line_idx in sorted(lines_to_process.keys(), reverse=True):
         items = sorted(
-            lines_to_process[line_idx], key=lambda x: x["column"], reverse=True
+            lines_to_process[line_idx], key=lambda x: x["column"], reverse=True,
         )
         line = modified_lines[line_idx]
 

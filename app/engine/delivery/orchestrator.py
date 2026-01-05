@@ -92,7 +92,7 @@ class DeliveryOrchestrator:
             try:
                 signal_id = f"signal_{int(signal_event.signal.timestamp.timestamp())}"
                 snapshot_url = await self.storage.store_snapshot(
-                    signal_id, snapshot_data
+                    signal_id, snapshot_data,
                 )
                 logger.info(f"Stored snapshot: {snapshot_url}")
             except Exception as e:
@@ -120,7 +120,7 @@ class DeliveryOrchestrator:
                 caption = channel._format_signal_caption(signal_event.signal)
                 task = asyncio.create_task(
                     self._deliver_to_telegram(
-                        channel, snapshot_data, caption, signal_event
+                        channel, snapshot_data, caption, signal_event,
                     ),
                 )
                 tasks.append((channel_name, task))
@@ -140,7 +140,7 @@ class DeliveryOrchestrator:
                     "signal_data": {
                         "level_price": float(signal_event.signal.level_price),
                         "success_probability": float(
-                            signal_event.signal.success_probability
+                            signal_event.signal.success_probability,
                         ),
                         "volume_confirmation": signal_event.signal.volume_confirmation,
                         "confluence_factors": signal_event.signal.confluence_factors,

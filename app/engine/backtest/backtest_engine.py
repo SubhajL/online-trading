@@ -226,7 +226,7 @@ class BacktestEngine:
         return True
 
     def _check_structure_break(
-        self, df: pd.DataFrame, index: int
+        self, df: pd.DataFrame, index: int,
     ) -> dict[Any, Any] | None:
         """
         Check for market structure break.

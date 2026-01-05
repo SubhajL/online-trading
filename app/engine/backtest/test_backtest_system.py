@@ -166,14 +166,14 @@ class TestCostCalculator:
 
         # Taker fee
         fee = self.cost_calc.calculate_trading_fee(
-            notional, is_futures=False, is_maker=False
+            notional, is_futures=False, is_maker=False,
         )
         expected = notional * Decimal("0.001")
         assert fee == expected
 
         # Maker fee (discounted)
         maker_fee = self.cost_calc.calculate_trading_fee(
-            notional, is_futures=False, is_maker=True
+            notional, is_futures=False, is_maker=True,
         )
         expected_maker = expected * Decimal("0.75")  # 25% discount
         assert maker_fee == expected_maker
@@ -183,7 +183,7 @@ class TestCostCalculator:
         notional = Decimal(10000)
 
         fee = self.cost_calc.calculate_trading_fee(
-            notional, is_futures=True, is_maker=False
+            notional, is_futures=True, is_maker=False,
         )
         expected = notional * Decimal("0.0004")
         assert fee == expected
@@ -252,7 +252,7 @@ class TestPolicyManager:
         # During allowed hours
         allowed_time = datetime(2024, 1, 1, 15, 0)  # 3 PM
         is_allowed, reasons = self.policy_manager.is_trading_allowed(
-            allowed_time, "BTCUSDT"
+            allowed_time, "BTCUSDT",
         )
         assert is_allowed
         assert len(reasons) == 0
@@ -260,7 +260,7 @@ class TestPolicyManager:
         # During excluded hours
         excluded_time = datetime(2024, 1, 1, 23, 0)  # 11 PM
         is_allowed, reasons = self.policy_manager.is_trading_allowed(
-            excluded_time, "BTCUSDT"
+            excluded_time, "BTCUSDT",
         )
         assert not is_allowed
         assert "session_excluded" in reasons
@@ -388,7 +388,7 @@ class TestMetricsCalculator:
             daily_return = Decimal("0.001")  # 0.1% daily
             base_equity = base_equity * (Decimal(1) + daily_return)
             equity_points.append(
-                (datetime(2024, 1, 1) + timedelta(days=i), base_equity)
+                (datetime(2024, 1, 1) + timedelta(days=i), base_equity),
             )
 
         metrics = self.metrics_calc.calculate_metrics([], equity_points, [])

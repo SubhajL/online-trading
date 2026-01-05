@@ -143,13 +143,13 @@ class MetricsCalculator:
         final_equity = equity_curve[-1][1]
         metrics.total_pnl = final_equity - self.initial_balance
         metrics.total_pnl_pct = (metrics.total_pnl / self.initial_balance) * Decimal(
-            100
+            100,
         )
 
         # Profit factor
         gross_wins = sum(t.net_pnl for t in trades if t.net_pnl and t.net_pnl > 0)
         gross_losses = abs(
-            sum(t.net_pnl for t in trades if t.net_pnl and t.net_pnl <= 0)
+            sum(t.net_pnl for t in trades if t.net_pnl and t.net_pnl <= 0),
         )
 
         if gross_losses > 0:
@@ -178,7 +178,7 @@ class MetricsCalculator:
 
         # Maximum drawdown duration
         metrics.max_drawdown_duration_hours = self._calculate_max_dd_duration(
-            drawdown_curve
+            drawdown_curve,
         )
 
         # Exposure calculation (time in market)
@@ -215,7 +215,7 @@ class MetricsCalculator:
         # Sharpe ratio (assuming 0% risk-free rate)
         if returns_array.std() > 0:
             metrics.sharpe_ratio = Decimal(
-                str(returns_array.mean() / returns_array.std() * math.sqrt(252))
+                str(returns_array.mean() / returns_array.std() * math.sqrt(252)),
             )
 
         # Sortino ratio (downside deviation)
@@ -224,7 +224,7 @@ class MetricsCalculator:
             downside_std = downside_returns.std()
             if downside_std > 0:
                 metrics.sortino_ratio = Decimal(
-                    str(returns_array.mean() / downside_std * math.sqrt(252))
+                    str(returns_array.mean() / downside_std * math.sqrt(252)),
                 )
 
         # Calmar ratio (return / max drawdown)
@@ -349,7 +349,7 @@ class MetricsCalculator:
                         "75th": float(np.percentile(r_array, 75)),
                         "95th": float(np.percentile(r_array, 95)),
                     },
-                }
+                },
             )
 
         return distribution

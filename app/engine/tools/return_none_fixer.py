@@ -56,7 +56,7 @@ class ReturnNoneFixer:
                             {
                                 "line": node.returns.lineno - 1,
                                 "type": "fix_hash_return_type",
-                            }
+                            },
                         )
                     elif return_type == "None":
                         # Find all return statements with values
@@ -71,7 +71,7 @@ class ReturnNoneFixer:
                                         {
                                             "line": child.lineno - 1,
                                             "type": "remove_return_value",
-                                        }
+                                        },
                                     )
 
                 self.generic_visit(node)

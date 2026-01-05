@@ -154,12 +154,12 @@ async def compare_captain_vs_internal_outcomes(
     """
     # 1. Get validations with matches (internal_kind IS NOT NULL)
     validations = await adapter.get_external_telegram_signal_validations(
-        source=source, start_time=start_time, end_time=end_time
+        source=source, start_time=start_time, end_time=end_time,
     )
 
     # 2. Get corresponding external signals for full details
     signals = await adapter.get_external_telegram_signals(
-        source=source, start_time=start_time, end_time=end_time
+        source=source, start_time=start_time, end_time=end_time,
     )
 
     # Build signal lookup by (chat_id, message_id)
@@ -268,7 +268,7 @@ async def compare_captain_vs_internal_outcomes(
                 internal_outcome=internal_result,
                 outcome_match=outcome_match,
                 pnl_delta=pnl_delta,
-            )
+            ),
         )
 
     # Compute aggregate metrics

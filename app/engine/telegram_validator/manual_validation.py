@@ -17,7 +17,7 @@ class ManualSignalValidator:
         self.results = []
 
     async def validate_pasted_signal(
-        self, message_text: str, source: str = "Manual"
+        self, message_text: str, source: str = "Manual",
     ) -> dict:
         """
         Validate a signal you copied from Telegram
@@ -150,14 +150,14 @@ async def validate_telegram_signals():
         result = await validator.validate_pasted_signal(msg, "Premium SMC Signals")
 
         print(
-            f"Parsed: {result['parsed_signal']['symbol']} {result['parsed_signal']['direction']}"
+            f"Parsed: {result['parsed_signal']['symbol']} {result['parsed_signal']['direction']}",
         )
         print(f"Score: {result['validation']['overall_score']}%")
         print(f"Recommendation: {result['recommendation']}")
 
         if result["validation"]["our_signal"]:
             print(
-                f"Our system: {result['validation']['our_signal']['direction']} at {result['validation']['our_signal']['entry']}"
+                f"Our system: {result['validation']['our_signal']['direction']} at {result['validation']['our_signal']['entry']}",
             )
         else:
             print("Our system: No signal")

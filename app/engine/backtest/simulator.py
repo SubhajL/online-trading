@@ -91,7 +91,7 @@ class BacktestSimulator:
 
         # 1. Update market data and calculate indicators
         indicators = self._calculate_indicators(
-            [candle]
+            [candle],
         )  # In real backtest, use history
         if not indicators:
             return
@@ -133,7 +133,7 @@ class BacktestSimulator:
         self._manage_positions(candle)
 
     def _calculate_indicators(
-        self, candles: list[Candle]
+        self, candles: list[Candle],
     ) -> TechnicalIndicators | None:
         """
         Calculate technical indicators using the same calculator as live trading.
@@ -218,7 +218,7 @@ class BacktestSimulator:
         self._update_position_from_fill(fill, candle)
 
         logger.info(
-            f"Fill executed: {fill.symbol} {fill.side} {fill.quantity}@{fill.price}"
+            f"Fill executed: {fill.symbol} {fill.side} {fill.quantity}@{fill.price}",
         )
 
     def _update_position_from_fill(self, fill, candle: Candle) -> None:
@@ -355,7 +355,7 @@ class BacktestSimulator:
             if symbol == candle.symbol:
                 position.mark_price = candle.close_price
                 position.unrealized_pnl = self._calculate_position_pnl(
-                    position, candle.close_price
+                    position, candle.close_price,
                 )
 
     def _process_funding(self, candle: Candle) -> None:
@@ -378,10 +378,10 @@ class BacktestSimulator:
 
             # Check if funding should be charged
             if self.cost_calculator.should_charge_funding(
-                candle.close_time, position.opened_at
+                candle.close_time, position.opened_at,
             ):
                 funding_rate = self.cost_calculator.get_funding_rate(
-                    symbol, candle.close_time
+                    symbol, candle.close_time,
                 )
                 funding_payment = self.cost_calculator.calculate_funding_payment(
                     position.quantity,
@@ -545,7 +545,7 @@ class BacktestSimulator:
 
         # Calculate R multiples (risk-reward)
         stop_distance = abs(
-            trade.entry_price - (position.stop_loss or trade.entry_price)
+            trade.entry_price - (position.stop_loss or trade.entry_price),
         )
         if stop_distance > 0:
             trade.gross_pnl_r = trade.gross_pnl / (stop_distance * trade.size)

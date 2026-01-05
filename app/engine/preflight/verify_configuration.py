@@ -158,7 +158,7 @@ async def check_database_schema() -> CheckResult:
             "database": os.environ.get("POSTGRES_DB", "trading_platform"),
             "user": os.environ.get("POSTGRES_USER", "trading_user"),
             "password": os.environ.get(
-                "POSTGRES_PASSWORD", "your_secure_password_here"
+                "POSTGRES_PASSWORD", "your_secure_password_here",
             ),
         }
 
@@ -277,7 +277,7 @@ async def verify_service_connectivity() -> CheckResult:
             router_url = os.environ.get("ROUTER_URL", "http://localhost:8080")
             try:
                 async with session.get(
-                    f"{router_url}/healthz", timeout=aiohttp.ClientTimeout(total=2)
+                    f"{router_url}/healthz", timeout=aiohttp.ClientTimeout(total=2),
                 ) as resp:
                     if resp.status < 500:  # Consider 4xx as "reachable"
                         reachable_services.append("router")

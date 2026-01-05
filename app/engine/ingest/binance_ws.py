@@ -119,7 +119,7 @@ class BinanceWebSocketClient:
                 failure_threshold=5,
                 success_threshold=2,
                 timeout_seconds=60,
-            )
+            ),
         )
 
         # Stream message handlers
@@ -293,7 +293,7 @@ class BinanceWebSocketClient:
             if self._consecutive_failures >= self._max_reconnect_attempts:
                 logger.critical(
                     f"Max reconnection attempts ({self._max_reconnect_attempts}) "
-                    "exceeded. Stopping WebSocket client."
+                    "exceeded. Stopping WebSocket client.",
                 )
                 self._running = False
                 break
@@ -303,7 +303,7 @@ class BinanceWebSocketClient:
                 circuit_state = await self._circuit_breaker.get_state()
                 logger.warning(
                     f"Circuit breaker is {circuit_state.value}, "
-                    "skipping connection attempt"
+                    "skipping connection attempt",
                 )
                 delay = self._backoff.next_delay()
                 await asyncio.sleep(delay)
@@ -321,7 +321,7 @@ class BinanceWebSocketClient:
                     delay = self._backoff.next_delay()
                     logger.info(
                         f"Reconnecting in {delay:.1f}s "
-                        f"(attempt {self._consecutive_failures}/{self._max_reconnect_attempts})..."
+                        f"(attempt {self._consecutive_failures}/{self._max_reconnect_attempts})...",
                     )
                     await asyncio.sleep(delay)
 
@@ -337,7 +337,7 @@ class BinanceWebSocketClient:
         self._consecutive_failures += 1
         await self._circuit_breaker.record_failure()
         logger.warning(
-            f"Connection failed ({self._consecutive_failures}/{self._max_reconnect_attempts}): {error}"
+            f"Connection failed ({self._consecutive_failures}/{self._max_reconnect_attempts}): {error}",
         )
 
     async def _connect_and_listen(self) -> None:

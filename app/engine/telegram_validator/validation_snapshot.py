@@ -342,7 +342,7 @@ def _zones_to_snapshots(
                 strength=int(z.get("strength", 0)),
                 is_active=bool(z.get("is_active", True)),
                 created_at=created_at_str,
-            )
+            ),
         )
 
     return result
@@ -402,7 +402,7 @@ def _structures_to_snapshots(
                 timestamp=ts_str,
                 direction=e.get("direction"),
                 price=price_str,
-            )
+            ),
         )
 
     return result

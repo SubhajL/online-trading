@@ -107,7 +107,7 @@ class WebSocketDelivery:
             record_snapshot_delivery("ui")
 
             logger.info(
-                f"Sent snapshot notification for {snapshot_data.get('signal_id')}"
+                f"Sent snapshot notification for {snapshot_data.get('signal_id')}",
             )
             return {"success": True}
 
@@ -220,7 +220,7 @@ class WebSocketManager:
         """
         self.active_connections.append(websocket)
         logger.info(
-            f"Client {client_id} connected. Total clients: {len(self.active_connections)}"
+            f"Client {client_id} connected. Total clients: {len(self.active_connections)}",
         )
 
     async def disconnect_client(self, websocket: Any, client_id: str):
@@ -238,7 +238,7 @@ class WebSocketManager:
             subscribers.discard(client_id)
 
         logger.info(
-            f"Client {client_id} disconnected. Total clients: {len(self.active_connections)}"
+            f"Client {client_id} disconnected. Total clients: {len(self.active_connections)}",
         )
 
     async def subscribe_to_channel(self, client_id: str, channel: str):
@@ -287,7 +287,7 @@ class WebSocketManager:
         """
         subscribers = self.channel_subscriptions.get(channel, set())
         logger.info(
-            f"Broadcasting to {len(subscribers)} subscribers in channel: {channel}"
+            f"Broadcasting to {len(subscribers)} subscribers in channel: {channel}",
         )
 
         # Find connections for subscribers

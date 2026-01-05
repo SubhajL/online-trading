@@ -58,7 +58,7 @@ def build_sweep_grid(
                 fee_bps=fee,
                 slippage_bps=slip,
                 funding_rate_8h=funding,
-            )
+            ),
         )
 
     return configs

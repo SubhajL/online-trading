@@ -25,7 +25,7 @@ def main():
 
     # Basic parameters
     parser.add_argument(
-        "--symbol", required=True, help="Trading symbol (e.g., BTCUSDT)"
+        "--symbol", required=True, help="Trading symbol (e.g., BTCUSDT)",
     )
     parser.add_argument("--tf", required=True, help="Timeframe (e.g., 15m, 1h)")
     parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
@@ -34,18 +34,18 @@ def main():
 
     # WFO specific parameters
     parser.add_argument(
-        "--train-days", type=int, default=90, help="Training period length (days)"
+        "--train-days", type=int, default=90, help="Training period length (days)",
     )
     parser.add_argument(
-        "--test-days", type=int, default=30, help="Testing period length (days)"
+        "--test-days", type=int, default=30, help="Testing period length (days)",
     )
     parser.add_argument(
-        "--step-days", type=int, default=30, help="Step size between windows (days)"
+        "--step-days", type=int, default=30, help="Step size between windows (days)",
     )
 
     # Optimization parameters
     parser.add_argument(
-        "--param-ranges", required=True, help="JSON file with parameter ranges"
+        "--param-ranges", required=True, help="JSON file with parameter ranges",
     )
     parser.add_argument("--balance", type=float, default=10000, help="Initial balance")
 
@@ -61,7 +61,7 @@ def main():
 
     # Output
     parser.add_argument(
-        "--output-dir", default="artifacts/wfo", help="Output directory"
+        "--output-dir", default="artifacts/wfo", help="Output directory",
     )
     parser.add_argument("--max-workers", type=int, help="Maximum parallel workers")
 

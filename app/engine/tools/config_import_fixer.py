@@ -130,11 +130,11 @@ class ConfigImportFixer:
 
                     if config_imports:
                         result_lines.append(
-                            f"from ..config import {', '.join(config_imports)}"
+                            f"from ..config import {', '.join(config_imports)}",
                         )
                     if model_imports:
                         result_lines.append(
-                            f"from ..models import {', '.join(model_imports)}"
+                            f"from ..models import {', '.join(model_imports)}",
                         )
 
                 i += 1
@@ -187,7 +187,7 @@ class ConfigImportFixer:
     def fix_all_files(directory: str) -> int:
         """Fix all files with config import errors in a directory."""
         files_with_errors = ConfigImportFixer.get_files_with_config_import_errors(
-            directory
+            directory,
         )
 
         for file_path in files_with_errors:

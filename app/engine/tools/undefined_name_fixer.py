@@ -205,7 +205,7 @@ class UndefinedNameFixer:
                 content = f.read()
 
             if UndefinedNameFixer._needs_any(
-                content
+                content,
             ) or UndefinedNameFixer._needs_decimal(content):
                 files_with_errors.append(str(py_file))
 

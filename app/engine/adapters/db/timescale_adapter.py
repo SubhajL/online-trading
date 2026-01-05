@@ -896,7 +896,7 @@ class TimescaleDBAdapter:
             Latest candle or None if no data
         """
         candles = await self.get_candles(
-            symbol=symbol, timeframe=timeframe, venue=venue, limit=1
+            symbol=symbol, timeframe=timeframe, venue=venue, limit=1,
         )
         return candles[0] if candles else None
 

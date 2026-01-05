@@ -98,7 +98,7 @@ class BoundedPriorityQueue(Generic[T]):
             # Check capacity
             if len(self._heap) >= self._max_size:
                 raise QueueFullError(
-                    f"Queue[Any] at maximum capacity: {self._max_size}"
+                    f"Queue[Any] at maximum capacity: {self._max_size}",
                 )
 
             # Create queue item

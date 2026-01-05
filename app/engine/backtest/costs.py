@@ -61,7 +61,7 @@ class CostCalculator:
         return notional * base_rate
 
     def calculate_fill_fee(
-        self, fill: BacktestFill, is_futures: bool = False
+        self, fill: BacktestFill, is_futures: bool = False,
     ) -> Decimal:
         """
         Calculate fee for a specific fill.

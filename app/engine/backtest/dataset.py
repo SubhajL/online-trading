@@ -51,7 +51,7 @@ class CandleDataset:
         raise NotImplementedError
 
     def get_date_range(
-        self, symbol: str, timeframe: TimeFrame
+        self, symbol: str, timeframe: TimeFrame,
     ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         raise NotImplementedError
@@ -147,7 +147,7 @@ class TimescaleDataset(CandleDataset):
                     candles.append(candle)
 
                 logger.info(
-                    f"Loaded {len(candles)} candles for {symbol} {timeframe.value}"
+                    f"Loaded {len(candles)} candles for {symbol} {timeframe.value}",
                 )
                 return candles
 
@@ -160,7 +160,7 @@ class TimescaleDataset(CandleDataset):
         try:
             with self.Session() as session:
                 result = session.execute(
-                    text("SELECT DISTINCT symbol FROM candles ORDER BY symbol")
+                    text("SELECT DISTINCT symbol FROM candles ORDER BY symbol"),
                 )
                 return [row[0] for row in result]
         except Exception as e:
@@ -168,7 +168,7 @@ class TimescaleDataset(CandleDataset):
             return []
 
     def get_date_range(
-        self, symbol: str, timeframe: TimeFrame
+        self, symbol: str, timeframe: TimeFrame,
     ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         try:
@@ -262,17 +262,17 @@ class CSVDataset(CandleDataset):
                     try:
                         # Try ISO format first
                         open_time = datetime.fromisoformat(
-                            timestamp_str.replace("Z", "+00:00")
+                            timestamp_str.replace("Z", "+00:00"),
                         )
                     except ValueError:
                         # Try Unix timestamp
                         try:
                             open_time = datetime.fromtimestamp(
-                                int(timestamp_str) / 1000
+                                int(timestamp_str) / 1000,
                             )
                         except ValueError:
                             logger.warning(
-                                f"Could not parse timestamp: {timestamp_str}"
+                                f"Could not parse timestamp: {timestamp_str}",
                             )
                             continue
 
@@ -297,7 +297,7 @@ class CSVDataset(CandleDataset):
                         trades=int(row.get("trades", "0")),
                         taker_buy_base_volume=Decimal(row.get("taker_buy_volume", "0")),
                         taker_buy_quote_volume=Decimal(
-                            row.get("taker_buy_quote_volume", "0")
+                            row.get("taker_buy_quote_volume", "0"),
                         ),
                     )
                     candles.append(candle)
@@ -310,7 +310,7 @@ class CSVDataset(CandleDataset):
             return []
 
     def _calculate_close_time(
-        self, open_time: datetime, timeframe: TimeFrame
+        self, open_time: datetime, timeframe: TimeFrame,
     ) -> datetime:
         """
         Calculate close time based on open time and timeframe.
@@ -352,7 +352,7 @@ class CSVDataset(CandleDataset):
         return sorted(list(symbols))
 
     def get_date_range(
-        self, symbol: str, timeframe: TimeFrame
+        self, symbol: str, timeframe: TimeFrame,
     ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         csv_path = self._get_csv_path(symbol, timeframe)
@@ -374,7 +374,7 @@ class CSVDataset(CandleDataset):
 
                 # Parse timestamps
                 first_time_str = first_row.get("timestamp") or first_row.get(
-                    "open_time"
+                    "open_time",
                 )
                 last_time_str = last_row.get("timestamp") or last_row.get("open_time")
 
@@ -383,10 +383,10 @@ class CSVDataset(CandleDataset):
 
                 try:
                     first_time = datetime.fromisoformat(
-                        first_time_str.replace("Z", "+00:00")
+                        first_time_str.replace("Z", "+00:00"),
                     )
                     last_time = datetime.fromisoformat(
-                        last_time_str.replace("Z", "+00:00")
+                        last_time_str.replace("Z", "+00:00"),
                     )
                 except ValueError:
                     # Try Unix timestamp
@@ -538,7 +538,7 @@ def export_candles_to_csv(
                     "trades": candle.trades,
                     "taker_buy_volume": str(candle.taker_buy_base_volume),
                     "taker_buy_quote_volume": str(candle.taker_buy_quote_volume),
-                }
+                },
             )
 
     logger.info(f"Exported {len(candles)} candles to {output_path}")

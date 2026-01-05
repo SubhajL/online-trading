@@ -31,29 +31,29 @@ class ParityTestFramework:
         self.tolerance = Decimal("0.000001")  # 1e-6 tolerance for decimal comparisons
 
     def compare_decimals(
-        self, live_value: Decimal, backtest_value: Decimal, name: str
+        self, live_value: Decimal, backtest_value: Decimal, name: str,
     ) -> bool:
         """Compare two decimal values with tolerance"""
         diff = abs(live_value - backtest_value)
         if diff > self.tolerance:
             print(
-                f"PARITY FAILURE - {name}: live={live_value}, backtest={backtest_value}, diff={diff}"
+                f"PARITY FAILURE - {name}: live={live_value}, backtest={backtest_value}, diff={diff}",
             )
             return False
         return True
 
     def compare_arrays(
-        self, live_array: list[Decimal], backtest_array: list[Decimal], name: str
+        self, live_array: list[Decimal], backtest_array: list[Decimal], name: str,
     ) -> bool:
         """Compare two arrays of decimal values"""
         if len(live_array) != len(backtest_array):
             print(
-                f"PARITY FAILURE - {name}: length mismatch live={len(live_array)}, backtest={len(backtest_array)}"
+                f"PARITY FAILURE - {name}: length mismatch live={len(live_array)}, backtest={len(backtest_array)}",
             )
             return False
 
         for i, (live_val, backtest_val) in enumerate(
-            zip(live_array, backtest_array, strict=False)
+            zip(live_array, backtest_array, strict=False),
         ):
             if not self.compare_decimals(live_val, backtest_val, f"{name}[{i}]"):
                 return False
@@ -183,10 +183,10 @@ class TestIndicatorParity:
             # Calculate RSI for remaining periods
             for i in range(period, len(gains)):
                 avg_gain = (avg_gain * Decimal(str(period - 1)) + gains[i]) / Decimal(
-                    str(period)
+                    str(period),
                 )
                 avg_loss = (avg_loss * Decimal(str(period - 1)) + losses[i]) / Decimal(
-                    str(period)
+                    str(period),
                 )
 
                 if avg_loss == 0:
@@ -271,7 +271,7 @@ class TestSMCParity:
         """Test pivot detection consistency"""
 
         def find_pivots(
-            candles: list[Candle], lookback: int = 5
+            candles: list[Candle], lookback: int = 5,
         ) -> dict[str, list[int]]:
             highs = []
             lows = []
@@ -329,7 +329,7 @@ class TestSMCParity:
                             "index": i,
                             "type": "bullish_break",
                             "level": recent_high,
-                        }
+                        },
                     )
 
                 # Bearish break
@@ -339,7 +339,7 @@ class TestSMCParity:
                             "index": i,
                             "type": "bearish_break",
                             "level": recent_low,
-                        }
+                        },
                     )
 
             return breaks
@@ -399,7 +399,7 @@ class TestSignalParity:
                             "index": i + 49,  # Adjust for lookback
                             "type": "bullish_crossover",
                             "strength": float((curr_fast - curr_slow) / curr_slow),
-                        }
+                        },
                     )
 
                 # Bearish crossover
@@ -409,7 +409,7 @@ class TestSignalParity:
                             "index": i + 49,
                             "type": "bearish_crossover",
                             "strength": float((curr_slow - curr_fast) / curr_fast),
-                        }
+                        },
                     )
 
             return signals
@@ -422,7 +422,7 @@ class TestSignalParity:
             assert s1["index"] == s2["index"]
             assert s1["type"] == s2["type"]
             assert abs(s1["strength"] - s2["strength"]) < float(
-                self.parity_framework.tolerance
+                self.parity_framework.tolerance,
             )
 
 
@@ -527,11 +527,11 @@ class TestBacktestSystemParity:
         assert len(simulator1.equity_history) == len(simulator2.equity_history)
 
         for (time1, equity1), (time2, equity2) in zip(
-            simulator1.equity_history, simulator2.equity_history, strict=False
+            simulator1.equity_history, simulator2.equity_history, strict=False,
         ):
             assert time1 == time2
             assert self.parity_framework.compare_decimals(
-                equity1, equity2, f"equity_{time1}"
+                equity1, equity2, f"equity_{time1}",
             )
 
     @pytest.mark.parity
@@ -565,7 +565,7 @@ class TestBacktestSystemParity:
             fill_price2 = fill_engine2.get_fill_price(order, candle)
 
             assert self.parity_framework.compare_decimals(
-                fill_price1, fill_price2, "fill_price"
+                fill_price1, fill_price2, "fill_price",
             )
 
 
@@ -584,7 +584,7 @@ def run_parity_test_suite():
             "parity",
             "--tb=short",
             "--capture=no",
-        ]
+        ],
     )
 
     if exit_code == 0:

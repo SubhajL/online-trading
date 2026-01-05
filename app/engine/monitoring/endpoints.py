@@ -119,7 +119,7 @@ def create_metrics_endpoints() -> APIRouter:
 
 
 def setup_health_monitoring(
-    app: Any, database_url: str, redis_url: str, event_bus: Any
+    app: Any, database_url: str, redis_url: str, event_bus: Any,
 ) -> tuple[HealthChecker, ReadinessChecker]:
     """Setup health monitoring for the application"""
     from app.engine.monitoring.health import (

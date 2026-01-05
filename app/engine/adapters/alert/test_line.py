@@ -39,7 +39,7 @@ class TestLineAlertAdapter:
     @pytest.mark.asyncio
     async def test_start_initializes_session(self) -> None:
         with patch(
-            "app.engine.adapters.alert.line.aiohttp.ClientSession"
+            "app.engine.adapters.alert.line.aiohttp.ClientSession",
         ) as mock_session:
             adapter = LineAlertAdapter(access_token="test_token", user_id="test_user")
             await adapter.start()
@@ -82,7 +82,7 @@ class TestLineAlertAdapter:
 
     @pytest.mark.asyncio
     async def test_handle_decision_with_deduplication(
-        self, adapter: Any, mock_deduplicator: Any
+        self, adapter: Any, mock_deduplicator: Any,
     ) -> None:
         decision = {
             "symbol": "BTCUSDT",

@@ -228,7 +228,7 @@ def add_connection_type_hints(arg: Any) -> Any:
         modified = _add_connection_type_hints_to_code(original)
         # For file-based flow, normalize inline comments to '# type: asyncpg.Connection'
         modified = re.sub(
-            r"#\s*\w+\s*:\s*asyncpg\.Connection", "# type: asyncpg.Connection", modified
+            r"#\s*\w+\s*:\s*asyncpg\.Connection", "# type: asyncpg.Connection", modified,
         )
         if modified == original:
             return 0

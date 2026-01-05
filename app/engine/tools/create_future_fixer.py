@@ -40,7 +40,7 @@ class CreateFutureFixer:
                     existing_loop_var = match.group(2)
             elif existing_loop_var is None and "asyncio.get_running_loop()" in line:
                 match = re.match(
-                    r"^(\s*)(\w+)\s*=\s*asyncio\.get_running_loop\(\)", line
+                    r"^(\s*)(\w+)\s*=\s*asyncio\.get_running_loop\(\)", line,
                 )
                 if match:
                     existing_loop_var = match.group(2)
@@ -54,7 +54,7 @@ class CreateFutureFixer:
                 # If we have an existing loop variable, use it
                 if existing_loop_var:
                     fixed_line = line.replace(
-                        "loop.create_future()", f"{existing_loop_var}.create_future()"
+                        "loop.create_future()", f"{existing_loop_var}.create_future()",
                     )
                     result_lines.append(fixed_line)
                 else:
@@ -65,7 +65,7 @@ class CreateFutureFixer:
                         existing_loop_var = "loop"
 
                     fixed_line = line.replace(
-                        "loop.create_future()", "loop.create_future()"
+                        "loop.create_future()", "loop.create_future()",
                     )
                     result_lines.append(fixed_line)
             else:
@@ -111,7 +111,7 @@ class CreateFutureFixer:
     def fix_all_files(directory: str) -> int:
         """Fix all files with create_future errors in a directory."""
         files_with_errors = CreateFutureFixer.get_files_with_create_future_errors(
-            directory
+            directory,
         )
 
         for file_path in files_with_errors:

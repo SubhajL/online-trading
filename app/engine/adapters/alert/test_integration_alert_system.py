@@ -42,7 +42,7 @@ class TestAlertSystemRealIntegration:
 
     @pytest.mark.asyncio
     async def test_complete_trading_flow(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Test a complete trading flow: signal → order → fill → guard."""
         # 1. Trading decision signal
@@ -90,7 +90,7 @@ class TestAlertSystemRealIntegration:
 
     @pytest.mark.asyncio
     async def test_multiple_symbols_flow(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Test alerts for multiple trading pairs."""
         symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
@@ -112,7 +112,7 @@ class TestAlertSystemRealIntegration:
 
     @pytest.mark.asyncio
     async def test_error_scenarios(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Test error/rejection alert scenarios."""
         # Order rejected
@@ -139,7 +139,7 @@ class TestAlertSystemRealIntegration:
 
     @pytest.mark.asyncio
     async def test_high_frequency_alerts(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Test system handles rapid alerts without rate limit issues."""
         # Set higher rate limit for this test
@@ -148,7 +148,7 @@ class TestAlertSystemRealIntegration:
         success_count = 0
         for i in range(5):
             success = await telegram_adapter._send_alert(
-                f"🧪 High frequency test {i + 1}/5"
+                f"🧪 High frequency test {i + 1}/5",
             )
             if success:
                 success_count += 1

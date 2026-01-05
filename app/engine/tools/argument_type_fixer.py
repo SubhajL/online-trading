@@ -59,7 +59,7 @@ def detect_missing_argument_types(code: str) -> list[dict[str, Any]]:
                         "has_args": has_args,
                         "has_kwargs": has_kwargs,
                         "is_async": False,
-                    }
+                    },
                 )
 
             self.generic_visit(node)
@@ -90,7 +90,7 @@ def detect_missing_argument_types(code: str) -> list[dict[str, Any]]:
                         "has_args": has_args,
                         "has_kwargs": has_kwargs,
                         "is_async": True,
-                    }
+                    },
                 )
 
             self.generic_visit(node)
@@ -176,7 +176,7 @@ def infer_argument_type(code: str, function_name: str, arg_name: str) -> str:
                 if node.value.id == arg_name:
                     # Being subscripted suggests dict or list
                     if isinstance(node.slice, ast.Constant) and isinstance(
-                        node.slice.value, str
+                        node.slice.value, str,
                     ):
                         self.inferred_types.add("dict")
                     else:

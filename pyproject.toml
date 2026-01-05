@@ -282,6 +282,9 @@ ignore = [
     "TD003",   # Missing issue link on the line following this TODO
     "FIX002",  # Line contains TODO, consider resolving the issue
     "TID252",  # Relative imports from parent - codebase convention
+    "G004",    # Logging f-strings - more readable than % formatting
+    "BLE001",  # Blind except - intentional fail-soft pattern for trading system
+    "TRY400",  # logger.error vs logger.exception - tracebacks not always wanted
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.

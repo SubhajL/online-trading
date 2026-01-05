@@ -62,7 +62,7 @@ class ManualThaiSignalValidator:
                 "time": datetime.now(),
                 "signal": signal,
                 "result": validation_result,
-            }
+            },
         )
 
         # Prepare response
@@ -100,7 +100,7 @@ class ManualThaiSignalValidator:
                 },
             },
             "recommendation": self._get_thai_recommendation(
-                validation_result.overall_score
+                validation_result.overall_score,
             ),
             "your_system": self._format_system_signal(validation_result.our_signal),
         }

@@ -242,7 +242,7 @@ class WFORunner:
 
         # Generate windows
         windows = self.generate_windows(
-            start_dt, end_dt, train_days, test_days, step_days
+            start_dt, end_dt, train_days, test_days, step_days,
         )
 
         if not windows:
@@ -253,7 +253,7 @@ class WFORunner:
         total_combinations = param_grid.count_combinations()
 
         logger.info(
-            f"Optimizing {total_combinations} parameter combinations across {len(windows)} windows"
+            f"Optimizing {total_combinations} parameter combinations across {len(windows)} windows",
         )
 
         # Initialize result
@@ -299,21 +299,21 @@ class WFORunner:
             logger.info(
                 f"Window {window.window_id} complete - "
                 f"Train PnL: {best_training_result.metrics.total_pnl_pct:.2f}%, "
-                f"Test PnL: {test_result.metrics.total_pnl_pct:.2f}%"
+                f"Test PnL: {test_result.metrics.total_pnl_pct:.2f}%",
             )
 
         # Calculate aggregate results
         result.total_runtime_ms = int(
-            (datetime.now() - start_time).total_seconds() * 1000
+            (datetime.now() - start_time).total_seconds() * 1000,
         )
         result.aggregate_metrics = result.get_test_only_metrics()
         result.parameter_stability = self._analyze_parameter_stability(
-            result.best_parameters
+            result.best_parameters,
         )
         result.optimization_summary = self._create_optimization_summary(result)
 
         logger.info(
-            f"WFO complete - Aggregate test PnL: {result.aggregate_metrics.total_pnl_pct:.2f}%"
+            f"WFO complete - Aggregate test PnL: {result.aggregate_metrics.total_pnl_pct:.2f}%",
         )
         return result
 
@@ -438,7 +438,7 @@ class WFORunner:
         return score
 
     def _analyze_parameter_stability(
-        self, parameter_sets: list[dict[str, Any]]
+        self, parameter_sets: list[dict[str, Any]],
     ) -> dict[str, float]:
         """Analyze parameter stability across windows"""
         if not parameter_sets:
@@ -615,7 +615,7 @@ class WFORunner:
                         "test_hit_rate": float(test_result.metrics.hit_rate_pct)
                         if test_result
                         else 0,
-                    }
+                    },
                 )
 
     def _save_parameter_analysis(self, result: WFOResult, path: Path):
@@ -637,17 +637,17 @@ class WFORunner:
 
         # 1. Train vs Test performance comparison
         self._create_train_test_comparison_chart(
-            result, output_dir / "train_vs_test.png"
+            result, output_dir / "train_vs_test.png",
         )
 
         # 2. Rolling window performance
         self._create_rolling_performance_chart(
-            result, output_dir / "rolling_performance.png"
+            result, output_dir / "rolling_performance.png",
         )
 
         # 3. Parameter stability chart
         self._create_parameter_stability_chart(
-            result, output_dir / "parameter_stability.png"
+            result, output_dir / "parameter_stability.png",
         )
 
     def _create_train_test_comparison_chart(self, result: WFOResult, path: Path):
@@ -661,10 +661,10 @@ class WFORunner:
         fig, ax = plt.subplots(figsize=(12, 6))
 
         ax.bar(
-            [w - 0.2 for w in windows], train_returns, 0.4, label="Training", alpha=0.7
+            [w - 0.2 for w in windows], train_returns, 0.4, label="Training", alpha=0.7,
         )
         ax.bar(
-            [w + 0.2 for w in windows], test_returns, 0.4, label="Testing", alpha=0.7
+            [w + 0.2 for w in windows], test_returns, 0.4, label="Testing", alpha=0.7,
         )
 
         ax.set_xlabel("WFO Window")

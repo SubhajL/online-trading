@@ -153,7 +153,7 @@ class SMCService:
             if not is_realtime_candle_event(event.origin):
                 logger.debug(
                     f"Skipping non-realtime candle for SMC {symbol} {timeframe.value} "
-                    f"(origin={event.origin.value})"
+                    f"(origin={event.origin.value})",
                 )
                 return
 

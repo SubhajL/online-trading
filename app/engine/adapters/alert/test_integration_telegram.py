@@ -42,7 +42,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_send_decision_alert_long(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Send a real LONG decision alert to Telegram."""
         decision_event = {
@@ -65,7 +65,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_send_decision_alert_short(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Send a real SHORT decision alert to Telegram."""
         decision_event = {
@@ -84,7 +84,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_send_order_filled_alert(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Send a real order filled alert to Telegram."""
         order_event = {
@@ -99,7 +99,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_send_order_cancelled_alert(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Send a real order cancelled alert to Telegram."""
         order_event = {
@@ -114,7 +114,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_send_order_rejected_alert(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Send a real order rejected alert to Telegram."""
         order_event = {
@@ -129,7 +129,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_send_guard_alert_funding_rate(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Send a real funding rate guard alert to Telegram."""
         guard_event = {
@@ -144,7 +144,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_send_guard_alert_drawdown(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Send a real drawdown guard alert to Telegram."""
         guard_event = {
@@ -159,7 +159,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_send_raw_text_alert(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Send a raw text message to Telegram."""
         message = (
@@ -174,7 +174,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_rate_limiting_works(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Test that rate limiting actually works with real API."""
         # Set a low rate limit
@@ -183,19 +183,19 @@ class TestTelegramRealIntegration:
         # Send messages up to the limit
         for i in range(3):
             success = await telegram_adapter._send_alert(
-                f"🧪 Rate limit test message {i + 1}/3"
+                f"🧪 Rate limit test message {i + 1}/3",
             )
             assert success is True, f"Message {i + 1} should have been sent"
 
         # Next message should be rate limited (not sent)
         success = await telegram_adapter._send_alert(
-            "🧪 This message should be rate limited"
+            "🧪 This message should be rate limited",
         )
         assert success is False, "Message should have been rate limited"
 
     @pytest.mark.asyncio
     async def test_deduplication_works(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Test that deduplication prevents duplicate alerts."""
         # Use a fixed timestamp so the dedup key is the same
@@ -247,7 +247,7 @@ class TestTelegramRealIntegration:
 
     @pytest.mark.asyncio
     async def test_full_trading_flow_simulation(
-        self, telegram_adapter: TelegramAlertAdapter
+        self, telegram_adapter: TelegramAlertAdapter,
     ) -> None:
         """Simulate a complete trading flow with real alerts."""
         # 1. Trading decision

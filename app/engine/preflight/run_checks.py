@@ -152,7 +152,7 @@ def generate_preflight_report(results: PreflightResults) -> str:
 
             if result.details.get("missing_commands"):
                 lines.append(
-                    f"   Missing commands: {', '.join(result.details['missing_commands'])}"
+                    f"   Missing commands: {', '.join(result.details['missing_commands'])}",
                 )
 
             if "version_mismatches" in result.details:

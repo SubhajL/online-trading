@@ -51,7 +51,7 @@ class DailyLossGuard:
             {
                 "pnl": pnl,
                 "timestamp": timestamp,
-            }
+            },
         )
         self._cleanup_old_trades()
 
@@ -112,7 +112,7 @@ class MaxPositionsGuard:
                 del self.correlation_groups[group]
 
     def can_open_position(
-        self, symbol: str, correlation_group: str
+        self, symbol: str, correlation_group: str,
     ) -> tuple[bool, str]:
         """Check if a new position can be opened."""
         # Check total positions
@@ -152,7 +152,7 @@ class DrawdownGuard:
             {
                 "balance": balance,
                 "timestamp": timestamp,
-            }
+            },
         )
         self._cleanup_old_history()
 
@@ -256,28 +256,28 @@ class RiskGuardManager:
             {
                 "max_daily_loss_pct": config.daily_loss_limit_pct,
                 "lookback_hours": 24,
-            }
+            },
         )
 
         self.positions_guard = MaxPositionsGuard(
             {
                 "max_positions": config.max_positions,
                 "max_correlated_positions": config.max_correlated_positions,
-            }
+            },
         )
 
         self.drawdown_guard = DrawdownGuard(
             {
                 "max_drawdown_pct": config.max_drawdown_pct,
                 "lookback_days": config.lookback_days,
-            }
+            },
         )
 
         self.correlation_guard = CorrelationGuard(
             {
                 "max_correlation": config.correlation_threshold,
                 "lookback_periods": 20,
-            }
+            },
         )
 
         # Emergency stop flag
@@ -292,7 +292,7 @@ class RiskGuardManager:
             self.load_state()
 
     def can_trade(
-        self, symbol: str, account_balance: Decimal
+        self, symbol: str, account_balance: Decimal,
     ) -> tuple[bool, list[str]]:
         """Check if trading is allowed by ALL guards."""
         reasons = []
@@ -316,7 +316,7 @@ class RiskGuardManager:
 
         # Check position limits (assuming default correlation group)
         positions_ok, positions_reason = self.positions_guard.can_open_position(
-            symbol, "default"
+            symbol, "default",
         )
         if not positions_ok:
             can_trade = False
@@ -324,7 +324,7 @@ class RiskGuardManager:
 
         # Check correlation
         correlation_ok, correlation_reason = self.correlation_guard.can_open_position(
-            symbol
+            symbol,
         )
         if not correlation_ok:
             can_trade = False
@@ -339,7 +339,7 @@ class RiskGuardManager:
         return can_trade, reasons
 
     def record_trade_result(
-        self, symbol: str, pnl: Decimal, timestamp: datetime
+        self, symbol: str, pnl: Decimal, timestamp: datetime,
     ) -> None:
         """Record a completed trade."""
         self.daily_loss_guard.add_trade_result(pnl, timestamp)
@@ -348,7 +348,7 @@ class RiskGuardManager:
             logger.warning(f"Loss recorded: {symbol} ${pnl:.2f}")
 
     def add_open_position(
-        self, symbol: str, correlation_group: str = "default"
+        self, symbol: str, correlation_group: str = "default",
     ) -> None:
         """Add a new open position."""
         self.positions_guard.add_position(symbol, correlation_group)

@@ -90,7 +90,7 @@ class TelegramDelivery:
             [
                 "",
                 f"🕐 {signal.timestamp.strftime('%Y-%m-%d %H:%M UTC')}",
-            ]
+            ],
         )
 
         return "\n".join(lines)
@@ -117,7 +117,7 @@ class TelegramDelivery:
         form = FormData()
         form.add_field("chat_id", str(self.chat_id))
         form.add_field(
-            "photo", image_data, filename="chart.png", content_type="image/png"
+            "photo", image_data, filename="chart.png", content_type="image/png",
         )
         form.add_field("caption", caption)
         form.add_field("parse_mode", "Markdown")
@@ -147,10 +147,10 @@ class TelegramDelivery:
 
                         if error_code == 429:  # Rate limited
                             retry_after = result.get("parameters", {}).get(
-                                "retry_after", 60
+                                "retry_after", 60,
                             )
                             logger.warning(
-                                f"Telegram rate limit, retry after {retry_after}s"
+                                f"Telegram rate limit, retry after {retry_after}s",
                             )
                             await asyncio.sleep(min(retry_after, 60))
                             continue

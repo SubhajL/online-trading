@@ -195,7 +195,7 @@ def compute_funding_cost(
         if next_funding_hour is None:
             # Next funding is 00:00 next day
             next_day = (current + timedelta(days=1)).replace(
-                hour=0, minute=0, second=0, microsecond=0
+                hour=0, minute=0, second=0, microsecond=0,
             )
             if next_day <= exit_ts:
                 num_periods += 1
@@ -203,7 +203,7 @@ def compute_funding_cost(
         else:
             # Next funding is same day
             next_funding = current.replace(
-                hour=next_funding_hour, minute=0, second=0, microsecond=0
+                hour=next_funding_hour, minute=0, second=0, microsecond=0,
             )
             if next_funding <= exit_ts:
                 num_periods += 1
@@ -256,7 +256,7 @@ def simulate_bracket_fills(
 
     # Apply entry slippage
     actual_entry = apply_slippage(
-        bracket.entry_price, bracket.side, config.slippage_bps, is_entry=True
+        bracket.entry_price, bracket.side, config.slippage_bps, is_entry=True,
     )
     entry_slippage_cost = abs(actual_entry - bracket.entry_price)
 
@@ -290,7 +290,7 @@ def simulate_bracket_fills(
                         size_fraction=remaining_position,
                         fill_type="SL",
                         level_index=None,
-                    )
+                    ),
                 )
                 exit_ts = candle.open_time
                 break
@@ -305,7 +305,7 @@ def simulate_bracket_fills(
                             size_fraction=bracket.tp_sizes[i],
                             fill_type="TP",
                             level_index=i,
-                        )
+                        ),
                     )
                     remaining_position -= bracket.tp_sizes[i]
 
@@ -322,7 +322,7 @@ def simulate_bracket_fills(
                     size_fraction=remaining_position,
                     fill_type="SL",
                     level_index=None,
-                )
+                ),
             )
             exit_ts = candle.open_time
             break
@@ -338,7 +338,7 @@ def simulate_bracket_fills(
                         size_fraction=bracket.tp_sizes[i],
                         fill_type="TP",
                         level_index=i,
-                    )
+                    ),
                 )
                 remaining_position -= bracket.tp_sizes[i]
 
@@ -368,7 +368,7 @@ def simulate_bracket_fills(
     for fill in fills:
         # Apply exit slippage
         actual_exit = apply_slippage(
-            fill.price, bracket.side, config.slippage_bps, is_entry=False
+            fill.price, bracket.side, config.slippage_bps, is_entry=False,
         )
         exit_slippage_cost += abs(actual_exit - fill.price) * fill.size_fraction
 
@@ -389,7 +389,7 @@ def simulate_bracket_fills(
     # Compute funding cost
     if exit_ts:
         funding_cost = compute_funding_cost(
-            entry_ts, exit_ts, bracket.entry_price, config.funding_rate_8h
+            entry_ts, exit_ts, bracket.entry_price, config.funding_rate_8h,
         )
     else:
         funding_cost = Decimal("0")

@@ -84,7 +84,7 @@ class EnhancedHealthChecker:
         self.dependencies[name] = (health_url, critical)
 
     async def check_service_dependency(
-        self, service: str, url: str
+        self, service: str, url: str,
     ) -> ServiceDependency:
         """Check health of an external service dependency."""
         start_time = asyncio.get_event_loop().time()
@@ -184,7 +184,7 @@ class EnhancedHealthChecker:
                 # Check for processing lag
                 processing_lag = metrics.get("processing_lag_ms", 0)
                 backlog_size = metrics.get("events_published", 0) - metrics.get(
-                    "events_processed", 0
+                    "events_processed", 0,
                 )
                 details["backlog_size"] = backlog_size
 
@@ -343,7 +343,7 @@ class EnhancedHealthChecker:
                         "timestamp": datetime.now(),
                         "status": result.status,
                         "latency_ms": result.latency_ms,
-                    }
+                    },
                 )
             except Exception as e:
                 component_results[name] = ComponentHealth(
@@ -425,7 +425,7 @@ class EnhancedHealthChecker:
                             "timestamp": datetime.now(),
                             "status": result.status,
                             "latency_ms": result.latency_ms,
-                        }
+                        },
                     )
                 except asyncio.CancelledError:
                     break
