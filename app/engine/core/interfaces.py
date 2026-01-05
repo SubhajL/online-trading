@@ -129,6 +129,10 @@ class EventBusInterface(Protocol):
 class DatabaseAdapterInterface(Protocol):
     """Protocol for database adapter implementations used by IngestService."""
 
+    async def insert_candle(self, candle: Any) -> bool:
+        """Insert a single candle. Returns True if inserted, False if duplicate."""
+        ...
+
     async def insert_candles_batch(self, candles: list[Any]) -> int:
         """Insert multiple candles in a batch. Returns count of inserted rows."""
         ...
