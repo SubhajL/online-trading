@@ -424,10 +424,15 @@ class BinanceWebSocketClient:
         """Handle kline/candlestick message"""
         try:
             kline_data = data["k"]
+            symbol = kline_data.get("s", "?")
+            timeframe = kline_data.get("i", "?")
+            is_closed = kline_data.get("x", False)
 
             # Only process closed candles (k.x == true)
-            if not kline_data.get("x", False):
+            if not is_closed:
                 return
+
+            logger.info(f"Received CLOSED candle: {symbol} {timeframe}")
 
             # Parse candle data
             candle = Candle(
@@ -455,10 +460,10 @@ class BinanceWebSocketClient:
                 candle=candle,
             )
 
-            await self._event_bus.publish(event)
+            published = await self._event_bus.publish(event)
 
-            logger.debug(
-                f"Published CLOSED candle update for {candle.symbol} {candle.timeframe}",
+            logger.info(
+                f"Published candle event: {candle.symbol} {candle.timeframe} (published={published})",
             )
 
         except Exception as e:

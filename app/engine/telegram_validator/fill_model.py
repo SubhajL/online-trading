@@ -34,7 +34,7 @@ class BracketSpec:
     def __post_init__(self) -> None:
         if len(self.take_profits) != len(self.tp_sizes):
             raise ValueError("take_profits and tp_sizes must have same length")
-        if self.take_profits and abs(sum(self.tp_sizes) - Decimal("1")) > Decimal("0.001"):
+        if self.take_profits and abs(sum(self.tp_sizes) - Decimal(1)) > Decimal("0.001"):
             raise ValueError("tp_sizes must sum to 1.0")
 
 
@@ -42,9 +42,9 @@ class BracketSpec:
 class CostConfig:
     """Trading cost configuration."""
 
-    fee_bps: Decimal = Decimal("10")  # 0.1% = 10 bps
-    slippage_bps: Decimal = Decimal("5")  # 0.05% = 5 bps
-    funding_rate_8h: Decimal = Decimal("1")  # 0.01% = 1 bp per 8h
+    fee_bps: Decimal = Decimal(10)  # 0.1% = 10 bps
+    slippage_bps: Decimal = Decimal(5)  # 0.05% = 5 bps
+    funding_rate_8h: Decimal = Decimal(1)  # 0.01% = 1 bp per 8h
 
 
 @dataclass(frozen=True)
@@ -137,10 +137,10 @@ def apply_slippage(
 
     Pure function.
     """
-    if slippage_bps == Decimal("0"):
+    if slippage_bps == Decimal(0):
         return price
 
-    slip_factor = slippage_bps / Decimal("10000")
+    slip_factor = slippage_bps / Decimal(10000)
     slip_amount = price * slip_factor
 
     if side == "BUY":
@@ -162,7 +162,7 @@ def compute_fees(notional: Decimal, fee_bps: Decimal) -> Decimal:
 
     Pure function.
     """
-    return notional * fee_bps / Decimal("10000")
+    return notional * fee_bps / Decimal(10000)
 
 
 def compute_funding_cost(
@@ -213,7 +213,7 @@ def compute_funding_cost(
         if current == entry_ts:
             break
 
-    return notional * funding_rate_8h / Decimal("10000") * num_periods
+    return notional * funding_rate_8h / Decimal(10000) * num_periods
 
 
 def simulate_bracket_fills(
@@ -239,11 +239,11 @@ def simulate_bracket_fills(
         return FillSimulationResult(
             outcome="NONE",
             fills=(),
-            gross_pnl=Decimal("0"),
-            fees=Decimal("0"),
-            slippage_cost=Decimal("0"),
-            funding_cost=Decimal("0"),
-            net_pnl=Decimal("0"),
+            gross_pnl=Decimal(0),
+            fees=Decimal(0),
+            slippage_cost=Decimal(0),
+            funding_cost=Decimal(0),
+            net_pnl=Decimal(0),
             exit_timestamp=None,
             candles_held=0,
         )
@@ -362,8 +362,8 @@ def simulate_bracket_fills(
             outcome = "TP_PARTIAL"
 
     # Compute PnL and costs
-    gross_pnl = Decimal("0")
-    exit_slippage_cost = Decimal("0")
+    gross_pnl = Decimal(0)
+    exit_slippage_cost = Decimal(0)
 
     for fill in fills:
         # Apply exit slippage
@@ -383,7 +383,7 @@ def simulate_bracket_fills(
 
     # Compute fees (on notional, approximated as entry price)
     # Fee on entry + fee on exit
-    total_notional = bracket.entry_price * Decimal("2")  # Entry + exit
+    total_notional = bracket.entry_price * Decimal(2)  # Entry + exit
     fees = compute_fees(total_notional, config.fee_bps)
 
     # Compute funding cost
@@ -392,7 +392,7 @@ def simulate_bracket_fills(
             entry_ts, exit_ts, bracket.entry_price, config.funding_rate_8h,
         )
     else:
-        funding_cost = Decimal("0")
+        funding_cost = Decimal(0)
 
     net_pnl = gross_pnl - fees - total_slippage - funding_cost
 

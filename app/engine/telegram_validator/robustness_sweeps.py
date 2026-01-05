@@ -72,10 +72,10 @@ def aggregate_sweep_metrics(
     Returns (pass_rate, pnl_p10, pnl_p50, pnl_p90).
     """
     if not results:
-        return 0.0, Decimal("0"), Decimal("0"), Decimal("0")
+        return 0.0, Decimal(0), Decimal(0), Decimal(0)
 
     pnls = [r.net_pnl for r in results]
-    positive_count = sum(1 for p in pnls if p > Decimal("0"))
+    positive_count = sum(1 for p in pnls if p > Decimal(0))
     pass_rate = positive_count / len(pnls)
 
     # Convert to float for quantile calculation
@@ -151,23 +151,23 @@ def run_robustness_sweep(
 # Preset sweep configurations
 CONSERVATIVE_SWEEP = build_sweep_grid(
     CostConfig(),
-    fee_range=(Decimal("5"), Decimal("10"), Decimal("15")),
-    slippage_range=(Decimal("0"), Decimal("5"), Decimal("10")),
-    funding_range=(Decimal("0"), Decimal("5"), Decimal("10")),
+    fee_range=(Decimal(5), Decimal(10), Decimal(15)),
+    slippage_range=(Decimal(0), Decimal(5), Decimal(10)),
+    funding_range=(Decimal(0), Decimal(5), Decimal(10)),
 )
 
 MODERATE_SWEEP = build_sweep_grid(
     CostConfig(),
-    fee_range=(Decimal("10"), Decimal("20"), Decimal("30")),
-    slippage_range=(Decimal("5"), Decimal("15"), Decimal("25")),
-    funding_range=(Decimal("5"), Decimal("15"), Decimal("25")),
+    fee_range=(Decimal(10), Decimal(20), Decimal(30)),
+    slippage_range=(Decimal(5), Decimal(15), Decimal(25)),
+    funding_range=(Decimal(5), Decimal(15), Decimal(25)),
 )
 
 AGGRESSIVE_SWEEP = build_sweep_grid(
     CostConfig(),
-    fee_range=(Decimal("20"), Decimal("40"), Decimal("60")),
-    slippage_range=(Decimal("20"), Decimal("50"), Decimal("100")),
-    funding_range=(Decimal("20"), Decimal("50"), Decimal("100")),
+    fee_range=(Decimal(20), Decimal(40), Decimal(60)),
+    slippage_range=(Decimal(20), Decimal(50), Decimal(100)),
+    funding_range=(Decimal(20), Decimal(50), Decimal(100)),
 )
 
 # Dictionary mapping preset names to sweep configurations

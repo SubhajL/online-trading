@@ -285,6 +285,19 @@ ignore = [
     "G004",    # Logging f-strings - more readable than % formatting
     "BLE001",  # Blind except - intentional fail-soft pattern for trading system
     "TRY400",  # logger.error vs logger.exception - tracebacks not always wanted
+    # Style preferences - verbose alternatives not worth enforcing
+    "PLR2004", # Magic values - trading logic uses numeric constants
+    "ANN401",  # Any type - sometimes unavoidable with external libs
+    "TRY003",  # Raise vanilla args - f-string messages more readable
+    "EM101",   # Raw string in exception - simpler than variables
+    "EM102",   # f-string in exception - more readable
+    "SLF001",  # Private member access - tests legitimately access privates
+    "RET504",  # Unnecessary assign before return - aids debugging
+    "ANN204",  # Missing return type special method - __init__ etc
+    "TRY300",  # Try-consider-else - style preference
+    "PLC0415", # Import outside top-level - lazy imports intentional
+    "PTH123",  # open() vs Path.open() - both valid
+    "E402",    # Import not at top - path manipulation before imports
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.

@@ -121,7 +121,7 @@ class TestTelegramRealIntegration:
             "symbol": "BNBUSDT",
             "side": "BUY",
             "status": "rejected",
-            "quantity": Decimal("10"),
+            "quantity": Decimal(10),
             "reason": "🧪 Integration Test - Insufficient balance",
         }
 

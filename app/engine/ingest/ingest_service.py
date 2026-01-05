@@ -222,23 +222,28 @@ class IngestService:
         # Update latest candles tracking
         symbol = event.symbol
         timeframe = event.timeframe
+        logger.info(f"_on_candle_update received: {symbol} {timeframe.value} origin={event.origin.value}")
+
         if symbol not in self._latest_candles:
             self._latest_candles[symbol] = {}
         self._latest_candles[symbol][timeframe] = event.candle
 
         # Skip BACKFILL events - already written during backfill
         if event.origin == CandleOrigin.BACKFILL:
+            logger.debug(f"Skipping BACKFILL candle: {symbol} {timeframe.value}")
             return
 
         # Persist REALTIME and GAP_FILL candles to DB
         if self._db_adapter is not None:
             try:
                 await self._db_adapter.insert_candle(event.candle)
-                logger.debug(
-                    f"Persisted {event.origin.value} candle: {symbol} {timeframe.value}",
+                logger.info(
+                    f"Persisted {event.origin.value} candle to DB: {symbol} {timeframe.value}",
                 )
             except Exception as e:
                 logger.error(f"Failed to persist candle {symbol} {timeframe.value}: {e}")
+        else:
+            logger.warning(f"No db_adapter - skipping candle persist: {symbol} {timeframe.value}")
 
     async def _start_backfill(self) -> None:
         """Start historical data backfill for all symbols and timeframes"""

@@ -116,11 +116,11 @@ def _is_winning_outcome(outcome: str) -> bool:
 def compute_win_rate(outcomes: list[OutcomeResult]) -> Decimal:
     """Compute win rate from list of outcomes."""
     if not outcomes:
-        return Decimal("0")
+        return Decimal(0)
 
     decided = [o for o in outcomes if o.outcome in ("TP_FULL", "TP_PARTIAL", "SL")]
     if not decided:
-        return Decimal("0")
+        return Decimal(0)
 
     wins = sum(1 for o in decided if _is_winning_outcome(o.outcome))
     return Decimal(str(wins)) / Decimal(str(len(decided)))
@@ -277,7 +277,7 @@ async def compare_captain_vs_internal_outcomes(
 
     pnl_deltas = [c.pnl_delta for c in comparisons if c.pnl_delta is not None]
     avg_pnl_delta = (
-        sum(pnl_deltas) / len(pnl_deltas) if pnl_deltas else Decimal("0")
+        sum(pnl_deltas) / len(pnl_deltas) if pnl_deltas else Decimal(0)
     )
 
     avg_timing_delta = sum(timing_deltas) / len(timing_deltas) if timing_deltas else 0.0
