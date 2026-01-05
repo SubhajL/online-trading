@@ -281,6 +281,7 @@ ignore = [
     "TD002",   # Missing author in TODO
     "TD003",   # Missing issue link on the line following this TODO
     "FIX002",  # Line contains TODO, consider resolving the issue
+    "TID252",  # Relative imports from parent - codebase convention
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
