@@ -9,6 +9,7 @@ import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 import logging
+from types import TracebackType
 from typing import Any
 from urllib.parse import urljoin
 
@@ -36,7 +37,7 @@ class RouterHTTPClient:
     - Risk monitoring
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         base_url: str,
         api_key: str | None = None,
@@ -135,19 +136,15 @@ class RouterHTTPClient:
                 "consecutive_failures": stats.consecutive_failures,
                 "consecutive_successes": stats.consecutive_successes,
                 "last_failure_time": (
-                    stats.last_failure_time.isoformat()
-                    if stats.last_failure_time
-                    else None
+                    stats.last_failure_time.isoformat() if stats.last_failure_time else None
                 ),
                 "last_success_time": (
-                    stats.last_success_time.isoformat()
-                    if stats.last_success_time
-                    else None
+                    stats.last_success_time.isoformat() if stats.last_success_time else None
                 ),
             }
         return metrics
 
-    async def _make_request(
+    async def _make_request(  # noqa: C901
         self,
         method: str,
         endpoint: str,
@@ -212,7 +209,7 @@ class RouterHTTPClient:
                     raise
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
 
-        raise Exception(
+        raise RuntimeError(
             f"Failed to complete request after {self.retry_attempts} attempts",
         )
 
@@ -233,9 +230,7 @@ class RouterHTTPClient:
                 "quantity": str(decision.quantity) if decision.quantity else None,
                 "price": str(decision.entry_price) if decision.entry_price else None,
                 "stop_loss": str(decision.stop_loss) if decision.stop_loss else None,
-                "take_profit": (
-                    str(decision.take_profit) if decision.take_profit else None
-                ),
+                "take_profit": (str(decision.take_profit) if decision.take_profit else None),
                 "decision_id": str(decision.decision_id),
                 "timestamp": decision.timestamp.isoformat(),
                 "reasoning": decision.reasoning,
@@ -261,6 +256,16 @@ class RouterHTTPClient:
         except Exception as e:
             logger.error(f"Error getting order status: {e}")
             return None
+
+    async def place_bracket_order(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Place a bracket order via the router /place_bracket endpoint."""
+        try:
+            result = await self._make_request("POST", "/place_bracket", data=payload)
+            logger.info("Placed bracket order for %s: %s", payload.get("symbol"), result)
+            return result
+        except Exception as e:
+            logger.error("Error placing bracket order: %s", e)
+            return {"error": str(e), "success": False}
 
     async def cancel_order(self, order_id: str) -> bool:
         """Cancel an order"""
@@ -435,9 +440,7 @@ class RouterHTTPClient:
                 "symbol": decision.symbol,
                 "action": decision.action,
                 "quantity": str(decision.quantity) if decision.quantity else None,
-                "entry_price": (
-                    str(decision.entry_price) if decision.entry_price else None
-                ),
+                "entry_price": (str(decision.entry_price) if decision.entry_price else None),
                 "stop_loss": str(decision.stop_loss) if decision.stop_loss else None,
                 "confidence": str(decision.confidence),
             }
@@ -546,6 +549,11 @@ class RouterHTTPClient:
         """Async context manager entry"""
         await self.initialize()
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit"""
         await self.close()

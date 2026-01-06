@@ -6,8 +6,9 @@ Handles kline/candlestick data, ticker updates, and order book streams.
 """
 
 import asyncio
+from collections import deque
 import contextlib
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import json
 import logging
@@ -136,6 +137,12 @@ class BinanceWebSocketClient:
         # Event bus - use provided or get global
         self._event_bus = event_bus if event_bus is not None else get_event_bus()
 
+        self._last_message_at: datetime | None = None
+        self._message_times: deque[datetime] = deque(maxlen=2000)
+        self._stale_threshold_seconds = 120
+        self._watchdog_interval_seconds = 30
+        self._watchdog_task: asyncio.Task[Any] | None = None
+
         # Resilience: max retry limit
         self._max_reconnect_attempts = max_reconnect_attempts
         self._consecutive_failures = 0
@@ -182,6 +189,7 @@ class BinanceWebSocketClient:
 
         self._running = True
         self._reconnect_task = asyncio.create_task(self._connection_manager())
+        self._watchdog_task = asyncio.create_task(self._watchdog_loop())
         logger.info("WebSocket client started")
 
     async def stop(self) -> None:
@@ -191,10 +199,17 @@ class BinanceWebSocketClient:
 
         self._running = False
 
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._watchdog_task
+            self._watchdog_task = None
+
         if self._reconnect_task:
             self._reconnect_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._reconnect_task
+            self._reconnect_task = None
 
         if self._websocket:
             await self._websocket.close()
@@ -402,6 +417,7 @@ class BinanceWebSocketClient:
                 msg_count = 0
                 async for message in websocket:
                     msg_count += 1
+                    self._mark_message_received(datetime.now(UTC))
                     if msg_count <= 3 or msg_count % 50 == 0:
                         logger.info(f"WS msg #{msg_count} received (len={len(message)})")
                     try:
@@ -599,19 +615,59 @@ class BinanceWebSocketClient:
         """Get current subscriptions"""
         return list(self._subscriptions)
 
+    def _mark_message_received(self, at: datetime) -> None:
+        self._last_message_at = at
+        self._message_times.append(at)
+
+    def _last_message_ago_seconds(self, now: datetime) -> float | None:
+        if self._last_message_at is None:
+            return None
+        return (now - self._last_message_at).total_seconds()
+
+    def _is_stale(self, now: datetime) -> bool:
+        ago = self._last_message_ago_seconds(now)
+        if ago is None:
+            return True
+        return ago > self._stale_threshold_seconds
+
+    async def _watchdog_loop(self) -> None:
+        while self._running:
+            await asyncio.sleep(self._watchdog_interval_seconds)
+
+            if not self._is_websocket_open():
+                continue
+
+            now = datetime.now(UTC)
+            if self._is_stale(now):
+                logger.warning(
+                    "WebSocket stale: no messages for %ss; forcing reconnect",
+                    self._last_message_ago_seconds(now),
+                )
+                if self._websocket is not None:
+                    with contextlib.suppress(Exception):
+                        await self._websocket.close()
+
     def is_connected(self) -> bool:
         """Check if WebSocket is connected"""
-        return self._is_websocket_open()
+        return self._is_websocket_open() and not self._is_stale(datetime.now(UTC))
 
     async def health_check(self) -> dict[str, Any]:
         """Get health status including resilience metrics."""
         circuit_state = await self._circuit_breaker.get_state()
+        now = datetime.now(UTC)
+        last_ago = self._last_message_ago_seconds(now)
+        cutoff = now - timedelta(minutes=1)
+        messages_per_minute = sum(1 for t in self._message_times if t >= cutoff)
+        stale = self._is_stale(now) if self._is_websocket_open() else False
         return {
             "connected": self.is_connected(),
             "subscriptions": len(self._subscriptions),
             "symbols": len(self._symbols),
             "timeframes": len(self._timeframes),
             "running": self._running,
+            "stale": stale,
+            "last_message_ago_seconds": last_ago,
+            "messages_per_minute": messages_per_minute,
             # Resilience metrics
             "consecutive_failures": self._consecutive_failures,
             "circuit_state": circuit_state.value,

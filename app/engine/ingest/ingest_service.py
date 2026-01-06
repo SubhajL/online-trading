@@ -34,7 +34,7 @@ class IngestService:
     - Error handling and recovery
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         binance_config: dict[Any, Any],
         symbols: list[str],
@@ -56,19 +56,25 @@ class IngestService:
         creds = self._select_binance_credentials(binance_config)
 
         # Initialize clients
-        self.ws_client = BinanceWebSocketClient(
-            testnet=creds.get("testnet", True),
-            base_url=creds.get("ws_base_url"),
-            reconnect_interval=creds.get("reconnect_interval", 5),
-        )
+        ws_kwargs: dict[str, Any] = {
+            "testnet": creds.get("testnet", True),
+            "reconnect_interval": creds.get("reconnect_interval", 5),
+        }
+        ws_base_url = creds.get("ws_base_url")
+        if isinstance(ws_base_url, str) and ws_base_url:
+            ws_kwargs["base_url"] = ws_base_url
+        self.ws_client = BinanceWebSocketClient(**ws_kwargs)
 
-        self.rest_client = BinanceRestClient(
-            api_key=creds["api_key"],
-            api_secret=creds["api_secret"],
-            testnet=creds.get("testnet", True),
-            base_url=creds.get("base_url"),
-            per_endpoint_breakers_config=binance_breakers_config,
-        )
+        rest_kwargs: dict[str, Any] = {
+            "api_key": creds["api_key"],
+            "api_secret": creds["api_secret"],
+            "testnet": creds.get("testnet", True),
+            "per_endpoint_breakers_config": binance_breakers_config,
+        }
+        rest_base_url = creds.get("base_url")
+        if isinstance(rest_base_url, str) and rest_base_url:
+            rest_kwargs["base_url"] = rest_base_url
+        self.rest_client = BinanceRestClient(**rest_kwargs)
 
         self._event_bus = get_event_bus()
         self._running = False
@@ -222,7 +228,9 @@ class IngestService:
         # Update latest candles tracking
         symbol = event.symbol
         timeframe = event.timeframe
-        logger.info(f"_on_candle_update received: {symbol} {timeframe.value} origin={event.origin.value}")
+        logger.info(
+            f"_on_candle_update received: {symbol} {timeframe.value} origin={event.origin.value}",
+        )
 
         if symbol not in self._latest_candles:
             self._latest_candles[symbol] = {}
@@ -372,10 +380,9 @@ class IngestService:
         # Remove from WebSocket streams if running
         if self._running and self.enable_realtime:
             # Build stream names to unsubscribe
-            streams = []
-            for timeframe in self.timeframes:
-                streams.append(f"{symbol.lower()}@kline_{timeframe.value}")
-            streams.append(f"{symbol.lower()}@ticker")
+            streams = [f"{symbol.lower()}@kline_{tf.value}" for tf in self.timeframes] + [
+                f"{symbol.lower()}@ticker",
+            ]
 
             await self.ws_client.unsubscribe_streams(streams)
 
@@ -426,6 +433,7 @@ class IngestService:
         timeframe: TimeFrame,
     ) -> list[dict[Any, Any]]:
         """Detect gaps in historical data"""
+        _ = symbol, timeframe
         # This would implement gap detection logic
         # For now, return empty list
         gaps = []
@@ -493,9 +501,7 @@ class IngestService:
     async def health_check(self) -> dict[str, any]:
         """Get health status of the ingestion service"""
         ws_health = (
-            await self.ws_client.health_check()
-            if self.enable_realtime
-            else {"status": "disabled"}
+            await self.ws_client.health_check() if self.enable_realtime else {"status": "disabled"}
         )
         rest_health = await self.rest_client.health_check()
 

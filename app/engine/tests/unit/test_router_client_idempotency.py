@@ -26,7 +26,7 @@ class TestRouterClientIdempotency:
             timeout=10,
             retry_attempts=1,
         )
-        client._initialized = True  # noqa: SLF001
+        client._initialized = True
         return client
 
     @pytest.fixture
@@ -65,7 +65,7 @@ class TestRouterClientIdempotency:
             captured_data = data
             return {"success": True, "orderId": "12345"}
 
-        router_client._make_request = AsyncMock(side_effect=capture_request)  # noqa: SLF001
+        router_client._make_request = AsyncMock(side_effect=capture_request)
 
         await router_client.place_order(sample_decision)
 
@@ -94,7 +94,7 @@ class TestRouterClientIdempotency:
                 captured_ids.append(data["newClientOrderId"])
             return {"success": True, "orderId": "12345"}
 
-        router_client._make_request = AsyncMock(side_effect=capture_request)  # noqa: SLF001
+        router_client._make_request = AsyncMock(side_effect=capture_request)
 
         await router_client.place_order(sample_decision)
         await router_client.place_order(sample_decision)
@@ -120,7 +120,7 @@ class TestRouterClientIdempotency:
                 captured_ids.append(data["newClientOrderId"])
             return {"success": True, "orderId": "12345"}
 
-        router_client._make_request = AsyncMock(side_effect=capture_request)  # noqa: SLF001
+        router_client._make_request = AsyncMock(side_effect=capture_request)
 
         decision1 = TradingDecision(
             decision_id=UUID("11111111-1111-1111-1111-111111111111"),
@@ -145,3 +145,45 @@ class TestRouterClientIdempotency:
 
         assert len(captured_ids) == EXPECTED_CAPTURED_COUNT
         assert captured_ids[0] != captured_ids[1]
+
+    @pytest.mark.asyncio
+    async def test_place_bracket_order_posts_to_place_bracket_endpoint(
+        self,
+        router_client: RouterHTTPClient,
+    ) -> None:
+        captured_endpoints: list[str] = []
+        captured_payloads: list[dict[str, Any]] = []
+
+        async def capture_request(
+            _method: str,
+            endpoint: str,
+            data: dict[str, Any] | None = None,
+            **_kwargs: Any,
+        ) -> dict[str, Any]:
+            captured_endpoints.append(endpoint)
+            captured_payloads.append(data or {})
+            return {"success": True}
+
+        router_client._make_request = AsyncMock(side_effect=capture_request)
+
+        payload = {
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "quantity": "0.01",
+            "entry_price": "50000.0",
+            "take_profit_prices": ["52000.0"],
+            "stop_loss_price": "49000.0",
+            "order_type": "LIMIT",
+            "is_futures": True,
+            "metadata": {"signal_id": "sig_123", "timeframe": "15m"},
+            "client_order_ids": {
+                "main": "abc_entry",
+                "take_profits": ["abc_tp1"],
+                "stop_loss": "abc_sl",
+            },
+        }
+
+        await router_client.place_bracket_order(payload)
+
+        assert captured_endpoints == ["/place_bracket"]
+        assert captured_payloads[0]["metadata"]["signal_id"] == "sig_123"

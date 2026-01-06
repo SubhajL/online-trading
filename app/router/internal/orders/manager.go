@@ -170,6 +170,27 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		return nil, fmt.Errorf("invalid bracket request: %w", err)
 	}
 
+	if req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
+		m.mu.RLock()
+		bracketID, exists := m.ordersByClient[req.ClientOrderIDs.Main]
+		var existing *BracketOrder
+		if exists {
+			existing = m.orders[bracketID]
+		}
+		m.mu.RUnlock()
+
+		if exists && existing != nil {
+			return &PlaceBracketResponse{
+				BracketOrderID: bracketID,
+				ClientOrderIDs: existing.ClientOrderIDs,
+				Symbol:         existing.Symbol,
+				Side:           existing.Side,
+				Quantity:       existing.Quantity,
+				CreatedAt:      existing.CreatedAt,
+			}, nil
+		}
+	}
+
 	// Select client
 	client := m.spotClient
 	orderType := OrderTypeSpot
@@ -407,6 +428,33 @@ func (m *Manager) validateBracketRequest(req *PlaceBracketRequest) error {
 	}
 	if req.StopLossPrice.LessThanOrEqual(decimal.Zero) {
 		return fmt.Errorf("stop loss price must be positive")
+	}
+
+	if req.ClientOrderIDs != nil {
+		if req.ClientOrderIDs.Main == "" {
+			return fmt.Errorf("client_order_ids.main is required")
+		}
+		if req.ClientOrderIDs.StopLoss == "" {
+			return fmt.Errorf("client_order_ids.stop_loss is required")
+		}
+		if len(req.ClientOrderIDs.TakeProfits) != len(req.TakeProfitPrices) {
+			return fmt.Errorf("client_order_ids.take_profits count must match take_profit_prices")
+		}
+
+		all := append([]string{req.ClientOrderIDs.Main, req.ClientOrderIDs.StopLoss}, req.ClientOrderIDs.TakeProfits...)
+		seen := make(map[string]struct{}, len(all))
+		for _, id := range all {
+			if id == "" {
+				return fmt.Errorf("client_order_ids values must be non-empty")
+			}
+			if len(id) > 36 {
+				return fmt.Errorf("client_order_id too long: %d", len(id))
+			}
+			if _, ok := seen[id]; ok {
+				return fmt.Errorf("duplicate client_order_id: %s", id)
+			}
+			seen[id] = struct{}{}
+		}
 	}
 
 	// Validate price relationships

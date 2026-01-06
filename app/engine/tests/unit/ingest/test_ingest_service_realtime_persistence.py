@@ -24,21 +24,20 @@ from app.engine.models import (
 
 if TYPE_CHECKING:
     from app.engine.bus import EventBus
-    from collections.abc import Iterator
 
 
 @pytest.fixture(autouse=True)
-def event_bus_fixture() -> Iterator[EventBus]:
+def event_bus_fixture() -> EventBus:
     """Set up event bus for tests."""
     bus = create_event_bus()
     set_event_bus(bus)
-    yield bus
+    return bus
 
 
 def _make_candle(
     symbol: str = "BTCUSDT",
     timeframe: TimeFrame = TimeFrame.M5,
-    close_price: Decimal = Decimal("50000"),
+    close_price: Decimal = Decimal(50000),
 ) -> Candle:
     """Create a test candle."""
     now = datetime.now(UTC).replace(microsecond=0)
@@ -48,15 +47,15 @@ def _make_candle(
         timeframe=timeframe,
         open_time=now - timedelta(minutes=5),
         close_time=now,
-        open_price=Decimal("49900"),
-        high_price=Decimal("50100"),
-        low_price=Decimal("49800"),
+        open_price=Decimal(49900),
+        high_price=Decimal(50100),
+        low_price=Decimal(49800),
         close_price=close_price,
-        volume=Decimal("100"),
-        quote_volume=Decimal("5000000"),
+        volume=Decimal(100),
+        quote_volume=Decimal(5000000),
         trades=1000,
-        taker_buy_base_volume=Decimal("50"),
-        taker_buy_quote_volume=Decimal("2500000"),
+        taker_buy_base_volume=Decimal(50),
+        taker_buy_quote_volume=Decimal(2500000),
     )
 
 
@@ -235,3 +234,24 @@ class TestRealtimeCandlePersistence:
 
         # _latest_candles should still be updated
         assert "BTCUSDT" in service._latest_candles
+
+    @pytest.mark.asyncio
+    async def test_default_binance_urls_used_when_not_provided(self) -> None:
+        """When base URLs are absent, clients use their defaults."""
+        from app.engine.ingest.ingest_service import IngestService
+
+        service = IngestService(
+            binance_config={
+                "api_key": "test",
+                "api_secret": "test",
+                "testnet": False,
+            },
+            symbols=["BTCUSDT"],
+            timeframes=[TimeFrame.M5],
+            enable_realtime=False,
+            enable_backfill=False,
+            db_adapter=None,
+        )
+
+        assert service.ws_client.base_url == "wss://stream.binance.com:9443/ws/"
+        assert service.rest_client.base_url == "https://api.binance.com"

@@ -2,11 +2,13 @@
 Unit tests for Binance WebSocket client URL construction and message handling
 """
 
+from datetime import UTC, datetime, timedelta
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from websockets import State as WebSocketState
 
 from app.engine.ingest.binance_ws import (
     BinanceWebSocketClient,
@@ -292,3 +294,21 @@ class TestHandleMessageRouting:
         call_args = mock_handler.call_args[0][0]
         assert call_args["e"] == "kline"
         assert call_args["k"]["s"] == "BTCUSDT"
+
+
+class TestWebSocketHealth:
+    @pytest.mark.asyncio
+    async def test_health_check_reports_stale_when_no_messages_recently(self) -> None:
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+
+        client = BinanceWebSocketClient(event_bus=bus)
+        client._running = True
+        client._websocket = MagicMock(state=WebSocketState.OPEN)
+        client._last_message_at = datetime.now(UTC) - timedelta(seconds=600)
+
+        health = await client.health_check()
+
+        assert health["stale"] is True
+        assert health["connected"] is False
+        assert health["last_message_ago_seconds"] >= 600

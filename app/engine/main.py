@@ -70,7 +70,7 @@ class ServiceControlRequest(BaseModel):
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> Any:
+async def lifespan(_app: FastAPI) -> Any:
     """Application lifespan management"""
     logger.info("Starting trading engine...")
 
@@ -194,7 +194,7 @@ def load_configuration() -> EngineConfig:
         raise
 
 
-async def initialize_services(config: EngineConfig) -> None:
+async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915
     """Initialize all services"""
     try:
         # Initialize event bus
@@ -237,6 +237,22 @@ async def initialize_services(config: EngineConfig) -> None:
         )
         await router_client.initialize()
         services["router"] = router_client
+
+        # Optional: auto-execution subscriber (opt-in)
+        from .execution.router_execution_subscriber import (
+            ExecutionMode,
+            RouterExecutionSubscriber,
+            execution_mode_from_env,
+        )
+
+        execution_mode = execution_mode_from_env(os.environ)
+        if execution_mode != ExecutionMode.DISABLED:
+            services["execution_subscriber"] = RouterExecutionSubscriber(
+                bus=event_bus,
+                router_client=router_client,
+                execution_mode=execution_mode,
+            )
+            logger.info("Execution subscriber enabled: %s", execution_mode.value)
 
         # Initialize risk manager
         risk_manager = RiskManager(config.risk_parameters)
@@ -285,8 +301,8 @@ async def initialize_services(config: EngineConfig) -> None:
         # Initialize alert subscriber (if Telegram configured)
         telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if telegram_bot_token:
-            from .adapters.alert.telegram import TelegramAlertAdapter
             from .adapters.alert.alert_subscriber import AlertSubscriber
+            from .adapters.alert.telegram import TelegramAlertAdapter
 
             telegram_adapter = TelegramAlertAdapter(
                 bot_token=telegram_bot_token,
@@ -343,6 +359,10 @@ async def start_services() -> None:
         await services["smc"].start()
         await services["decision"].start()
 
+        if "execution_subscriber" in services:
+            await services["execution_subscriber"].start()
+            logger.info("Started execution_subscriber")
+
         # Start BFF client and signal emitter subscriber
         if "bff_client" in services:
             await services["bff_client"].start()
@@ -358,9 +378,16 @@ async def start_services() -> None:
         raise
 
 
-async def shutdown_services() -> None:
+async def shutdown_services() -> None:  # noqa: C901, PLR0912
     """Shutdown all services"""
     try:
+        if "execution_subscriber" in services:
+            try:
+                await services["execution_subscriber"].stop()
+                logger.info("Stopped execution_subscriber")
+            except Exception as e:
+                logger.error(f"Error stopping execution_subscriber: {e}")
+
         # Stop signal emitter subscriber first (to stop receiving events)
         if "signal_emitter_subscriber" in services:
             try:
@@ -457,7 +484,7 @@ async def health_check() -> HealthResponse:
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}") from e
 
 
 @app.get("/health/simple")
@@ -503,7 +530,7 @@ async def get_metrics() -> MetricsResponse:
         raise HTTPException(
             status_code=500,
             detail=f"Metrics collection failed: {e!s}",
-        )
+        ) from e
 
 
 # System health endpoint including per-endpoint breaker metrics
@@ -536,14 +563,14 @@ async def get_system_health() -> Any:
 
 # Service Control Endpoints
 @app.post("/control/service")
-async def control_service(
+async def control_service(  # noqa: C901, PLR0912
     request: ServiceControlRequest,
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     """Control individual services"""
     try:
         if request.service and request.service not in services:
-            raise HTTPException(
+            raise HTTPException(  # noqa: TRY301
                 status_code=404,
                 detail=f"Service {request.service} not found",
             )
@@ -585,14 +612,14 @@ async def control_service(
                 "message": f"Start completed for {request.service or 'all services'}",
             }
 
-        raise HTTPException(
+        raise HTTPException(  # noqa: TRY301
             status_code=400,
             detail=f"Unknown action: {request.action}",
         )
 
     except Exception as e:
         logger.error(f"Error controlling service: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 async def restart_service(service_name: str, service: Any) -> None:
@@ -646,7 +673,7 @@ async def get_status() -> dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error getting status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/info")
@@ -664,9 +691,9 @@ async def get_info() -> dict[str, Any]:
 
 # Error Handlers
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse:
+async def global_exception_handler(_request: Any, exc: Exception) -> JSONResponse:
     """Global exception handler"""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error("Unhandled exception: %s", exc)
     return JSONResponse(
         status_code=500,
         content={
@@ -678,7 +705,7 @@ async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse
 
 
 # Signal handlers for graceful shutdown
-def signal_handler(signum: Any, frame: Any) -> None:
+def signal_handler(signum: Any, _frame: Any) -> None:
     """Handle shutdown signals"""
     logger.info(f"Received signal {signum}, initiating graceful shutdown...")
     # FastAPI will handle the shutdown through the lifespan context manager
@@ -693,7 +720,7 @@ if __name__ == "__main__":
     # Run the application
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104
         port=int(os.getenv("PORT", "8000")),
         log_level=os.getenv("LOG_LEVEL", "info").lower(),
         reload=os.getenv("ENVIRONMENT", "development") == "development",

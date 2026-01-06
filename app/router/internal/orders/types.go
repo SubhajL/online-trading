@@ -62,6 +62,8 @@ type PlaceBracketRequest struct {
 	StopLossPrice    decimal.Decimal   `json:"stop_loss_price"`
 	OrderType        string            `json:"order_type,omitempty"` // LIMIT or MARKET
 	IsFutures        bool              `json:"is_futures"`
+	ClientOrderIDs   *ClientOrderIDs   `json:"client_order_ids,omitempty"`
+	Metadata         map[string]any    `json:"metadata,omitempty"`
 }
 
 // PlaceBracketResponse represents the response from placing a bracket order

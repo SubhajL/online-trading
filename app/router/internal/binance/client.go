@@ -453,7 +453,9 @@ func (c *Client) validateFuturesOrder(order FuturesOrderRequest) error {
 	if order.Side != "BUY" && order.Side != "SELL" {
 		return fmt.Errorf("invalid side: %s", order.Side)
 	}
-	if order.Type != "MARKET" && order.Type != "LIMIT" {
+	switch order.Type {
+	case "MARKET", "LIMIT", "STOP_MARKET":
+	default:
 		return fmt.Errorf("invalid order type: %s", order.Type)
 	}
 	if order.Quantity.LessThanOrEqual(decimal.Zero) && !order.ClosePosition {
@@ -468,6 +470,10 @@ func (c *Client) validateFuturesOrder(order FuturesOrderRequest) error {
 
 	if order.Type == "LIMIT" && order.Price.LessThanOrEqual(decimal.Zero) {
 		return fmt.Errorf("price must be positive for limit orders")
+	}
+
+	if order.Type == "STOP_MARKET" && order.StopPrice.LessThanOrEqual(decimal.Zero) {
+		return fmt.Errorf("stopPrice must be positive for stop orders")
 	}
 
 	return nil
