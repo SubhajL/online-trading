@@ -30,6 +30,18 @@ type Client struct {
 	exchangeInfoCache *ExchangeInfoCache
 }
 
+func (c *Client) BaseURL() string {
+	return c.baseURL
+}
+
+func (c *Client) IsFutures() bool {
+	return c.isFutures
+}
+
+func (c *Client) SetExchangeInfoCache(cache *ExchangeInfoCache) {
+	c.exchangeInfoCache = cache
+}
+
 // convertFills converts REST fills to our Fill type
 func convertFills(restFills []rest.Fill) []Fill {
 	fills := make([]Fill, len(restFills))

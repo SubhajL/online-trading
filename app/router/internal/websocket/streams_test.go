@@ -261,6 +261,135 @@ func TestStreamManager_Unsubscribe(t *testing.T) {
 	})
 }
 
+func TestStreamManager_RoutesDirectUserStreamMessages(t *testing.T) {
+	t.Run("routes direct executionReport to user handler", func(t *testing.T) {
+		sm := NewStreamManager("ws://example.com")
+
+		var called atomic.Bool
+		var gotClientOrderID atomic.Value
+
+		sm.SetUserStreamHandler(&mockUserStreamHandlerForStreams{
+			onOrderUpdate: func(event *OrderUpdateEvent) error {
+				called.Store(true)
+				gotClientOrderID.Store(event.ClientOrderID)
+				return nil
+			},
+		})
+
+		msg := []byte(`{
+			"e":"executionReport",
+			"E":1499404630606,
+			"s":"BTCUSDT",
+			"c":"my-order-id",
+			"S":"BUY",
+			"o":"LIMIT",
+			"f":"GTC",
+			"q":"1.00000000",
+			"p":"50000.00000000",
+			"P":"0.00000000",
+			"F":"0.00000000",
+			"g":-1,
+			"C":"",
+			"x":"NEW",
+			"X":"NEW",
+			"r":"NONE",
+			"i":123456,
+			"l":"0.00000000",
+			"z":"0.00000000",
+			"L":"0.00000000",
+			"n":"0.00000000",
+			"N":"",
+			"T":1499404630606,
+			"t":-1,
+			"w":true,
+			"m":false
+		}`)
+
+		sm.handleMessage(msg)
+
+		assert.True(t, called.Load())
+		assert.Equal(t, "my-order-id", gotClientOrderID.Load())
+	})
+
+	t.Run("routes direct ORDER_TRADE_UPDATE to user handler", func(t *testing.T) {
+		sm := NewStreamManager("ws://example.com")
+
+		var called atomic.Bool
+		var gotClientOrderID atomic.Value
+
+		sm.SetUserStreamHandler(&mockUserStreamHandlerForStreams{
+			onFuturesTradeUpdate: func(event *FuturesOrderTradeUpdateEvent) error {
+				called.Store(true)
+				gotClientOrderID.Store(event.OrderTradeUpdate.ClientOrderID)
+				return nil
+			},
+		})
+
+		msg := []byte(`{
+			"e":"ORDER_TRADE_UPDATE",
+			"E":1499404630606,
+			"T":1499404630607,
+			"o":{
+				"s":"BTCUSDT",
+				"c":"my-futures-order",
+				"S":"SELL",
+				"o":"LIMIT",
+				"f":"GTC",
+				"q":"0.001",
+				"p":"50000",
+				"ap":"49990",
+				"sp":"0",
+				"x":"TRADE",
+				"X":"FILLED",
+				"i":123,
+				"l":"0.001",
+				"z":"0.001",
+				"L":"49990",
+				"n":"0.04",
+				"N":"USDT",
+				"t":777,
+				"rp":"-1.23",
+				"m":true
+			}
+		}`)
+
+		sm.handleMessage(msg)
+
+		assert.True(t, called.Load())
+		assert.Equal(t, "my-futures-order", gotClientOrderID.Load())
+	})
+}
+
+type mockUserStreamHandlerForStreams struct {
+	onOrderUpdate        func(event *OrderUpdateEvent) error
+	onFuturesTradeUpdate func(event *FuturesOrderTradeUpdateEvent) error
+}
+
+func (m *mockUserStreamHandlerForStreams) HandleAccountUpdate(event *AccountUpdateEvent) error {
+	_ = event
+	return nil
+}
+
+func (m *mockUserStreamHandlerForStreams) HandleOrderUpdate(event *OrderUpdateEvent) error {
+	if m.onOrderUpdate == nil {
+		return nil
+	}
+	return m.onOrderUpdate(event)
+}
+
+func (m *mockUserStreamHandlerForStreams) HandleFuturesOrderTradeUpdate(
+	event *FuturesOrderTradeUpdateEvent,
+) error {
+	if m.onFuturesTradeUpdate == nil {
+		return nil
+	}
+	return m.onFuturesTradeUpdate(event)
+}
+
+func (m *mockUserStreamHandlerForStreams) HandleListenKeyExpired() error {
+	return nil
+}
+
 func TestStreamManager_MessageHandling(t *testing.T) {
 	t.Run("routes messages to correct handlers", func(t *testing.T) {
 		receivedMessages := make(map[string][]json.RawMessage)

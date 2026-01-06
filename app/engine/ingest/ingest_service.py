@@ -505,6 +505,18 @@ class IngestService:
         )
         rest_health = await self.rest_client.health_check()
 
+        now = datetime.now(UTC)
+        latest_candle_ago_seconds: dict[str, dict[str, float]] = {}
+        for symbol, by_timeframe in self._latest_candles.items():
+            latest_candle_ago_seconds[symbol] = {}
+            for timeframe, candle in by_timeframe.items():
+                close_time = candle.close_time
+                if close_time.tzinfo is None:
+                    close_time = close_time.replace(tzinfo=UTC)
+                latest_candle_ago_seconds[symbol][timeframe.value] = (
+                    now - close_time
+                ).total_seconds()
+
         return {
             "running": self._running,
             "symbols": len(self.symbols),
@@ -514,4 +526,5 @@ class IngestService:
             "websocket": ws_health,
             "rest_api": rest_health,
             "latest_candles": len(self._latest_candles),
+            "latest_candle_ago_seconds": latest_candle_ago_seconds,
         }

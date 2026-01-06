@@ -352,6 +352,11 @@ func (sm *StreamManager) handleMessage(data []byte) {
 		return
 	}
 
+	// User data streams are not wrapped as combined streams; treat raw payload as data.
+	if len(streamMsg.Data) == 0 {
+		streamMsg.Data = data
+	}
+
 	// Route message based on stream type
 	sm.routeStreamMessage(&streamMsg)
 }
@@ -400,6 +405,13 @@ func (sm *StreamManager) routeStreamMessage(msg *StreamMessage) {
 			var event OrderUpdateEvent
 			if err := json.Unmarshal(msg.Data, &event); err == nil {
 				sm.userHandler.HandleOrderUpdate(&event)
+			}
+		}
+	case "ORDER_TRADE_UPDATE":
+		if sm.userHandler != nil {
+			var event FuturesOrderTradeUpdateEvent
+			if err := json.Unmarshal(msg.Data, &event); err == nil {
+				sm.userHandler.HandleFuturesOrderTradeUpdate(&event)
 			}
 		}
 	case "listenKeyExpired":

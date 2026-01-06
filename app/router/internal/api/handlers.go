@@ -23,15 +23,17 @@ type OrderManager interface {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
-	orderManager OrderManager
-	logger       zerolog.Logger
+	orderManager    OrderManager
+	intentPersister IntentPersister
+	logger          zerolog.Logger
 }
 
 // NewHandlers creates new handlers instance
-func NewHandlers(orderManager OrderManager, logger zerolog.Logger) *Handlers {
+func NewHandlers(orderManager OrderManager, logger zerolog.Logger, intentPersister IntentPersister) *Handlers {
 	return &Handlers{
-		orderManager: orderManager,
-		logger:       logger,
+		orderManager:    orderManager,
+		intentPersister: intentPersister,
+		logger:          logger,
 	}
 }
 
@@ -99,6 +101,16 @@ func (h *Handlers) PlaceBracketHandler(w http.ResponseWriter, r *http.Request) {
 		Str("side", resp.Side).
 		Dur("duration", time.Since(start)).
 		Msg("Bracket order placed successfully")
+
+	if h.intentPersister != nil {
+		if err := h.intentPersister.PersistBracketIntent(r.Context(), req, *resp); err != nil {
+			h.logger.Error().
+				Err(err).
+				Str("symbol", req.Symbol).
+				Str("side", req.Side).
+				Msg("Failed to persist bracket intent")
+		}
+	}
 
 	writeJSON(w, http.StatusOK, resp)
 }

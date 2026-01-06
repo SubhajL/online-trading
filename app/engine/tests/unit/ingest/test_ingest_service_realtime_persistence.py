@@ -255,3 +255,38 @@ class TestRealtimeCandlePersistence:
 
         assert service.ws_client.base_url == "wss://stream.binance.com:9443/ws/"
         assert service.rest_client.base_url == "https://api.binance.com"
+
+    @pytest.mark.asyncio
+    async def test_health_check_reports_latest_candle_ago_seconds(self) -> None:
+        """Health includes per-symbol/timeframe latest candle age."""
+        from app.engine.ingest.ingest_service import IngestService
+
+        service = IngestService(
+            binance_config={
+                "api_key": "test",
+                "api_secret": "test",
+                "testnet": True,
+            },
+            symbols=["BTCUSDT"],
+            timeframes=[TimeFrame.M5],
+            enable_realtime=False,
+            enable_backfill=False,
+            db_adapter=None,
+        )
+
+        stub_rest = MagicMock()
+        stub_rest.health_check = AsyncMock(return_value={"connected": True})
+        service.rest_client = stub_rest
+
+        event = _make_candle_update_event(
+            origin=CandleOrigin.REALTIME,
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M5,
+        )
+        await service._on_candle_update(event)
+
+        health = await service.health_check()
+        latest = health["latest_candle_ago_seconds"]
+        assert "BTCUSDT" in latest
+        assert TimeFrame.M5.value in latest["BTCUSDT"]
+        assert latest["BTCUSDT"][TimeFrame.M5.value] < 5

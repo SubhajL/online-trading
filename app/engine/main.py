@@ -165,7 +165,7 @@ def load_configuration() -> EngineConfig:
         binance_config = BinanceConfig(
             api_key=os.getenv("BINANCE_API_KEY", ""),
             api_secret=os.getenv("BINANCE_API_SECRET", ""),
-            testnet=os.getenv("BINANCE_TESTNET", "true").lower() == "true",
+            testnet=os.getenv("BINANCE_DATA_TESTNET", "false").lower() == "true",
         )
 
         risk_parameters = RiskParameters(

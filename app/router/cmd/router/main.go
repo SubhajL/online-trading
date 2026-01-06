@@ -7,14 +7,22 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"router/internal/api"
+	"router/internal/auth"
 	"router/internal/binance"
 	"router/internal/config"
+	"router/internal/execution"
+	"router/internal/funding"
 	"router/internal/orders"
+	"router/internal/rest"
+	"router/internal/storage"
+	"router/internal/websocket"
 )
 
 func main() {
@@ -36,7 +44,7 @@ func main() {
 	var futuresClient *binance.Client
 
 	if cfg.Binance.IsSpotEnabled() {
-		spotClient, err = binance.NewTestnetSpotClient(&cfg.Binance, logger.With().Str("client", "spot").Logger())
+		spotClient, err = newSpotClientFromConfig(&cfg.Binance, logger.With().Str("client", "spot").Logger())
 		if err != nil {
 			logger.Fatal().Err(err).Msg("Failed to create spot client")
 		}
@@ -46,13 +54,98 @@ func main() {
 	}
 
 	if cfg.Binance.IsFuturesEnabled() {
-		futuresClient, err = binance.NewTestnetFuturesClient(&cfg.Binance, logger.With().Str("client", "futures").Logger())
+		futuresClient, err = newFuturesClientFromConfig(&cfg.Binance, logger.With().Str("client", "futures").Logger())
 		if err != nil {
 			logger.Fatal().Err(err).Msg("Failed to create futures client")
 		}
 		logger.Info().Msg("Futures trading enabled")
 	} else {
 		logger.Info().Msg("Futures trading disabled")
+	}
+
+	var dbPool *pgxpool.Pool
+	var intentPersister api.IntentPersister
+	var userDataIngestor *execution.Ingestor
+	var fundingCancel context.CancelFunc
+
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		dbPool, err = storage.NewPostgresPool(ctx, databaseURL)
+		cancel()
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Failed to connect to Postgres")
+		}
+
+		intentPersister = api.NewPostgresIntentPersister(dbPool, logger.With().Str("component", "persistence").Logger())
+
+		if cfg.Binance.IsFuturesEnabled() {
+			userWSBase := normalizeWSBaseURL(cfg.Binance.FuturesWSURL)
+			wsClient := websocket.NewClient(
+				websocket.WithBaseURL(userWSBase),
+				websocket.WithAutoReconnectClient(true),
+			)
+
+			signer := auth.NewSignerWithRecvWindow(
+				cfg.Binance.FuturesAPIKey,
+				cfg.Binance.FuturesSecretKey,
+				cfg.Binance.RecvWindow,
+			)
+			futuresRestClient := rest.NewClient(
+				cfg.Binance.FuturesBaseURL,
+				signer,
+				rest.WithTimeout(cfg.Binance.Timeout),
+				rest.WithMaxRetries(cfg.Binance.MaxRetries),
+			)
+
+			processor, err := execution.NewTradeProcessor(
+				dbPool,
+				storage.NewOrderRepo(),
+				storage.NewFillRepo(),
+				storage.NewPositionRepo(),
+				"futures",
+			)
+			if err != nil {
+				logger.Fatal().Err(err).Msg("Failed to initialize trade processor")
+			}
+
+			userDataIngestor = execution.NewIngestor(
+				futuresRestClient,
+				wsClient,
+				logger.With().Str("component", "user_stream").Logger(),
+				execution.WithOrderTradeUpdateHandler(func(event *websocket.FuturesOrderTradeUpdateEvent) error {
+					return processor.HandleFuturesOrderTradeUpdate(context.Background(), event)
+				}),
+			)
+
+			if err := userDataIngestor.Start(context.Background()); err != nil {
+				logger.Fatal().Err(err).Msg("Failed to start user data ingestor")
+			}
+			logger.Info().Msg("User data ingestor started")
+
+			interval := 8 * time.Hour
+			if raw := os.Getenv("FUNDING_POLL_INTERVAL"); raw != "" {
+				if parsed, err := time.ParseDuration(raw); err == nil && parsed > 0 {
+					interval = parsed
+				}
+			}
+
+			poller, err := funding.NewFundingPoller(
+				futuresRestClient,
+				dbPool,
+				interval,
+				logger.With().Str("component", "funding_poller").Logger(),
+			)
+			if err != nil {
+				logger.Fatal().Err(err).Msg("Failed to initialize funding poller")
+			}
+
+			fundingCtx, cancel := context.WithCancel(context.Background())
+			fundingCancel = cancel
+			go poller.Start(fundingCtx)
+			logger.Info().Dur("interval", interval).Msg("Funding poller started")
+		}
+	} else {
+		logger.Warn().Msg("DATABASE_URL not set; router persistence disabled")
 	}
 
 	// Create event emitter
@@ -70,7 +163,7 @@ func main() {
 	orderManager := orders.NewManager(spotClient, futuresClient, eventEmitter, logger)
 
 	// Create HTTP handlers
-	handlers := api.NewHandlers(orderManager, logger)
+	handlers := api.NewHandlers(orderManager, logger, intentPersister)
 
 	// Create and configure HTTP server
 	mux := http.NewServeMux()
@@ -83,6 +176,9 @@ func main() {
 	mux.HandleFunc("/close_positions", handlers.ClosePositionsHandler)
 	mux.HandleFunc("/healthz", handlers.HealthzHandler)
 	mux.HandleFunc("/readyz", handlers.ReadyzHandler)
+	if dbPool != nil {
+		mux.HandleFunc("/stats", api.NewStatsHandler(api.NewPostgresStatsProvider(dbPool), logger))
+	}
 
 	// Create server
 	server := &http.Server{
@@ -127,8 +223,83 @@ func main() {
 			log.Printf("Failed to shutdown server gracefully: %v", err)
 		}
 
+		if userDataIngestor != nil {
+			_ = userDataIngestor.Stop(context.Background())
+		}
+		if fundingCancel != nil {
+			fundingCancel()
+		}
+		if dbPool != nil {
+			dbPool.Close()
+		}
+
 		fmt.Println("Server shutdown complete")
 	}
+}
+
+func normalizeWSBaseURL(url string) string {
+	trimmed := strings.TrimRight(url, "/")
+	trimmed = strings.TrimSuffix(trimmed, "/stream")
+	trimmed = strings.TrimSuffix(trimmed, "/ws")
+	return trimmed
+}
+
+func newSpotClientFromConfig(cfg *config.BinanceConfig, logger zerolog.Logger) (*binance.Client, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("binance config is required")
+	}
+
+	signer := auth.NewSignerWithRecvWindow(cfg.SpotAPIKey, cfg.SpotSecretKey, cfg.RecvWindow)
+	restClient := rest.NewClient(
+		cfg.BaseURL,
+		signer,
+		rest.WithTimeout(cfg.Timeout),
+		rest.WithMaxRetries(cfg.MaxRetries),
+	)
+
+	client, err := binance.NewSpotClient(cfg.BaseURL, signer, restClient, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	client.SetExchangeInfoCache(
+		binance.NewExchangeInfoCache(
+			restClient,
+			nil,
+			cfg.ExchangeInfoCacheTTL,
+			logger.With().Str("component", "exchange_info").Logger(),
+		),
+	)
+	return client, nil
+}
+
+func newFuturesClientFromConfig(cfg *config.BinanceConfig, logger zerolog.Logger) (*binance.Client, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("binance config is required")
+	}
+
+	signer := auth.NewSignerWithRecvWindow(cfg.FuturesAPIKey, cfg.FuturesSecretKey, cfg.RecvWindow)
+	restClient := rest.NewClient(
+		cfg.FuturesBaseURL,
+		signer,
+		rest.WithTimeout(cfg.Timeout),
+		rest.WithMaxRetries(cfg.MaxRetries),
+	)
+
+	client, err := binance.NewFuturesClient(cfg.FuturesBaseURL, signer, restClient, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	client.SetExchangeInfoCache(
+		binance.NewExchangeInfoCache(
+			nil,
+			restClient,
+			cfg.ExchangeInfoCacheTTL,
+			logger.With().Str("component", "exchange_info").Logger(),
+		),
+	)
+	return client, nil
 }
 
 // loggingMiddleware logs HTTP requests

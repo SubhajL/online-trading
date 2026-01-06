@@ -48,6 +48,7 @@ type TickerHandler interface {
 type UserStreamHandler interface {
 	HandleAccountUpdate(event *AccountUpdateEvent) error
 	HandleOrderUpdate(event *OrderUpdateEvent) error
+	HandleFuturesOrderTradeUpdate(event *FuturesOrderTradeUpdateEvent) error
 	HandleListenKeyExpired() error
 }
 
@@ -166,6 +167,36 @@ type OrderUpdateEvent struct {
 	TransactionTime      int64           `json:"T"`
 	TradeID              int64           `json:"t"`
 	IsOrderWorking       bool            `json:"w"`
+	IsMaker              bool            `json:"m"`
+}
+
+type FuturesOrderTradeUpdateEvent struct {
+	EventType        string                `json:"e"`
+	EventTime        int64                 `json:"E"`
+	TransactionTime  int64                 `json:"T"`
+	OrderTradeUpdate FuturesOrderTradeData `json:"o"`
+}
+
+type FuturesOrderTradeData struct {
+	Symbol               string          `json:"s"`
+	ClientOrderID        string          `json:"c"`
+	Side                 string          `json:"S"`
+	OrderType            string          `json:"o"`
+	TimeInForce          string          `json:"f"`
+	Quantity             decimal.Decimal `json:"q"`
+	Price                decimal.Decimal `json:"p"`
+	AvgPrice             decimal.Decimal `json:"ap"`
+	StopPrice            decimal.Decimal `json:"sp"`
+	ExecutionType        string          `json:"x"`
+	OrderStatus          string          `json:"X"`
+	OrderID              int64           `json:"i"`
+	LastExecutedQuantity decimal.Decimal `json:"l"`
+	CumulativeFilledQty  decimal.Decimal `json:"z"`
+	LastExecutedPrice    decimal.Decimal `json:"L"`
+	CommissionAmount     decimal.Decimal `json:"n"`
+	CommissionAsset      string          `json:"N"`
+	TradeID              int64           `json:"t"`
+	RealizedProfit       decimal.Decimal `json:"rp"`
 	IsMaker              bool            `json:"m"`
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"router/internal/orders"
 )
 
@@ -64,7 +65,7 @@ func (m *MockOrderManager) ReconcileOrder(ctx context.Context, clientOrderID str
 func TestHealthzHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -111,7 +112,7 @@ func TestHealthzHandler(t *testing.T) {
 func TestReadyzHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -158,7 +159,7 @@ func TestReadyzHandler(t *testing.T) {
 func TestPlaceBracketHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -309,10 +310,62 @@ func TestPlaceBracketHandler(t *testing.T) {
 	}
 }
 
+type stubIntentPersister struct {
+	called bool
+}
+
+func (s *stubIntentPersister) PersistBracketIntent(
+	_ctx context.Context,
+	_req orders.PlaceBracketRequest,
+	_resp orders.PlaceBracketResponse,
+) error {
+	s.called = true
+	return nil
+}
+
+func TestPlaceBracketHandler_PersistsIntentsWhenConfigured(t *testing.T) {
+	logger := zerolog.Nop()
+	mockManager := new(MockOrderManager)
+	stub := &stubIntentPersister{}
+	handlers := NewHandlers(mockManager, logger, stub)
+
+	mockManager.On("PlaceBracketOrder", mock.Anything, mock.AnythingOfType("*orders.PlaceBracketRequest")).
+		Return(&orders.PlaceBracketResponse{
+			BracketOrderID: "test-bracket-id",
+			Symbol:         "BTCUSDT",
+			Side:           "BUY",
+			Quantity:       decimal.RequireFromString("0.001"),
+			ClientOrderIDs: orders.ClientOrderIDs{
+				Main:        "main-order-id",
+				TakeProfits: []string{"tp1-id"},
+				StopLoss:    "sl-id",
+			},
+		}, nil).Once()
+
+	body := &orders.PlaceBracketRequest{
+		Symbol:           "BTCUSDT",
+		Side:             "BUY",
+		Quantity:         decimal.RequireFromString("0.001"),
+		EntryPrice:       decimal.RequireFromString("50000"),
+		TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("51000")},
+		StopLossPrice:    decimal.RequireFromString("49000"),
+		IsFutures:        true,
+	}
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/place_bracket", bytes.NewReader(raw))
+	w := httptest.NewRecorder()
+	handlers.PlaceBracketHandler(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, stub.called)
+}
+
 func TestCancelHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -401,7 +454,7 @@ func TestCancelHandler(t *testing.T) {
 func TestCloseAllHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -495,7 +548,7 @@ func TestCloseAllHandler(t *testing.T) {
 func TestCancelOpenOrdersHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -589,7 +642,7 @@ func TestCancelOpenOrdersHandler(t *testing.T) {
 func TestClosePositionsHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string

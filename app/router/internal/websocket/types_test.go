@@ -384,6 +384,53 @@ func TestOrderUpdateEvent(t *testing.T) {
 	})
 }
 
+func TestFuturesOrderTradeUpdateEvent(t *testing.T) {
+	t.Run("unmarshals futures ORDER_TRADE_UPDATE correctly", func(t *testing.T) {
+		jsonData := `{
+			"e":"ORDER_TRADE_UPDATE",
+			"E":1499404630606,
+			"T":1499404630607,
+			"o":{
+				"s":"BTCUSDT",
+				"c":"my-futures-order",
+				"S":"SELL",
+				"o":"LIMIT",
+				"f":"GTC",
+				"q":"0.001",
+				"p":"50000",
+				"ap":"49990",
+				"sp":"0",
+				"x":"TRADE",
+				"X":"FILLED",
+				"i":123,
+				"l":"0.001",
+				"z":"0.001",
+				"L":"49990",
+				"n":"0.04",
+				"N":"USDT",
+				"t":777,
+				"rp":"-1.23",
+				"m":true
+			}
+		}`
+
+		var event FuturesOrderTradeUpdateEvent
+		err := json.Unmarshal([]byte(jsonData), &event)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "ORDER_TRADE_UPDATE", event.EventType)
+		assert.Equal(t, int64(1499404630606), event.EventTime)
+		assert.Equal(t, int64(1499404630607), event.TransactionTime)
+		assert.Equal(t, "BTCUSDT", event.OrderTradeUpdate.Symbol)
+		assert.Equal(t, "my-futures-order", event.OrderTradeUpdate.ClientOrderID)
+		assert.Equal(t, int64(777), event.OrderTradeUpdate.TradeID)
+		assert.Equal(t, "FILLED", event.OrderTradeUpdate.OrderStatus)
+		assert.True(t, decimal.RequireFromString("49990").Equal(event.OrderTradeUpdate.AvgPrice))
+		assert.True(t, decimal.RequireFromString("-1.23").Equal(event.OrderTradeUpdate.RealizedProfit))
+		assert.True(t, event.OrderTradeUpdate.IsMaker)
+	})
+}
+
 func TestConnectionState(t *testing.T) {
 	t.Run("string representation is correct", func(t *testing.T) {
 		testCases := []struct {
@@ -461,6 +508,12 @@ func (m *mockUserStreamHandler) HandleAccountUpdate(event *AccountUpdateEvent) e
 }
 
 func (m *mockUserStreamHandler) HandleOrderUpdate(event *OrderUpdateEvent) error {
+	return nil
+}
+
+func (m *mockUserStreamHandler) HandleFuturesOrderTradeUpdate(
+	event *FuturesOrderTradeUpdateEvent,
+) error {
 	return nil
 }
 

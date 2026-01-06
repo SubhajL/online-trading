@@ -69,6 +69,7 @@ func WithReconnectIntervalClient(interval time.Duration) ClientOption {
 type UserDataHandler struct {
 	OnAccountUpdate    func(*AccountUpdateEvent) error
 	OnOrderUpdate      func(*OrderUpdateEvent) error
+	OnOrderTradeUpdate func(*FuturesOrderTradeUpdateEvent) error
 	OnListenKeyExpired func() error
 }
 
@@ -84,6 +85,13 @@ func (h *UserDataHandler) HandleAccountUpdate(event *AccountUpdateEvent) error {
 func (h *UserDataHandler) HandleOrderUpdate(event *OrderUpdateEvent) error {
 	if h.OnOrderUpdate != nil {
 		return h.OnOrderUpdate(event)
+	}
+	return nil
+}
+
+func (h *UserDataHandler) HandleFuturesOrderTradeUpdate(event *FuturesOrderTradeUpdateEvent) error {
+	if h.OnOrderTradeUpdate != nil {
+		return h.OnOrderTradeUpdate(event)
 	}
 	return nil
 }
@@ -385,6 +393,19 @@ func (h *clientUserStreamHandler) HandleOrderUpdate(event *OrderUpdateEvent) err
 
 	if exists && handler != nil {
 		return handler.HandleOrderUpdate(event)
+	}
+	return nil
+}
+
+func (h *clientUserStreamHandler) HandleFuturesOrderTradeUpdate(
+	event *FuturesOrderTradeUpdateEvent,
+) error {
+	h.client.handlersMu.RLock()
+	handler, exists := h.client.userHandlers[h.listenKey]
+	h.client.handlersMu.RUnlock()
+
+	if exists && handler != nil {
+		return handler.HandleFuturesOrderTradeUpdate(event)
 	}
 	return nil
 }

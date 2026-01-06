@@ -17,6 +17,11 @@ from app.engine.ingest.binance_ws import (
 )
 
 
+@pytest.fixture
+def client() -> BinanceWebSocketClient:
+    return BinanceWebSocketClient(event_bus=MagicMock())
+
+
 class TestBuildCombinedStreamUrl:
     """Tests for WebSocket URL construction"""
 
@@ -223,6 +228,35 @@ class TestHandleMessageRouting:
         assert call_args["e"] == "kline"
         assert call_args["k"]["s"] == "BTCUSDT"
         assert call_args["k"]["i"] == "5m"
+
+
+class TestWatchdog:
+    @pytest.mark.asyncio
+    async def test_ws_watchdog_forces_reconnect_when_stale(self) -> None:
+        """Stale connection triggers forced reconnect (close)."""
+        from app.engine.ingest import binance_ws
+
+        client = BinanceWebSocketClient(event_bus=MagicMock())
+        websocket = MagicMock()
+        websocket.state = WebSocketState.OPEN
+        websocket.close = AsyncMock(return_value=None)
+        client._websocket = websocket
+
+        now = datetime.now(UTC)
+        client._running = True
+        client._last_message_at = now - timedelta(seconds=client._stale_threshold_seconds + 1)
+
+        async def fake_sleep(_seconds: float) -> None:
+            client._running = False
+
+        binance_ws_asyncio_sleep = binance_ws.asyncio.sleep
+        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[method-assign]
+        try:
+            await client._watchdog_loop()
+        finally:
+            binance_ws.asyncio.sleep = binance_ws_asyncio_sleep  # type: ignore[method-assign]
+
+        websocket.close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_routes_combined_stream_ticker_to_handler(
