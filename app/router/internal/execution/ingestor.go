@@ -34,6 +34,10 @@ type Ingestor struct {
 	listenKey string
 	cancel    context.CancelFunc
 	done      chan struct{}
+
+	// restartMu and restartActive ensure only one restart runs at a time
+	restartMu     sync.Mutex
+	restartActive bool
 }
 
 type IngestorOption func(*Ingestor)
@@ -141,7 +145,7 @@ func (i *Ingestor) startWithNewListenKey(ctx context.Context) error {
 		},
 		OnListenKeyExpired: func() error {
 			go func() {
-				if err := i.restart(ctx); err != nil {
+				if err := i.restartSerialized(ctx); err != nil {
 					i.logger.Error().Err(err).Msg("listen key restart failed")
 				}
 			}()
@@ -160,6 +164,27 @@ func (i *Ingestor) startWithNewListenKey(ctx context.Context) error {
 
 	i.logger.Info().Str("listen_key", listenKey).Msg("user data stream subscribed")
 	return nil
+}
+
+// restartSerialized ensures only one restart runs at a time.
+// If a restart is already in progress, additional calls return immediately.
+func (i *Ingestor) restartSerialized(ctx context.Context) error {
+	i.restartMu.Lock()
+	if i.restartActive {
+		i.restartMu.Unlock()
+		i.logger.Debug().Msg("restart already in progress, skipping")
+		return nil
+	}
+	i.restartActive = true
+	i.restartMu.Unlock()
+
+	defer func() {
+		i.restartMu.Lock()
+		i.restartActive = false
+		i.restartMu.Unlock()
+	}()
+
+	return i.restart(ctx)
 }
 
 func (i *Ingestor) restart(ctx context.Context) error {

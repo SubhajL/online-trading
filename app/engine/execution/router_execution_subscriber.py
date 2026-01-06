@@ -1,16 +1,45 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, datetime
+from decimal import Decimal
 import enum
 import hashlib
+import logging
 from typing import TYPE_CHECKING, Any, Protocol
 
-from app.engine.models import EventType, TradingDecisionEvent
+from app.engine.models import BaseEvent, ErrorEvent, EventType, TradingDecisionEvent
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from decimal import Decimal
+
+
+logger = logging.getLogger(__name__)
+
+
+def _sanitize_value_for_json(value: Any) -> Any:
+    """Recursively convert non-JSON-serializable values to JSON-safe forms.
+
+    Converts:
+    - Decimal -> str (preserves precision)
+    - datetime -> ISO 8601 string (assumes UTC if naive)
+    - dict -> recursively sanitized dict
+    - list -> recursively sanitized list
+    - Other types pass through unchanged
+    """
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: _sanitize_value_for_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_value_for_json(v) for v in value]
+    return value
 
 
 class ExecutionMode(str, enum.Enum):
@@ -44,6 +73,48 @@ class _EventBus(Protocol):
     ) -> str: ...
 
     async def unsubscribe(self, subscription_id: str) -> bool: ...
+
+    async def publish(self, event: BaseEvent, priority: int = 0) -> bool: ...
+
+
+def _check_router_response(response: dict[str, Any]) -> tuple[bool, str | None]:
+    """Check if router response indicates success.
+
+    Returns:
+        Tuple of (is_success, error_message). error_message is None if successful.
+    """
+    if response.get("success") is False:
+        error_msg = response.get("error", "Unknown router error")
+        return False, str(error_msg)
+    return True, None
+
+
+async def _emit_execution_error(
+    bus: _EventBus,
+    event: TradingDecisionEvent,
+    error_message: str,
+    error_type: str,
+) -> None:
+    """Emit an ErrorEvent for execution failures."""
+    decision = event.decision
+    error_event = ErrorEvent(
+        event_type=EventType.ERROR,
+        timestamp=datetime.now(UTC),
+        symbol=decision.symbol,
+        timeframe=event.timeframe,
+        error_type=error_type,
+        error_message=error_message,
+        component="router_execution_subscriber",
+        metadata={
+            "decision_id": str(decision.decision_id),
+            "signal_id": event.metadata.get("signal_id"),
+            "action": str(decision.action),
+        },
+    )
+    try:
+        await bus.publish(error_event)
+    except Exception:
+        logger.exception("Failed to publish execution error event")
 
 
 class _RouterClient(Protocol):
@@ -137,6 +208,17 @@ class RouterExecutionSubscriber:
             tp_count=len(tp_prices),
         )
 
+        # Sanitize metadata to ensure JSON serialization works
+        raw_metadata = {
+            "signal_id": signal_id if isinstance(signal_id, str) else None,
+            "timeframe": timeframe,
+            "zone": zone if isinstance(zone, dict) else None,
+            "decision_time": decision.timestamp.replace(tzinfo=UTC).isoformat()
+            if decision.timestamp.tzinfo is None
+            else decision.timestamp.isoformat(),
+        }
+        sanitized_metadata = _sanitize_value_for_json(raw_metadata)
+
         payload: dict[str, Any] = {
             "symbol": decision.symbol,
             "side": action,
@@ -146,14 +228,7 @@ class RouterExecutionSubscriber:
             "stop_loss_price": _maybe_decimal_to_str(stop_loss),
             "order_type": "LIMIT",
             "is_futures": is_futures,
-            "metadata": {
-                "signal_id": signal_id if isinstance(signal_id, str) else None,
-                "timeframe": timeframe,
-                "zone": zone if isinstance(zone, dict) else None,
-                "decision_time": decision.timestamp.replace(tzinfo=UTC).isoformat()
-                if decision.timestamp.tzinfo is None
-                else decision.timestamp.isoformat(),
-            },
+            "metadata": sanitized_metadata,
             "client_order_ids": {
                 "main": client_ids.main,
                 "take_profits": client_ids.take_profits,
@@ -161,4 +236,23 @@ class RouterExecutionSubscriber:
             },
         }
 
-        await self._router_client.place_bracket_order(payload)
+        try:
+            response = await self._router_client.place_bracket_order(payload)
+            success, error_msg = _check_router_response(response)
+            if not success:
+                logger.error(
+                    "Router returned error for %s %s: %s",
+                    action,
+                    decision.symbol,
+                    error_msg,
+                )
+                await _emit_execution_error(
+                    self._bus, event, error_msg or "Unknown router error", "router_error",
+                )
+        except Exception as exc:
+            logger.exception(
+                "Exception placing bracket order for %s %s",
+                action,
+                decision.symbol,
+            )
+            await _emit_execution_error(self._bus, event, str(exc), "router_exception")

@@ -136,59 +136,41 @@ func (r *PositionRepo) UpsertActive(ctx context.Context, tx pgx.Tx, upsert Activ
 		return fmt.Errorf("current_price must be positive")
 	}
 
-	// Try update first (active unique index exists in real schema).
-	cmd, err := tx.Exec(
-		ctx,
-		`UPDATE positions
-		    SET side = $1,
-		        size = $2,
-		        entry_price = $3,
-		        current_price = $4,
-		        unrealized_pnl = $5,
-		        realized_pnl = $6,
-		        commission_paid = $7,
-		        funding_paid = $8,
-		        slippage_paid = $9,
-		        updated_at = $10
-		  WHERE venue = $11 AND symbol = $12 AND is_active = TRUE`,
-		upsert.Side,
-		upsert.Size,
-		upsert.EntryPrice,
-		upsert.CurrentPrice,
-		_unrealizedPnL(upsert.Side, upsert.EntryPrice, upsert.CurrentPrice, upsert.Size),
-		upsert.RealizedPnL,
-		upsert.CommissionPaid,
-		upsert.FundingPaid,
-		upsert.SlippagePaid,
-		upsert.UpdatedAt,
-		upsert.Venue,
-		upsert.Symbol,
-	)
-	if err != nil {
-		return fmt.Errorf("update active position: %w", err)
-	}
-	if cmd.RowsAffected() > 0 {
-		return nil
-	}
+	unrealizedPnL := _unrealizedPnL(upsert.Side, upsert.EntryPrice, upsert.CurrentPrice, upsert.Size)
 
-	_, err = tx.Exec(
+	// Use INSERT ... ON CONFLICT for atomic upsert (concurrency-safe).
+	// The partial unique index uq_positions_active on (venue, symbol) WHERE is_active = TRUE
+	// ensures only one active position per venue/symbol.
+	_, err := tx.Exec(
 		ctx,
 		`INSERT INTO positions (
 			venue, symbol, side, size, entry_price, current_price, unrealized_pnl, realized_pnl,
 			margin_used, leverage, opened_at, updated_at, is_active,
 			commission_paid, funding_paid, slippage_paid
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,
+			$1, $2, $3, $4, $5, $6, $7, $8,
 			0, 1, $9, $10, TRUE,
-			$11,$12,$13
-		)`,
+			$11, $12, $13
+		)
+		ON CONFLICT (venue, symbol) WHERE is_active = TRUE
+		DO UPDATE SET
+			side = EXCLUDED.side,
+			size = EXCLUDED.size,
+			entry_price = EXCLUDED.entry_price,
+			current_price = EXCLUDED.current_price,
+			unrealized_pnl = EXCLUDED.unrealized_pnl,
+			realized_pnl = EXCLUDED.realized_pnl,
+			commission_paid = EXCLUDED.commission_paid,
+			funding_paid = EXCLUDED.funding_paid,
+			slippage_paid = EXCLUDED.slippage_paid,
+			updated_at = EXCLUDED.updated_at`,
 		upsert.Venue,
 		upsert.Symbol,
 		upsert.Side,
 		upsert.Size,
 		upsert.EntryPrice,
 		upsert.CurrentPrice,
-		_unrealizedPnL(upsert.Side, upsert.EntryPrice, upsert.CurrentPrice, upsert.Size),
+		unrealizedPnL,
 		upsert.RealizedPnL,
 		upsert.OpenedAt,
 		upsert.UpdatedAt,
@@ -197,7 +179,7 @@ func (r *PositionRepo) UpsertActive(ctx context.Context, tx pgx.Tx, upsert Activ
 		upsert.SlippagePaid,
 	)
 	if err != nil {
-		return fmt.Errorf("insert active position: %w", err)
+		return fmt.Errorf("upsert active position: %w", err)
 	}
 	return nil
 }

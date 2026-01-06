@@ -304,21 +304,18 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	m.mu.Unlock()
 
 	// Emit order update
-	if m.eventEmitter != nil {
-		update := &OrderUpdate{
-			EventType:     "order_update.v1",
-			Symbol:        req.Symbol,
-			ClientOrderID: bracket.ClientOrderIDs.Main,
-			Status:        "NEW",
-			Side:          req.Side,
-			OrderType:     req.OrderType,
-			Price:         req.EntryPrice,
-			Quantity:      req.Quantity,
-			ExecutedQty:   decimal.Zero,
-			UpdateTime:    time.Now(),
-		}
-		_ = m.eventEmitter.EmitOrderUpdate(ctx, update)
-	}
+	m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
+		EventType:     "order_update.v1",
+		Symbol:        req.Symbol,
+		ClientOrderID: bracket.ClientOrderIDs.Main,
+		Status:        "NEW",
+		Side:          req.Side,
+		OrderType:     req.OrderType,
+		Price:         req.EntryPrice,
+		Quantity:      req.Quantity,
+		ExecutedQty:   decimal.Zero,
+		UpdateTime:    time.Now(),
+	})
 
 	return response, nil
 }
@@ -353,22 +350,19 @@ func (m *Manager) ReconcileOrder(ctx context.Context, clientOrderID string) erro
 	for _, order := range orders {
 		if order.ClientOrderID == clientOrderID {
 			// Emit update if status changed
-			if m.eventEmitter != nil {
-				update := &OrderUpdate{
-					EventType:     "order_update.v1",
-					Symbol:        order.Symbol,
-					OrderID:       order.OrderID,
-					ClientOrderID: order.ClientOrderID,
-					Status:        order.Status,
-					Side:          order.Side,
-					OrderType:     order.Type,
-					Price:         order.Price,
-					Quantity:      order.OrigQty,
-					ExecutedQty:   order.ExecutedQty,
-					UpdateTime:    time.Now(),
-				}
-				_ = m.eventEmitter.EmitOrderUpdate(ctx, update)
-			}
+			m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
+				EventType:     "order_update.v1",
+				Symbol:        order.Symbol,
+				OrderID:       order.OrderID,
+				ClientOrderID: order.ClientOrderID,
+				Status:        order.Status,
+				Side:          order.Side,
+				OrderType:     order.Type,
+				Price:         order.Price,
+				Quantity:      order.OrigQty,
+				ExecutedQty:   order.ExecutedQty,
+				UpdateTime:    time.Now(),
+			})
 			break
 		}
 	}
@@ -395,9 +389,9 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 		return fmt.Errorf("order ID is required")
 	}
 
-	if err == nil && m.eventEmitter != nil {
+	if err == nil {
 		// Emit cancellation event
-		update := &OrderUpdate{
+		m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
 			EventType:     "order_update.v1",
 			Symbol:        req.Symbol,
 			OrderID:       req.OrderID,
@@ -405,8 +399,7 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 			Status:        "CANCELED",
 			UpdateTime:    time.Now(),
 			Reason:        "User requested cancellation",
-		}
-		_ = m.eventEmitter.EmitOrderUpdate(ctx, update)
+		})
 	}
 
 	return err
@@ -486,4 +479,21 @@ func (m *Manager) validateBracketRequest(req *PlaceBracketRequest) error {
 // generateClientOrderID generates a unique client order ID
 func (m *Manager) generateClientOrderID(bracketID, orderType string) string {
 	return fmt.Sprintf("%s_%s_%d", bracketID[:8], orderType, time.Now().UnixNano())
+}
+
+// emitOrderUpdateWithLogging emits an order update and logs any errors.
+// This ensures event emission failures are observable while not failing the order operation.
+func (m *Manager) emitOrderUpdateWithLogging(ctx context.Context, update *OrderUpdate) {
+	if m.eventEmitter == nil || update == nil {
+		return
+	}
+	if err := m.eventEmitter.EmitOrderUpdate(ctx, update); err != nil {
+		m.logger.Error().
+			Err(err).
+			Str("symbol", update.Symbol).
+			Str("client_order_id", update.ClientOrderID).
+			Str("event_type", update.EventType).
+			Str("status", update.Status).
+			Msg("failed to emit order update event")
+	}
 }
