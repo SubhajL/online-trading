@@ -46,9 +46,9 @@ type OrderTimingPatch struct {
 
 // ExecutionQuality represents aggregated execution quality metrics
 type ExecutionQuality struct {
-	TotalOrders int     `json:"total_orders"`
-	FilledOrders int    `json:"filled_orders"`
-	FillRate    float64 `json:"fill_rate"`
+	TotalOrders  int     `json:"total_orders"`
+	FilledOrders int     `json:"filled_orders"`
+	FillRate     float64 `json:"fill_rate"`
 
 	// Latency percentiles (ms)
 	EngineToRouterP50   float64 `json:"engine_to_router_p50_ms"`

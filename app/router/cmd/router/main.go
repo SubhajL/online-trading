@@ -178,6 +178,8 @@ func main() {
 	mux.HandleFunc("/readyz", handlers.ReadyzHandler)
 	if dbPool != nil {
 		mux.HandleFunc("/stats", api.NewStatsHandler(api.NewPostgresStatsProvider(dbPool), logger))
+		executionQualityHandler := api.NewExecutionQualityHandler(dbPool, logger.With().Str("component", "execution_quality").Logger())
+		mux.HandleFunc("/internal/stats/execution-quality", executionQualityHandler.GetExecutionQuality)
 	}
 
 	// Create server

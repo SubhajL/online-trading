@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -18,12 +19,23 @@ type mockListenKeyClient struct {
 	keptAlive      []string
 	deleted        []string
 	nextListenKeys []string
+	createDelay    time.Duration // Optional delay to simulate network latency
 }
 
 func (m *mockListenKeyClient) CreateFuturesListenKey(ctx context.Context) (string, error) {
-	_ = ctx
+	// Simulate network delay if configured (helps test serialization)
+	if m.createDelay > 0 {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(m.createDelay):
+		}
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if len(m.nextListenKeys) == 0 {
+		return "", fmt.Errorf("no more listen keys available in mock")
+	}
 	key := m.nextListenKeys[0]
 	m.nextListenKeys = m.nextListenKeys[1:]
 	m.created = append(m.created, key)
@@ -101,7 +113,11 @@ func TestIngestor_RestartsOnListenKeyExpired(t *testing.T) {
 
 func TestIngestor_RestartSerialized_OnlyOneExecutes(t *testing.T) {
 	// Setup with enough listen keys for multiple restarts
-	lk := &mockListenKeyClient{nextListenKeys: []string{"lk-1", "lk-2", "lk-3", "lk-4", "lk-5", "lk-6"}}
+	// Use createDelay to simulate network latency, making serialization testable
+	lk := &mockListenKeyClient{
+		nextListenKeys: []string{"lk-1", "lk-2", "lk-3", "lk-4", "lk-5", "lk-6"},
+		createDelay:    20 * time.Millisecond, // Small delay to allow serialization to kick in
+	}
 	sub := &mockSubscriber{}
 	logger := zerolog.Nop()
 
@@ -128,18 +144,21 @@ func TestIngestor_RestartSerialized_OnlyOneExecutes(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Give time for any restarts to complete
-	time.Sleep(100 * time.Millisecond)
+	// Give time for any restarts to complete (increased for delay)
+	time.Sleep(200 * time.Millisecond)
 
 	// Serialization ensures concurrent restarts don't all execute.
-	// We expect significantly fewer restarts than signals (5).
-	// Due to goroutine timing, we may get 1-3 restarts, but not 5.
+	// With the delay, we expect 1-2 restarts at most (initial + 1 restart).
+	// The first handler call starts a restart, and while it's in progress
+	// (due to createDelay), other calls should be rejected.
 	lk.mu.Lock()
 	createdCount := len(lk.created)
 	lk.mu.Unlock()
 
-	require.Less(t, createdCount, 5,
-		"serialization should prevent all 5 concurrent signals from restarting")
+	// Initial Start() creates lk-1, then at most 1-2 restarts should happen
+	// due to serialization (total <= 3)
+	require.LessOrEqual(t, createdCount, 3,
+		"serialization should prevent all 5 concurrent signals from restarting; got %d restarts", createdCount)
 }
 
 func TestIngestor_RestartSerialized_AllowsSubsequentRestart(t *testing.T) {
