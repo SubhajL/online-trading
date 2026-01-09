@@ -470,6 +470,7 @@ class IngestService:
                         symbol=symbol,
                         timeframe=timeframe,
                         candle=candle,
+                        origin=CandleOrigin.GAP_FILL,
                     )
                     event.metadata["is_gap_fill"] = True
                     await self._event_bus.publish(event)

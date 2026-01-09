@@ -92,7 +92,7 @@ func TestBinanceConnectionTimeout(t *testing.T) {
 	defer cancel()
 
 	// Delay the mock response to trigger timeout
-	mockClient.On("Ping", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+	mockClient.On("Ping", mock.Anything).Return(context.DeadlineExceeded).Run(func(args mock.Arguments) {
 		time.Sleep(10 * time.Millisecond)
 	})
 
@@ -130,6 +130,7 @@ func TestRedisCacheHighLatency(t *testing.T) {
 	mockRedis.On("Ping", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 		time.Sleep(100 * time.Millisecond)
 	})
+	mockRedis.On("Info", mock.Anything, "memory").Return("", nil)
 
 	ctx := context.Background()
 	status := checker.CheckRedisCache(ctx, mockRedis)

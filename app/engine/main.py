@@ -119,6 +119,22 @@ app.add_middleware(
 # Track startup time
 startup_time = datetime.now(UTC)
 
+def _binance_data_testnet_from_env() -> bool:
+    data_source = os.getenv("BINANCE_DATA_SOURCE", "mainnet").strip().lower()
+    if data_source == "mainnet":
+        return False
+    if data_source == "testnet":
+        return True
+    raise ValueError("BINANCE_DATA_SOURCE must be 'mainnet' or 'testnet'")
+
+def _pipeline_health_alerts_enabled_from_env() -> bool:
+    value = os.getenv("PIPELINE_HEALTH_ALERTS_ENABLED", "1").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+def _live_rest_fallback_enabled_from_env() -> bool:
+    value = os.getenv("LIVE_REST_FALLBACK_ENABLED", "1").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
 
 def init_tracing_from_env() -> None:
     """Initialize global tracing provider from environment.
@@ -133,6 +149,8 @@ def init_tracing_from_env() -> None:
 def load_configuration() -> EngineConfig:
     """Load configuration from environment and config files"""
     try:
+        binance_data_testnet = _binance_data_testnet_from_env()
+
         # Default configuration - in production, load from environment/config files
         database_config = DatabaseConfig(
             host=os.getenv("DB_HOST", "localhost"),
@@ -165,7 +183,7 @@ def load_configuration() -> EngineConfig:
         binance_config = BinanceConfig(
             api_key=os.getenv("BINANCE_API_KEY", ""),
             api_secret=os.getenv("BINANCE_API_SECRET", ""),
-            testnet=os.getenv("BINANCE_DATA_TESTNET", "false").lower() == "true",
+            testnet=binance_data_testnet,
         )
 
         risk_parameters = RiskParameters(
@@ -283,6 +301,27 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915
         )
         services["ingest"] = ingest_service
 
+        if _pipeline_health_alerts_enabled_from_env():
+            from .monitoring.pipeline_health_service import PipelineHealthService
+
+            services["pipeline_health"] = PipelineHealthService(
+                bus=event_bus,
+                ingest_service=ingest_service,
+            )
+
+        if _live_rest_fallback_enabled_from_env():
+            from .ingest.live_rest_fallback import LiveRestFallbackService
+
+            if ingest_service.rest_client is not None and ingest_service.ws_client is not None:
+                services["live_rest_fallback"] = LiveRestFallbackService(
+                    bus=event_bus,
+                    rest_client=ingest_service.rest_client,
+                    ws_client=ingest_service.ws_client,
+                    ingest_service=ingest_service,
+                    symbols=symbols,
+                    timeframes=timeframes,
+                )
+
         # Initialize feature service
         feature_service = FeatureService()
         services["features"] = feature_service
@@ -359,6 +398,14 @@ async def start_services() -> None:
         await services["smc"].start()
         await services["decision"].start()
 
+        if "pipeline_health" in services:
+            await services["pipeline_health"].start()
+            logger.info("Started pipeline_health")
+
+        if "live_rest_fallback" in services:
+            await services["live_rest_fallback"].start()
+            logger.info("Started live_rest_fallback")
+
         if "execution_subscriber" in services:
             await services["execution_subscriber"].start()
             logger.info("Started execution_subscriber")
@@ -378,7 +425,7 @@ async def start_services() -> None:
         raise
 
 
-async def shutdown_services() -> None:  # noqa: C901, PLR0912
+async def shutdown_services() -> None:  # noqa: C901, PLR0912, PLR0915
     """Shutdown all services"""
     try:
         if "execution_subscriber" in services:
@@ -387,6 +434,20 @@ async def shutdown_services() -> None:  # noqa: C901, PLR0912
                 logger.info("Stopped execution_subscriber")
             except Exception as e:
                 logger.error(f"Error stopping execution_subscriber: {e}")
+
+        if "pipeline_health" in services:
+            try:
+                await services["pipeline_health"].stop()
+                logger.info("Stopped pipeline_health")
+            except Exception as e:
+                logger.error(f"Error stopping pipeline_health: {e}")
+
+        if "live_rest_fallback" in services:
+            try:
+                await services["live_rest_fallback"].stop()
+                logger.info("Stopped live_rest_fallback")
+            except Exception as e:
+                logger.error(f"Error stopping live_rest_fallback: {e}")
 
         # Stop signal emitter subscriber first (to stop receiving events)
         if "signal_emitter_subscriber" in services:

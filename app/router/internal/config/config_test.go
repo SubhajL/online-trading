@@ -74,7 +74,7 @@ func TestConfig_ValidateOptionalKeys(t *testing.T) {
 
 		_, err := Load()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "BINANCE_SPOT_API_KEY is required for spot trading")
+		assert.Contains(t, err.Error(), "BINANCE_SPOT_API_KEY or BINANCE_API_KEY is required for spot trading")
 	})
 
 	t.Run("validates error when futures keys missing for futures mode", func(t *testing.T) {
@@ -111,5 +111,57 @@ func TestBinanceConfig_TradingModes(t *testing.T) {
 		config := &BinanceConfig{TradingMode: ""}
 		assert.True(t, config.IsSpotEnabled())
 		assert.True(t, config.IsFuturesEnabled())
+	})
+}
+
+func TestBinanceConfig_ExecutionEnv(t *testing.T) {
+	t.Run("defaults to testnet for safety", func(t *testing.T) {
+		os.Unsetenv("ROUTER_EXECUTION_ENV")
+		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		os.Setenv("TRADING_MODE", "spot")
+		defer func() {
+			os.Unsetenv("BINANCE_SPOT_API_KEY")
+			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
+			os.Unsetenv("TRADING_MODE")
+		}()
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.True(t, cfg.Binance.Testnet)
+	})
+
+	t.Run("mainnet execution env disables testnet URLs", func(t *testing.T) {
+		os.Setenv("ROUTER_EXECUTION_ENV", "mainnet")
+		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		os.Setenv("TRADING_MODE", "spot")
+		defer func() {
+			os.Unsetenv("ROUTER_EXECUTION_ENV")
+			os.Unsetenv("BINANCE_SPOT_API_KEY")
+			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
+			os.Unsetenv("TRADING_MODE")
+		}()
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.False(t, cfg.Binance.Testnet)
+	})
+
+	t.Run("invalid execution env returns validation error", func(t *testing.T) {
+		os.Setenv("ROUTER_EXECUTION_ENV", "banana")
+		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		os.Setenv("TRADING_MODE", "spot")
+		defer func() {
+			os.Unsetenv("ROUTER_EXECUTION_ENV")
+			os.Unsetenv("BINANCE_SPOT_API_KEY")
+			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
+			os.Unsetenv("TRADING_MODE")
+		}()
+
+		_, err := Load()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ROUTER_EXECUTION_ENV")
 	})
 }
