@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -69,7 +70,7 @@ func buildBracketOrderIntents(
 		venue = "futures"
 	}
 
-	signalID, timeframe, zone := extractProvenance(req.Metadata)
+	prov := extractProvenance(req.Metadata)
 
 	if resp.ClientOrderIDs.Main == "" || resp.ClientOrderIDs.StopLoss == "" {
 		return nil, fmt.Errorf("missing client order ids in response")
@@ -102,9 +103,11 @@ func buildBracketOrderIntents(
 		ReduceOnly:     false,
 		ClosePosition:  false,
 		RequestedPrice: req.EntryPrice,
-		SignalID:       signalID,
-		Timeframe:      timeframe,
-		Zone:           zone,
+		SignalID:       prov.signalID,
+		Timeframe:      prov.timeframe,
+		Zone:           prov.zone,
+		DecisionTs:     prov.decisionTs,
+		ExpectedPrice:  prov.expectedPrice,
 	})
 
 	tpCount := len(req.TakeProfitPrices)
@@ -124,9 +127,11 @@ func buildBracketOrderIntents(
 				ReduceOnly:     req.IsFutures,
 				ClosePosition:  false,
 				RequestedPrice: tpPrice,
-				SignalID:       signalID,
-				Timeframe:      timeframe,
-				Zone:           zone,
+				SignalID:       prov.signalID,
+				Timeframe:      prov.timeframe,
+				Zone:           prov.zone,
+				DecisionTs:     prov.decisionTs,
+				ExpectedPrice:  tpPrice, // TP uses its own price as expected
 			})
 		}
 	}
@@ -156,9 +161,11 @@ func buildBracketOrderIntents(
 		ReduceOnly:     reduceOnly,
 		ClosePosition:  closePosition,
 		RequestedPrice: req.StopLossPrice,
-		SignalID:       signalID,
-		Timeframe:      timeframe,
-		Zone:           zone,
+		SignalID:       prov.signalID,
+		Timeframe:      prov.timeframe,
+		Zone:           prov.zone,
+		DecisionTs:     prov.decisionTs,
+		ExpectedPrice:  req.StopLossPrice, // SL uses its own price as expected
 	})
 
 	return intents, nil
@@ -171,18 +178,40 @@ func oppositeSide(side string) string {
 	return "BUY"
 }
 
-func extractProvenance(metadata map[string]any) (string, string, map[string]any) {
+type provenanceData struct {
+	signalID      string
+	timeframe     string
+	zone          map[string]any
+	decisionTs    *time.Time
+	expectedPrice decimal.Decimal
+}
+
+func extractProvenance(metadata map[string]any) provenanceData {
 	if metadata == nil {
-		return "", "", nil
+		return provenanceData{}
 	}
 
-	signalID, _ := metadata["signal_id"].(string)
-	timeframe, _ := metadata["timeframe"].(string)
+	var result provenanceData
+	result.signalID, _ = metadata["signal_id"].(string)
+	result.timeframe, _ = metadata["timeframe"].(string)
 
-	var zone map[string]any
 	if rawZone, ok := metadata["zone"].(map[string]any); ok {
-		zone = rawZone
+		result.zone = rawZone
 	}
 
-	return signalID, timeframe, zone
+	// Extract decision_ts for execution quality tracking
+	if decisionTsStr, ok := metadata["decision_ts"].(string); ok && decisionTsStr != "" {
+		if ts, err := time.Parse(time.RFC3339, decisionTsStr); err == nil {
+			result.decisionTs = &ts
+		}
+	}
+
+	// Extract expected_price for slippage calculation
+	if priceStr, ok := metadata["expected_price"].(string); ok && priceStr != "" {
+		if d, err := decimal.NewFromString(priceStr); err == nil {
+			result.expectedPrice = d
+		}
+	}
+
+	return result
 }

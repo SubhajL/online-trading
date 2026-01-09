@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -95,7 +95,7 @@ class TestResolveVenueForSignal:
 class TestFilterCandidatesByVenue:
     @pytest.fixture
     def sample_candidates(self) -> list[InternalSignalCandidate]:
-        ts = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        ts = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         return [
             InternalSignalCandidate(
                 kind="trading_decision",
@@ -104,7 +104,7 @@ class TestFilterCandidatesByVenue:
                 symbol="BTCUSDT",
                 timeframe="15m",
                 direction="BUY",
-                entry_price=Decimal("50000"),
+                entry_price=Decimal(50000),
                 venue="spot",
             ),
             InternalSignalCandidate(
@@ -114,7 +114,7 @@ class TestFilterCandidatesByVenue:
                 symbol="BTCUSDT",
                 timeframe="15m",
                 direction="BUY",
-                entry_price=Decimal("50100"),
+                entry_price=Decimal(50100),
                 venue="usdm",
             ),
             InternalSignalCandidate(
@@ -124,13 +124,13 @@ class TestFilterCandidatesByVenue:
                 symbol="BTCUSDT",
                 timeframe="15m",
                 direction="BUY",
-                entry_price=Decimal("50050"),
+                entry_price=Decimal(50050),
                 venue="spot",
             ),
         ]
 
     def test_filters_correctly_for_spot(
-        self, sample_candidates: list[InternalSignalCandidate]
+        self, sample_candidates: list[InternalSignalCandidate],
     ) -> None:
         result = filter_candidates_by_venue(sample_candidates, "spot")
 
@@ -139,7 +139,7 @@ class TestFilterCandidatesByVenue:
         assert {c.id for c in result} == {"td-001", "smc-001"}
 
     def test_filters_correctly_for_usdm(
-        self, sample_candidates: list[InternalSignalCandidate]
+        self, sample_candidates: list[InternalSignalCandidate],
     ) -> None:
         result = filter_candidates_by_venue(sample_candidates, "usdm")
 
@@ -148,7 +148,7 @@ class TestFilterCandidatesByVenue:
         assert result[0].venue == "usdm"
 
     def test_returns_all_when_venue_is_none(
-        self, sample_candidates: list[InternalSignalCandidate]
+        self, sample_candidates: list[InternalSignalCandidate],
     ) -> None:
         result = filter_candidates_by_venue(sample_candidates, None)
 
@@ -156,7 +156,7 @@ class TestFilterCandidatesByVenue:
         assert result == sample_candidates
 
     def test_returns_empty_when_no_matches(
-        self, sample_candidates: list[InternalSignalCandidate]
+        self, sample_candidates: list[InternalSignalCandidate],
     ) -> None:
         result = filter_candidates_by_venue(sample_candidates, "coinm")
 

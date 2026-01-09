@@ -28,6 +28,10 @@ type OrderIntent struct {
 	SignalID       string
 	Timeframe      string
 	Zone           map[string]any
+
+	// Execution quality timing fields
+	DecisionTs    *time.Time      // Timestamp when trading decision was made
+	ExpectedPrice decimal.Decimal // Expected fill price from decision
 }
 
 type OrderRecord struct {
@@ -89,16 +93,21 @@ func (r *OrderRepo) UpsertOrderIntent(ctx context.Context, tx pgx.Tx, intent Ord
 		zoneValue = string(zoneJSON)
 	}
 
+	// Set router_received_ts to now() for execution quality tracking
+	routerReceivedTs := time.Now()
+
 	row := tx.QueryRow(
 		ctx,
 		`INSERT INTO orders (
 			client_order_id, venue, symbol, side, type, quantity, price, stop_price, time_in_force,
 			status, filled_quantity, created_at, reduce_only, close_position,
-			requested_price, signal_id, timeframe, zone
+			requested_price, signal_id, timeframe, zone,
+			decision_ts, expected_price, router_received_ts
 		) VALUES (
 			$1,$2,$3,$4,$5,$6, NULLIF($7,0), NULLIF($8,0), $9,
 			'NEW', 0, now(), $10, $11,
-			NULLIF($12,0), NULLIF($13,''), NULLIF($14,''), NULLIF($15,'')::jsonb
+			NULLIF($12,0), NULLIF($13,''), NULLIF($14,''), NULLIF($15,'')::jsonb,
+			$16, NULLIF($17,0), $18
 		)
 		ON CONFLICT (venue, client_order_id)
 		DO UPDATE SET
@@ -114,7 +123,10 @@ func (r *OrderRepo) UpsertOrderIntent(ctx context.Context, tx pgx.Tx, intent Ord
 			requested_price = EXCLUDED.requested_price,
 			signal_id = EXCLUDED.signal_id,
 			timeframe = EXCLUDED.timeframe,
-			zone = EXCLUDED.zone
+			zone = EXCLUDED.zone,
+			decision_ts = COALESCE(orders.decision_ts, EXCLUDED.decision_ts),
+			expected_price = COALESCE(orders.expected_price, EXCLUDED.expected_price),
+			router_received_ts = COALESCE(orders.router_received_ts, EXCLUDED.router_received_ts)
 		RETURNING order_id`,
 		intent.ClientOrderID,
 		intent.Venue,
@@ -131,6 +143,9 @@ func (r *OrderRepo) UpsertOrderIntent(ctx context.Context, tx pgx.Tx, intent Ord
 		intent.SignalID,
 		intent.Timeframe,
 		zoneValue,
+		intent.DecisionTs,
+		intent.ExpectedPrice,
+		routerReceivedTs,
 	)
 
 	var orderID uuid.UUID
@@ -264,4 +279,83 @@ func (r *OrderRepo) ApplyFillUpdate(
 	}
 
 	return &rec, true, nil
+}
+
+// OrderExecutionRow represents order data for execution quality analysis
+type OrderExecutionRow struct {
+	OrderID          uuid.UUID
+	Venue            string
+	Symbol           string
+	Side             string
+	Status           string
+	ExpectedPrice    decimal.Decimal
+	AverageFillPrice decimal.Decimal
+	DecisionTs       *time.Time
+	RouterReceivedTs *time.Time
+	RouterSentTs     *time.Time
+	ExchangeAckTs    *time.Time
+	FirstFillTs      *time.Time
+	FilledTs         *time.Time
+}
+
+// GetOrdersForExecutionQuality retrieves orders with timing data for execution quality analysis
+func (r *OrderRepo) GetOrdersForExecutionQuality(
+	ctx context.Context,
+	tx pgx.Tx,
+	venue string,
+	startTime time.Time,
+	endTime time.Time,
+	limit int,
+) ([]OrderExecutionRow, error) {
+	if limit <= 0 {
+		limit = 1000
+	}
+
+	query := `
+		SELECT order_id, venue, symbol, side, status,
+		       COALESCE(expected_price, 0), COALESCE(average_fill_price, 0),
+		       decision_ts, router_received_ts, router_sent_ts,
+		       exchange_ack_ts, first_fill_ts, filled_ts
+		FROM orders
+		WHERE ($1 = '' OR venue = $1)
+		  AND router_received_ts >= $2
+		  AND router_received_ts <= $3
+		ORDER BY router_received_ts DESC
+		LIMIT $4
+	`
+
+	rows, err := tx.Query(ctx, query, venue, startTime, endTime, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query orders for execution quality: %w", err)
+	}
+	defer rows.Close()
+
+	var result []OrderExecutionRow
+	for rows.Next() {
+		var rec OrderExecutionRow
+		if err := rows.Scan(
+			&rec.OrderID,
+			&rec.Venue,
+			&rec.Symbol,
+			&rec.Side,
+			&rec.Status,
+			&rec.ExpectedPrice,
+			&rec.AverageFillPrice,
+			&rec.DecisionTs,
+			&rec.RouterReceivedTs,
+			&rec.RouterSentTs,
+			&rec.ExchangeAckTs,
+			&rec.FirstFillTs,
+			&rec.FilledTs,
+		); err != nil {
+			return nil, fmt.Errorf("scan order row: %w", err)
+		}
+		result = append(result, rec)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate order rows: %w", err)
+	}
+
+	return result, nil
 }

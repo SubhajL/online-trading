@@ -7,8 +7,8 @@ Captain signals don't specify venue, so venue is resolved from config.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 _SOURCE_VENUE_PATTERN = re.compile(r"^BENCHMARK_SOURCE_([A-Z0-9_]+)_VENUE$")
 _SOURCE_SYMBOL_OVERRIDE_PATTERN = re.compile(
-    r"^BENCHMARK_SOURCE_([A-Z0-9_]+)_VENUE_([A-Z0-9]+)$"
+    r"^BENCHMARK_SOURCE_([A-Z0-9_]+)_VENUE_([A-Z0-9]+)$",
 )
 
 

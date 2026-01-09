@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+import os
 from typing import Any
 
 from .benchmark_matcher import (
@@ -19,6 +20,11 @@ from .validation_snapshot import (
     InternalMatchSnapshot,
     build_validation_snapshot,
     serialize_snapshot_payload,
+)
+from .venue_config import (
+    SourceVenueConfig,
+    load_source_venue_configs,
+    resolve_venue_for_signal,
 )
 
 
@@ -48,7 +54,7 @@ def _empty_score() -> ValidationScore:
     )
 
 
-async def validate_external_signals(
+async def validate_external_signals(  # noqa: PLR0913
     adapter: Any,
     *,
     source: str,
@@ -56,9 +62,27 @@ async def validate_external_signals(
     end_time: datetime,
     time_window_seconds: int,
     entry_tolerance: float,
+    venue_configs: dict[str, SourceVenueConfig] | None = None,
 ) -> None:
-    """Validate external signals vs internal candidates and persist validations."""
+    """Validate external signals vs internal candidates and persist validations.
+
+    Args:
+        adapter: Database adapter for querying signals and persisting validations.
+        source: Source identifier (e.g., "captain").
+        start_time: Start of validation window.
+        end_time: End of validation window.
+        time_window_seconds: Max time delta for matching.
+        entry_tolerance: Max price delta fraction for matching.
+        venue_configs: Optional venue configs loaded from env. If None, loads from os.environ.
+    """
     tolerance = Decimal(str(entry_tolerance))
+
+    # Load venue configs from environment if not provided
+    if venue_configs is None:
+        venue_configs = load_source_venue_configs(os.environ)
+
+    # Get venue config for this source
+    source_venue_config = venue_configs.get(source.lower())
     external_rows = await adapter.get_external_telegram_signals(
         source=source,
         start_time=start_time,
@@ -96,6 +120,12 @@ async def validate_external_signals(
             )
             continue
 
+        # Resolve venue for this signal based on source config
+        resolved_venue = resolve_venue_for_signal(
+            source_venue_config,
+            external.symbol,
+        )
+
         w0 = external.timestamp - timedelta(seconds=time_window_seconds)
         w1 = external.timestamp + timedelta(seconds=time_window_seconds)
 
@@ -119,6 +149,7 @@ async def validate_external_signals(
                     timeframe=None,
                     direction=direction,  # type: ignore[arg-type]
                     entry_price=_as_decimal(d.get("entry_price")),
+                    venue=d.get("venue"),  # May be None for legacy rows
                 ),
             )
 
@@ -144,6 +175,7 @@ async def validate_external_signals(
                         else None,
                         direction=direction,  # type: ignore[arg-type]
                         entry_price=_as_decimal(s.get("entry_price")),
+                        venue=s.get("venue"),  # SMC signals have venue
                     ),
                 )
 
@@ -152,6 +184,7 @@ async def validate_external_signals(
             candidates,
             time_window_seconds=time_window_seconds,
             entry_tolerance=tolerance,
+            venue=resolved_venue,
         )
 
         if best is None:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -22,16 +22,16 @@ class TestSelectBestCandidateWithVenueFilter:
             source="captain",
             chat_id=123,
             message_id=456,
-            timestamp=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
             symbol="BTCUSDT",
             timeframe="15m",
             direction="BUY",
-            entry_price=Decimal("50000"),
+            entry_price=Decimal(50000),
         )
 
     @pytest.fixture
     def mixed_venue_candidates(self) -> list[InternalSignalCandidate]:
-        ts = datetime(2025, 1, 1, 12, 0, 30, tzinfo=timezone.utc)
+        ts = datetime(2025, 1, 1, 12, 0, 30, tzinfo=UTC)
         return [
             InternalSignalCandidate(
                 kind="trading_decision",
@@ -40,7 +40,7 @@ class TestSelectBestCandidateWithVenueFilter:
                 symbol="BTCUSDT",
                 timeframe="15m",
                 direction="BUY",
-                entry_price=Decimal("50010"),
+                entry_price=Decimal(50010),
                 venue="spot",
             ),
             InternalSignalCandidate(
@@ -50,7 +50,7 @@ class TestSelectBestCandidateWithVenueFilter:
                 symbol="BTCUSDT",
                 timeframe="15m",
                 direction="BUY",
-                entry_price=Decimal("50005"),
+                entry_price=Decimal(50005),
                 venue="usdm",
             ),
             InternalSignalCandidate(
@@ -60,7 +60,7 @@ class TestSelectBestCandidateWithVenueFilter:
                 symbol="BTCUSDT",
                 timeframe="15m",
                 direction="BUY",
-                entry_price=Decimal("50020"),
+                entry_price=Decimal(50020),
                 venue="spot",
             ),
         ]
@@ -131,7 +131,7 @@ class TestSelectBestCandidateWithVenueFilter:
 
 class TestScoreMatchUnchangedByVenueFilter:
     def test_score_match_unchanged_by_venue_field(self) -> None:
-        ts = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        ts = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         external = ExternalSignal(
             source="captain",
             chat_id=123,
@@ -140,7 +140,7 @@ class TestScoreMatchUnchangedByVenueFilter:
             symbol="BTCUSDT",
             timeframe="15m",
             direction="BUY",
-            entry_price=Decimal("50000"),
+            entry_price=Decimal(50000),
         )
 
         candidate_no_venue = InternalSignalCandidate(
@@ -150,7 +150,7 @@ class TestScoreMatchUnchangedByVenueFilter:
             symbol="BTCUSDT",
             timeframe="15m",
             direction="BUY",
-            entry_price=Decimal("50000"),
+            entry_price=Decimal(50000),
             venue=None,
         )
 
@@ -161,7 +161,7 @@ class TestScoreMatchUnchangedByVenueFilter:
             symbol="BTCUSDT",
             timeframe="15m",
             direction="BUY",
-            entry_price=Decimal("50000"),
+            entry_price=Decimal(50000),
             venue="spot",
         )
 
