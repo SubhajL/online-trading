@@ -33,6 +33,7 @@ class InternalSignalCandidate:
     timeframe: str | None
     direction: Literal["BUY", "SELL"] | None
     entry_price: Decimal | None
+    venue: str | None = None
 
 
 @dataclass(frozen=True)
@@ -166,12 +167,16 @@ def select_best_candidate(
     *,
     time_window_seconds: int,
     entry_tolerance: Decimal,
+    venue: str | None = None,
 ) -> InternalSignalCandidate | None:
     best: InternalSignalCandidate | None = None
     best_score = -1.0
     best_delta = float("inf")
 
     for candidate in candidates:
+        if venue is not None and candidate.venue != venue:
+            continue
+
         if external.symbol and candidate.symbol != external.symbol:
             continue
 

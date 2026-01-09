@@ -44,6 +44,8 @@ def _sanitize_value_for_json(value: Any) -> Any:
 
 class ExecutionMode(str, enum.Enum):
     DISABLED = "disabled"
+    SPOT_TESTNET = "spot_testnet"
+    SPOT_MAINNET = "spot_mainnet"
     FUTURES_TESTNET = "futures_testnet"
     FUTURES_MAINNET = "futures_mainnet"
 
@@ -55,9 +57,11 @@ def execution_mode_from_env(environ: Mapping[str, str]) -> ExecutionMode:
     except ValueError as exc:
         raise RuntimeError(f"Unknown EXECUTION_MODE: {raw}") from exc
 
-    if mode == ExecutionMode.FUTURES_MAINNET and environ.get("I_UNDERSTAND_LIVE_TRADING") != "1":
+    # Require safety acknowledgment for mainnet trading (both spot and futures)
+    mainnet_modes = {ExecutionMode.SPOT_MAINNET, ExecutionMode.FUTURES_MAINNET}
+    if mode in mainnet_modes and environ.get("I_UNDERSTAND_LIVE_TRADING") != "1":
         raise RuntimeError(
-            "Refusing to enable futures_mainnet execution without I_UNDERSTAND_LIVE_TRADING=1",
+            f"Refusing to enable {mode.value} execution without I_UNDERSTAND_LIVE_TRADING=1",
         )
 
     return mode
@@ -219,6 +223,10 @@ class RouterExecutionSubscriber:
         }
         sanitized_metadata = _sanitize_value_for_json(raw_metadata)
 
+        decision_ts = decision.timestamp
+        if decision_ts.tzinfo is None:
+            decision_ts = decision_ts.replace(tzinfo=UTC)
+
         payload: dict[str, Any] = {
             "symbol": decision.symbol,
             "side": action,
@@ -228,6 +236,8 @@ class RouterExecutionSubscriber:
             "stop_loss_price": _maybe_decimal_to_str(stop_loss),
             "order_type": "LIMIT",
             "is_futures": is_futures,
+            "decision_ts": decision_ts.isoformat(),
+            "expected_price": _maybe_decimal_to_str(entry_price),
             "metadata": sanitized_metadata,
             "client_order_ids": {
                 "main": client_ids.main,

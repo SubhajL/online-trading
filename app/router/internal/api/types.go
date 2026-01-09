@@ -34,3 +34,32 @@ type HealthResponse struct {
 	Timestamp time.Time         `json:"timestamp"`
 	Services  map[string]string `json:"services"`
 }
+
+// OrderTimingPatch represents timing updates for order execution tracking
+type OrderTimingPatch struct {
+	RouterReceivedAt *time.Time `json:"router_received_at,omitempty"`
+	RouterSentAt     *time.Time `json:"router_sent_at,omitempty"`
+	ExchangeAckAt    *time.Time `json:"exchange_ack_at,omitempty"`
+	FirstFillAt      *time.Time `json:"first_fill_at,omitempty"`
+	FilledAt         *time.Time `json:"filled_at,omitempty"`
+}
+
+// ExecutionQuality represents aggregated execution quality metrics
+type ExecutionQuality struct {
+	TotalOrders int     `json:"total_orders"`
+	FilledOrders int    `json:"filled_orders"`
+	FillRate    float64 `json:"fill_rate"`
+
+	// Latency percentiles (ms)
+	EngineToRouterP50   float64 `json:"engine_to_router_p50_ms"`
+	EngineToRouterP95   float64 `json:"engine_to_router_p95_ms"`
+	RouterToExchangeP50 float64 `json:"router_to_exchange_p50_ms"`
+	RouterToExchangeP95 float64 `json:"router_to_exchange_p95_ms"`
+	TimeToFirstFillP50  float64 `json:"time_to_first_fill_p50_ms"`
+	TimeToFirstFillP95  float64 `json:"time_to_first_fill_p95_ms"`
+
+	// Slippage metrics (basis points)
+	AvgSlippageBps float64 `json:"avg_slippage_bps"`
+	MaxSlippageBps float64 `json:"max_slippage_bps"`
+	SlippageStdDev float64 `json:"slippage_std_dev_bps"`
+}
