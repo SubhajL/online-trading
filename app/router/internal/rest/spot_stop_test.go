@@ -36,7 +36,7 @@ func TestPlaceOrder_StopLossLimit(t *testing.T) {
 			Price:         decimal.RequireFromString("59900"),
 			OrigQty:       decimal.RequireFromString("0.001"),
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -73,7 +73,7 @@ func TestPlaceOrder_TakeProfitLimit(t *testing.T) {
 			Status:  "NEW",
 			Type:    "TAKE_PROFIT_LIMIT",
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 

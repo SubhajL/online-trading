@@ -2,25 +2,26 @@
 Integration tests for observability with EventBus.
 """
 
-import pytest
 import asyncio
-import time
 from datetime import datetime
+import time
 from typing import Any, Dict
 from uuid import uuid4
 
+import pytest
+
 from app.engine.bus import EventBus
-from app.engine.core.event_bus_factory import EventBusFactory, EventBusConfig
-from app.engine.models import BaseEvent, EventType
+from app.engine.core.event_bus_factory import EventBusConfig, EventBusFactory
+from app.engine.core.metrics import metrics_collector
 from app.engine.core.observability import (
-    ObservabilityManager,
     EventBusHealthCheck,
     HealthStatus,
-    init_observability,
+    ObservabilityManager,
     get_observability,
+    init_observability,
 )
-from app.engine.core.metrics import metrics_collector
-from app.engine.core.tracing import get_tracer, StatusCode
+from app.engine.core.tracing import StatusCode, get_tracer
+from app.engine.models import BaseEvent, EventType
 
 
 # Test event class
@@ -68,7 +69,11 @@ class TestObservabilityIntegration:
                     span.set_attribute("processed", True)
 
         # Subscribe to events
-        await event_bus.subscribe(EventType.HEALTH_CHECK, test_handler)
+        await event_bus.subscribe(
+            "test_handler",
+            test_handler,
+            event_types=[EventType.HEALTH_CHECK],
+        )
 
         # Publish events with tracing
         for i in range(5):
@@ -144,7 +149,11 @@ class TestObservabilityIntegration:
                     )
                 await asyncio.sleep(0.01)
 
-        await event_bus.subscribe(EventType.HEALTH_CHECK, failing_handler)
+        await event_bus.subscribe(
+            "failing_handler",
+            failing_handler,
+            event_types=[EventType.HEALTH_CHECK],
+        )
 
         # Publish mixed events
         for i in range(10):
@@ -191,7 +200,11 @@ class TestObservabilityIntegration:
             await asyncio.sleep(delay)
             processing_times.append(time.time() - start)
 
-        await event_bus.subscribe(EventType.HEALTH_CHECK, timed_handler)
+        await event_bus.subscribe(
+            "timed_handler",
+            timed_handler,
+            event_types=[EventType.HEALTH_CHECK],
+        )
 
         # Publish events with varying delays
         delays = [0.001, 0.005, 0.01, 0.02, 0.05]
@@ -246,7 +259,11 @@ class TestObservabilityIntegration:
         async def slow_handler(event: TestEvent) -> None:
             await asyncio.sleep(0.1)
 
-        await event_bus.subscribe(EventType.HEALTH_CHECK, slow_handler)
+        await event_bus.subscribe(
+            "slow_handler",
+            slow_handler,
+            event_types=[EventType.HEALTH_CHECK],
+        )
 
         # Initially healthy
         initial_health = await health_check.check_queue_health()
@@ -322,8 +339,16 @@ class TestObservabilityIntegration:
                     {"handler": "2", "trace_id": span.context.trace_id}
                 )
 
-        await event_bus.subscribe(EventType.HEALTH_CHECK, handler_1)
-        await event_bus.subscribe(EventType.POSITION_UPDATE, handler_2)
+        await event_bus.subscribe(
+            "handler_1",
+            handler_1,
+            event_types=[EventType.HEALTH_CHECK],
+        )
+        await event_bus.subscribe(
+            "handler_2",
+            handler_2,
+            event_types=[EventType.POSITION_UPDATE],
+        )
 
         # Start trace
         with tracer.start_as_current_span("root_span") as root:
@@ -375,7 +400,11 @@ class TestObservabilityIntegration:
                     success_count += 1
                     await asyncio.sleep(0.01)
 
-        await event_bus.subscribe(EventType.HEALTH_CHECK, flaky_handler)
+        await event_bus.subscribe(
+            "flaky_handler",
+            flaky_handler,
+            event_types=[EventType.HEALTH_CHECK],
+        )
 
         # Send events that will trigger circuit breaker
         for i in range(10):

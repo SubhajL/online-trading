@@ -1,5 +1,5 @@
 import type { Position } from '@/types'
-import { formatCurrency, formatNumber } from '@/utils/formatters'
+import { formatNumber } from '@/utils/formatters'
 import { formatPositionDelta } from '@/utils/tradingHelpers'
 import './PositionsList.css'
 

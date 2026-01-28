@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -8,10 +9,24 @@ import hashlib
 import logging
 from typing import TYPE_CHECKING, Any, Protocol
 
-from app.engine.models import BaseEvent, ErrorEvent, EventType, TradingDecisionEvent
+from app.engine.core.zone_identity import extract_zone_identity
+from app.engine.models import (
+    BaseEvent,
+    ErrorEvent,
+    EventType,
+    Order,
+    OrderPlacedEvent,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TradingDecisionEvent,
+)
+from app.engine.resilience.backoff import BackoffConfig, ExponentialBackoff
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+    from app.engine.core.signal_cooldown import SignalCooldown
 
 
 logger = logging.getLogger(__name__)
@@ -125,6 +140,10 @@ class _RouterClient(Protocol):
     async def place_bracket_order(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
 
+class _BffClient(Protocol):
+    async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True)
 class _ClientOrderIDs:
     main: str
@@ -150,17 +169,63 @@ def _maybe_decimal_to_str(value: Decimal | None) -> str | None:
 
 
 class RouterExecutionSubscriber:
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         bus: _EventBus,
         router_client: _RouterClient,
         execution_mode: ExecutionMode,
+        cooldown: SignalCooldown | None = None,
+        bff_client: _BffClient | None = None,
+        min_confidence: Decimal = Decimal("0.70"),
+        max_position_size: Decimal | None = None,
+        router_max_attempts: int = 3,
+        router_backoff_config: BackoffConfig | None = None,
     ) -> None:
         self._bus = bus
         self._router_client = router_client
         self._execution_mode = execution_mode
+        self._cooldown = cooldown
+        self._bff_client = bff_client
+        self._min_confidence = min_confidence
+        self._max_position_size = max_position_size
+        if router_max_attempts < 1:
+            raise ValueError("router_max_attempts must be >= 1")
+        self._router_max_attempts = router_max_attempts
+        self._router_backoff_config = router_backoff_config
         self._subscription_id: str | None = None
+
+    async def _place_bracket_with_retries(self, payload: dict[str, Any]) -> dict[str, Any]:
+        backoff = ExponentialBackoff(
+            self._router_backoff_config
+            or BackoffConfig(
+                base_delay_s=0.5,
+                max_delay_s=5.0,
+                multiplier=2.0,
+                jitter_pct=0.1,
+            ),
+        )
+        last_exc: Exception | None = None
+
+        for attempt in range(1, self._router_max_attempts + 1):
+            try:
+                return await self._router_client.place_bracket_order(payload)
+            except Exception as exc:
+                last_exc = exc
+                if attempt >= self._router_max_attempts:
+                    break
+                delay = backoff.next_delay()
+                logger.warning(
+                    "Router call failed (attempt %s/%s); retrying in %.2fs: %s",
+                    attempt,
+                    self._router_max_attempts,
+                    delay,
+                    exc,
+                )
+                await asyncio.sleep(delay)
+
+        assert last_exc is not None
+        raise last_exc
 
     async def start(self) -> None:
         if self._execution_mode == ExecutionMode.DISABLED:
@@ -179,7 +244,17 @@ class RouterExecutionSubscriber:
         await self._bus.unsubscribe(self._subscription_id)
         self._subscription_id = None
 
-    async def _on_trading_decision(self, event: TradingDecisionEvent) -> None:
+    async def _on_trading_decision(self, event: TradingDecisionEvent) -> None:  # noqa: C901
+        decision_source = event.metadata.get("decision_source")
+        if decision_source != "retest_decision_publisher":
+            await _emit_execution_error(
+                self._bus,
+                event,
+                f"Rejected trading decision with decision_source={decision_source!r}",
+                "invalid_decision_source",
+            )
+            return
+
         decision = event.decision
         action = str(decision.action).upper()
         if action not in {"BUY", "SELL"}:
@@ -190,6 +265,52 @@ class RouterExecutionSubscriber:
         take_profit = decision.take_profit
         quantity = decision.quantity
         if entry_price is None or stop_loss is None or take_profit is None or quantity is None:
+            return
+
+        if self._max_position_size is not None and quantity > self._max_position_size:
+            await _emit_execution_error(
+                self._bus,
+                event,
+                (
+                    f"Rejected quantity={quantity} > max_position_size={self._max_position_size} "
+                    f"for {decision.symbol}"
+                ),
+                "risk_limit_exceeded",
+            )
+            return
+
+        # Check confidence threshold
+        if decision.confidence is not None and decision.confidence < self._min_confidence:
+            logger.info(
+                "Skipping low-confidence decision for %s: %s < %s",
+                decision.symbol,
+                decision.confidence,
+                self._min_confidence,
+            )
+            return
+
+        # Extract zone identity for cooldown check
+        zone_identity = extract_zone_identity(event.metadata)
+        timeframe_str = event.timeframe.value if event.timeframe else "unknown"
+
+        # Check cooldown (only if cooldown configured and zone_id extractable)
+        if (
+            self._cooldown is not None
+            and zone_identity is not None
+            and not self._cooldown.should_allow(
+                decision.symbol,
+                timeframe_str,
+                zone_identity.zone_id,
+                action,
+            )
+        ):
+            logger.info(
+                "Skipping signal in cooldown: %s %s %s %s",
+                decision.symbol,
+                timeframe_str,
+                zone_identity.zone_id,
+                action,
+            )
             return
 
         is_futures = self._execution_mode in {
@@ -215,6 +336,7 @@ class RouterExecutionSubscriber:
         # Sanitize metadata to ensure JSON serialization works
         raw_metadata = {
             "signal_id": signal_id if isinstance(signal_id, str) else None,
+            "decision_source": decision_source,
             "timeframe": timeframe,
             "zone": zone if isinstance(zone, dict) else None,
             "decision_time": decision.timestamp.replace(tzinfo=UTC).isoformat()
@@ -247,9 +369,30 @@ class RouterExecutionSubscriber:
         }
 
         try:
-            response = await self._router_client.place_bracket_order(payload)
+            response = await self._place_bracket_with_retries(payload)
             success, error_msg = _check_router_response(response)
-            if not success:
+            if success:
+                # Record cooldown AFTER successful placement
+                if self._cooldown is not None and zone_identity is not None:
+                    self._cooldown.record_signal(
+                        decision.symbol,
+                        timeframe_str,
+                        zone_identity.zone_id,
+                        action,
+                    )
+
+                # Trigger snapshot FIRST so it's available when alert handler runs
+                await self._notify_snapshot(event)
+
+                # Emit enriched OrderPlacedEvent (triggers alert via bus)
+                await self._emit_order_placed(event, response, client_ids.main)
+
+                logger.info(
+                    "Order placed successfully for %s %s",
+                    action,
+                    decision.symbol,
+                )
+            else:
                 logger.error(
                     "Router returned error for %s %s: %s",
                     action,
@@ -257,7 +400,10 @@ class RouterExecutionSubscriber:
                     error_msg,
                 )
                 await _emit_execution_error(
-                    self._bus, event, error_msg or "Unknown router error", "router_error",
+                    self._bus,
+                    event,
+                    error_msg or "Unknown router error",
+                    "router_error",
                 )
         except Exception as exc:
             logger.exception(
@@ -266,3 +412,66 @@ class RouterExecutionSubscriber:
                 decision.symbol,
             )
             await _emit_execution_error(self._bus, event, str(exc), "router_exception")
+
+    async def _emit_order_placed(
+        self,
+        event: TradingDecisionEvent,
+        response: dict[str, Any],
+        client_order_id: str,
+    ) -> None:
+        """Emit enriched OrderPlacedEvent for alerts."""
+        decision = event.decision
+
+        # Create Order object for the event
+        order = Order(
+            symbol=decision.symbol,
+            side=OrderSide(str(decision.action).upper()),
+            type=OrderType.LIMIT,
+            quantity=decision.quantity or Decimal(0),
+            price=decision.entry_price,
+            status=OrderStatus.NEW,
+            client_order_id=client_order_id,
+            created_at=datetime.now(UTC),
+        )
+
+        order_event = OrderPlacedEvent(
+            timestamp=datetime.now(UTC),
+            symbol=decision.symbol,
+            timeframe=event.timeframe,
+            metadata=event.metadata,
+            order=order,
+            decision=decision,
+            router_response=response,
+        )
+
+        try:
+            await self._bus.publish(order_event, priority=7)
+        except Exception:
+            logger.exception("Failed to publish OrderPlacedEvent")
+
+    async def _notify_snapshot(self, event: TradingDecisionEvent) -> None:
+        """Trigger snapshot generation via BFF client."""
+        if self._bff_client is None:
+            return
+
+        decision = event.decision
+        side = "BUY" if str(decision.action).upper() == "BUY" else "SELL"
+
+        try:
+            payload = {
+                "signalId": event.metadata.get("signal_id"),
+                "symbol": decision.symbol,
+                "venue": event.metadata.get("venue", "SPOT"),
+                "side": side,
+                "entry": str(decision.entry_price) if decision.entry_price else None,
+                "stopLoss": str(decision.stop_loss) if decision.stop_loss else None,
+                "takeProfit": str(decision.take_profit) if decision.take_profit else None,
+                "confidence": float(decision.confidence) if decision.confidence else None,
+                "reasons": decision.reasoning.split("; ") if decision.reasoning else [],
+                "timeframe": event.timeframe.value if event.timeframe else None,
+                "signalTime": decision.timestamp.isoformat() if decision.timestamp else None,
+            }
+
+            await self._bff_client.post("/api/signals/alert", payload)
+        except Exception:
+            logger.exception("Error triggering snapshot for %s", decision.symbol)

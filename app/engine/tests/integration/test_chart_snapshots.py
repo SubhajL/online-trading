@@ -17,6 +17,8 @@ import aiohttp
 from app.engine.models import SignalEvent, TimeFrame, Candle
 from app.engine.bus import get_event_bus
 
+pytestmark = pytest.mark.e2e
+
 
 @pytest.fixture
 def signal_event():

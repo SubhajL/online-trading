@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+import os
 from uuid import uuid4
 
 import pytest
@@ -10,18 +11,19 @@ import pytest_asyncio
 from app.engine.adapters.db import timescale
 from app.engine.adapters.db.connection_pool import DBConfig
 from app.engine.models import Candle, TimeFrame, TechnicalIndicators, SupplyDemandZone, ZoneType
+from app.engine.tests.integration.db_config import load_test_database_config
 
 
 @pytest.fixture(scope="session")
 def test_db_config() -> DBConfig:
     """Database configuration for integration tests (from env)."""
-    import os
+    cfg = load_test_database_config()
     return DBConfig(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        database=os.getenv("TEST_DB_NAME", "test_trading_db"),
-        username=os.getenv("DB_USER", "trading_user"),
-        password=os.getenv("DB_PASSWORD", "trading_pass"),
+        host=cfg.host,
+        port=cfg.port,
+        database=cfg.database,
+        username=cfg.username,
+        password=cfg.password,
         pool_size=5,
     )
 
@@ -43,7 +45,7 @@ async def clean_db(pool):
             "zones",
             "orders",
             "positions",
-            "decisions",
+            "trading_decisions",
             "smc_events",
         ]:
             await conn.execute(f"TRUNCATE TABLE {table} CASCADE")

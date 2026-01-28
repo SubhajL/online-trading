@@ -14,7 +14,6 @@ from typing import Literal
 
 from ..models import Candle
 
-
 # Type aliases
 Side = Literal["BUY", "SELL"]
 Outcome = Literal["TP_FULL", "TP_PARTIAL", "SL", "TIMEOUT", "NONE"]

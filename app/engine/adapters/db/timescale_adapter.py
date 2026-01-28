@@ -8,9 +8,10 @@ for trading data including candles, indicators, signals, and trading events.
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 import json
 import logging
+import os
+from types import TracebackType
 from typing import Any
 
 import asyncpg
@@ -38,7 +39,7 @@ class TimescaleDBAdapter:
     - Automatic data retention policies
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         host: str,
         port: int,
@@ -67,7 +68,10 @@ class TimescaleDBAdapter:
         logger.info(f"TimescaleDBAdapter configured for {host}:{port}/{database}")
 
     async def initialize(self) -> None:
-        """Initialize the database connection pool and create tables"""
+        """Initialize the database connection pools.
+
+        Schema is managed by SQL migrations (one-shot migrate), not by runtime auto-DDL.
+        """
         if self._initialized:
             return
 
@@ -100,10 +104,7 @@ class TimescaleDBAdapter:
                 statement_cache_size=1000,
             )
 
-            # Create tables and hypertables
-            await self._create_tables()
-            await self._create_hypertables()
-            await self._create_indexes()
+            await self._ensure_migrations_applied()
 
             self._initialized = True
             logger.info("TimescaleDB adapter initialized successfully")
@@ -111,6 +112,22 @@ class TimescaleDBAdapter:
         except Exception as e:
             logger.error(f"Error initializing TimescaleDB adapter: {e}")
             raise
+
+    async def _ensure_migrations_applied(self) -> None:
+        async with self.get_connection() as conn:
+            schema_exists = await conn.fetchval(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.schemata
+                    WHERE schema_name = '_migration'
+                )
+                """,
+            )
+            if not schema_exists:
+                raise RuntimeError(
+                    "Database schema is not migrated. "
+                    "Run `app/engine/scripts/migrate_db.py` before starting services.",
+                )
 
     async def close(self) -> None:
         """Close the database connection pool"""
@@ -150,368 +167,38 @@ class TimescaleDBAdapter:
             yield connection
 
     # ============================================================================
-    # Table Creation and Management
-    # ============================================================================
-
-    async def _create_tables(self) -> None:
-        """Create all required tables"""
-        async with self.get_connection() as conn:
-            # Candles table - matches Docker schema in infra/postgres/init/02-create-hypertables.sql
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS candles (
-                    time TIMESTAMPTZ NOT NULL,
-                    venue TEXT NOT NULL,
-                    symbol TEXT NOT NULL,
-                    timeframe TEXT NOT NULL,
-                    open NUMERIC NOT NULL,
-                    high NUMERIC NOT NULL,
-                    low NUMERIC NOT NULL,
-                    close NUMERIC NOT NULL,
-                    volume NUMERIC NOT NULL,
-                    quote_volume NUMERIC,
-                    trade_count INTEGER,
-                    taker_buy_volume NUMERIC,
-                    taker_buy_quote_volume NUMERIC,
-                    UNIQUE (venue, symbol, timeframe, time)
-                );
-            """,
-            )
-
-            # Technical indicators table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS technical_indicators (
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    timeframe VARCHAR(5) NOT NULL,
-                    ema_9 DECIMAL(20,8),
-                    ema_21 DECIMAL(20,8),
-                    ema_50 DECIMAL(20,8),
-                    ema_200 DECIMAL(20,8),
-                    rsi_14 DECIMAL(10,6),
-                    macd_line DECIMAL(20,8),
-                    macd_signal DECIMAL(20,8),
-                    macd_histogram DECIMAL(20,8),
-                    atr_14 DECIMAL(20,8),
-                    bb_upper DECIMAL(20,8),
-                    bb_middle DECIMAL(20,8),
-                    bb_lower DECIMAL(20,8),
-                    bb_width DECIMAL(10,6),
-                    bb_percent DECIMAL(10,6),
-                    UNIQUE(timestamp, symbol, timeframe)
-                );
-            """,
-            )
-
-            # SMC signals table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS smc_signals (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    timeframe VARCHAR(5) NOT NULL,
-                    signal_type VARCHAR(50) NOT NULL,
-                    direction VARCHAR(4) NOT NULL,
-                    entry_price DECIMAL(20,8) NOT NULL,
-                    stop_loss DECIMAL(20,8),
-                    take_profit DECIMAL(20,8),
-                    confidence DECIMAL(4,3) NOT NULL,
-                    reasoning TEXT,
-                    zone_id UUID,
-                    zone_type VARCHAR(30),
-                    zone_top_price DECIMAL(20,8),
-                    zone_bottom_price DECIMAL(20,8),
-                    is_active BOOLEAN DEFAULT TRUE,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """,
-            )
-
-            # Trading decisions table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS trading_decisions (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    action VARCHAR(10) NOT NULL,
-                    entry_price DECIMAL(20,8),
-                    quantity DECIMAL(20,8),
-                    order_type VARCHAR(20),
-                    stop_loss DECIMAL(20,8),
-                    take_profit DECIMAL(20,8),
-                    confidence DECIMAL(4,3) NOT NULL,
-                    reasoning TEXT,
-                    risk_reward_ratio DECIMAL(10,4),
-                    market_regime VARCHAR(20),
-                    news_sentiment VARCHAR(20),
-                    funding_rate_impact DECIMAL(10,6),
-                    volatility_filter BOOLEAN,
-                    is_executed BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """,
-            )
-
-            # Orders table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS orders (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    client_order_id VARCHAR(50) UNIQUE NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    side VARCHAR(4) NOT NULL,
-                    type VARCHAR(20) NOT NULL,
-                    quantity DECIMAL(20,8) NOT NULL,
-                    price DECIMAL(20,8),
-                    stop_price DECIMAL(20,8),
-                    time_in_force VARCHAR(10) DEFAULT 'GTC',
-                    status VARCHAR(20) DEFAULT 'NEW',
-                    filled_quantity DECIMAL(20,8) DEFAULT 0,
-                    average_fill_price DECIMAL(20,8),
-                    decision_id UUID,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """,
-            )
-
-            # Positions table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS positions (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    symbol VARCHAR(20) NOT NULL,
-                    side VARCHAR(4) NOT NULL,
-                    size DECIMAL(20,8) NOT NULL,
-                    entry_price DECIMAL(20,8) NOT NULL,
-                    current_price DECIMAL(20,8) NOT NULL,
-                    unrealized_pnl DECIMAL(20,8) NOT NULL,
-                    realized_pnl DECIMAL(20,8) DEFAULT 0,
-                    margin_used DECIMAL(20,8) NOT NULL,
-                    leverage DECIMAL(10,2) DEFAULT 1,
-                    stop_loss DECIMAL(20,8),
-                    take_profit DECIMAL(20,8),
-                    decision_id UUID,
-                    opened_at TIMESTAMPTZ NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT NOW(),
-                    closed_at TIMESTAMPTZ,
-                    is_active BOOLEAN DEFAULT TRUE
-                );
-            """,
-            )
-
-            # Events table for audit trail (with composite primary key for hypertable)
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS events (
-                    id UUID DEFAULT gen_random_uuid(),
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    event_type VARCHAR(50) NOT NULL,
-                    symbol VARCHAR(20),
-                    timeframe VARCHAR(5),
-                    event_data JSONB,
-                    metadata JSONB,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    PRIMARY KEY (timestamp, id)
-                );
-            """,
-            )
-
-            # External Telegram messages table (Captain benchmark ingestion)
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS external_telegram_messages (
-                    source VARCHAR(50) NOT NULL,
-                    chat_id BIGINT NOT NULL,
-                    message_id BIGINT NOT NULL,
-                    grouped_id BIGINT,
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    text TEXT,
-                    has_photo BOOLEAN NOT NULL DEFAULT FALSE,
-                    photo_path TEXT,
-                    raw_json JSONB,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ DEFAULT NOW(),
-                    UNIQUE(source, chat_id, message_id)
-                );
-            """,
-            )
-
-            # External Telegram signals table (parsed trade/news signals)
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS external_telegram_signals (
-                    source VARCHAR(50) NOT NULL,
-                    chat_id BIGINT NOT NULL,
-                    message_id BIGINT NOT NULL,
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    kind VARCHAR(30) NOT NULL,
-                    strategy VARCHAR(50),
-                    symbol VARCHAR(20),
-                    timeframe VARCHAR(10),
-                    direction VARCHAR(4),
-                    entry_price DECIMAL(20,8),
-                    stop_loss DECIMAL(20,8),
-                    take_profits JSONB,
-                    parse_confidence DECIMAL(4,3),
-                    parse_sources JSONB,
-                    ocr_raw_text TEXT,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ DEFAULT NOW(),
-                    UNIQUE(source, chat_id, message_id)
-                );
-            """,
-            )
-
-            # External Telegram signal validations table (agreement vs internal system)
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS external_telegram_signal_validations (
-                    source VARCHAR(50) NOT NULL,
-                    chat_id BIGINT NOT NULL,
-                    message_id BIGINT NOT NULL,
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    internal_kind VARCHAR(30),
-                    internal_id UUID,
-                    internal_timestamp TIMESTAMPTZ,
-                    score DECIMAL(4,3) NOT NULL,
-                    breakdown JSONB,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ DEFAULT NOW(),
-                    UNIQUE(source, chat_id, message_id)
-                );
-            """,
-            )
-
-            # Benchmark validation snapshots for reproducibility
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS benchmark_validation_snapshots (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    source TEXT NOT NULL,
-                    chat_id BIGINT NOT NULL,
-                    message_id BIGINT NOT NULL,
-                    validated_at TIMESTAMPTZ NOT NULL,
-                    symbol TEXT NOT NULL,
-                    timeframe TEXT,
-                    snapshot_version INT NOT NULL DEFAULT 1,
-                    payload JSONB NOT NULL,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    CONSTRAINT uq_snapshot_key UNIQUE (
-                        source, chat_id, message_id, validated_at, snapshot_version
-                    )
-                );
-            """,
-            )
-
-            # Indexes for benchmark_validation_snapshots
-            await conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_bvs_symbol_time
-                    ON benchmark_validation_snapshots (symbol, validated_at DESC);
-                CREATE INDEX IF NOT EXISTS idx_bvs_source_time
-                    ON benchmark_validation_snapshots (source, validated_at DESC);
-            """,
-            )
-
-    async def _create_hypertables(self) -> None:
-        """Create TimescaleDB hypertables for time-series data"""
-        async with self.get_connection() as conn:
-            try:
-                # Create hypertables (only if not already created)
-                hypertables = [
-                    ("candles", "time"),  # Docker schema uses "time"
-                    ("technical_indicators", "timestamp"),
-                    ("events", "timestamp"),
-                ]
-
-                for table_name, time_column in hypertables:
-                    try:
-                        await conn.execute(
-                            f"""
-                            SELECT create_hypertable('{table_name}', '{time_column}',
-                                                    if_not_exists => TRUE);
-                        """,
-                        )
-                        logger.info(f"Created hypertable for {table_name}")
-                    except Exception as e:
-                        if "already a hypertable" not in str(e):
-                            logger.warning(
-                                f"Error creating hypertable for {table_name}: {e}",
-                            )
-
-            except Exception as e:
-                logger.error(f"Error creating hypertables: {e}")
-
-    async def _create_indexes(self) -> None:
-        """Create indexes for better query performance"""
-        async with self.get_connection() as conn:
-            indexes = [
-                # Candles indexes - use Docker schema column names
-                "CREATE INDEX IF NOT EXISTS idx_candles_venue_symbol_timeframe ON candles (venue, symbol, timeframe, time DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_candles_time ON candles (time DESC);",
-                # Technical indicators indexes
-                "CREATE INDEX IF NOT EXISTS idx_indicators_symbol_timeframe ON technical_indicators (symbol, timeframe, timestamp DESC);",
-                # SMC signals indexes
-                "CREATE INDEX IF NOT EXISTS idx_smc_signals_symbol_timestamp ON smc_signals (symbol, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_smc_signals_active ON smc_signals (is_active, timestamp DESC);",
-                # Trading decisions indexes
-                "CREATE INDEX IF NOT EXISTS idx_decisions_symbol_timestamp ON trading_decisions (symbol, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_decisions_executed ON trading_decisions (is_executed, timestamp DESC);",
-                # Orders indexes
-                "CREATE INDEX IF NOT EXISTS idx_orders_symbol_status ON orders (symbol, status, created_at DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_orders_decision ON orders (decision_id);",
-                # Positions indexes
-                "CREATE INDEX IF NOT EXISTS idx_positions_symbol_active ON positions (symbol, is_active, opened_at DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_positions_decision ON positions (decision_id);",
-                # Events indexes
-                "CREATE INDEX IF NOT EXISTS idx_events_type_timestamp ON events (event_type, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_events_symbol ON events (symbol, timestamp DESC) WHERE symbol IS NOT NULL;",
-                # External telegram benchmark ingestion indexes
-                "CREATE INDEX IF NOT EXISTS idx_ext_tg_messages_timestamp ON external_telegram_messages (timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_ext_tg_signals_symbol_timeframe_timestamp ON external_telegram_signals (symbol, timeframe, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_ext_tg_validations_timestamp ON external_telegram_signal_validations (timestamp DESC);",
-            ]
-
-            for index_sql in indexes:
-                try:
-                    await conn.execute(index_sql)
-                except Exception as e:
-                    logger.warning(f"Error creating index: {e}")
-
-    # ============================================================================
     # Candle Data Operations
     # ============================================================================
 
     async def insert_candle(self, candle: Candle) -> bool:
-        """Insert a single candle using Docker schema column names"""
+        """Insert a single candle using the canonical schema (db/migrations)."""
         try:
             async with self.get_write_connection() as conn:
                 await conn.execute(
                     """
                     INSERT INTO candles (
-                        time, venue, symbol, timeframe, open, high, low,
-                        close, volume, quote_volume, trade_count,
-                        taker_buy_volume, taker_buy_quote_volume
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                    ON CONFLICT (venue, symbol, timeframe, time) DO UPDATE SET
-                        open = EXCLUDED.open,
-                        high = EXCLUDED.high,
-                        low = EXCLUDED.low,
-                        close = EXCLUDED.close,
+                        venue, symbol, timeframe, open_time, close_time,
+                        open_price, high_price, low_price, close_price,
+                        volume, quote_volume, trades,
+                        taker_buy_base_volume, taker_buy_quote_volume
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                    ON CONFLICT (venue, symbol, timeframe, open_time) DO UPDATE SET
+                        close_time = EXCLUDED.close_time,
+                        open_price = EXCLUDED.open_price,
+                        high_price = EXCLUDED.high_price,
+                        low_price = EXCLUDED.low_price,
+                        close_price = EXCLUDED.close_price,
                         volume = EXCLUDED.volume,
                         quote_volume = EXCLUDED.quote_volume,
-                        trade_count = EXCLUDED.trade_count,
-                        taker_buy_volume = EXCLUDED.taker_buy_volume,
+                        trades = EXCLUDED.trades,
+                        taker_buy_base_volume = EXCLUDED.taker_buy_base_volume,
                         taker_buy_quote_volume = EXCLUDED.taker_buy_quote_volume
                 """,
-                    candle.open_time,
                     candle.venue,
                     candle.symbol,
                     candle.timeframe.value,
+                    candle.open_time,
+                    candle.close_time,
                     candle.open_price,
                     candle.high_price,
                     candle.low_price,
@@ -544,10 +231,11 @@ class TimescaleDBAdapter:
             async with self.get_write_connection() as conn:
                 records = [
                     (
-                        c.open_time,
                         c.venue,
                         c.symbol,
                         c.timeframe.value,
+                        c.open_time,
+                        c.close_time,
                         c.open_price,
                         c.high_price,
                         c.low_price,
@@ -564,11 +252,12 @@ class TimescaleDBAdapter:
                 await conn.executemany(
                     """
                     INSERT INTO candles (
-                        time, venue, symbol, timeframe, open, high, low,
-                        close, volume, quote_volume, trade_count,
-                        taker_buy_volume, taker_buy_quote_volume
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                    ON CONFLICT (venue, symbol, timeframe, time) DO NOTHING
+                        venue, symbol, timeframe, open_time, close_time,
+                        open_price, high_price, low_price, close_price,
+                        volume, quote_volume, trades,
+                        taker_buy_base_volume, taker_buy_quote_volume
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                    ON CONFLICT (venue, symbol, timeframe, open_time) DO NOTHING
                 """,
                     records,
                 )
@@ -583,7 +272,7 @@ class TimescaleDBAdapter:
     # External Captain Benchmark Operations
     # ============================================================================
 
-    async def upsert_external_telegram_message(
+    async def upsert_external_telegram_message(  # noqa: PLR0913
         self,
         *,
         source: str,
@@ -633,7 +322,7 @@ class TimescaleDBAdapter:
                 json.dumps(raw_json) if raw_json else None,
             )
 
-    async def upsert_external_telegram_signal(
+    async def upsert_external_telegram_signal(  # noqa: PLR0913
         self,
         *,
         source: str,
@@ -707,7 +396,7 @@ class TimescaleDBAdapter:
                 ocr_raw_text,
             )
 
-    async def upsert_external_telegram_signal_validation(
+    async def upsert_external_telegram_signal_validation(  # noqa: PLR0913
         self,
         *,
         source: str,
@@ -754,7 +443,7 @@ class TimescaleDBAdapter:
                 internal_id,
                 internal_timestamp,
                 score,
-                breakdown,
+                json.dumps(breakdown) if breakdown is not None else None,
             )
 
     async def get_external_telegram_signals(
@@ -824,35 +513,37 @@ class TimescaleDBAdapter:
         try:
             async with self.get_write_connection() as conn:
                 columns = [
-                    "time",
                     "venue",
                     "symbol",
                     "timeframe",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
+                    "open_time",
+                    "close_time",
+                    "open_price",
+                    "high_price",
+                    "low_price",
+                    "close_price",
                     "volume",
                     "quote_volume",
-                    "trade_count",
-                    "taker_buy_volume",
+                    "trades",
+                    "taker_buy_base_volume",
                     "taker_buy_quote_volume",
                 ]
                 records = [
                     (
-                        c.open_time,
                         c.venue,
                         c.symbol,
                         c.timeframe.value,
-                        str(c.open_price),
-                        str(c.high_price),
-                        str(c.low_price),
-                        str(c.close_price),
-                        str(c.volume),
-                        str(c.quote_volume),
+                        c.open_time,
+                        c.close_time,
+                        c.open_price,
+                        c.high_price,
+                        c.low_price,
+                        c.close_price,
+                        c.volume,
+                        c.quote_volume,
                         int(c.trades),
-                        str(c.taker_buy_base_volume),
-                        str(c.taker_buy_quote_volume),
+                        c.taker_buy_base_volume,
+                        c.taker_buy_quote_volume,
                     )
                     for c in candles
                 ]
@@ -867,16 +558,6 @@ class TimescaleDBAdapter:
         except Exception as e:
             logger.error(f"Error inserting candles via COPY: {e}")
             return 0
-
-    def _infer_close_time(self, open_time: datetime, timeframe: TimeFrame) -> datetime:
-        """Infer close_time from open_time and timeframe (not stored in DB)."""
-        tf_minutes = {
-            "1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
-            "1h": 60, "2h": 120, "4h": 240, "6h": 360, "8h": 480, "12h": 720,
-            "1d": 1440, "3d": 4320, "1w": 10080, "1M": 43200,
-        }
-        minutes = tf_minutes.get(timeframe.value, 1)
-        return open_time + timedelta(minutes=minutes)
 
     async def get_latest_candle(
         self,
@@ -900,7 +581,7 @@ class TimescaleDBAdapter:
         )
         return candles[0] if candles else None
 
-    async def get_candles(
+    async def get_candles(  # noqa: PLR0913
         self,
         symbol: str,
         timeframe: TimeFrame,
@@ -909,13 +590,25 @@ class TimescaleDBAdapter:
         limit: int = 1000,
         venue: str | None = None,
     ) -> list[Candle]:
-        """Retrieve candles for a symbol and timeframe using Docker schema columns"""
+        """Retrieve candles for a symbol and timeframe."""
         try:
             async with self.get_read_connection() as conn:
                 query = """
-                    SELECT time, venue, symbol, timeframe, open, high, low,
-                           close, volume, quote_volume, trade_count,
-                           taker_buy_volume, taker_buy_quote_volume
+                    SELECT
+                        venue,
+                        symbol,
+                        timeframe,
+                        open_time,
+                        close_time,
+                        open_price,
+                        high_price,
+                        low_price,
+                        close_price,
+                        volume,
+                        quote_volume,
+                        trades,
+                        taker_buy_base_volume,
+                        taker_buy_quote_volume
                     FROM candles
                     WHERE symbol = $1 AND timeframe = $2
                 """
@@ -926,37 +619,36 @@ class TimescaleDBAdapter:
                     params.append(venue)
 
                 if start_time:
-                    query += " AND time >= $" + str(len(params) + 1)
+                    query += " AND open_time >= $" + str(len(params) + 1)
                     params.append(start_time)
 
                 if end_time:
-                    query += " AND time <= $" + str(len(params) + 1)
+                    query += " AND open_time <= $" + str(len(params) + 1)
                     params.append(end_time)
 
-                query += " ORDER BY time DESC LIMIT $" + str(len(params) + 1)
+                query += " ORDER BY open_time DESC LIMIT $" + str(len(params) + 1)
                 params.append(limit)
 
                 rows = await conn.fetch(query, *params)
 
                 candles = []
                 for row in rows:
-                    open_time = row["time"]
                     tf = TimeFrame(row["timeframe"])
                     candle = Candle(
                         venue=row["venue"],
                         symbol=row["symbol"],
                         timeframe=tf,
-                        open_time=open_time,
-                        close_time=self._infer_close_time(open_time, tf),
-                        open_price=row["open"],
-                        high_price=row["high"],
-                        low_price=row["low"],
-                        close_price=row["close"],
+                        open_time=row["open_time"],
+                        close_time=row["close_time"],
+                        open_price=row["open_price"],
+                        high_price=row["high_price"],
+                        low_price=row["low_price"],
+                        close_price=row["close_price"],
                         volume=row["volume"],
-                        quote_volume=row["quote_volume"] if row["quote_volume"] is not None else Decimal(0),
-                        trades=row["trade_count"] if row["trade_count"] is not None else 0,
-                        taker_buy_base_volume=row["taker_buy_volume"] if row["taker_buy_volume"] is not None else Decimal(0),
-                        taker_buy_quote_volume=row["taker_buy_quote_volume"] if row["taker_buy_quote_volume"] is not None else Decimal(0),
+                        quote_volume=row["quote_volume"],
+                        trades=row["trades"],
+                        taker_buy_base_volume=row["taker_buy_base_volume"],
+                        taker_buy_quote_volume=row["taker_buy_quote_volume"],
                     )
                     candles.append(candle)
 
@@ -974,17 +666,21 @@ class TimescaleDBAdapter:
         self,
         indicators: TechnicalIndicators,
     ) -> bool:
-        """Insert technical indicators"""
+        """Insert technical indicators into the canonical indicators table."""
         try:
             async with self.get_connection() as conn:
                 await conn.execute(
                     """
-                    INSERT INTO technical_indicators (
-                        timestamp, symbol, timeframe, ema_9, ema_21, ema_50, ema_200,
+                    INSERT INTO indicators (
+                        venue, symbol, timeframe, timestamp,
+                        ema_9, ema_21, ema_50, ema_200,
                         rsi_14, macd_line, macd_signal, macd_histogram, atr_14,
                         bb_upper, bb_middle, bb_lower, bb_width, bb_percent
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-                    ON CONFLICT (timestamp, symbol, timeframe) DO UPDATE SET
+                    ) VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                        $10, $11, $12, $13, $14, $15, $16, $17, $18
+                    )
+                    ON CONFLICT (venue, symbol, timeframe, timestamp) DO UPDATE SET
                         ema_9 = EXCLUDED.ema_9,
                         ema_21 = EXCLUDED.ema_21,
                         ema_50 = EXCLUDED.ema_50,
@@ -1000,9 +696,10 @@ class TimescaleDBAdapter:
                         bb_width = EXCLUDED.bb_width,
                         bb_percent = EXCLUDED.bb_percent
                 """,
-                    indicators.timestamp,
+                    os.getenv("TRADING_VENUE", "binance"),
                     indicators.symbol,
                     indicators.timeframe.value,
+                    indicators.timestamp,
                     indicators.ema_9,
                     indicators.ema_21,
                     indicators.ema_50,
@@ -1035,10 +732,13 @@ class TimescaleDBAdapter:
                 await conn.execute(
                     """
                     INSERT INTO trading_decisions (
-                        id, timestamp, symbol, action, entry_price, quantity, order_type,
+                        decision_id, timestamp, symbol, action, entry_price, quantity, order_type,
                         stop_loss, take_profit, confidence, reasoning, risk_reward_ratio,
-                        market_regime, news_sentiment, funding_rate_impact, volatility_filter
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                        market_regime, news_sentiment, funding_rate_impact, volatility_filter, venue
+                    ) VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                        $10, $11, $12, $13, $14, $15, $16, $17
+                    )
                 """,
                     decision.decision_id,
                     decision.timestamp,
@@ -1056,6 +756,7 @@ class TimescaleDBAdapter:
                     decision.news_sentiment,
                     decision.funding_rate_impact,
                     decision.volatility_filter,
+                    os.getenv("TRADING_VENUE"),
                 )
                 return True
 
@@ -1074,7 +775,7 @@ class TimescaleDBAdapter:
                 query = """
                     SELECT * FROM trading_decisions
                 """
-                params = []
+                params: list[Any] = []
 
                 if symbol:
                     query += " WHERE symbol = $1"
@@ -1132,7 +833,7 @@ class TimescaleDBAdapter:
                     """
                     SELECT *
                     FROM trading_decisions
-                    WHERE id = $1::uuid
+                    WHERE decision_id = $1::uuid
                 """,
                     decision_id,
                 )
@@ -1209,11 +910,12 @@ class TimescaleDBAdapter:
                       AND created_at <= $2
                       AND (is_active = TRUE OR invalidated_at > $2)
                     ORDER BY strength DESC, created_at DESC
-                    LIMIT $3
+                    LIMIT LEAST($3, $4)
                 """,
                     symbol,
                     timestamp,
                     max_zones,
+                    lookback_bars,
                 )
                 return [dict(row) for row in rows]
         except Exception as e:
@@ -1237,50 +939,54 @@ class TimescaleDBAdapter:
             async with self.get_read_connection() as conn:
                 if timeframe:
                     rows = await conn.fetch(
-                        """
-                        SELECT
-                            venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text as event_id,
-                            event_type,
-                            timestamp,
-                            trend_direction as direction,
-                            price
+                            """
+                            SELECT
+                                venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text
+                                    as event_id,
+                                event_type,
+                                timestamp,
+                                trend_direction as direction,
+                                price
                         FROM smc_events
                         WHERE symbol = $1
                           AND timeframe = $2
                           AND timestamp <= $3
                         ORDER BY timestamp DESC
-                        LIMIT $4
+                        LIMIT LEAST($4, $5)
                     """,
                         symbol,
                         timeframe,
                         timestamp,
                         max_events,
+                        lookback_bars,
                     )
                 else:
                     rows = await conn.fetch(
-                        """
-                        SELECT
-                            venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text as event_id,
-                            event_type,
-                            timestamp,
-                            trend_direction as direction,
-                            price
+                            """
+                            SELECT
+                                venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text
+                                    as event_id,
+                                event_type,
+                                timestamp,
+                                trend_direction as direction,
+                                price
                         FROM smc_events
                         WHERE symbol = $1
                           AND timestamp <= $2
                         ORDER BY timestamp DESC
-                        LIMIT $3
+                        LIMIT LEAST($3, $4)
                     """,
                         symbol,
                         timestamp,
                         max_events,
+                        lookback_bars,
                     )
                 return [dict(row) for row in rows]
         except Exception as e:
             logger.error(f"Error retrieving structure events: {e}")
             return []
 
-    async def upsert_benchmark_validation_snapshot(
+    async def upsert_benchmark_validation_snapshot(  # noqa: PLR0913
         self,
         *,
         source: str,
@@ -1373,7 +1079,7 @@ class TimescaleDBAdapter:
             async with self.get_read_connection() as conn:
                 # Build query dynamically based on filters
                 conditions = []
-                params = []
+                params: list[Any] = []
                 param_idx = 1
 
                 if source:
@@ -1410,7 +1116,7 @@ class TimescaleDBAdapter:
                     WHERE {where_clause}
                     ORDER BY validated_at DESC
                     LIMIT ${param_idx}
-                """
+                """  # noqa: S608
 
                 rows = await conn.fetch(query, *params)
                 return [dict(row) for row in rows]
@@ -1440,9 +1146,20 @@ class TimescaleDBAdapter:
                 # Note: PostgreSQL 16+ uses 'relname' instead of 'tablename' in pg_stat_user_tables
                 stats_result = await conn.fetch(
                     """
-                    SELECT schemaname, relname as tablename, n_tup_ins as inserts, n_tup_upd as updates
+                    SELECT
+                        schemaname,
+                        relname as tablename,
+                        n_tup_ins as inserts,
+                        n_tup_upd as updates
                     FROM pg_stat_user_tables
-                    WHERE relname IN ('candles', 'technical_indicators', 'trading_decisions', 'orders', 'positions')
+                    WHERE relname IN (
+                        'candles',
+                        'indicators',
+                        'trading_decisions',
+                        'orders',
+                        'positions',
+                        'smc_signals'
+                    )
                 """,
                 )
 
@@ -1478,8 +1195,8 @@ class TimescaleDBAdapter:
                 candle_counts = await conn.fetch(
                     """
                     SELECT symbol, timeframe, COUNT(*) as count,
-                           MIN(timestamp) as oldest,
-                           MAX(timestamp) as newest
+                           MIN(open_time) as oldest,
+                           MAX(open_time) as newest
                     FROM candles
                     GROUP BY symbol, timeframe
                     ORDER BY symbol, timeframe
@@ -1490,9 +1207,21 @@ class TimescaleDBAdapter:
                 recent_activity = await conn.fetchrow(
                     """
                     SELECT
-                        (SELECT COUNT(*) FROM candles WHERE timestamp > NOW() - INTERVAL '1 hour') as candles_last_hour,
-                        (SELECT COUNT(*) FROM technical_indicators WHERE timestamp > NOW() - INTERVAL '1 hour') as indicators_last_hour,
-                        (SELECT COUNT(*) FROM trading_decisions WHERE created_at > NOW() - INTERVAL '1 hour') as decisions_last_hour
+                        (
+                            SELECT COUNT(*)
+                            FROM candles
+                            WHERE open_time > NOW() - INTERVAL '1 hour'
+                        ) as candles_last_hour,
+                        (
+                            SELECT COUNT(*)
+                            FROM indicators
+                            WHERE timestamp > NOW() - INTERVAL '1 hour'
+                        ) as indicators_last_hour,
+                        (
+                            SELECT COUNT(*)
+                            FROM trading_decisions
+                            WHERE created_at > NOW() - INTERVAL '1 hour'
+                        ) as decisions_last_hour
                 """,
                 )
 
@@ -1547,6 +1276,11 @@ class TimescaleDBAdapter:
         """Async context manager entry"""
         await self.initialize()
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit"""
         await self.close()

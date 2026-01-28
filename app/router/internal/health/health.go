@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -163,9 +164,9 @@ func (h *HealthChecker) CheckRedisCache(ctx context.Context, client RedisClient)
 				if strings.HasPrefix(line, "used_memory:") {
 					parts := strings.Split(line, ":")
 					if len(parts) == 2 {
-						var memBytes int64
-						fmt.Sscanf(parts[1], "%d", &memBytes)
-						status.Details["memory_used_mb"] = float64(memBytes) / (1024 * 1024)
+						if memBytes, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64); err == nil {
+							status.Details["memory_used_mb"] = float64(memBytes) / (1024 * 1024)
+						}
 					}
 				}
 			}
@@ -299,7 +300,9 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		return
+	}
 }
 
 // HandleDetailedStatus handles detailed health status endpoint
@@ -314,5 +317,7 @@ func (h *HealthHandler) HandleDetailedStatus(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(report)
+	if err := json.NewEncoder(w).Encode(report); err != nil {
+		return
+	}
 }

@@ -54,9 +54,10 @@ class MigrationRunner:
     """Manages database migrations.
 
     Canonical behavior:
-    - Only apply the contiguous sequence of migrations starting at current_version + 1.
-    - If there is a gap after that point, stop at the gap (do not error).
-    - The bootstrap migration (000_migration_version.sql) is applied automatically when current_version == 0.
+    - Apply all available migrations in ascending version order.
+    - Version gaps do not stop migration application.
+    - The bootstrap migration (000_migration_version.sql) is applied once to create
+      the _migration schema before applying any other migrations.
     """
 
     def __init__(self, pool: ConnectionPool, migrations_dir: Path) -> None:
@@ -89,9 +90,23 @@ class MigrationRunner:
 
             return version or 0
 
+    async def migration_schema_exists(self) -> bool:
+        """Return True if the _migration schema exists."""
+        async with self.pool.acquire() as conn:
+            return bool(
+                await conn.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.schemata
+                        WHERE schema_name = '_migration'
+                    )
+                    """,
+                ),
+            )
+
     async def get_available_migrations(self) -> list[Migration]:
         """Get all available migrations from filesystem."""
-        migrations = []
+        migrations: list[Migration] = []
 
         if not self.migrations_dir.exists():
             logger.warning(f"Migrations directory not found: {self.migrations_dir}")
@@ -106,43 +121,41 @@ class MigrationRunner:
 
         return migrations
 
-    def compute_contiguous_plan(
+    def compute_plan(
         self,
         migrations: list[Migration],
         start_version: int,
         target_version: int | None = None,
     ) -> list[Migration]:
-        """
-        Compute the contiguous list of migrations to apply starting at start_version.
+        """Compute the migration plan to apply starting at start_version.
 
-        - Returns the longest prefix with versions [start_version, start_version+1, ...]
-          stopping at the first gap.
-        - If target_version is provided, do not include versions greater than target_version.
+        Canonical behavior: apply all available migrations with version >= start_version,
+        ordered by version. Gaps in version numbers do not stop migration application.
+
+        If target_version is provided, only include migrations up to that version.
         """
         if not migrations:
             return []
 
-        # Keep only migrations at or above the start_version
-        candidates = [m for m in migrations if m.version >= start_version]
+        candidates = [
+            m
+            for m in migrations
+            if m.version >= start_version
+            and (target_version is None or m.version <= target_version)
+        ]
         candidates.sort(key=lambda m: m.version)
-
-        plan: list[Migration] = []
-        expected = start_version
-        for m in candidates:
-            if target_version is not None and m.version > target_version:
-                break
-            if m.version == expected:
-                plan.append(m)
-                expected += 1
-                continue
-            if m.version > expected:
-                # Found a gap; stop planning here
-                break
-            # If m.version < expected, just skip (duplicate/older)
-        return plan
+        return candidates
 
     async def apply_migration(self, migration: Migration, conn: Connection) -> None:
-        """Apply a single migration within a transaction."""
+        """Apply a single migration.
+
+        Notes:
+        - The migration SQL + schema_version update are executed in a per-migration
+          transaction to avoid leaving the connection in an aborted transaction state
+          if a migration fails.
+        - Audit/history rows are recorded outside the migration transaction so failures
+          are persisted even when the migration is rolled back.
+        """
         history_id = None
         start_time = time.time()
 
@@ -154,23 +167,30 @@ class MigrationRunner:
                 "apply",
             )
 
-            # Execute migration SQL
-            await conn.execute(migration.content)
+            execution_time_ms: int
+            async with conn.transaction():
+                # Execute migration SQL
+                await conn.execute(migration.content)
 
-            # Record successful migration
-            execution_time_ms = int((time.time() - start_time) * 1000)
-
-            await conn.execute(
-                """
-                INSERT INTO _migration.schema_version
-                (version, name, checksum, execution_time_ms, status)
-                VALUES ($1, $2, $3, $4, 'applied')
-                """,
-                migration.version,
-                migration.name,
-                migration.checksum,
-                execution_time_ms,
-            )
+                # Record successful migration
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                await conn.execute(
+                    """
+                    INSERT INTO _migration.schema_version
+                    (version, name, checksum, execution_time_ms, status)
+                    VALUES ($1, $2, $3, $4, 'applied')
+                    ON CONFLICT (version) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        checksum = EXCLUDED.checksum,
+                        execution_time_ms = EXCLUDED.execution_time_ms,
+                        status = 'applied',
+                        error_message = NULL
+                    """,
+                    migration.version,
+                    migration.name,
+                    migration.checksum,
+                    execution_time_ms,
+                )
 
             # Update history
             if history_id:
@@ -227,41 +247,50 @@ class MigrationRunner:
         Returns:
             Tuple[Any, ...] of (migrations_applied, final_version)
         """
+        schema_exists = await self.migration_schema_exists()
         current_version = await self.get_current_version()
         available_migrations = await self.get_available_migrations()
 
-        # Compute the contiguous plan starting after the current version
-        migrations_to_apply = self.compute_contiguous_plan(
+        bootstrap = next((m for m in available_migrations if m.version == 0), None)
+        if bootstrap is None:
+            raise RuntimeError("Missing required migration 000_migration_version.sql")
+
+        start_version = current_version + 1
+        if not schema_exists:
+            # Schema doesn't exist yet; bootstrap will be applied first.
+            start_version = 1
+
+        migrations_to_apply = self.compute_plan(
             available_migrations,
-            start_version=current_version + 1,
+            start_version=start_version,
             target_version=target_version,
         )
 
-        if not migrations_to_apply:
-            logger.info(f"Database is up to date at version {current_version}")
+        if not migrations_to_apply and schema_exists:
+            logger.info("Database is up to date at version %s", current_version)
             return 0, current_version
 
         migrations_applied = 0
-
-        # Apply migrations in a transaction
-        async with self.pool.acquire() as conn, conn.transaction():
-            # Ensure migration schema exists
-            if current_version == 0:
-                bootstrap_migration = Migration(
-                    version=0,
-                    name="Bootstrap Migration Schema",
-                    filename="000_migration_version.sql",
-                    content=open(
-                        self.migrations_dir / "000_migration_version.sql",
-                    ).read(),
-                    checksum="bootstrap",
-                )
-
-                await conn.execute(bootstrap_migration.content)
+        async with self.pool.acquire() as conn:
+            if not schema_exists:
+                async with conn.transaction():
+                    # Apply bootstrap first to create _migration schema/tables/functions.
+                    await conn.execute(bootstrap.content)
+                    await conn.execute(
+                        """
+                        INSERT INTO _migration.schema_version
+                        (version, name, checksum, execution_time_ms, status)
+                        VALUES ($1, $2, $3, $4, 'applied')
+                        ON CONFLICT (version) DO NOTHING
+                        """,
+                        bootstrap.version,
+                        bootstrap.name,
+                        bootstrap.checksum,
+                        0,
+                    )
                 logger.info("Created migration tracking schema")
 
-            # Apply each migration
-            for migration in sorted(migrations_to_apply, key=lambda m: m.version):
+            for migration in migrations_to_apply:
                 # Check if migration was already partially applied
                 existing_status = await conn.fetchval(
                     """

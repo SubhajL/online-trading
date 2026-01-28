@@ -5,7 +5,6 @@ import {
   RouterClientService,
   OrderRequest,
   OrderResponse,
-  CloseAllResponse,
 } from '../router-client/router-client.service';
 import type { EmergencyCloseScope } from './dto/emergency-close.dto';
 import { OrderRepository } from '../orders/repositories/order.repository';

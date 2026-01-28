@@ -36,7 +36,7 @@ ZoneId = NewType("ZoneId", str)
 SignalId = NewType("SignalId", str)
 
 
-async def analyze_retest(
+async def analyze_retest(  # noqa: PLR0913
     symbol: str,
     timeframe: str,
     candles: list[Any],
@@ -428,6 +428,13 @@ class RetestEngine:
                 symbol=signal.symbol,
                 timeframe=signal.timeframe,
                 signal=signal,
+                metadata={
+                    "zone": {
+                        "zone_id": signal_data.get("zone_id"),
+                        "zone_type": signal_data.get("zone_type"),
+                    },
+                    "timeframe": signal_data.get("timeframe"),
+                },
             )
 
             await self.event_bus.publish(event, priority=8)

@@ -730,10 +730,17 @@ class TradingDecisionEvent(BaseEvent):
 
 
 class OrderPlacedEvent(BaseEvent):
-    """Order placed event"""
+    """Order placed event.
+
+    When emitted by RouterExecutionSubscriber with enriched context,
+    includes decision and router_response for rich alert formatting.
+    """
 
     event_type: EventType = EventType.ORDER_PLACED
     order: Order
+    # Optional enriched context for alerts (backward compatible)
+    decision: TradingDecision | None = None
+    router_response: dict[str, Any] | None = None
 
 
 class OrderFilledEvent(BaseEvent):

@@ -1,7 +1,7 @@
 """Connection pool management for TimescaleDB."""
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import logging
@@ -66,7 +66,10 @@ class ConnectionPool:
             try:
                 self._pool = await self._create_pool()
                 logger.info(
-                    f"Database pool created: {self.config.host}:{self.config.port}/{self.config.database}",
+                    "Database pool created: %s:%s/%s",
+                    self.config.host,
+                    self.config.port,
+                    self.config.database,
                 )
                 self._initialized = True
                 return
@@ -79,12 +82,15 @@ class ConnectionPool:
                     raise
 
     @asynccontextmanager
-    async def acquire(self) -> None:
-        """Acquire connection from pool."""
+    async def acquire(self) -> AsyncIterator[asyncpg.Connection]:
+        """Acquire a connection from the pool."""
         if not self.is_initialized:
             raise RuntimeError("Connection pool not initialized")
 
-        conn = await self._pool.acquire()
+        if self._pool is None:
+            raise RuntimeError("Connection pool not initialized")
+
+        conn: asyncpg.Connection = await self._pool.acquire()
         try:
             yield conn
         finally:
@@ -95,7 +101,7 @@ class ConnectionPool:
         try:
             async with self.acquire() as conn:
                 result = await conn.fetchval("SELECT 1")
-                return result == 1
+                return isinstance(result, int) and result == 1
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return False

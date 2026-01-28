@@ -5,10 +5,11 @@ These tests show the reality of position sizing with expensive assets like Bitco
 The key insight: We can't always achieve 0.5% risk due to position limits.
 """
 
-import pytest
 from decimal import Decimal
 
-from app.engine.decision.position_sizer import PositionSizer, PositionSizeConfig
+import pytest
+
+from app.engine.decision.position_sizer import PositionSizeConfig, PositionSizer
 
 
 class TestCriticalPositionSizing:
@@ -40,25 +41,21 @@ class TestCriticalPositionSizing:
                 "name": "Small retail account",
                 "balance": Decimal("10000"),
                 "stop_pct": Decimal("0.02"),  # 2% stop
-                "achievable_risk": Decimal("0.0004"),  # Only 0.04% risk possible
             },
             {
                 "name": "Medium account",
                 "balance": Decimal("50000"),
                 "stop_pct": Decimal("0.02"),  # 2% stop
-                "achievable_risk": Decimal("0.002"),   # Only 0.2% risk possible
             },
             {
                 "name": "Large account",
                 "balance": Decimal("500000"),
                 "stop_pct": Decimal("0.02"),  # 2% stop
-                "achievable_risk": Decimal("0.005"),   # Full 0.5% achievable
             },
             {
                 "name": "Tight stop on large account",
                 "balance": Decimal("500000"),
                 "stop_pct": Decimal("0.005"),  # 0.5% stop
-                "achievable_risk": Decimal("0.002"),   # Limited by 2% position
             },
         ]
 
@@ -84,23 +81,31 @@ class TestCriticalPositionSizing:
             position_value = position_size * btc_price
             position_pct = position_value / balance
 
+            expected_risk_pct = min(
+                sizer.config.fixed_risk_pct,
+                sizer.config.max_position_pct * scenario["stop_pct"],
+            )
+
             print(f"\n{scenario['name']} (${balance:,.0f}):")
             print(f"  Stop distance: {scenario['stop_pct']:.1%} (${stop_distance:,.0f})")
             print(f"  Position size: {position_size:.4f} BTC")
             print(f"  Position value: ${position_value:,.0f} ({position_pct:.1%} of account)")
             print(f"  Risk amount: ${risk_amount:.0f}")
-            print(f"  Risk achieved: {risk_pct:.3%} (target: 0.5%)")
+            print(
+                f"  Risk achieved: {risk_pct:.3%} "
+                f"(expected: {expected_risk_pct:.3%}, target: 0.5%)"
+            )
 
             # Verify safety constraints
             assert risk_pct <= Decimal("0.005"), "Risk exceeds 0.5% limit!"
             assert position_pct <= Decimal("0.02"), "Position exceeds 2% limit!"
 
-            # Verify we achieve expected risk given constraints
-            assert abs(risk_pct - scenario["achievable_risk"]) < Decimal("0.0001"), \
-                f"Unexpected risk: {risk_pct:.4%} != {scenario['achievable_risk']:.4%}"
+            assert abs(risk_pct - expected_risk_pct) < Decimal("0.0001"), (
+                f"Unexpected risk: {risk_pct:.4%} != {expected_risk_pct:.4%}"
+            )
 
     def test_ethereum_more_accessible(self, sizer):
-        """Test that cheaper assets like ETH allow better risk achievement."""
+        """Test that sizing honors constraints for ETH."""
         eth_price = Decimal("3000")  # More accessible than BTC
 
         test_accounts = [
@@ -131,10 +136,13 @@ class TestCriticalPositionSizing:
             print(f"  Position: {position_size:.3f} ETH")
             print(f"  Risk achieved: {risk_pct:.3%}")
 
-            # With ETH, more accounts can achieve full 0.5% risk
-            if balance >= Decimal("15000"):
-                assert abs(risk_pct - Decimal("0.005")) < Decimal("0.0001"), \
-                    "Should achieve full 0.5% risk with ETH"
+            expected_risk_pct = min(
+                sizer.config.fixed_risk_pct,
+                sizer.config.max_position_pct * Decimal("0.02"),
+            )
+            assert abs(risk_pct - expected_risk_pct) < Decimal("0.0001"), (
+                f"Unexpected risk: {risk_pct:.4%} != {expected_risk_pct:.4%}"
+            )
 
     def test_never_exceed_safety_limits(self, sizer):
         """
@@ -252,7 +260,7 @@ class TestCriticalPositionSizing:
         risk_amount = position_size * stop_distance
         risk_pct = risk_amount / small_account
 
-        print(f"\nMinimum position risk check:")
+        print("\nMinimum position risk check:")
         print(f"  Account: ${small_account}")
         print(f"  Min position: {position_size} BTC")
         print(f"  Risk: {risk_pct:.1%} of account")

@@ -117,6 +117,8 @@ class BinanceWebSocketClient:
         backoff_config: BackoffConfig | None = None,
         circuit_breaker: CircuitBreaker | None = None,
         event_bus: "EventBus | None" = None,
+        stale_threshold_seconds: int = 60,
+        ping_keepalive_interval: int = 30,
     ) -> None:
         self.base_url = base_url
         if testnet:
@@ -139,9 +141,13 @@ class BinanceWebSocketClient:
 
         self._last_message_at: datetime | None = None
         self._message_times: deque[datetime] = deque(maxlen=2000)
-        self._stale_threshold_seconds = 120
+        self._stale_threshold_seconds = stale_threshold_seconds
         self._watchdog_interval_seconds = 30
         self._watchdog_task: asyncio.Task[Any] | None = None
+
+        # Ping keepalive to prevent NAT/firewall silent disconnects
+        self._ping_keepalive_interval = ping_keepalive_interval
+        self._ping_keepalive_task: asyncio.Task[Any] | None = None
 
         # Resilience: max retry limit
         self._max_reconnect_attempts = max_reconnect_attempts
@@ -190,6 +196,7 @@ class BinanceWebSocketClient:
         self._running = True
         self._reconnect_task = asyncio.create_task(self._connection_manager())
         self._watchdog_task = asyncio.create_task(self._watchdog_loop())
+        self._ping_keepalive_task = asyncio.create_task(self._ping_keepalive_loop())
         logger.info("WebSocket client started")
 
     async def stop(self) -> None:
@@ -198,6 +205,12 @@ class BinanceWebSocketClient:
             return
 
         self._running = False
+
+        if self._ping_keepalive_task:
+            self._ping_keepalive_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._ping_keepalive_task
+            self._ping_keepalive_task = None
 
         if self._watchdog_task:
             self._watchdog_task.cancel()
@@ -643,6 +656,27 @@ class BinanceWebSocketClient:
                     "WebSocket stale: no messages for %ss; forcing reconnect",
                     self._last_message_ago_seconds(now),
                 )
+                if self._websocket is not None:
+                    with contextlib.suppress(Exception):
+                        await self._websocket.close()
+
+    async def _ping_keepalive_loop(self) -> None:
+        """Send periodic ping frames to keep the connection alive.
+
+        NAT/firewalls may silently drop idle connections. Sending ping frames
+        every 30 seconds prevents this and detects dead connections faster.
+        """
+        while self._running:
+            await asyncio.sleep(self._ping_keepalive_interval)
+
+            if not self._is_websocket_open():
+                continue
+
+            try:
+                await self._websocket.ping()
+                logger.debug("Sent keepalive ping")
+            except Exception as e:
+                logger.warning("Keepalive ping failed: %s; forcing reconnect", e)
                 if self._websocket is not None:
                     with contextlib.suppress(Exception):
                         await self._websocket.close()

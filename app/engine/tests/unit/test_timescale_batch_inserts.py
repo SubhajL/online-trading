@@ -153,17 +153,18 @@ async def test_insert_candles_batch_uses_copy_for_large_batches(monkeypatch) -> 
     args = fake_conn.copy_args
     assert args is not None and args["table"] == "candles"
     assert set(args["columns"]) == {
-        "time",
         "venue",
         "symbol",
         "timeframe",
-        "open",
-        "high",
-        "low",
-        "close",
+        "open_time",
+        "close_time",
+        "open_price",
+        "high_price",
+        "low_price",
+        "close_price",
         "volume",
         "quote_volume",
-        "trade_count",
-        "taker_buy_volume",
+        "trades",
+        "taker_buy_base_volume",
         "taker_buy_quote_volume",
     }

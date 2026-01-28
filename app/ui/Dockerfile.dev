@@ -10,11 +10,14 @@ RUN npm install -g pnpm@9
 # Set working directory for UI app
 WORKDIR /app
 
+# Avoid huge browser downloads during install (Playwright is used for tests, not runtime).
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 # Copy all UI files from build context (root)
 COPY app/ui/ ./
 
 # Install dependencies in the container
-RUN pnpm install
+RUN pnpm install --fetch-retries 5 --fetch-retry-mintimeout 20000 --fetch-retry-maxtimeout 120000
 
 # Expose port
 EXPOSE 3000

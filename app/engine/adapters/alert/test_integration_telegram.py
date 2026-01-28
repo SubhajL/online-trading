@@ -4,9 +4,9 @@ These tests actually send messages to Telegram - no mocks!
 Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.
 """
 
-import os
 from datetime import UTC, datetime
 from decimal import Decimal
+import os
 from typing import AsyncGenerator
 
 import pytest

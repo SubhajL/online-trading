@@ -76,7 +76,7 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	// For STOP_LOSS_LIMIT:
 	// - stopPrice is the trigger price
 	// - price is the limit price (slightly worse than stop to ensure fill)
-	slLimitPrice := req.StopLossPrice
+	var slLimitPrice decimal.Decimal
 	if req.Side == "BUY" {
 		// For long positions, SL sells below stop price
 		slLimitPrice = req.StopLossPrice.Mul(decimal.NewFromFloat(0.995))
@@ -315,8 +315,9 @@ func (m *Manager) CloseAllPositions(ctx context.Context, req *CloseAllRequest) e
 
 		// For futures, also close position with market order
 		if req.IsFutures {
-			// In production, check actual position size
-			// For now, skip position closing
+			m.logger.Warn().
+				Str("symbol", symbol).
+				Msg("Close-all futures positions not implemented; canceled orders only")
 		}
 	}
 

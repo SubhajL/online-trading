@@ -8,7 +8,6 @@ jest.mock('puppeteer');
 
 describe('SnapshotGeneratorService', () => {
   let service: SnapshotGeneratorService;
-  let configService: jest.Mocked<ConfigService>;
   let mockBrowser: any;
   let mockPage: any;
 
@@ -47,7 +46,6 @@ describe('SnapshotGeneratorService', () => {
     }).compile();
 
     service = module.get<SnapshotGeneratorService>(SnapshotGeneratorService);
-    configService = module.get(ConfigService);
   });
 
   afterEach(async () => {

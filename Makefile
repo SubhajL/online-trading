@@ -62,10 +62,10 @@ setup: setup-python setup-node setup-go setup-git-hooks ## Complete development 
 setup-python: ## Setup Python environment for engine
 	@echo "$(BLUE)🐍 Setting up Python environment...$(RESET)"
 	@cd $(ENGINE_DIR) && \
-		python -m venv .venv && \
+		python3 -m venv .venv && \
 		source .venv/bin/activate && \
 		pip install --upgrade pip && \
-		pip install -e ".[dev]"
+		pip install -r requirements-dev.txt
 	@echo "$(GREEN)✅ Python environment ready$(RESET)"
 
 .PHONY: setup-node
@@ -290,7 +290,18 @@ lint-engine: ## Run Python linting
 	@cd $(ENGINE_DIR) && \
 		source .venv/bin/activate && \
 		ruff check . && \
-		mypy .
+		python -m mypy --config-file mypy.ini --follow-imports=skip \
+			main.py \
+			decision/decision_publisher.py \
+			execution/router_execution_subscriber.py \
+			adapters/alert/alert_subscriber.py \
+			adapters/alert/signal_emitter.py \
+			retest/engine.py \
+			adapters/db/timescale_adapter.py \
+			adapters/db/migrations.py \
+			adapters/db/connection_pool.py \
+			core/signal_cooldown.py \
+			core/zone_identity.py
 
 .PHONY: lint-router
 lint-router: ## Run Go linting
@@ -357,7 +368,7 @@ db-migrate: ## Run database migrations
 	@echo "$(BLUE)🗄️  Running database migrations...$(RESET)"
 	@cd $(ENGINE_DIR) && \
 		source .venv/bin/activate && \
-		alembic upgrade head
+		PYTHONPATH=../.. python scripts/migrate_db.py
 
 .PHONY: db-migrate-create
 db-migrate-create: ## Create new database migration

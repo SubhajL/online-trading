@@ -30,6 +30,8 @@ from app.engine.monitoring.metrics import (
     get_metrics
 )
 
+pytestmark = pytest.mark.e2e
+
 
 class TestTelegramDelivery:
     """Test chart snapshot delivery to Telegram."""

@@ -21,7 +21,6 @@ from .fill_model import (
     simulate_bracket_fills,
 )
 
-
 TradeDirection = Literal["BUY", "SELL"]
 TradeOutcomeLabel = Literal["TP1", "SL", "NONE"]
 

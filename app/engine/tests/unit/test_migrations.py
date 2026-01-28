@@ -128,26 +128,34 @@ class TestMigrationRunner:
         assert migrations[2].version == 2
 
     @pytest.mark.asyncio
-    async def test_compute_contiguous_plan_valid(self, mock_pool, migrations_dir) -> None:
-        """Plan is contiguous from start when files are sequential."""
+    async def test_compute_plan_includes_all_versions_from_start(
+        self,
+        mock_pool,
+        migrations_dir,
+    ) -> None:
+        """Plan includes all migrations >= start_version (no gap-stopping)."""
         runner = MigrationRunner(mock_pool, migrations_dir)
         migrations = await runner.get_available_migrations()
 
-        plan = runner.compute_contiguous_plan(migrations, start_version=1)
+        plan = runner.compute_plan(migrations, start_version=1)
         assert [m.version for m in plan] == [1, 2]
 
     @pytest.mark.asyncio
-    async def test_compute_contiguous_plan_stops_at_gap(self, mock_pool, migrations_dir) -> None:
-        """Plan stops at first gap and ignores later files."""
+    async def test_compute_plan_does_not_stop_at_gaps(
+        self,
+        mock_pool,
+        migrations_dir,
+    ) -> None:
+        """Plan does not stop when there is a version gap."""
         # Create migration with gap after 2
         (migrations_dir / "004_gap_migration.sql").write_text("SELECT 1;")
 
         runner = MigrationRunner(mock_pool, migrations_dir)
         migrations = await runner.get_available_migrations()
 
-        plan = runner.compute_contiguous_plan(migrations, start_version=0)
-        # Expect bootstrap (0), then 1, 2; 4 is ignored due to gap at 3
-        assert [m.version for m in plan] == [0, 1, 2]
+        plan = runner.compute_plan(migrations, start_version=0)
+        # Expect bootstrap (0), then 1, 2, 4 even though 3 is missing.
+        assert [m.version for m in plan] == [0, 1, 2, 4]
 
     @pytest.mark.asyncio
     async def test_apply_migration_success(self, mock_pool, mock_connection) -> None:
@@ -200,7 +208,11 @@ class TestMigrationRunner:
         self, mock_pool, mock_connection, migrations_dir
     ):
         """Test migration when database is already up to date."""
-        mock_connection.fetchval.side_effect = [True, 2]  # Already at version 2
+        mock_connection.fetchval.side_effect = [
+            True,  # migration_schema_exists
+            True,  # get_current_version: schema exists
+            2,  # get_current_version: current version
+        ]
 
         runner = MigrationRunner(mock_pool, migrations_dir)
         applied, final_version = await runner.migrate_to_version()
@@ -215,13 +227,14 @@ class TestMigrationRunner:
         """Test applying all pending migrations."""
         # Mock current version = 0 (no migrations)
         mock_connection.fetchval.side_effect = [
-            False,  # Schema doesn't exist
-            None,  # No current version
-            None,  # History ID for bootstrap
-            None,  # History ID for migration 1
-            None,  # History ID for migration 2
-            True,  # Schema exists after migration
-            2,  # Final version
+            False,  # migration_schema_exists
+            False,  # get_current_version: schema exists?
+            None,  # existing_status for migration 1
+            111,  # history_id for migration 1
+            None,  # existing_status for migration 2
+            112,  # history_id for migration 2
+            True,  # get_current_version: schema exists after
+            2,  # get_current_version: final version
         ]
 
         runner = MigrationRunner(mock_pool, migrations_dir)
@@ -236,12 +249,13 @@ class TestMigrationRunner:
     ):
         """Test migrating to specific version."""
         mock_connection.fetchval.side_effect = [
-            True,  # Schema exists
-            0,  # Current version
+            True,  # migration_schema_exists
+            True,  # get_current_version: schema exists
+            0,  # get_current_version: current version
             None,  # Check migration 1 status
             123,  # History ID for migration 1
-            True,  # Schema exists after
-            1,  # Final version
+            True,  # get_current_version: schema exists after
+            1,  # get_current_version: final version
         ]
 
         runner = MigrationRunner(mock_pool, migrations_dir)

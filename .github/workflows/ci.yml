@@ -10,6 +10,8 @@ env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "18"
   GO_VERSION: "1.21"
+  TEST_DATABASE_URL: "postgresql://trading_user:password@localhost:5432/trading_platform_test"
+  REDIS_URL: "redis://localhost:6379/0"
 
 jobs:
   # Python Engine Tests
@@ -19,11 +21,11 @@ jobs:
 
     services:
       postgres:
-        image: timescale/timescaledb:2.11.0-pg15
+        image: timescale/timescaledb:latest-pg16
         env:
-          POSTGRES_USER: trader
-          POSTGRES_PASSWORD: trader123
-          POSTGRES_DB: trader
+          POSTGRES_USER: trading_user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: trading_platform_test
         ports:
           - 5432:5432
         options: >-
@@ -51,6 +53,11 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
+      - name: Install system dependencies (OCR)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
       - name: Install Python dependencies
         run: |
           cd app/engine
@@ -61,27 +68,42 @@ jobs:
       - name: Run Python linting
         run: |
           cd app/engine
-          make lint
+          python -m ruff check .
 
       - name: Run Python type checking
         run: |
+          python -m mypy --config-file app/engine/mypy.ini --follow-imports=skip \
+            app/engine/main.py \
+            app/engine/decision/decision_publisher.py \
+            app/engine/execution/router_execution_subscriber.py \
+            app/engine/adapters/alert/alert_subscriber.py \
+            app/engine/adapters/alert/signal_emitter.py \
+            app/engine/retest/engine.py \
+            app/engine/adapters/db/timescale_adapter.py \
+            app/engine/adapters/db/migrations.py \
+            app/engine/adapters/db/connection_pool.py \
+            app/engine/core/signal_cooldown.py \
+            app/engine/core/zone_identity.py
+
+      - name: One-shot migrate (unit tests)
+        run: |
           cd app/engine
-          make typecheck
+          PYTHONPATH=../.. python scripts/migrate_db.py --database-url "${{ env.TEST_DATABASE_URL }}"
 
       - name: Run Python unit tests
         run: |
           cd app/engine
-          python -m pytest tests/unit -v --tb=short --cov=app --cov-report=xml
+          PYTHONPATH=../.. python -m pytest tests/unit -v --tb=short --cov=app.engine --cov-report=xml
 
       - name: Run critical trading tests
         run: |
           cd app/engine
-          python -m pytest tests/unit/test_critical_position_sizing.py -v
-          python -m pytest tests/unit/test_risk_guards.py -v
-          python -m pytest tests/unit/test_order_validation.py -v
-          python -m pytest tests/unit/test_smc_algorithms.py -v
-          python -m pytest tests/unit/test_indicators.py -v
-          python -m pytest tests/unit/test_e2e_trading_flow.py -v
+          PYTHONPATH=../.. python -m pytest tests/unit/test_critical_position_sizing.py -v
+          PYTHONPATH=../.. python -m pytest tests/unit/test_risk_guards.py -v
+          PYTHONPATH=../.. python -m pytest tests/unit/test_order_validation.py -v
+          PYTHONPATH=../.. python -m pytest tests/unit/test_smc_algorithms.py -v
+          PYTHONPATH=../.. python -m pytest tests/unit/test_indicators.py -v
+          PYTHONPATH=../.. python -m pytest tests/unit/test_e2e_trading_flow.py -v
 
       - name: Upload Python coverage
         uses: actions/upload-artifact@v3
@@ -151,7 +173,7 @@ jobs:
 
       - name: Run TypeScript type checking
         run: |
-          pnpm type-check
+          pnpm typecheck
 
       - name: Run BFF tests
         run: |
@@ -179,11 +201,11 @@ jobs:
 
     services:
       postgres:
-        image: timescale/timescaledb:2.11.0-pg15
+        image: timescale/timescaledb:latest-pg16
         env:
-          POSTGRES_USER: trader
-          POSTGRES_PASSWORD: trader123
-          POSTGRES_DB: trader
+          POSTGRES_USER: trading_user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: trading_platform_test
         ports:
           - 5432:5432
         options: >-
@@ -240,19 +262,13 @@ jobs:
           pnpm install
 
       - name: Run database migrations
-        env:
-          DATABASE_URL: postgresql://trader:trader123@localhost:5432/trader
         run: |
-          cd app/engine
-          alembic upgrade head
+          PYTHONPATH=. python app/engine/scripts/migrate_db.py --database-url "${{ env.TEST_DATABASE_URL }}"
 
       - name: Run integration tests
-        env:
-          DATABASE_URL: postgresql://trader:trader123@localhost:5432/trader
-          REDIS_URL: redis://localhost:6379
         run: |
           cd app/engine
-          python -m pytest tests/integration -v
+          PYTHONPATH=../.. TEST_DATABASE_URL="${{ env.TEST_DATABASE_URL }}" REDIS_URL="${{ env.REDIS_URL }}" python -m pytest -m "integration and not e2e" tests/integration -v
 
   # Security Scan
   security-scan:

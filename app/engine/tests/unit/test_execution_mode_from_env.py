@@ -97,14 +97,18 @@ class TestBuildOrderPayload:
             symbol="BTCUSDT",
             timeframe=None,
             decision=sample_decision,
-            metadata={"signal_id": "sig-001"},
+            metadata={
+                "decision_source": "retest_decision_publisher",
+                "signal_id": "sig-001",
+            },
         )
 
     @pytest.mark.asyncio
     async def test_payload_includes_decision_ts(
-        self, sample_event: TradingDecisionEvent
+        self, sample_event: TradingDecisionEvent,
     ) -> None:
         mock_bus = MagicMock()
+        mock_bus.publish = AsyncMock()
         mock_router = MagicMock()
         mock_router.place_bracket_order = AsyncMock(return_value={"success": True})
 
@@ -124,9 +128,10 @@ class TestBuildOrderPayload:
 
     @pytest.mark.asyncio
     async def test_payload_includes_expected_price(
-        self, sample_event: TradingDecisionEvent
+        self, sample_event: TradingDecisionEvent,
     ) -> None:
         mock_bus = MagicMock()
+        mock_bus.publish = AsyncMock()
         mock_router = MagicMock()
         mock_router.place_bracket_order = AsyncMock(return_value={"success": True})
 
@@ -146,7 +151,7 @@ class TestBuildOrderPayload:
 
     @pytest.mark.asyncio
     async def test_expected_price_is_string_decimal(
-        self, sample_decision: TradingDecision
+        self, sample_decision: TradingDecision,
     ) -> None:
         sample_decision = TradingDecision(
             symbol="BTCUSDT",
@@ -165,10 +170,11 @@ class TestBuildOrderPayload:
             symbol="BTCUSDT",
             timeframe=None,
             decision=sample_decision,
-            metadata={},
+            metadata={"decision_source": "retest_decision_publisher"},
         )
 
         mock_bus = MagicMock()
+        mock_bus.publish = AsyncMock()
         mock_router = MagicMock()
         mock_router.place_bracket_order = AsyncMock(return_value={"success": True})
 

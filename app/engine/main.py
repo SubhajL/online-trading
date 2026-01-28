@@ -22,7 +22,8 @@ import uvicorn
 from .adapters import RedisAdapter, RouterHTTPClient, TimescaleDBAdapter
 from .bus import set_event_bus
 from .core.health import build_system_health
-from .decision.service import DecisionEngine, RiskManager
+from .decision.decision_publisher import DecisionPublisher
+from .decision.service import RiskManager
 from .features.feature_service import FeatureService
 from .ingest.ingest_service import IngestService
 from .models import (
@@ -32,6 +33,7 @@ from .models import (
     RedisConfig,
     RiskParameters,
 )
+from .retest.engine import RetestEngine
 from .smc.smc_service import SMCService
 
 # Configure logging
@@ -119,6 +121,7 @@ app.add_middleware(
 # Track startup time
 startup_time = datetime.now(UTC)
 
+
 def _binance_data_testnet_from_env() -> bool:
     data_source = os.getenv("BINANCE_DATA_SOURCE", "mainnet").strip().lower()
     if data_source == "mainnet":
@@ -127,12 +130,27 @@ def _binance_data_testnet_from_env() -> bool:
         return True
     raise ValueError("BINANCE_DATA_SOURCE must be 'mainnet' or 'testnet'")
 
+
 def _pipeline_health_alerts_enabled_from_env() -> bool:
     value = os.getenv("PIPELINE_HEALTH_ALERTS_ENABLED", "1").strip().lower()
     return value in {"1", "true", "yes", "on"}
 
+
 def _live_rest_fallback_enabled_from_env() -> bool:
     value = os.getenv("LIVE_REST_FALLBACK_ENABLED", "1").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _signal_emitter_subscriber_enabled_from_env() -> bool:
+    """Check if SignalEmitterSubscriber should be enabled.
+
+    IMPORTANT: This bypass path emits trading decisions directly from SMC signals
+    WITHOUT risk management, proper position sizing, or retest confirmation.
+    Disabled by default to ensure only the proper Retest → DecisionPublisher path is used.
+
+    Set SIGNAL_EMITTER_SUBSCRIBER_ENABLED=1 to enable (NOT RECOMMENDED for production).
+    """
+    value = os.getenv("SIGNAL_EMITTER_SUBSCRIBER_ENABLED", "0").strip().lower()
     return value in {"1", "true", "yes", "on"}
 
 
@@ -212,7 +230,7 @@ def load_configuration() -> EngineConfig:
         raise
 
 
-async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915
+async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C901
     """Initialize all services"""
     try:
         # Initialize event bus
@@ -264,13 +282,34 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915
         )
 
         execution_mode = execution_mode_from_env(os.environ)
-        if execution_mode != ExecutionMode.DISABLED:
+        services["execution_mode"] = execution_mode  # Store for AlertSubscriber
+        execution_enabled = execution_mode != ExecutionMode.DISABLED
+
+        # Create separate cooldown instances (execution vs alerts)
+        from .core.signal_cooldown import SignalCooldown
+
+        cooldown_seconds = int(os.getenv("SIGNAL_COOLDOWN_SECONDS", "300"))
+        execution_cooldown = SignalCooldown(cooldown_seconds=cooldown_seconds)
+        alert_cooldown = SignalCooldown(cooldown_seconds=cooldown_seconds)
+        services["execution_cooldown"] = execution_cooldown
+        services["alert_cooldown"] = alert_cooldown
+
+        if execution_enabled:
+            min_confidence = Decimal(os.getenv("MIN_CONFIDENCE_TO_EXECUTE", "0.70"))
             services["execution_subscriber"] = RouterExecutionSubscriber(
                 bus=event_bus,
                 router_client=router_client,
                 execution_mode=execution_mode,
+                cooldown=execution_cooldown,
+                min_confidence=min_confidence,
+                max_position_size=config.risk_parameters.max_position_size,
             )
-            logger.info("Execution subscriber enabled: %s", execution_mode.value)
+            logger.info(
+                "Execution subscriber enabled: %s (min_confidence=%s, cooldown=%ss)",
+                execution_mode.value,
+                min_confidence,
+                cooldown_seconds,
+            )
 
         # Initialize risk manager
         risk_manager = RiskManager(config.risk_parameters)
@@ -330,12 +369,12 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915
         smc_service = SMCService()
         services["smc"] = smc_service
 
-        # Initialize decision engine
-        decision_engine = DecisionEngine(
-            risk_manager=risk_manager,
-            router_client=router_client,
+        # Wire conservative pipeline: retest -> decision publisher
+        services["retest_engine"] = RetestEngine(config={"retest": {}})
+        services["decision_publisher"] = DecisionPublisher(
+            account_balance=Decimal(os.getenv("ACCOUNT_BALANCE", "10000")),
+            risk_per_trade=config.risk_parameters.risk_per_trade,
         )
-        services["decision"] = decision_engine
 
         # Initialize alert subscriber (if Telegram configured)
         telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -350,36 +389,74 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915
             await telegram_adapter.start()
             services["telegram_adapter"] = telegram_adapter
 
-            alert_subscriber = AlertSubscriber(telegram_adapter=telegram_adapter)
+            # Mode-aware alert subscriber:
+            # - execution_enabled=True: alerts on ORDER_PLACED (after order confirmation)
+            # - execution_enabled=False: alerts on TRADING_DECISION (signal-only)
+            alert_subscriber = AlertSubscriber(
+                telegram_adapter=telegram_adapter,
+                execution_enabled=execution_enabled,
+                cooldown=None if execution_enabled else alert_cooldown,
+                # BFF client for snapshots in disabled mode (set below when available)
+            )
             await alert_subscriber.register(event_bus)
             services["alert_subscriber"] = alert_subscriber
 
-            logger.info("Alert subscriber initialized with Telegram")
+            logger.info(
+                "Alert subscriber initialized with Telegram (execution_enabled=%s)",
+                execution_enabled,
+            )
 
         # Initialize BFF API client (for signal alerts with snapshots)
         bff_url = os.getenv("BFF_URL")
         internal_alerts_token = os.getenv("INTERNAL_ALERTS_TOKEN")
         if bff_url and internal_alerts_token:
             from .adapters.alert.bff_api_client import BffApiClient
-            from .adapters.alert.signal_emitter import SignalEmitter
-            from .adapters.alert.signal_emitter_subscriber import (
-                SignalEmitterSubscriber,
-            )
 
             bff_client = BffApiClient(base_url=bff_url, token=internal_alerts_token)
             services["bff_client"] = bff_client
 
-            signal_emitter = SignalEmitter(event_bus=event_bus, bff_client=bff_client)
-            services["signal_emitter"] = signal_emitter
+            # Wire bff_client to execution_subscriber for snapshots on order placement
+            if "execution_subscriber" in services:
+                services["execution_subscriber"]._bff_client = bff_client
+                logger.info("BFF client wired to execution subscriber for snapshots")
 
-            signal_emitter_subscriber = SignalEmitterSubscriber(
-                bus=event_bus,
-                signal_emitter=signal_emitter,
-                venue=os.getenv("TRADING_VENUE", "SPOT"),
-            )
-            services["signal_emitter_subscriber"] = signal_emitter_subscriber
+            # Wire bff_client to alert_subscriber for snapshots in disabled mode
+            if "alert_subscriber" in services and not execution_enabled:
+                services["alert_subscriber"]._bff_client = bff_client
+                logger.info("BFF client wired to alert subscriber for snapshots")
 
-            logger.info("Signal emitter subscriber initialized with BFF client")
+            # SignalEmitterSubscriber is DISABLED by default
+            # This bypass path emits decisions WITHOUT risk management
+            # Only enable via SIGNAL_EMITTER_SUBSCRIBER_ENABLED=1 for testing
+            if _signal_emitter_subscriber_enabled_from_env():
+                if execution_enabled:
+                    raise RuntimeError(  # noqa: TRY301
+                        "Refusing to enable SignalEmitterSubscriber when execution is enabled. "
+                        "Set EXECUTION_MODE=disabled or disable SIGNAL_EMITTER_SUBSCRIBER_ENABLED.",
+                    )
+                from .adapters.alert.signal_emitter import SignalEmitter
+                from .adapters.alert.signal_emitter_subscriber import (
+                    SignalEmitterSubscriber,
+                )
+
+                signal_emitter = SignalEmitter(event_bus=event_bus, bff_client=bff_client)
+                services["signal_emitter"] = signal_emitter
+
+                signal_emitter_subscriber = SignalEmitterSubscriber(
+                    bus=event_bus,
+                    signal_emitter=signal_emitter,
+                    venue=os.getenv("TRADING_VENUE", "SPOT"),
+                )
+                services["signal_emitter_subscriber"] = signal_emitter_subscriber
+                logger.warning(
+                    "SignalEmitterSubscriber ENABLED - bypasses risk management! "
+                    "NOT recommended for production.",
+                )
+            else:
+                logger.info(
+                    "SignalEmitterSubscriber DISABLED (default) - "
+                    "using proper Retest → DecisionPublisher path",
+                )
 
         logger.info("All services initialized successfully")
 
@@ -396,7 +473,8 @@ async def start_services() -> None:
         await services["ingest"].start()
         await services["features"].start()
         await services["smc"].start()
-        await services["decision"].start()
+        await services["retest_engine"].start()
+        await services["decision_publisher"].start()
 
         if "pipeline_health" in services:
             await services["pipeline_health"].start()
@@ -482,7 +560,14 @@ async def shutdown_services() -> None:  # noqa: C901, PLR0912, PLR0915
                 logger.error(f"Error stopping telegram_adapter: {e}")
 
         # Stop services in reverse order
-        for service_name in ["decision", "smc", "features", "ingest", "event_bus"]:
+        for service_name in [
+            "decision_publisher",
+            "retest_engine",
+            "smc",
+            "features",
+            "ingest",
+            "event_bus",
+        ]:
             if service_name in services:
                 try:
                     if hasattr(services[service_name], "stop"):
@@ -581,7 +666,7 @@ async def get_metrics() -> MetricsResponse:
             ingest=metrics.get("ingest", {}),
             features=metrics.get("features", {}),
             smc=metrics.get("smc", {}),
-            decision=metrics.get("decision", {}),
+            decision=metrics.get("decision_publisher", {}),
             database=metrics.get("database", {}),
             redis=metrics.get("redis", {}),
         )

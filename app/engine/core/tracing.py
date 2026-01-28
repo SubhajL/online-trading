@@ -171,11 +171,11 @@ class Span:
             ],
             "links": [
                 {
-                    "trace_id": l.context.trace_id,
-                    "span_id": l.context.span_id,
-                    "attributes": l.attributes,
+                    "trace_id": link.context.trace_id,
+                    "span_id": link.context.span_id,
+                    "attributes": link.attributes,
                 }
-                for l in self.links
+                for link in self.links
             ],
             "status": {"code": self.status.code.value, "message": self.status.message},
         }

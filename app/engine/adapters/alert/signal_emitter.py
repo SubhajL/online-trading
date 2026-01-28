@@ -77,6 +77,7 @@ class SignalEmitter:
                 decision=decision,
                 metadata={
                     "signal_id": signal_id,
+                    "decision_source": "signal_emitter_bypass",
                     "venue": venue,
                     "timeframe": timeframe,
                     **({"zone": zone} if zone is not None else {}),

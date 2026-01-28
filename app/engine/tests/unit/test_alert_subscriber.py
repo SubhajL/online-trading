@@ -13,6 +13,8 @@ from app.engine.models import (
     ErrorEvent,
     EventType,
     Order,
+    OrderPlacedEvent,
+    OrderStatus,
     OrderFilledEvent,
     OrderSide,
     OrderType,
@@ -116,6 +118,7 @@ class TestAlertSubscriberRegister:
 
     @pytest.mark.asyncio
     async def test_registers_with_correct_event_types(self) -> None:
+        """Default mode (execution_enabled=False) subscribes to TRADING_DECISION and ERROR."""
         bus = _FakeBus()
         subscriber = AlertSubscriber()
 
@@ -123,9 +126,10 @@ class TestAlertSubscriberRegister:
 
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
+        # Default is execution_enabled=False, which subscribes to decision-only events
         assert EventType.TRADING_DECISION in event_types
-        assert EventType.ORDER_FILLED in event_types
         assert EventType.ERROR in event_types
+        assert len(event_types) == 2
 
     @pytest.mark.asyncio
     async def test_registers_with_low_priority(self) -> None:
@@ -284,7 +288,7 @@ class TestAlertSubscriberEventTypesParameter:
 
     @pytest.mark.asyncio
     async def test_default_event_types_when_none(self) -> None:
-        """When event_types=None, uses default list of all three types."""
+        """When event_types=None and execution_enabled=False (default), uses decision-only events."""
         bus = _FakeBus()
         subscriber = AlertSubscriber(event_types=None)
 
@@ -292,8 +296,23 @@ class TestAlertSubscriberEventTypesParameter:
 
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
-        assert len(event_types) == 3
+        # Default is execution_enabled=False
+        assert len(event_types) == 2
         assert EventType.TRADING_DECISION in event_types
+        assert EventType.ERROR in event_types
+
+    @pytest.mark.asyncio
+    async def test_execution_enabled_event_types(self) -> None:
+        """When execution_enabled=True, subscribes to ORDER_PLACED events."""
+        bus = _FakeBus()
+        subscriber = AlertSubscriber(execution_enabled=True)
+
+        await subscriber.register(bus)
+
+        event_types = bus.subscriptions[0]["event_types"]
+        assert event_types is not None
+        assert len(event_types) == 3
+        assert EventType.ORDER_PLACED in event_types
         assert EventType.ORDER_FILLED in event_types
         assert EventType.ERROR in event_types
 
@@ -335,3 +354,296 @@ class TestAlertSubscriberEventTypesParameter:
         assert EventType.TRADING_DECISION in event_types
         assert EventType.ERROR in event_types
         assert EventType.ORDER_FILLED not in event_types
+
+
+class TestAlertSubscriberSnapshotTiming:
+    """Tests for snapshot timing in disabled mode (Gap 2 fix)."""
+
+    @pytest.mark.asyncio
+    async def test_snapshot_triggered_before_decision_alert(self) -> None:
+        """In disabled mode, snapshot should be triggered BEFORE telegram call."""
+        call_order: list[str] = []
+
+        class _TrackingBffClient:
+            async def post(self, endpoint: str, payload: dict) -> dict:
+                call_order.append("notify_snapshot")
+                return {"success": True}
+
+        class _TrackingTelegram:
+            async def _handle_decision(self, payload: dict) -> None:
+                call_order.append("handle_decision")
+
+        bff_client = _TrackingBffClient()
+        mock_telegram = _TrackingTelegram()
+
+        subscriber = AlertSubscriber(
+            telegram_adapter=mock_telegram,
+            execution_enabled=False,
+            bff_client=bff_client,
+        )
+
+        ts = datetime.now(UTC)
+        event = _make_trading_decision_event(timestamp=ts)
+        await subscriber._handle_event(event)
+
+        # Snapshot should be triggered BEFORE telegram decision alert
+        assert call_order == ["notify_snapshot", "handle_decision"]
+
+    @pytest.mark.asyncio
+    async def test_decision_alert_sent_even_without_bff_client(self) -> None:
+        """Decision alert should still be sent when no BFF client configured."""
+        call_order: list[str] = []
+
+        class _TrackingTelegram:
+            async def _handle_decision(self, payload: dict) -> None:
+                call_order.append("handle_decision")
+
+        mock_telegram = _TrackingTelegram()
+
+        subscriber = AlertSubscriber(
+            telegram_adapter=mock_telegram,
+            execution_enabled=False,
+            bff_client=None,  # No BFF client
+        )
+
+        ts = datetime.now(UTC)
+        event = _make_trading_decision_event(timestamp=ts)
+        await subscriber._handle_event(event)
+
+        # Telegram should still be called
+        assert call_order == ["handle_decision"]
+
+
+class TestAlertSubscriberCooldown:
+    """Tests for alert cooldown (Gap 3 fix)."""
+
+    @pytest.mark.asyncio
+    async def test_cooldown_blocks_duplicate_alert(self) -> None:
+        """When cooldown active for zone, second alert should be blocked."""
+        from app.engine.core.signal_cooldown import SignalCooldown
+
+        call_count = 0
+
+        class _TrackingTelegram:
+            async def _handle_decision(self, payload: dict) -> None:
+                nonlocal call_count
+                call_count += 1
+
+        mock_telegram = _TrackingTelegram()
+        cooldown = SignalCooldown(cooldown_seconds=300)
+
+        subscriber = AlertSubscriber(
+            telegram_adapter=mock_telegram,
+            execution_enabled=False,
+            cooldown=cooldown,
+        )
+
+        ts = datetime.now(UTC)
+        decision = TradingDecision(
+            symbol="BTCUSDT",
+            timestamp=ts,
+            action="BUY",
+            entry_price=Decimal(50000),
+            stop_loss=Decimal(49000),
+            take_profit=Decimal(52000),
+            quantity=Decimal("0.01"),
+            confidence=Decimal("0.85"),
+            reasoning="SMC Break",
+        )
+        event = TradingDecisionEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.H1,
+            metadata={
+                "signal_id": "sig_123",
+                "zone": {"zone_id": "zone-abc", "zone_type": "DEMAND"},
+            },
+            decision=decision,
+        )
+
+        # First alert should go through
+        await subscriber._handle_event(event)
+        assert call_count == 1
+
+        # Second alert on same zone should be blocked
+        await subscriber._handle_event(event)
+        assert call_count == 1  # Still 1, not 2
+
+    @pytest.mark.asyncio
+    async def test_cooldown_allows_different_zones(self) -> None:
+        """Cooldown should not block alerts for different zones."""
+        from app.engine.core.signal_cooldown import SignalCooldown
+
+        call_count = 0
+
+        class _TrackingTelegram:
+            async def _handle_decision(self, payload: dict) -> None:
+                nonlocal call_count
+                call_count += 1
+
+        mock_telegram = _TrackingTelegram()
+        cooldown = SignalCooldown(cooldown_seconds=300)
+
+        subscriber = AlertSubscriber(
+            telegram_adapter=mock_telegram,
+            execution_enabled=False,
+            cooldown=cooldown,
+        )
+
+        ts = datetime.now(UTC)
+
+        # First zone
+        event1 = TradingDecisionEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.H1,
+            metadata={
+                "signal_id": "sig_1",
+                "zone": {"zone_id": "zone-1", "zone_type": "DEMAND"},
+            },
+            decision=TradingDecision(
+                symbol="BTCUSDT",
+                timestamp=ts,
+                action="BUY",
+                entry_price=Decimal(50000),
+                stop_loss=Decimal(49000),
+                take_profit=Decimal(52000),
+                quantity=Decimal("0.01"),
+                confidence=Decimal("0.85"),
+                reasoning="SMC Break",
+            ),
+        )
+
+        # Different zone
+        event2 = TradingDecisionEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.H1,
+            metadata={
+                "signal_id": "sig_2",
+                "zone": {"zone_id": "zone-2", "zone_type": "SUPPLY"},
+            },
+            decision=TradingDecision(
+                symbol="BTCUSDT",
+                timestamp=ts,
+                action="SELL",
+                entry_price=Decimal(51000),
+                stop_loss=Decimal(52000),
+                take_profit=Decimal(49000),
+                quantity=Decimal("0.01"),
+                confidence=Decimal("0.80"),
+                reasoning="SMC Break",
+            ),
+        )
+
+        await subscriber._handle_event(event1)
+        assert call_count == 1
+
+        await subscriber._handle_event(event2)
+        assert call_count == 2  # Different zone, should go through
+
+    @pytest.mark.asyncio
+    async def test_no_cooldown_when_zone_missing(self) -> None:
+        """When zone_id missing, cooldown should not block."""
+        from app.engine.core.signal_cooldown import SignalCooldown
+
+        call_count = 0
+
+        class _TrackingTelegram:
+            async def _handle_decision(self, payload: dict) -> None:
+                nonlocal call_count
+                call_count += 1
+
+        mock_telegram = _TrackingTelegram()
+        cooldown = SignalCooldown(cooldown_seconds=300)
+
+        subscriber = AlertSubscriber(
+            telegram_adapter=mock_telegram,
+            execution_enabled=False,
+            cooldown=cooldown,
+        )
+
+        ts = datetime.now(UTC)
+        event = TradingDecisionEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.H1,
+            metadata={"signal_id": "sig_123"},  # No zone
+            decision=TradingDecision(
+                symbol="BTCUSDT",
+                timestamp=ts,
+                action="BUY",
+                entry_price=Decimal(50000),
+                stop_loss=Decimal(49000),
+                take_profit=Decimal(52000),
+                quantity=Decimal("0.01"),
+                confidence=Decimal("0.85"),
+                reasoning="SMC Break",
+            ),
+        )
+
+        # Both alerts should go through (no zone to track)
+        await subscriber._handle_event(event)
+        assert call_count == 1
+
+        await subscriber._handle_event(event)
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_order_placed_alert_is_not_cooldown_blocked(self) -> None:
+        """ORDER_PLACED alerts should never be suppressed by cooldown."""
+        from app.engine.core.signal_cooldown import SignalCooldown
+
+        call_count = 0
+
+        class _TrackingTelegram:
+            async def _handle_decision(self, payload: dict) -> None:
+                nonlocal call_count
+                call_count += 1
+
+        ts = datetime.now(UTC)
+        cooldown = SignalCooldown(cooldown_seconds=300)
+        subscriber = AlertSubscriber(
+            telegram_adapter=_TrackingTelegram(),
+            execution_enabled=True,
+            cooldown=cooldown,
+        )
+
+        decision = TradingDecision(
+            symbol="BTCUSDT",
+            timestamp=ts,
+            action="BUY",
+            entry_price=Decimal(50000),
+            stop_loss=Decimal(49000),
+            take_profit=Decimal(52000),
+            quantity=Decimal("0.01"),
+            confidence=Decimal("0.85"),
+            reasoning="SMC Break",
+        )
+        order = Order(
+            client_order_id="order-123",
+            symbol="BTCUSDT",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            quantity=Decimal("0.01"),
+            price=Decimal(50000),
+            status=OrderStatus.NEW,
+            created_at=ts,
+        )
+        event = OrderPlacedEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.H1,
+            metadata={
+                "signal_id": "sig_123",
+                "zone": {"zone_id": "zone-abc", "zone_type": "DEMAND"},
+            },
+            order=order,
+            decision=decision,
+            router_response={"success": True},
+        )
+
+        await subscriber._handle_event(event)
+        await subscriber._handle_event(event)
+
+        assert call_count == 2

@@ -36,7 +36,7 @@ func TestStreamManager_NewStreamManager(t *testing.T) {
 func TestStreamManager_Connect(t *testing.T) {
 	t.Run("establishes connection successfully", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			// Keep connection alive
 			for {
 				if _, _, err := conn.ReadMessage(); err != nil {
@@ -51,7 +51,7 @@ func TestStreamManager_Connect(t *testing.T) {
 
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		assert.Equal(t, StateConnected, sm.State())
 	})
@@ -71,7 +71,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 	t.Run("subscribes to single stream successfully", func(t *testing.T) {
 		subscriptionReceived := make(chan SubscriptionRequest, 1)
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				var req SubscriptionRequest
 				if err := conn.ReadJSON(&req); err != nil {
@@ -84,7 +84,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 					Result: nil,
 					ID:     req.ID,
 				}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 			}
 		})
 		defer server.Close()
@@ -94,7 +94,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		err = sm.Subscribe(ctx, "btcusdt@depth")
 		require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 
 	t.Run("subscribes to multiple streams", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				var req SubscriptionRequest
 				if err := conn.ReadJSON(&req); err != nil {
@@ -126,7 +126,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 					Result: nil,
 					ID:     req.ID,
 				}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 			}
 		})
 		defer server.Close()
@@ -136,7 +136,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		streams := []string{"btcusdt@depth", "ethusdt@ticker", "adausdt@depth"}
 		err = sm.SubscribeMultiple(ctx, streams)
@@ -150,7 +150,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 
 	t.Run("handles subscription errors", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				var req SubscriptionRequest
 				if err := conn.ReadJSON(&req); err != nil {
@@ -169,7 +169,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 						Msg:  "Invalid symbol.",
 					},
 				}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 			}
 		})
 		defer server.Close()
@@ -179,7 +179,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		err = sm.Subscribe(ctx, "invalid@symbol")
 		assert.Error(t, err)
@@ -202,7 +202,7 @@ func TestStreamManager_Subscribe(t *testing.T) {
 func TestStreamManager_Unsubscribe(t *testing.T) {
 	t.Run("unsubscribes from stream successfully", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				var req SubscriptionRequest
 				if err := conn.ReadJSON(&req); err != nil {
@@ -214,7 +214,7 @@ func TestStreamManager_Unsubscribe(t *testing.T) {
 					Result: nil,
 					ID:     req.ID,
 				}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 			}
 		})
 		defer server.Close()
@@ -224,7 +224,7 @@ func TestStreamManager_Unsubscribe(t *testing.T) {
 
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		// Subscribe first
 		err = sm.Subscribe(ctx, "btcusdt@depth")
@@ -240,7 +240,7 @@ func TestStreamManager_Unsubscribe(t *testing.T) {
 
 	t.Run("handles unsubscribe from non-existent stream", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				if _, _, err := conn.ReadMessage(); err != nil {
 					return
@@ -254,7 +254,7 @@ func TestStreamManager_Unsubscribe(t *testing.T) {
 
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		err = sm.Unsubscribe(ctx, "nonexistent@stream")
 		assert.NoError(t, err) // Should not error for non-existent streams
@@ -396,15 +396,17 @@ func TestStreamManager_MessageHandling(t *testing.T) {
 		var mu sync.Mutex
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			// Wait for subscription
 			var req SubscriptionRequest
-			conn.ReadJSON(&req)
+			if err := conn.ReadJSON(&req); err != nil {
+				return
+			}
 
 			// Send confirmation
 			resp := SubscriptionResponse{Result: nil, ID: req.ID}
-			conn.WriteJSON(resp)
+			_ = conn.WriteJSON(resp)
 
 			// Send test messages
 			messages := []StreamMessage{
@@ -419,7 +421,7 @@ func TestStreamManager_MessageHandling(t *testing.T) {
 			}
 
 			for _, msg := range messages {
-				conn.WriteJSON(msg)
+				_ = conn.WriteJSON(msg)
 				time.Sleep(10 * time.Millisecond)
 			}
 		})
@@ -451,7 +453,7 @@ func TestStreamManager_MessageHandling(t *testing.T) {
 
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		err = sm.SubscribeMultiple(ctx, []string{"btcusdt@depth", "ethusdt@ticker"})
 		require.NoError(t, err)
@@ -468,17 +470,17 @@ func TestStreamManager_MessageHandling(t *testing.T) {
 
 	t.Run("handles malformed messages gracefully", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			// Send malformed JSON
-			conn.WriteMessage(websocket.TextMessage, []byte(`{"invalid json`))
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"invalid json`))
 
 			// Send valid message after malformed one
 			validMsg := StreamMessage{
 				Stream: "btcusdt@depth",
 				Data:   json.RawMessage(`{"e":"depthUpdate","s":"BTCUSDT"}`),
 			}
-			conn.WriteJSON(validMsg)
+			_ = conn.WriteJSON(validMsg)
 		})
 		defer server.Close()
 
@@ -494,7 +496,7 @@ func TestStreamManager_MessageHandling(t *testing.T) {
 		ctx := context.Background()
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		// Wait for messages
 		time.Sleep(100 * time.Millisecond)
@@ -511,7 +513,7 @@ func TestStreamManager_Reconnection(t *testing.T) {
 		var mu sync.Mutex
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			mu.Lock()
 			connectionCount++
@@ -521,28 +523,32 @@ func TestStreamManager_Reconnection(t *testing.T) {
 			if currentConnection == 1 {
 				// First connection - handle subscription then close
 				var req SubscriptionRequest
-				conn.ReadJSON(&req)
+				if err := conn.ReadJSON(&req); err != nil {
+					return
+				}
 
 				mu.Lock()
 				subscriptionCount++
 				mu.Unlock()
 
 				resp := SubscriptionResponse{Result: nil, ID: req.ID}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 
 				time.Sleep(50 * time.Millisecond)
 				return // Close connection to trigger reconnection
 			} else {
 				// Second connection - should receive resubscription
 				var req SubscriptionRequest
-				conn.ReadJSON(&req)
+				if err := conn.ReadJSON(&req); err != nil {
+					return
+				}
 
 				mu.Lock()
 				subscriptionCount++
 				mu.Unlock()
 
 				resp := SubscriptionResponse{Result: nil, ID: req.ID}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 
 				// Keep connection alive
 				for {
@@ -561,7 +567,7 @@ func TestStreamManager_Reconnection(t *testing.T) {
 		ctx := context.Background()
 		err := sm.Connect(ctx)
 		require.NoError(t, err)
-		defer sm.Close()
+		defer func() { _ = sm.Close() }()
 
 		err = sm.Subscribe(ctx, "btcusdt@depth")
 		require.NoError(t, err)
@@ -584,7 +590,7 @@ func TestStreamManager_Reconnection(t *testing.T) {
 func TestStreamManager_Close(t *testing.T) {
 	t.Run("closes connection and clears subscriptions", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				var req SubscriptionRequest
 				if err := conn.ReadJSON(&req); err != nil {
@@ -592,7 +598,7 @@ func TestStreamManager_Close(t *testing.T) {
 				}
 				// Send confirmation
 				resp := SubscriptionResponse{Result: nil, ID: req.ID}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 			}
 		})
 		defer server.Close()

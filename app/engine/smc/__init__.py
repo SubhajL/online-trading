@@ -28,7 +28,6 @@ from .events import create_smc_event, create_zone_event, publish_events
 # Legacy imports (kept for backwards compatibility)
 from .pivot_detector import PivotDetector
 from .pivots import (
-    PivotMethod,
     classify_pivot_relationship,
     detect_n_bar_pivots,
     detect_zigzag_pivots,

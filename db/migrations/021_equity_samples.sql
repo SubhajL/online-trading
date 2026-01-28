@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS equity_samples (
     timestamp TIMESTAMPTZ NOT NULL,
     equity NUMERIC(18,8) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT pk_equity_samples PRIMARY KEY (id)
+    CONSTRAINT pk_equity_samples PRIMARY KEY (timestamp, id)
 );
 
 -- Convert to hypertable for time-series efficiency
@@ -15,4 +15,3 @@ CREATE INDEX IF NOT EXISTS idx_equity_samples_timestamp
     ON equity_samples (timestamp DESC);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON equity_samples TO trading_user;
-

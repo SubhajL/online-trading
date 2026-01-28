@@ -21,6 +21,8 @@ from app.engine.models import (
 from app.engine.features.feature_service import FeatureService
 from app.engine.smc.smc_service import SMCService
 
+pytestmark = pytest.mark.integration
+
 
 class EventCollector:
     """Utility to collect events by type for testing."""

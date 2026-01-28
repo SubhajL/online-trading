@@ -1,5 +1,8 @@
 # Multi-stage build for Python trading engine
-FROM python:3.13-slim as builder
+#
+# NOTE: This Dockerfile is intended to be built with the repository root as context
+# (so it can copy `app/` and `db/migrations/`).
+FROM python:3.11-slim as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -24,12 +27,12 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY app/engine/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --user -r requirements.txt
 
 # Production stage
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -49,8 +52,9 @@ ENV PATH=/root/.local/bin:$PATH
 # Set working directory
 WORKDIR /app
 
-# Copy application code
-COPY . .
+# Copy application code needed by the engine and migrations
+COPY app ./app
+COPY db ./db
 
 # Create non-root user for security
 RUN useradd -m -u 1000 trader && \
@@ -72,4 +76,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "app.engine.main:app", "--host", "0.0.0.0", "--port", "8000"]

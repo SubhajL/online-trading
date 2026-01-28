@@ -297,12 +297,12 @@ async def upsert_order(order: dict[str, Any]) -> bool:
             $8,
             $9,
             COALESCE($10, 'NEW'),
-            COALESCE($11, 0),
+            COALESCE($11::numeric, 0::numeric),
             $12,
             COALESCE($13, NOW()),
             $14,
             $15,
-            COALESCE($16, 0),
+            COALESCE($16::numeric, 0::numeric),
             $17,
             $18
         )

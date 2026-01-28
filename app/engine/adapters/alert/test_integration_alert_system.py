@@ -5,9 +5,9 @@ Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.
 """
 
 import asyncio
-import os
 from datetime import UTC, datetime
 from decimal import Decimal
+import os
 from typing import AsyncGenerator
 
 import pytest

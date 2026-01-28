@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -94,6 +95,7 @@ class TestMainExecutionWiring:
         bus = _StubEventBus()
         monkeypatch.setenv("EXECUTION_MODE", "futures_testnet")
         monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
+        monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
 
         monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
         monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
@@ -102,7 +104,8 @@ class TestMainExecutionWiring:
         monkeypatch.setattr(main_mod, "IngestService", lambda **_: _StubAsyncService())
         monkeypatch.setattr(main_mod, "FeatureService", lambda: _StubAsyncService())
         monkeypatch.setattr(main_mod, "SMCService", lambda: _StubAsyncService())
-        monkeypatch.setattr(main_mod, "DecisionEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
         monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
 
         monkeypatch.setattr(main_mod, "set_event_bus", lambda *_: None)
@@ -114,12 +117,27 @@ class TestMainExecutionWiring:
             database=_StubDatabaseCfg(),
             redis=_StubRedisCfg(),
             binance=type("BinanceCfg", (), {"api_key": "", "api_secret": "", "testnet": True})(),
-            risk_parameters=object(),
+            risk_parameters=type(
+                "RiskParams",
+                (),
+                {
+                    "risk_per_trade": Decimal("0.01"),
+                    "max_position_size": Decimal(1),
+                },
+            )(),
         )
 
         await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
 
         assert "execution_subscriber" in main_mod.services
+        assert "retest_engine" in main_mod.services
+        assert "decision_publisher" in main_mod.services
+        assert "execution_cooldown" in main_mod.services
+        assert "alert_cooldown" in main_mod.services
+        assert (
+            main_mod.services["execution_cooldown"]
+            is not main_mod.services["alert_cooldown"]
+        )
 
     async def test_start_services_starts_execution_subscriber(
         self,
@@ -132,6 +150,7 @@ class TestMainExecutionWiring:
 
         monkeypatch.setenv("EXECUTION_MODE", "futures_testnet")
         monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
+        monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
 
         monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
         monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
@@ -140,11 +159,13 @@ class TestMainExecutionWiring:
         ingest = _StubAsyncService()
         features = _StubAsyncService()
         smc = _StubAsyncService()
-        decision = _StubAsyncService()
+        retest = _StubAsyncService()
+        publisher = _StubAsyncService()
         monkeypatch.setattr(main_mod, "IngestService", lambda **_: ingest)
         monkeypatch.setattr(main_mod, "FeatureService", lambda: features)
         monkeypatch.setattr(main_mod, "SMCService", lambda: smc)
-        monkeypatch.setattr(main_mod, "DecisionEngine", lambda **_: decision)
+        monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: retest)
+        monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: publisher)
         monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
 
         monkeypatch.setattr(main_mod, "set_event_bus", lambda *_: None)
@@ -156,7 +177,14 @@ class TestMainExecutionWiring:
             database=_StubDatabaseCfg(),
             redis=_StubRedisCfg(),
             binance=type("BinanceCfg", (), {"api_key": "", "api_secret": "", "testnet": True})(),
-            risk_parameters=object(),
+            risk_parameters=type(
+                "RiskParams",
+                (),
+                {
+                    "risk_per_trade": Decimal("0.01"),
+                    "max_position_size": Decimal(1),
+                },
+            )(),
         )
 
         await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
@@ -166,5 +194,6 @@ class TestMainExecutionWiring:
         assert ingest.started is True
         assert features.started is True
         assert smc.started is True
-        assert decision.started is True
+        assert retest.started is True
+        assert publisher.started is True
         assert any(sub_id == "router-execution" for sub_id, _ in bus.subscribed)

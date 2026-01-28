@@ -57,22 +57,22 @@ def migrations_dir(tmp_path) -> Path:
         "ALTER TABLE test1 ADD COLUMN name TEXT;"
     )
 
-    # Create foreign key migration
+    # Create foreign key migration (align with canonical schema: trading_decisions)
     fk_content = """
 -- Add foreign key constraints
 ALTER TABLE orders
-ADD CONSTRAINT fk_orders_decision
+ADD CONSTRAINT fk_orders_trading_decision
 FOREIGN KEY (decision_id)
-REFERENCES decisions(decision_id)
+REFERENCES trading_decisions(decision_id)
 ON DELETE SET NULL;
 
 ALTER TABLE positions
-ADD CONSTRAINT fk_positions_decision
+ADD CONSTRAINT fk_positions_trading_decision
 FOREIGN KEY (decision_id)
-REFERENCES decisions(decision_id)
+REFERENCES trading_decisions(decision_id)
 ON DELETE SET NULL;
 """
-    (migrations / "008_add_foreign_keys.sql").write_text(fk_content)
+    (migrations / "012_trading_decision_foreign_keys.sql").write_text(fk_content)
 
     return migrations
 
@@ -81,45 +81,46 @@ class TestForeignKeyMigration:
     @pytest.mark.asyncio
     async def test_foreign_key_migration_parsing(self, migrations_dir) -> None:
         """Test foreign key migration file is parsed correctly."""
-        filepath = migrations_dir / "008_add_foreign_keys.sql"
+        filepath = migrations_dir / "012_trading_decision_foreign_keys.sql"
         migration = Migration.from_file(filepath)
 
-        assert migration.version == 8
-        assert migration.name == "Add Foreign Keys"
-        assert "ADD CONSTRAINT fk_orders_decision" in migration.content
-        assert "ADD CONSTRAINT fk_positions_decision" in migration.content
+        assert migration.version == 12
+        assert migration.name == "Trading Decision Foreign Keys"
+        assert "ADD CONSTRAINT fk_orders_trading_decision" in migration.content
+        assert "ADD CONSTRAINT fk_positions_trading_decision" in migration.content
 
     @pytest.mark.asyncio
     async def test_foreign_key_migration_applies(
         self, mock_pool, mock_connection, migrations_dir
     ):
         """Test foreign key migration can be applied."""
-        # Mock current version as 7 (before foreign keys)
+        # Mock current version as 11 (before foreign keys)
         mock_connection.fetchval.side_effect = [
-            True,  # Schema exists
-            7,  # Current version
-            None,  # Check if migration 8 is already applied
-            125,  # History ID for migration 8
-            True,  # Schema exists after
-            8,  # Final version
+            True,  # _migration schema exists (migration_schema_exists)
+            True,  # Schema exists (get_current_version)
+            11,  # Current version (get_current_version)
+            None,  # Check if migration 12 is already applied
+            125,  # History ID for migration 12
+            True,  # Schema exists after (get_current_version)
+            12,  # Final version (get_current_version)
         ]
 
         runner = MigrationRunner(mock_pool, migrations_dir)
         applied, final_version = await runner.migrate_to_version()
 
-        assert applied == 1  # Only migration 8
-        assert final_version == 8
+        assert applied == 1  # Only migration 12
+        assert final_version == 12
 
         # Verify foreign key SQL was executed
         executed_sql = None
         for call in mock_connection.execute.call_args_list:
-            if call[0][0] and "ADD CONSTRAINT fk_orders_decision" in call[0][0]:
+            if call[0][0] and "ADD CONSTRAINT fk_orders_trading_decision" in call[0][0]:
                 executed_sql = call[0][0]
                 break
 
         assert executed_sql is not None
         assert "FOREIGN KEY (decision_id)" in executed_sql
-        assert "REFERENCES decisions(decision_id)" in executed_sql
+        assert "REFERENCES trading_decisions(decision_id)" in executed_sql
 
     @pytest.mark.asyncio
     async def test_foreign_key_migration_rollback_on_error(
@@ -127,9 +128,10 @@ class TestForeignKeyMigration:
     ):
         """Test foreign key migration rolls back on constraint violation."""
         mock_connection.fetchval.side_effect = [
-            True,  # Schema exists
-            7,  # Current version
-            None,  # Check if migration 8 is already applied
+            True,  # _migration schema exists (migration_schema_exists)
+            True,  # Schema exists (get_current_version)
+            11,  # Current version (get_current_version)
+            None,  # Check if migration 12 is already applied
             125,  # History ID
         ]
 
@@ -153,7 +155,10 @@ class TestForeignKeyMigration:
         self, mock_pool, mock_connection, migrations_dir
     ):
         """Test checking status after foreign key migration."""
-        mock_connection.fetchval.side_effect = [True, 8]  # Schema exists, version 8
+        mock_connection.fetchval.side_effect = [
+            True,  # _migration schema exists (get_current_version)
+            12,  # Current version
+        ]
 
         # Mock applied migrations including foreign keys
         mock_connection.fetch.side_effect = [
@@ -171,8 +176,8 @@ class TestForeignKeyMigration:
                     "execution_time_ms": 50,
                 },
                 {
-                    "version": 8,
-                    "name": "Add Foreign Keys",
+                    "version": 12,
+                    "name": "Trading Decision Foreign Keys",
                     "applied_at": datetime.utcnow(),
                     "execution_time_ms": 200,
                 },
@@ -183,13 +188,13 @@ class TestForeignKeyMigration:
         runner = MigrationRunner(mock_pool, migrations_dir)
         status = await runner.check_migration_status()
 
-        assert status["current_version"] == 8
+        assert status["current_version"] == 12
         assert status["applied_count"] == 3
         assert status["failed_count"] == 0
 
         # Find foreign key migration in applied list
         fk_migration = next(
-            (m for m in status["applied_migrations"] if m["version"] == 8), None
+            (m for m in status["applied_migrations"] if m["version"] == 12), None
         )
         assert fk_migration is not None
-        assert fk_migration["name"] == "Add Foreign Keys"
+        assert fk_migration["name"] == "Trading Decision Foreign Keys"

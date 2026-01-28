@@ -4,7 +4,7 @@ Funding Rate Monitor for USD-M Futures
 Blocks trading when predicted funding payment exceeds threshold.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import logging
 from typing import Any

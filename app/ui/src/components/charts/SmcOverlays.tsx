@@ -48,16 +48,20 @@ function createEventOverlay(event: SmcEvent): HTMLDivElement {
   overlay.style.transform = 'translateY(-50%)'
 
   const tokens = getTokens()
+  const styleEvent: { direction: 'bullish' | 'bearish'; type: string } = {
+    direction: event.direction,
+    type: event.type,
+  }
 
   // Create label
   const label = document.createElement('div')
-  const labelStyles = getSmcLabelStyles(event as any, tokens)
+  const labelStyles = getSmcLabelStyles(styleEvent, tokens)
   label.textContent = getEventLabel(event)
   Object.assign(label.style, labelStyles)
 
   // Create line
   const line = document.createElement('div')
-  const lineStyles = getSmcLineStyles(event as any, tokens)
+  const lineStyles = getSmcLineStyles(styleEvent, tokens)
   Object.assign(line.style, lineStyles)
 
   overlay.appendChild(label)

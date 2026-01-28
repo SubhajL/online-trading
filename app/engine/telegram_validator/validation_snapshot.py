@@ -13,7 +13,6 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-
 SNAPSHOT_VERSION = 1
 DEFAULT_ZONE_LOOKBACK_BARS = 100
 DEFAULT_STRUCTURE_LOOKBACK_BARS = 50

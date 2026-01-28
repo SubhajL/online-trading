@@ -179,7 +179,8 @@ class RegimeVolatilityAnalyzer:
 
             # Volatility analysis
             price_ranges = [
-                (h - l) / c for h, l, c in zip(highs, lows, closes, strict=False)
+                (high - low) / close
+                for high, low, close in zip(highs, lows, closes, strict=False)
             ]
             avg_volatility = sum(price_ranges) / len(price_ranges)
 

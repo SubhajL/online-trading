@@ -11,6 +11,8 @@ from datetime import datetime
 
 from app.engine.models import Candle, TimeFrame
 
+pytestmark = pytest.mark.integration
+
 
 class TestDatabaseIntegration:
     """Test real PostgreSQL/TimescaleDB operations."""

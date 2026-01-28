@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,14 +10,9 @@ import (
 func TestConfig_ValidateOptionalKeys(t *testing.T) {
 	t.Run("validates spot-only configuration", func(t *testing.T) {
 		// Set up spot-only environment
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
-		os.Setenv("TRADING_MODE", "spot")
-		defer func() {
-			os.Unsetenv("BINANCE_SPOT_API_KEY")
-			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
-			os.Unsetenv("TRADING_MODE")
-		}()
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		t.Setenv("TRADING_MODE", "spot")
 
 		config, err := Load()
 		require.NoError(t, err)
@@ -29,14 +23,9 @@ func TestConfig_ValidateOptionalKeys(t *testing.T) {
 
 	t.Run("validates futures-only configuration", func(t *testing.T) {
 		// Set up futures-only environment
-		os.Setenv("BINANCE_FUTURES_API_KEY", "test-futures-key")
-		os.Setenv("BINANCE_FUTURES_SECRET_KEY", "test-futures-secret")
-		os.Setenv("TRADING_MODE", "futures")
-		defer func() {
-			os.Unsetenv("BINANCE_FUTURES_API_KEY")
-			os.Unsetenv("BINANCE_FUTURES_SECRET_KEY")
-			os.Unsetenv("TRADING_MODE")
-		}()
+		t.Setenv("BINANCE_FUTURES_API_KEY", "test-futures-key")
+		t.Setenv("BINANCE_FUTURES_SECRET_KEY", "test-futures-secret")
+		t.Setenv("TRADING_MODE", "futures")
 
 		config, err := Load()
 		require.NoError(t, err)
@@ -47,18 +36,11 @@ func TestConfig_ValidateOptionalKeys(t *testing.T) {
 
 	t.Run("validates both required when both trading modes enabled", func(t *testing.T) {
 		// Set up both trading modes
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
-		os.Setenv("BINANCE_FUTURES_API_KEY", "test-futures-key")
-		os.Setenv("BINANCE_FUTURES_SECRET_KEY", "test-futures-secret")
-		os.Setenv("TRADING_MODE", "spot,futures")
-		defer func() {
-			os.Unsetenv("BINANCE_SPOT_API_KEY")
-			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
-			os.Unsetenv("BINANCE_FUTURES_API_KEY")
-			os.Unsetenv("BINANCE_FUTURES_SECRET_KEY")
-			os.Unsetenv("TRADING_MODE")
-		}()
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		t.Setenv("BINANCE_FUTURES_API_KEY", "test-futures-key")
+		t.Setenv("BINANCE_FUTURES_SECRET_KEY", "test-futures-secret")
+		t.Setenv("TRADING_MODE", "spot,futures")
 
 		config, err := Load()
 		require.NoError(t, err)
@@ -69,8 +51,7 @@ func TestConfig_ValidateOptionalKeys(t *testing.T) {
 
 	t.Run("validates error when spot keys missing for spot mode", func(t *testing.T) {
 		// Set up spot mode without keys
-		os.Setenv("TRADING_MODE", "spot")
-		defer os.Unsetenv("TRADING_MODE")
+		t.Setenv("TRADING_MODE", "spot")
 
 		_, err := Load()
 		require.Error(t, err)
@@ -79,8 +60,7 @@ func TestConfig_ValidateOptionalKeys(t *testing.T) {
 
 	t.Run("validates error when futures keys missing for futures mode", func(t *testing.T) {
 		// Set up futures mode without keys
-		os.Setenv("TRADING_MODE", "futures")
-		defer os.Unsetenv("TRADING_MODE")
+		t.Setenv("TRADING_MODE", "futures")
 
 		_, err := Load()
 		require.Error(t, err)
@@ -116,15 +96,10 @@ func TestBinanceConfig_TradingModes(t *testing.T) {
 
 func TestBinanceConfig_ExecutionEnv(t *testing.T) {
 	t.Run("defaults to testnet for safety", func(t *testing.T) {
-		os.Unsetenv("ROUTER_EXECUTION_ENV")
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
-		os.Setenv("TRADING_MODE", "spot")
-		defer func() {
-			os.Unsetenv("BINANCE_SPOT_API_KEY")
-			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
-			os.Unsetenv("TRADING_MODE")
-		}()
+		t.Setenv("ROUTER_EXECUTION_ENV", "")
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		t.Setenv("TRADING_MODE", "spot")
 
 		cfg, err := Load()
 		require.NoError(t, err)
@@ -132,16 +107,10 @@ func TestBinanceConfig_ExecutionEnv(t *testing.T) {
 	})
 
 	t.Run("mainnet execution env disables testnet URLs", func(t *testing.T) {
-		os.Setenv("ROUTER_EXECUTION_ENV", "mainnet")
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
-		os.Setenv("TRADING_MODE", "spot")
-		defer func() {
-			os.Unsetenv("ROUTER_EXECUTION_ENV")
-			os.Unsetenv("BINANCE_SPOT_API_KEY")
-			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
-			os.Unsetenv("TRADING_MODE")
-		}()
+		t.Setenv("ROUTER_EXECUTION_ENV", "mainnet")
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		t.Setenv("TRADING_MODE", "spot")
 
 		cfg, err := Load()
 		require.NoError(t, err)
@@ -149,16 +118,10 @@ func TestBinanceConfig_ExecutionEnv(t *testing.T) {
 	})
 
 	t.Run("invalid execution env returns validation error", func(t *testing.T) {
-		os.Setenv("ROUTER_EXECUTION_ENV", "banana")
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
-		os.Setenv("TRADING_MODE", "spot")
-		defer func() {
-			os.Unsetenv("ROUTER_EXECUTION_ENV")
-			os.Unsetenv("BINANCE_SPOT_API_KEY")
-			os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
-			os.Unsetenv("TRADING_MODE")
-		}()
+		t.Setenv("ROUTER_EXECUTION_ENV", "banana")
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		t.Setenv("TRADING_MODE", "spot")
 
 		_, err := Load()
 		require.Error(t, err)

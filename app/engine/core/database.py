@@ -152,7 +152,10 @@ class ConnectionPool:
             raise ConnectionError("Connection pool not initialized")
 
         try:
-            mgr_or_coro = self._postgres_pool.acquire()
+            try:
+                mgr_or_coro = self._postgres_pool.acquire(timeout=self.config.pool_timeout)
+            except TypeError:
+                mgr_or_coro = self._postgres_pool.acquire()
             # Support both context-manager return and coroutine-return (from certain mocks)
             if hasattr(mgr_or_coro, "__aenter__") and hasattr(mgr_or_coro, "__aexit__"):
                 async with mgr_or_coro as connection:
@@ -161,6 +164,8 @@ class ConnectionPool:
                 mgr = await mgr_or_coro
                 async with mgr as connection:
                     yield connection
+        except (asyncio.TimeoutError, TimeoutError):
+            raise PoolExhaustionError("PostgreSQL connection pool exhausted")
         except asyncpg.TooManyConnectionsError:
             raise PoolExhaustionError("PostgreSQL connection pool exhausted")
         except Exception as e:

@@ -60,7 +60,7 @@ func LoggerMiddleware(output io.Writer) gin.HandlerFunc {
 			latency,
 		)
 
-		output.Write([]byte(logLine))
+		_, _ = output.Write([]byte(logLine))
 	}
 }
 
@@ -342,7 +342,7 @@ func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
 			// Write timeout response to original writer
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusRequestTimeout)
-			json.NewEncoder(w).Encode(models.NewErrorResponse(
+			_ = json.NewEncoder(w).Encode(models.NewErrorResponse(
 				"REQUEST_TIMEOUT",
 				"Request timeout exceeded",
 				c.GetString("request_id"),
@@ -395,7 +395,7 @@ func (r *responseBuffer) WriteTo(w gin.ResponseWriter) {
 	// Write status code
 	w.WriteHeader(r.code)
 	// Write body
-	w.Write(r.body.Bytes())
+	_, _ = w.Write(r.body.Bytes())
 }
 
 // Implement other required methods for gin.ResponseWriter

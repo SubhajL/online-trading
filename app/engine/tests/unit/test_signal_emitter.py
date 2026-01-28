@@ -58,6 +58,7 @@ async def test_emit_signal_basic(signal_emitter, mock_event_bus, mock_bff_client
     event = call_args[0][0]
     assert isinstance(event, TradingDecisionEvent)
     assert event.metadata["signal_id"] == signal_id
+    assert event.metadata["decision_source"] == "signal_emitter_bypass"
     assert event.metadata["venue"] == "SPOT"
     assert event.metadata["timeframe"] == "15m"
 

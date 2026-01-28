@@ -346,3 +346,150 @@ class TestWebSocketHealth:
         assert health["stale"] is True
         assert health["connected"] is False
         assert health["last_message_ago_seconds"] >= 600
+
+
+class TestStaleThresholdConfiguration:
+    """Tests for configurable stale threshold."""
+
+    def test_default_stale_threshold_is_60_seconds(self) -> None:
+        """Default stale threshold should be 60 seconds for faster detection."""
+        client = BinanceWebSocketClient(event_bus=MagicMock())
+        assert client._stale_threshold_seconds == 60
+
+    def test_stale_threshold_can_be_configured(self) -> None:
+        """Stale threshold can be configured via constructor."""
+        client = BinanceWebSocketClient(
+            event_bus=MagicMock(),
+            stale_threshold_seconds=120,
+        )
+        assert client._stale_threshold_seconds == 120
+
+    def test_connection_marked_stale_after_threshold(self) -> None:
+        """Connection is marked stale after threshold seconds without messages."""
+        client = BinanceWebSocketClient(
+            event_bus=MagicMock(),
+            stale_threshold_seconds=30,
+        )
+        now = datetime.now(UTC)
+        client._last_message_at = now - timedelta(seconds=31)
+
+        assert client._is_stale(now) is True
+
+    def test_connection_not_stale_before_threshold(self) -> None:
+        """Connection is not stale before threshold seconds."""
+        client = BinanceWebSocketClient(
+            event_bus=MagicMock(),
+            stale_threshold_seconds=30,
+        )
+        now = datetime.now(UTC)
+        client._last_message_at = now - timedelta(seconds=29)
+
+        assert client._is_stale(now) is False
+
+
+class TestPingKeepalive:
+    """Tests for WebSocket ping keepalive functionality."""
+
+    @pytest.mark.asyncio
+    async def test_ping_loop_sends_ping_when_connected(self) -> None:
+        """Ping loop sends ping frame when WebSocket is connected."""
+        from app.engine.ingest import binance_ws
+
+        client = BinanceWebSocketClient(
+            event_bus=MagicMock(),
+            ping_keepalive_interval=30,
+        )
+        websocket = MagicMock()
+        websocket.state = WebSocketState.OPEN
+        websocket.ping = AsyncMock(return_value=None)
+        client._websocket = websocket
+        client._running = True
+
+        ping_count = 0
+        original_sleep = binance_ws.asyncio.sleep
+
+        async def fake_sleep(_seconds: float) -> None:
+            nonlocal ping_count
+            ping_count += 1
+            if ping_count >= 2:
+                client._running = False
+
+        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[method-assign]
+        try:
+            await client._ping_keepalive_loop()
+        finally:
+            binance_ws.asyncio.sleep = original_sleep  # type: ignore[method-assign]
+
+        assert websocket.ping.await_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_ping_loop_skips_when_disconnected(self) -> None:
+        """Ping loop skips sending when WebSocket is not connected."""
+        from app.engine.ingest import binance_ws
+
+        client = BinanceWebSocketClient(
+            event_bus=MagicMock(),
+            ping_keepalive_interval=30,
+        )
+        websocket = MagicMock()
+        websocket.state = WebSocketState.CLOSED
+        websocket.ping = AsyncMock(return_value=None)
+        client._websocket = websocket
+        client._running = True
+
+        loop_count = 0
+        original_sleep = binance_ws.asyncio.sleep
+
+        async def fake_sleep(_seconds: float) -> None:
+            nonlocal loop_count
+            loop_count += 1
+            if loop_count >= 2:
+                client._running = False
+
+        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[method-assign]
+        try:
+            await client._ping_keepalive_loop()
+        finally:
+            binance_ws.asyncio.sleep = original_sleep  # type: ignore[method-assign]
+
+        websocket.ping.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ping_loop_handles_exception_gracefully(self) -> None:
+        """Ping loop continues after ping exception (connection may be dead)."""
+        from app.engine.ingest import binance_ws
+
+        client = BinanceWebSocketClient(
+            event_bus=MagicMock(),
+            ping_keepalive_interval=30,
+        )
+        websocket = MagicMock()
+        websocket.state = WebSocketState.OPEN
+        websocket.ping = AsyncMock(side_effect=Exception("Connection lost"))
+        websocket.close = AsyncMock(return_value=None)
+        client._websocket = websocket
+        client._running = True
+
+        loop_count = 0
+        original_sleep = binance_ws.asyncio.sleep
+
+        async def fake_sleep(_seconds: float) -> None:
+            nonlocal loop_count
+            loop_count += 1
+            if loop_count >= 2:
+                client._running = False
+
+        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[method-assign]
+        try:
+            await client._ping_keepalive_loop()
+        finally:
+            binance_ws.asyncio.sleep = original_sleep  # type: ignore[method-assign]
+
+        # Should have attempted ping and closed connection on failure
+        websocket.ping.assert_awaited()
+        websocket.close.assert_awaited()
+
+    def test_default_ping_keepalive_interval_is_30_seconds(self) -> None:
+        """Default ping keepalive interval is 30 seconds."""
+        client = BinanceWebSocketClient(event_bus=MagicMock())
+        assert client._ping_keepalive_interval == 30

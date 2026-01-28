@@ -3,24 +3,25 @@ Unit tests for database manager and connection pooling.
 Written first following TDD principles.
 """
 
-import pytest
 import asyncio
-import asyncpg
-import redis.asyncio as redis
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from typing import Dict, Any
 from contextlib import asynccontextmanager
+from typing import Any, Dict
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import asyncpg
+import pytest
+import redis.asyncio as redis
 
 from app.engine.core.database import (
-    DatabaseManager,
-    ConnectionPool,
-    TransactionContext,
-    OptimisticLockMixin,
-    DatabaseConfig,
     ConnectionError,
-    TransactionError,
+    ConnectionPool,
+    DatabaseConfig,
+    DatabaseManager,
     OptimisticLockError,
+    OptimisticLockMixin,
     PoolExhaustionError,
+    TransactionContext,
+    TransactionError,
 )
 
 
@@ -318,10 +319,10 @@ class TestDatabaseManager:
             success_ctx.__aexit__ = AsyncMock(return_value=None)
 
             # First call fails, second succeeds
-            mock_pool.get_postgres_connection.side_effect = [
+            mock_pool.get_postgres_connection = Mock(side_effect=[
                 ConnectionError("Connection failed"),
                 success_ctx,
-            ]
+            ])
             mock_pool_class.return_value = mock_pool
 
             db_manager = DatabaseManager(db_config)
@@ -330,6 +331,7 @@ class TestDatabaseManager:
             async with db_manager.get_connection() as conn:
                 assert conn is mock_connection
             assert mock_pool.get_postgres_connection.call_count == 2
+            await db_manager.shutdown()
 
     @pytest.mark.asyncio
     async def test_transaction_context_manager(self, db_config) -> None:
@@ -341,7 +343,7 @@ class TestDatabaseManager:
             conn_ctx = AsyncMock()
             conn_ctx.__aenter__ = AsyncMock(return_value=mock_connection)
             conn_ctx.__aexit__ = AsyncMock(return_value=None)
-            mock_pool.get_postgres_connection.return_value = conn_ctx
+            mock_pool.get_postgres_connection = Mock(return_value=conn_ctx)
 
             # Mock transaction
             mock_tx = AsyncMock()
@@ -356,6 +358,7 @@ class TestDatabaseManager:
 
             async with db_manager.transaction() as tx:
                 assert isinstance(tx, TransactionContext)
+            await db_manager.shutdown()
 
     @pytest.mark.asyncio
     async def test_concurrent_connection_handling(self, db_config) -> None:
@@ -372,7 +375,7 @@ class TestDatabaseManager:
                 conn_ctx.__aexit__ = AsyncMock(return_value=None)
                 connections.append(conn_ctx)
 
-            mock_pool.get_postgres_connection.side_effect = connections
+            mock_pool.get_postgres_connection = Mock(side_effect=connections)
 
             db_manager = DatabaseManager(db_config)
             await db_manager.initialize()
@@ -387,6 +390,7 @@ class TestDatabaseManager:
 
             assert len(results) == 10
             assert mock_pool.get_postgres_connection.call_count == 10
+            await db_manager.shutdown()
 
     @pytest.mark.asyncio
     async def test_health_check_aggregation(self, db_config) -> None:
@@ -443,7 +447,9 @@ class TestDatabaseManagerConcurrency:
                 ctx.__aexit__ = AsyncMock(return_value=None)
                 connection_contexts.append(ctx)
 
-            mock_pool.get_postgres_connection.side_effect = connection_contexts
+            # `DatabaseManager.transaction()` expects `get_postgres_connection()` to return
+            # an async context manager directly (not a coroutine).
+            mock_pool.get_postgres_connection = Mock(side_effect=connection_contexts)
 
             db_manager = DatabaseManager(config)
             await db_manager.initialize()
@@ -458,6 +464,7 @@ class TestDatabaseManagerConcurrency:
 
             assert len(results) == 3
             assert mock_pool.get_postgres_connection.call_count == 3
+            await db_manager.shutdown()
 
 
 class TestDatabaseIntegration:

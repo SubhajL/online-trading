@@ -169,5 +169,5 @@ def _is_new_day(timestamp1: Any, timestamp2: Any) -> bool:
         day1 = int(timestamp1 // 86400)  # 86400 seconds in a day
         day2 = int(timestamp2 // 86400)
         return day2 > day1
-    except:
+    except Exception:
         return False

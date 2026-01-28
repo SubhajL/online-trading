@@ -21,7 +21,7 @@ func TestClient_GetFuturesIncome(t *testing.T) {
 		assert.NotEmpty(t, r.URL.Query().Get("signature"))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
-		w.Write([]byte(`[{"incomeType":"FUNDING_FEE","income":"-0.01","asset":"USDT","time":1700000000000}]`))
+		_, _ = w.Write([]byte(`[{"incomeType":"FUNDING_FEE","income":"-0.01","asset":"USDT","time":1700000000000}]`))
 	}))
 	defer server.Close()
 

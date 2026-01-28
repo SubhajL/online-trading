@@ -1,13 +1,13 @@
 """Unit tests for database fixtures."""
 
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from contextlib import asynccontextmanager
 
-import pytest
 import asyncpg
+import pytest
 
 from app.engine.tests.fixtures.db_fixtures import (
     DBFixtures,
@@ -19,7 +19,7 @@ from app.engine.tests.fixtures.db_fixtures import (
 
 
 @pytest.fixture
-def mock_pool() -> None:
+def mock_pool() -> tuple[MagicMock, AsyncMock]:
     """Mock connection pool for testing."""
     pool = MagicMock()
     conn = AsyncMock()
@@ -34,6 +34,7 @@ def mock_pool() -> None:
     pool.close = AsyncMock()
     conn.execute = AsyncMock()
     conn.fetchval = AsyncMock()
+    return pool, conn
 
 
 class TestDBFixtures:

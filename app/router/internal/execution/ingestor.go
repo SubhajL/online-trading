@@ -93,7 +93,7 @@ func (i *Ingestor) Start(ctx context.Context) error {
 	i.mu.Unlock()
 
 	if err := i.startWithNewListenKey(childCtx); err != nil {
-		i.Stop(context.Background())
+		_ = i.Stop(context.Background())
 		return err
 	}
 

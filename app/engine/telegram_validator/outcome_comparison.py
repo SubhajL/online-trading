@@ -10,13 +10,13 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from ..models import Candle
 from .fill_model import (
     BracketSpec,
     CostConfig,
     FillSimulationResult,
     simulate_bracket_fills,
 )
-from ..models import Candle
 
 
 @dataclass(frozen=True)

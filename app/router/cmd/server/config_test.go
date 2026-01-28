@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -9,24 +8,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func clearEnv() {
-	os.Unsetenv("PORT")
-	os.Unsetenv("API_KEY")
-	os.Unsetenv("API_SECRET")
-	os.Unsetenv("TESTNET")
-	os.Unsetenv("BINANCE_SPOT_API_KEY")
-	os.Unsetenv("BINANCE_SPOT_SECRET_KEY")
-	os.Unsetenv("BINANCE_SPOT_BASE_URL")
-	os.Unsetenv("BINANCE_FUTURES_API_KEY")
-	os.Unsetenv("BINANCE_FUTURES_SECRET_KEY")
-	os.Unsetenv("BINANCE_FUTURES_BASE_URL")
-	os.Unsetenv("RATE_LIMIT")
-	os.Unsetenv("MAX_CONNECTIONS")
-	os.Unsetenv("LOG_LEVEL")
-	os.Unsetenv("CORS_ORIGINS")
-	os.Unsetenv("READ_TIMEOUT")
-	os.Unsetenv("WRITE_TIMEOUT")
-	os.Unsetenv("IDLE_TIMEOUT")
+func clearEnv(t *testing.T) {
+	t.Helper()
+	keys := []string{
+		"PORT",
+		"API_KEY",
+		"API_SECRET",
+		"TESTNET",
+		"BINANCE_SPOT_API_KEY",
+		"BINANCE_SPOT_SECRET_KEY",
+		"BINANCE_SPOT_BASE_URL",
+		"BINANCE_FUTURES_API_KEY",
+		"BINANCE_FUTURES_SECRET_KEY",
+		"BINANCE_FUTURES_BASE_URL",
+		"RATE_LIMIT",
+		"MAX_CONNECTIONS",
+		"LOG_LEVEL",
+		"CORS_ORIGINS",
+		"READ_TIMEOUT",
+		"WRITE_TIMEOUT",
+		"IDLE_TIMEOUT",
+	}
+	for _, k := range keys {
+		t.Setenv(k, "")
+	}
 }
 
 func TestBinanceBaseURL(t *testing.T) {
@@ -58,19 +63,18 @@ func TestBinanceBaseURL(t *testing.T) {
 
 func TestLoadConfig(t *testing.T) {
 	t.Run("loads config from environment variables", func(t *testing.T) {
-		clearEnv()
-		defer clearEnv()
+		clearEnv(t)
 
-		os.Setenv("PORT", "8080")
-		os.Setenv("BINANCE_SPOT_API_KEY", "spot-key-123")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "spot-secret-123")
-		os.Setenv("BINANCE_FUTURES_API_KEY", "futures-key-123")
-		os.Setenv("BINANCE_FUTURES_SECRET_KEY", "futures-secret-123")
-		os.Setenv("TESTNET", "true")
-		os.Setenv("RATE_LIMIT", "100")
-		os.Setenv("MAX_CONNECTIONS", "10")
-		os.Setenv("LOG_LEVEL", "debug")
-		os.Setenv("CORS_ORIGINS", "http://localhost:3000,https://example.com")
+		t.Setenv("PORT", "8080")
+		t.Setenv("BINANCE_SPOT_API_KEY", "spot-key-123")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "spot-secret-123")
+		t.Setenv("BINANCE_FUTURES_API_KEY", "futures-key-123")
+		t.Setenv("BINANCE_FUTURES_SECRET_KEY", "futures-secret-123")
+		t.Setenv("TESTNET", "true")
+		t.Setenv("RATE_LIMIT", "100")
+		t.Setenv("MAX_CONNECTIONS", "10")
+		t.Setenv("LOG_LEVEL", "debug")
+		t.Setenv("CORS_ORIGINS", "http://localhost:3000,https://example.com")
 
 		config, err := LoadConfig()
 		require.NoError(t, err)
@@ -90,11 +94,10 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("uses default values when env vars not set", func(t *testing.T) {
-		clearEnv()
-		defer clearEnv()
+		clearEnv(t)
 
-		os.Setenv("BINANCE_SPOT_API_KEY", "required-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "required-secret")
+		t.Setenv("BINANCE_SPOT_API_KEY", "required-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "required-secret")
 
 		config, err := LoadConfig()
 		require.NoError(t, err)
@@ -108,8 +111,7 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("returns error when spot API key is missing", func(t *testing.T) {
-		clearEnv()
-		defer clearEnv()
+		clearEnv(t)
 
 		_, err := LoadConfig()
 		assert.Error(t, err)
@@ -117,11 +119,10 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("falls back to legacy API_KEY", func(t *testing.T) {
-		clearEnv()
-		defer clearEnv()
+		clearEnv(t)
 
-		os.Setenv("API_KEY", "legacy-key")
-		os.Setenv("API_SECRET", "legacy-secret")
+		t.Setenv("API_KEY", "legacy-key")
+		t.Setenv("API_SECRET", "legacy-secret")
 
 		config, err := LoadConfig()
 		require.NoError(t, err)
@@ -131,11 +132,10 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("futures falls back to spot keys", func(t *testing.T) {
-		clearEnv()
-		defer clearEnv()
+		clearEnv(t)
 
-		os.Setenv("BINANCE_SPOT_API_KEY", "spot-only-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "spot-only-secret")
+		t.Setenv("BINANCE_SPOT_API_KEY", "spot-only-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "spot-only-secret")
 
 		config, err := LoadConfig()
 		require.NoError(t, err)
@@ -145,12 +145,11 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("validates port range", func(t *testing.T) {
-		clearEnv()
-		defer clearEnv()
+		clearEnv(t)
 
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-secret")
-		os.Setenv("PORT", "70000")
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-secret")
+		t.Setenv("PORT", "70000")
 
 		_, err := LoadConfig()
 		assert.Error(t, err)
@@ -158,14 +157,13 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("parses timeout values", func(t *testing.T) {
-		clearEnv()
-		defer clearEnv()
+		clearEnv(t)
 
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-secret")
-		os.Setenv("READ_TIMEOUT", "60")
-		os.Setenv("WRITE_TIMEOUT", "120")
-		os.Setenv("IDLE_TIMEOUT", "300")
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-secret")
+		t.Setenv("READ_TIMEOUT", "60")
+		t.Setenv("WRITE_TIMEOUT", "120")
+		t.Setenv("IDLE_TIMEOUT", "300")
 
 		config, err := LoadConfig()
 		require.NoError(t, err)
@@ -176,12 +174,11 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("sets testnet=false when explicitly disabled", func(t *testing.T) {
-		clearEnv()
-		defer clearEnv()
+		clearEnv(t)
 
-		os.Setenv("BINANCE_SPOT_API_KEY", "test-key")
-		os.Setenv("BINANCE_SPOT_SECRET_KEY", "test-secret")
-		os.Setenv("TESTNET", "false")
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-secret")
+		t.Setenv("TESTNET", "false")
 
 		config, err := LoadConfig()
 		require.NoError(t, err)

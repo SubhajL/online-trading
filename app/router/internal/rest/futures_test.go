@@ -42,7 +42,7 @@ func TestPlaceFuturesOrder_Success(t *testing.T) {
 		assert.Equal(t, "test-api-key", r.Header.Get("X-MBX-APIKEY"))
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(expectedResponse)
+		require.NoError(t, json.NewEncoder(w).Encode(expectedResponse))
 	}))
 	defer server.Close()
 
@@ -76,7 +76,7 @@ func TestPlaceFuturesOrder_ReduceOnly(t *testing.T) {
 			Status:     "NEW",
 			ReduceOnly: true,
 		}
-		json.NewEncoder(w).Encode(resp)
+		require.NoError(t, json.NewEncoder(w).Encode(resp))
 	}))
 	defer server.Close()
 
@@ -109,7 +109,7 @@ func TestPlaceFuturesOrder_StopMarket(t *testing.T) {
 			Status:  "NEW",
 			Type:    "STOP_MARKET",
 		}
-		json.NewEncoder(w).Encode(resp)
+		require.NoError(t, json.NewEncoder(w).Encode(resp))
 	}))
 	defer server.Close()
 
@@ -208,7 +208,7 @@ func TestPlaceFuturesOrder_ValidationErrors(t *testing.T) {
 func TestPlaceFuturesOrder_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(BinanceError{
+		_ = json.NewEncoder(w).Encode(BinanceError{
 			Code:    -2010,
 			Message: "Insufficient balance",
 		})
@@ -263,7 +263,7 @@ func TestGetFuturesAccount_Success(t *testing.T) {
 		assert.Equal(t, "/fapi/v2/account", r.URL.Path)
 		assert.Contains(t, r.URL.RawQuery, "signature=")
 
-		json.NewEncoder(w).Encode(expectedResponse)
+		_ = json.NewEncoder(w).Encode(expectedResponse)
 	}))
 	defer server.Close()
 
@@ -292,7 +292,7 @@ func TestPlaceFuturesOrder_RetryOn5xx(t *testing.T) {
 			Symbol:  "BTCUSDT",
 			Status:  "NEW",
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -319,7 +319,7 @@ func TestPlaceFuturesOrder_TimeSync(t *testing.T) {
 		if attempts == 1 {
 			// First attempt fails with time sync error
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(BinanceError{
+			_ = json.NewEncoder(w).Encode(BinanceError{
 				Code:    -1021,
 				Message: "Timestamp for this request is outside of the recvWindow",
 			})
@@ -332,7 +332,7 @@ func TestPlaceFuturesOrder_TimeSync(t *testing.T) {
 			Symbol:  "BTCUSDT",
 			Status:  "NEW",
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 

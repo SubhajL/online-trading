@@ -1,7 +1,5 @@
--- 024_add_venue_to_decisions.sql: Add venue column to trading_decisions table for benchmark filtering
--- Venue indicates which exchange/market (spot, usdm) the decision targets
--- Note: trading_decisions table is created dynamically by Python adapter, but this migration
--- ensures the venue column exists for benchmark validation to filter by venue.
+-- 024_add_venue_to_decisions.sql: Ensure venue exists on trading_decisions for benchmark filtering
+-- Venue indicates which exchange/market (spot, usdm) the decision targets.
 
 -- Add venue to trading_decisions (primary table used by benchmark validator)
 ALTER TABLE trading_decisions ADD COLUMN IF NOT EXISTS venue TEXT;

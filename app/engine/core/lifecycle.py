@@ -150,16 +150,15 @@ class StartupHealthChecker:
         start_time = time.time()
         retry_count = 0
 
-        while retry_count < self.max_retries:
+        while True:
             # Check all dependencies
-            unhealthy = []
+            unhealthy: list[str] = []
             for name, dep in self.dependencies.items():
                 if not dep.get("healthy", False):
                     unhealthy.append(name)
                     dep["retry_count"] = dep.get("retry_count", 0) + 1
 
             if not unhealthy:
-                # All healthy
                 return {
                     "ready": True,
                     "retry_count": retry_count,
@@ -167,7 +166,6 @@ class StartupHealthChecker:
                     "timed_out": False,
                 }
 
-            # Check timeout
             if (time.time() - start_time) > timeout_seconds:
                 return {
                     "ready": False,
@@ -176,13 +174,13 @@ class StartupHealthChecker:
                     "timed_out": True,
                 }
 
-            # Wait and retry
+            if retry_count >= self.max_retries:
+                break
+
             time.sleep(self.retry_delay_seconds)
             retry_count += 1
 
-        # Check if we exceeded timeout even after retries
         timed_out = (time.time() - start_time) > timeout_seconds
-
         return {
             "ready": False,
             "retry_count": retry_count,

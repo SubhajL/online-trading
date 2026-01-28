@@ -153,14 +153,14 @@ def setup_health_monitoring(
         try:
             result = await check_db()
             return bool(result.status != "unhealthy")
-        except:
+        except Exception:
             return False
 
     async def redis_ready() -> bool:
         try:
             result = await check_redis()
             return bool(result.status != "unhealthy")
-        except:
+        except Exception:
             return False
 
     readiness_checker.register_check("database", db_ready, required=True)

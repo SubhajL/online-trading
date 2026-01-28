@@ -180,7 +180,7 @@ class TestHarnessDecisionPersistence:
         # Find our decision by ID
         found = False
         for d in decisions:
-            if d.get("id") == decision.decision_id:
+            if d.get("decision_id") == decision.decision_id:
                 found = True
                 assert d.get("symbol") == "BTCUSDT"
                 assert d.get("action") == "BUY"
@@ -222,7 +222,7 @@ class TestHarnessDecisionPersistence:
             limit=10,
         )
 
-        found = any(d.get("id") == event.decision.decision_id for d in decisions)
+        found = any(d.get("decision_id") == event.decision.decision_id for d in decisions)
         assert found, "Decision not found in trading_decisions table"
 
 
@@ -273,7 +273,7 @@ class TestHarnessOrderPersistence:
                 limit=10,
             )
             decision_found = any(
-                d.get("id") == event.decision.decision_id for d in decisions
+                d.get("decision_id") == event.decision.decision_id for d in decisions
             )
             assert decision_found, "Decision should be persisted to trading_decisions"
 
@@ -319,7 +319,7 @@ class TestHarnessLifecycle:
                 limit=10,
             )
             decision_found = any(
-                d.get("id") == event.decision.decision_id for d in decisions
+                d.get("decision_id") == event.decision.decision_id for d in decisions
             )
             assert decision_found, "Decision not in trading_decisions table"
 

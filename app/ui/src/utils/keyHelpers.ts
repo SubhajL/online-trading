@@ -1,4 +1,4 @@
-import type { OrderId, PositionId, BalanceId } from '../types/api'
+import type { OrderId } from '../types'
 
 /**
  * Generates stable key for Position items in lists

@@ -464,7 +464,7 @@ describe('Chart', () => {
     })
 
     it('renders SVG icons with inline size styles, no Tailwind classes', () => {
-      const { container } = render(<Chart symbol="BTCUSDT" />)
+      render(<Chart symbol="BTCUSDT" />)
       const fitButton = screen.getByTestId('fit-content-button')
       const svg = fitButton.querySelector('svg') as SVGElement
       expect(svg).toBeTruthy()

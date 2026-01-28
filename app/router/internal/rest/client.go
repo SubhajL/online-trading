@@ -632,15 +632,23 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 		}
 
 		// Read response body
-		respBody, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			lastErr = err
+		respBody, readErr := io.ReadAll(resp.Body)
+		closeErr := resp.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
 			if attempt < c.maxRetries {
 				c.waitForRetry(attempt)
 				continue
 			}
-			return nil, err
+			return nil, readErr
+		}
+		if closeErr != nil {
+			lastErr = closeErr
+			if attempt < c.maxRetries {
+				c.waitForRetry(attempt)
+				continue
+			}
+			return nil, closeErr
 		}
 
 		// Check for success

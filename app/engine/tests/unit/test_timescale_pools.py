@@ -15,9 +15,16 @@ class _AcquireCtx:
             return "OK"
         async def _fetch(*args, **kwargs):  # noqa: D401, ANN001
             return []
+        async def _fetchval(*args, **kwargs):  # noqa: D401, ANN001
+            return True
         async def _fetchrow(*args, **kwargs):  # noqa: D401, ANN001
             return None
-        self._conn = types.SimpleNamespace(execute=_exec, fetch=_fetch, fetchrow=_fetchrow)
+        self._conn = types.SimpleNamespace(
+            execute=_exec,
+            fetch=_fetch,
+            fetchval=_fetchval,
+            fetchrow=_fetchrow,
+        )
 
     async def __aenter__(self):  # noqa: D401
         self.pool.acquired = True

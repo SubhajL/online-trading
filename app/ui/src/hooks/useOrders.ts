@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { apiClient } from '@/services/api'
 import type { ApiClient } from '@/services/api.client'
 import type { Order, OrderStatus, Venue, OrderFormValues } from '@/types'
@@ -76,27 +76,25 @@ export function useOrders(filters?: OrderFilters, client?: ApiClient): UseOrders
   // Subscribe to WebSocket order events for active orders
   useEffect(() => {
     if (!isActiveOrdersQuery) {
-      console.log('[useOrders] Skipping subscriptions: not active orders query')
+      console.warn('[useOrders] Skipping subscriptions: not active orders query')
       return
     }
     if (!wsConnected) {
-      console.log('[useOrders] Skipping subscriptions: WebSocket not connected')
+      console.warn('[useOrders] Skipping subscriptions: WebSocket not connected')
       return
     }
 
-    console.log('[useOrders] Setting up WebSocket subscriptions for order events')
+    console.warn('[useOrders] Setting up WebSocket subscriptions for order events')
     const unsubscribes: Array<() => void> = []
 
     try {
       // Subscribe to order placed events
       unsubscribes.push(
         websocketService.subscribe('order.placed', (order: Order) => {
-          console.log('[useOrders] Received order.placed event:', order)
           if (
             (!filters?.venue || order.venue === filters.venue) &&
             (!filters?.symbol || order.symbol === filters.symbol)
           ) {
-            console.log('[useOrders] Adding order to wsOrders:', order.orderId)
             setWsOrders(prev => {
               const updated = new Map(prev)
               updated.set(order.orderId, order)

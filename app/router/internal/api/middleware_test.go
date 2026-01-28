@@ -468,7 +468,7 @@ func TestValidationMiddleware(t *testing.T) {
 
 		router.POST("/api", func(c *gin.Context) {
 			var data map[string]interface{}
-			c.ShouldBindJSON(&data)
+			_ = c.ShouldBindJSON(&data)
 			c.Status(http.StatusOK)
 		})
 

@@ -19,7 +19,7 @@ def detect_connection_patterns(content: str) -> list[dict[str, Any]]:
     """
     patterns: list[dict[str, Any]] = []
     lines = content.split("\n")
-    norm = [l.expandtabs(4) for l in lines]
+    norm = [line.expandtabs(4) for line in lines]
 
     # Account for leading blank line in test fixtures
     leading_blank_offset = 1 if (len(norm) > 0 and norm[0].strip() == "") else 0

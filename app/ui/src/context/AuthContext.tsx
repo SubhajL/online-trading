@@ -44,7 +44,9 @@ function decodeJwtExpiry(token: string): number | null {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) return null
-    const payload = JSON.parse(atob(parts[1]))
+    const encodedPayload = parts[1]
+    if (!encodedPayload) return null
+    const payload = JSON.parse(atob(encodedPayload))
     return typeof payload.exp === 'number' ? payload.exp * 1000 : null
   } catch {
     return null
@@ -152,21 +154,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [clearRefreshTimer, refreshAccessToken],
   )
 
-  const setNotification = useCallback((message: string | null) => {
-    if (notificationTimerRef.current) {
-      clearTimeout(notificationTimerRef.current)
-      notificationTimerRef.current = null
-    }
-
-    setState(prev => ({ ...prev, notification: message }))
-
-    if (message) {
-      notificationTimerRef.current = setTimeout(() => {
-        setState(prev => ({ ...prev, notification: null }))
-      }, NOTIFICATION_TIMEOUT_MS)
-    }
-  }, [])
-
   // Load auth state from storage on mount
   useEffect(() => {
     const stored = getStoredAuth()
@@ -266,7 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json()
         const user: User = {
           id: data.userId || '1',
-          username: email.split('@')[0],
+          username: email.split('@')[0] ?? email,
           email,
           roles: data.roles || ['user'],
         }

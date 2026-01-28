@@ -51,7 +51,7 @@ func TestConnection_Connect(t *testing.T) {
 	t.Run("establishes WebSocket connection successfully", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
 			// Simple echo server
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				messageType, p, err := conn.ReadMessage()
 				if err != nil {
@@ -73,7 +73,7 @@ func TestConnection_Connect(t *testing.T) {
 		assert.Equal(t, StateConnected, wsConn.State())
 
 		// Clean up
-		wsConn.Close()
+		_ = wsConn.Close()
 	})
 
 	t.Run("handles connection timeout", func(t *testing.T) {
@@ -89,9 +89,9 @@ func TestConnection_Connect(t *testing.T) {
 
 	t.Run("sets connection state correctly during connect", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			time.Sleep(50 * time.Millisecond) // Brief delay
-			conn.ReadMessage()
+			_, _, _ = conn.ReadMessage()
 		})
 		defer server.Close()
 
@@ -106,13 +106,13 @@ func TestConnection_Connect(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, StateConnected, wsConn.State())
 
-		wsConn.Close()
+		_ = wsConn.Close()
 	})
 
 	t.Run("prevents multiple concurrent connections", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
-			conn.ReadMessage()
+			defer func() { _ = conn.Close() }()
+			_, _, _ = conn.ReadMessage()
 		})
 		defer server.Close()
 
@@ -128,7 +128,7 @@ func TestConnection_Connect(t *testing.T) {
 		assert.Error(t, err2)
 		assert.Contains(t, err2.Error(), "already connected")
 
-		wsConn.Close()
+		_ = wsConn.Close()
 	})
 }
 
@@ -136,7 +136,7 @@ func TestConnection_Send(t *testing.T) {
 	t.Run("sends messages successfully", func(t *testing.T) {
 		received := make(chan []byte, 1)
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			_, message, err := conn.ReadMessage()
 			if err == nil {
 				received <- message
@@ -149,7 +149,7 @@ func TestConnection_Send(t *testing.T) {
 
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		testMessage := []byte(`{"test": "message"}`)
 		err = wsConn.Send(ctx, testMessage)
@@ -165,7 +165,7 @@ func TestConnection_Send(t *testing.T) {
 
 	t.Run("handles send timeout", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			// Don't read messages to eventually block the send buffer
 			time.Sleep(2 * time.Second)
 		})
@@ -177,7 +177,7 @@ func TestConnection_Send(t *testing.T) {
 
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		// Send large messages to fill buffer and cause timeout
 		// Create a large message (1MB) to fill WebSocket buffer faster
@@ -214,7 +214,7 @@ func TestConnection_Send(t *testing.T) {
 		received := make(chan bool, messageCount)
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for i := 0; i < messageCount; i++ {
 				_, _, err := conn.ReadMessage()
 				if err != nil {
@@ -230,7 +230,7 @@ func TestConnection_Send(t *testing.T) {
 
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		var wg sync.WaitGroup
 		for i := 0; i < messageCount; i++ {
@@ -263,7 +263,7 @@ func TestConnection_PingPong(t *testing.T) {
 	t.Run("maintains connection with ping-pong", func(t *testing.T) {
 		pingReceived := make(chan bool, 1)
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			// Set ping handler to respond to client pings with pongs
 			conn.SetPingHandler(func(appData string) error {
 				pingReceived <- true
@@ -286,7 +286,7 @@ func TestConnection_PingPong(t *testing.T) {
 
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		// Wait for ping-pong cycle
 		select {
@@ -299,7 +299,7 @@ func TestConnection_PingPong(t *testing.T) {
 
 	t.Run("detects connection failure on pong timeout", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			// Set ping handler that doesn't respond (ignores pings)
 			conn.SetPingHandler(func(appData string) error {
 				// Explicitly do not respond with pong
@@ -323,7 +323,7 @@ func TestConnection_PingPong(t *testing.T) {
 
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		// Wait for connection to be detected as failed
 		time.Sleep(300 * time.Millisecond)
@@ -343,7 +343,7 @@ func TestConnection_Reconnection(t *testing.T) {
 		var connectionCount int32 // Use atomic for thread safety
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			count := atomic.AddInt32(&connectionCount, 1)
 
 			if count == 1 {
@@ -358,7 +358,7 @@ func TestConnection_Reconnection(t *testing.T) {
 			default:
 				// Channel might be full, ignore
 			}
-			conn.ReadMessage()
+			_, _, _ = conn.ReadMessage()
 		})
 		defer server.Close()
 
@@ -369,7 +369,7 @@ func TestConnection_Reconnection(t *testing.T) {
 
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		// Wait for reconnection
 		select {
@@ -384,9 +384,8 @@ func TestConnection_Reconnection(t *testing.T) {
 
 	t.Run("respects maximum reconnection attempts", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
-			// Always close immediately
-			return
+			defer func() { _ = conn.Close() }()
+			// Always close immediately.
 		})
 		defer server.Close()
 
@@ -398,7 +397,7 @@ func TestConnection_Reconnection(t *testing.T) {
 
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		// Wait for all reconnection attempts to fail
 		// With 2 max attempts and 50ms interval, need time for exponential backoff:
@@ -417,8 +416,8 @@ func TestConnection_Reconnection(t *testing.T) {
 
 	t.Run("uses exponential backoff for reconnection", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
-			return // Always fail immediately
+			defer func() { _ = conn.Close() }()
+			// Always fail immediately.
 		})
 		defer server.Close()
 
@@ -431,7 +430,7 @@ func TestConnection_Reconnection(t *testing.T) {
 		startTime := time.Now()
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		// Wait for all attempts (3 attempts with 50ms, 100ms, 200ms delays)
 		time.Sleep(1 * time.Second)
@@ -454,9 +453,9 @@ func TestConnection_Close(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
 			defer func() {
 				closed <- true
-				conn.Close()
+				_ = conn.Close()
 			}()
-			conn.ReadMessage()
+			_, _, _ = conn.ReadMessage()
 		})
 		defer server.Close()
 
@@ -481,8 +480,8 @@ func TestConnection_Close(t *testing.T) {
 
 	t.Run("handles multiple close calls", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
-			conn.ReadMessage()
+			defer func() { _ = conn.Close() }()
+			_, _, _ = conn.ReadMessage()
 		})
 		defer server.Close()
 
@@ -516,9 +515,9 @@ func TestConnection_MessageHandling(t *testing.T) {
 		received := make(chan []byte, 1)
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			// Send test message
-			conn.WriteMessage(websocket.TextMessage, testMessage)
+			_ = conn.WriteMessage(websocket.TextMessage, testMessage)
 			time.Sleep(100 * time.Millisecond)
 		})
 		defer server.Close()
@@ -531,7 +530,7 @@ func TestConnection_MessageHandling(t *testing.T) {
 		ctx := context.Background()
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		// Wait for message
 		select {
@@ -552,8 +551,8 @@ func TestConnection_MessageHandling(t *testing.T) {
 		received := make(chan []byte, 1)
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
-			conn.WriteMessage(websocket.BinaryMessage, largeMessage)
+			defer func() { _ = conn.Close() }()
+			_ = conn.WriteMessage(websocket.BinaryMessage, largeMessage)
 			time.Sleep(100 * time.Millisecond)
 		})
 		defer server.Close()
@@ -566,7 +565,7 @@ func TestConnection_MessageHandling(t *testing.T) {
 		ctx := context.Background()
 		err := wsConn.Connect(ctx)
 		require.NoError(t, err)
-		defer wsConn.Close()
+		defer func() { _ = wsConn.Close() }()
 
 		// Wait for large message
 		select {

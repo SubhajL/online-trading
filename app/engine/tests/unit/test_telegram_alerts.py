@@ -11,9 +11,12 @@ from app.engine.adapters.alert.telegram import TelegramAlertAdapter
 @pytest.fixture
 def telegram_adapter():
     """Create a Telegram adapter instance for testing."""
-    return TelegramAlertAdapter(
+    adapter = TelegramAlertAdapter(
         bot_token="test-bot-token", chat_id="test-chat-id", rate_limit_per_minute=30,
     )
+    # Unit tests must not rely on real Redis dedup state.
+    adapter.deduplicator.redis_client = None
+    return adapter
 
 
 @pytest.mark.asyncio

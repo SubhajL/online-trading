@@ -457,8 +457,12 @@ class RedisAdapter:
 
     async def cache_candle(self, candle: Candle, expire_seconds: int = 3600) -> bool:
         """Cache a candle with expiration"""
-        key = f"{candle.symbol}:{candle.timeframe.value}:{int(candle.open_time.timestamp())}"
+        key = (
+            f"{candle.venue}:{candle.symbol}:{candle.timeframe.value}:"
+            f"{int(candle.open_time.timestamp())}"
+        )
         candle_data = {
+            "venue": candle.venue,
             "symbol": candle.symbol,
             "timeframe": candle.timeframe.value,
             "open_time": candle.open_time.isoformat(),
@@ -478,12 +482,13 @@ class RedisAdapter:
 
     async def get_cached_candle(
         self,
+        venue: str,
         symbol: str,
         timeframe: TimeFrame,
         timestamp: datetime,
     ) -> Candle | None:
         """Get cached candle"""
-        key = f"{symbol}:{timeframe.value}:{int(timestamp.timestamp())}"
+        key = f"{venue}:{symbol}:{timeframe.value}:{int(timestamp.timestamp())}"
         data = await self.get(key, prefix="candle")
 
         if not data:
@@ -491,6 +496,7 @@ class RedisAdapter:
 
         try:
             return Candle(
+                venue=data["venue"],
                 symbol=data["symbol"],
                 timeframe=TimeFrame(data["timeframe"]),
                 open_time=datetime.fromisoformat(data["open_time"]),

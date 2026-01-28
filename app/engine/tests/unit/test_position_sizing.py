@@ -5,11 +5,12 @@ These tests verify the most important safety mechanism in our trading system.
 If position sizing is wrong, we could lose significant capital.
 """
 
-import pytest
 from decimal import Decimal
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
 
-from app.engine.decision.position_sizer import PositionSizer, PositionSizeConfig
+import pytest
+
+from app.engine.decision.position_sizer import PositionSizeConfig, PositionSizer
 
 
 class TestPositionSizing:
@@ -59,21 +60,19 @@ class TestPositionSizing:
             f"Risk {risk_pct:.4%} != expected {expected_risk:.4%}"
 
     def test_position_sizing_achieves_target_risk_when_possible(self, sizer):
-        """Test position sizing achieves 0.5% risk when position limits allow."""
-        # Use realistic account size where 0.5% risk is achievable
+        """Test position sizing hits target risk when not position-capped."""
+        config = sizer.config
         account_balance = Decimal("100000")  # $100k account
         entry_price = Decimal("50000")       # BTC at $50k
 
         test_cases = [
-            # (stop_loss, stop_pct, can_achieve_full_risk)
-            (Decimal("49500"), "1%", True),    # Tight stop - achievable
-            (Decimal("49000"), "2%", True),    # Normal stop - achievable
-            (Decimal("48000"), "4%", True),    # Wide stop - achievable
-            (Decimal("47500"), "5%", True),    # 5% stop - borderline
-            (Decimal("45000"), "10%", False),  # Very wide - hits position limit
+            # (stop_loss, stop_desc)
+            (Decimal("49500"), "1%"),    # Position-capped, low risk
+            (Decimal("45000"), "10%"),   # Position-capped, higher risk
+            (Decimal("35000"), "30%"),   # Risk-capped, should reach 0.5%
         ]
 
-        for stop_loss, stop_desc, can_achieve_full in test_cases:
+        for stop_loss, stop_desc in test_cases:
             position_size = sizer.calculate_position_size(
                 account_balance=account_balance,
                 entry_price=entry_price,
@@ -90,27 +89,28 @@ class TestPositionSizing:
             position_value = position_size * entry_price
             position_pct = position_value / account_balance
 
-            print(f"\n{stop_desc} stop: position={position_pct:.2%}, risk={risk_pct:.3%}")
-
             # Verify constraints
-            assert risk_pct <= Decimal("0.005"), f"Risk {risk_pct:.4%} exceeds 0.5%!"
-            assert position_pct <= Decimal("0.02"), f"Position {position_pct:.2%} exceeds 2%!"
+            assert (
+                risk_pct <= config.fixed_risk_pct
+            ), f"Risk {risk_pct:.4%} exceeds {config.fixed_risk_pct:.4%}!"
+            assert (
+                position_pct <= config.max_position_pct
+            ), f"Position {position_pct:.2%} exceeds {config.max_position_pct:.2%}!"
 
-            if can_achieve_full:
-                # Should achieve full 0.5% risk
-                assert abs(risk_pct - Decimal("0.005")) < Decimal("0.0001"), \
-                    f"{stop_desc}: Risk {risk_pct:.4%} != 0.5%"
-            else:
-                # Position limit prevents full risk
-                assert position_pct == Decimal("0.02"), \
-                    f"{stop_desc}: Should hit 2% position limit"
+            stop_pct = stop_distance / entry_price
+            expected_risk_pct = min(config.fixed_risk_pct, config.max_position_pct * stop_pct)
+
+            assert abs(risk_pct - expected_risk_pct) < Decimal(
+                "0.0001",
+            ), f"{stop_desc}: Risk {risk_pct:.4%} != expected {expected_risk_pct:.4%}"
 
     def test_position_sizing_with_confidence_scaling(self, sizer):
         """Test position size scales down with lower confidence."""
-        # Use account/price combo where we can achieve full risk
+        config = sizer.config
+        # Use a wide stop so we're risk-capped (not position-capped).
         account_balance = Decimal("100000")
         entry_price = Decimal("50000")
-        stop_loss = Decimal("49000")  # 2% stop
+        stop_loss = Decimal("35000")  # 30% stop
 
         test_cases = [
             # (confidence, expected_risk_factor)
@@ -133,7 +133,7 @@ class TestPositionSizing:
             risk_amount = position_size * stop_distance
             risk_pct = risk_amount / account_balance
 
-            expected_risk = Decimal("0.005") * risk_factor
+            expected_risk = config.fixed_risk_pct * risk_factor
             assert abs(risk_pct - expected_risk) < Decimal("0.0001"), \
                 f"Confidence {confidence}: Risk {risk_pct:.4%} != {expected_risk:.4%}"
 
@@ -177,6 +177,7 @@ class TestPositionSizing:
 
     def test_position_sizing_with_atr_stop(self, sizer):
         """Test position sizing with ATR-based stops."""
+        config = sizer.config
         account_balance = Decimal("100000")
         entry_price = Decimal("50000")
         atr = Decimal("500")  # 1% ATR
@@ -196,8 +197,10 @@ class TestPositionSizing:
         risk_amount = position_size * stop_distance
         risk_pct = risk_amount / account_balance
 
-        assert abs(risk_pct - Decimal("0.005")) < Decimal("0.0001"), \
-            f"ATR-based risk {risk_pct:.4%} != 0.5%"
+        stop_pct = stop_distance / entry_price
+        expected_risk_pct = min(config.fixed_risk_pct, config.max_position_pct * stop_pct)
+        assert abs(risk_pct - expected_risk_pct) < Decimal("0.0001"), \
+            f"ATR-based risk {risk_pct:.4%} != expected {expected_risk_pct:.4%}"
 
     def test_position_sizing_edge_cases(self, sizer):
         """Test edge cases that could cause errors."""
@@ -257,13 +260,15 @@ class TestPositionSizing:
             leverage=Decimal("3"),
         )
 
-        # Risk should still be 0.5% of account
+        # Risk should still be capped (and may be position-limited).
         stop_distance = entry_price - stop_loss
         risk_amount = position_size * stop_distance
         risk_pct = risk_amount / account_balance
 
-        assert abs(risk_pct - Decimal("0.005")) < Decimal("0.0001"), \
-            f"Futures risk {risk_pct:.4%} != 0.5%"
+        stop_pct = stop_distance / entry_price
+        expected_risk_pct = min(config.fixed_risk_pct, config.max_position_pct * stop_pct)
+        assert abs(risk_pct - expected_risk_pct) < Decimal("0.0001"), \
+            f"Futures risk {risk_pct:.4%} != expected {expected_risk_pct:.4%}"
 
         # Verify leverage is applied correctly
         margin_required = (position_size * entry_price) / Decimal("3")

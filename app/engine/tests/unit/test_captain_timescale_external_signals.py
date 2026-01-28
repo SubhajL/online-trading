@@ -2,6 +2,7 @@
 Unit tests for TimescaleDBAdapter external Telegram signal tables.
 """
 
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -26,26 +27,6 @@ class _FakePoolCtx:
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:  # noqa: D401, ANN001
         return False
-
-
-@pytest.mark.asyncio
-async def test_create_tables_includes_external_signal_tables() -> None:
-    adapter = TimescaleDBAdapter(
-        host="localhost",
-        port=5432,
-        database="db",
-        username="user",
-        password="pass",
-    )
-
-    fake_conn = _FakeConn()
-    adapter.get_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
-
-    await adapter._create_tables()
-
-    sql = "\n".join(call[0] for call in fake_conn.execute_calls)
-    assert "CREATE TABLE IF NOT EXISTS external_telegram_signals" in sql
-    assert "CREATE TABLE IF NOT EXISTS external_telegram_signal_validations" in sql
 
 
 @pytest.mark.asyncio
@@ -120,3 +101,70 @@ async def test_upsert_external_telegram_signal_validation_uses_on_conflict_upser
     assert args[0] == "captain"
     assert args[1] == 2079536184
     assert args[2] == 123
+
+
+@pytest.mark.asyncio
+async def test_upsert_external_telegram_signal_validation_serializes_breakdown_to_json() -> None:
+    """Verify that breakdown dict is serialized to JSON string for asyncpg JSONB column."""
+    adapter = TimescaleDBAdapter(
+        host="localhost",
+        port=5432,
+        database="db",
+        username="user",
+        password="pass",
+    )
+
+    fake_conn = _FakeConn()
+    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+
+    breakdown_dict = {"direction": 1.0, "time": 0.8, "entry": 0.95}
+    await adapter.upsert_external_telegram_signal_validation(
+        source="captain",
+        chat_id=2079536184,
+        message_id=456,
+        timestamp=datetime(2025, 12, 26, 8, 0, tzinfo=UTC),
+        internal_kind="smc_signal",
+        internal_id="22222222-2222-2222-2222-222222222222",
+        internal_timestamp=datetime(2025, 12, 26, 8, 5, tzinfo=UTC),
+        score=0.91,
+        breakdown=breakdown_dict,
+    )
+
+    assert fake_conn.execute_calls, "expected at least one execute call"
+    _, args = fake_conn.execute_calls[0]
+    # args[8] is the breakdown parameter ($9 in the SQL)
+    breakdown_arg = args[8]
+    assert isinstance(breakdown_arg, str), f"expected str for JSONB, got {type(breakdown_arg)}"
+    assert json.loads(breakdown_arg) == breakdown_dict
+
+
+@pytest.mark.asyncio
+async def test_upsert_external_telegram_signal_validation_handles_none_breakdown() -> None:
+    """Verify that None breakdown is passed as None (not serialized)."""
+    adapter = TimescaleDBAdapter(
+        host="localhost",
+        port=5432,
+        database="db",
+        username="user",
+        password="pass",
+    )
+
+    fake_conn = _FakeConn()
+    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+
+    await adapter.upsert_external_telegram_signal_validation(
+        source="captain",
+        chat_id=2079536184,
+        message_id=789,
+        timestamp=datetime(2025, 12, 26, 8, 0, tzinfo=UTC),
+        internal_kind=None,
+        internal_id=None,
+        internal_timestamp=None,
+        score=0.0,
+        breakdown=None,
+    )
+
+    assert fake_conn.execute_calls, "expected at least one execute call"
+    _, args = fake_conn.execute_calls[0]
+    # args[8] is the breakdown parameter ($9 in the SQL)
+    assert args[8] is None

@@ -233,14 +233,14 @@ def detect_zigzag_pivots_np(
 
     for i in range(1, n):
         h = highs[i]
-        l = lows[i]
+        low = lows[i]
 
         if last_pivot_is_high is None:
             if h > current_high:
                 current_high = h
                 current_high_idx = i
-            if l < current_low:
-                current_low = l
+            if low < current_low:
+                current_low = low
                 current_low_idx = i
 
             if (current_high - current_low) >= min_rev:
@@ -257,7 +257,7 @@ def detect_zigzag_pivots_np(
                         ),
                     )
                     last_pivot_is_high = False
-                    current_low = l
+                    current_low = low
                     current_low_idx = i
                 else:
                     c = candles[current_high_idx]
@@ -275,8 +275,8 @@ def detect_zigzag_pivots_np(
                     current_high_idx = i
 
         elif last_pivot_is_high:
-            if l < current_low:
-                current_low = l
+            if low < current_low:
+                current_low = low
                 current_low_idx = i
             if h > current_high:
                 # Enough down move?
@@ -303,7 +303,7 @@ def detect_zigzag_pivots_np(
             if h > current_high:
                 current_high = h
                 current_high_idx = i
-            if l < current_low:
+            if low < current_low:
                 last_low_price = float(pivots[-1].price) if pivots else current_low
                 if (current_high - last_low_price) >= min_rev:
                     c = candles[current_high_idx]
@@ -317,10 +317,10 @@ def detect_zigzag_pivots_np(
                         ),
                     )
                     last_pivot_is_high = True
-                    current_low = l
+                    current_low = low
                     current_low_idx = i
                 else:
-                    current_low = l
+                    current_low = low
                     current_low_idx = i
 
     return pivots

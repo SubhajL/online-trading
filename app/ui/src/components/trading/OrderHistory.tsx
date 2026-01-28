@@ -84,6 +84,14 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
       <div className="order-history-header">
         <h3 className="order-history-title">Order History</h3>
         <div className="order-history-filter">
+          <label htmlFor="symbol-filter">Symbol:</label>
+          <input
+            id="symbol-filter"
+            data-testid="symbol-filter"
+            value={symbolFilter}
+            onChange={e => setSymbolFilter(e.target.value)}
+            placeholder="e.g. BTCUSDT"
+          />
           <label htmlFor="status-filter">Status:</label>
           <select
             id="status-filter"
@@ -116,11 +124,13 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
                 <th>Qty</th>
                 <th>Price</th>
                 <th>Status</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {sortedOrders.map(order => {
                 const statusTheme = deriveOrderStatusTheme(order.status)
+                const cancelable = isCancelableStatus(order.status)
                 return (
                   <tr key={order.orderId} data-testid={`order-row-${order.orderId}`}>
                     <td className="order-time-cell">
@@ -132,12 +142,25 @@ export function OrderHistory({ orders, onCancel, loading = false }: OrderHistory
                       <span className={`side-badge ${order.side.toLowerCase()}`}>{order.side}</span>
                     </td>
                     <td className="order-type">{order.type}</td>
-                    <td>{order.quantity}</td>
+                    <td>{formatQuantity(order)}</td>
                     <td>{formatPrice(order)}</td>
                     <td>
                       <span className={`status-badge ${statusTheme.statusClass}`}>
                         {order.status}
                       </span>
+                    </td>
+                    <td>
+                      {cancelable ? (
+                        <button
+                          type="button"
+                          className="cancel-order-button"
+                          onClick={() => onCancel(order)}
+                        >
+                          Cancel
+                        </button>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                   </tr>
                 )

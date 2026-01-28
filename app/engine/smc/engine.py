@@ -228,8 +228,8 @@ class SMCEngine:
         # Update ATR using vectorized numpy compute; store as Decimal with boundary conversion
         if len(candles) >= 14:
             recent = candles[-14:]
-            _o, h, l, c = to_float_ohlc_arrays(recent)
-            atr_series = atr(h, l, c, period=14)
+            _o, h, low, c = to_float_ohlc_arrays(recent)
+            atr_series = atr(h, low, c, period=14)
             latest = atr_series[-1]
             # Convert back to Decimal with sufficient precision at boundary
             self._atr_values[key] = Decimal(str(latest))

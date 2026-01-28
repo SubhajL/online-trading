@@ -85,11 +85,18 @@ class DecisionPublisher:
             signals=[signal],
         )
 
+        # Forward zone metadata from retest signal for cooldown keying
+        signal_metadata = event.metadata or {}
         decision_event = TradingDecisionEvent(
             timestamp=datetime.now(UTC),
             symbol=signal.symbol,
             timeframe=signal.timeframe,
-            metadata={"signal_id": str(signal.signal_id)},
+            metadata={
+                "signal_id": str(signal.signal_id),
+                "decision_source": "retest_decision_publisher",
+                "zone": signal_metadata.get("zone"),
+                "timeframe": signal_metadata.get("timeframe"),
+            },
             decision=decision,
         )
 

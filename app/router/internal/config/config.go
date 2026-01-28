@@ -100,7 +100,11 @@ type SecurityConfig struct {
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	// Load .env file if it exists
-	godotenv.Load("../../.env")
+	// .env is optional in production; ignore if missing.
+	if err := godotenv.Load("../../.env"); err != nil {
+		// Intentionally ignored (missing .env is expected in many environments).
+		_ = err
+	}
 
 	executionEnv := strings.ToLower(strings.TrimSpace(getEnv("ROUTER_EXECUTION_ENV", "testnet")))
 	testnet, err := parseExecutionEnv(executionEnv)

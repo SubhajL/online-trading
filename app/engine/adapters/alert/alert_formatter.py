@@ -20,14 +20,22 @@ class AlertFormatter:
         quantity = decision["quantity"]
         confidence = decision["confidence"]
         reasons = decision.get("reasons", [])
+        is_order_placed = decision.get("is_order_placed", False)
 
-        # Determine emoji and side text
-        if side == "long":
-            emoji = "🟢"
-            side_text = "LONG"
+        # Determine emoji and side text based on order placement status
+        direction = "LONG" if side == "long" else "SHORT"
+
+        if is_order_placed:
+            # Order was actually placed - show confirmation
+            emoji = "✅"
+            side_text = f"{direction} ORDER PLACED"
+        elif side == "long":
+            # Signal only (no execution) - show signal indicator
+            emoji = "📊"
+            side_text = f"{direction} SIGNAL"
         else:
-            emoji = "🔴"
-            side_text = "SHORT"
+            emoji = "📉"
+            side_text = f"{direction} SIGNAL"
 
         # Calculate percentage changes
         sl_pct = self._calculate_pct_change(entry, sl)
@@ -135,17 +143,6 @@ class AlertFormatter:
         if from_price == 0:
             return 0.0
         return float((to_price - from_price) / from_price * 100)
-
-    def _format_currency(self, value: Decimal) -> str:
-        """Format a decimal value as currency."""
-        value_float = float(value)
-
-        # For very small values (< 0.01), show more decimals
-        if value_float < 0.01 and value_float > 0:
-            return f"${value_float:.6f}".rstrip("0").rstrip(".")
-
-        # For normal values, use standard currency format
-        return f"${value_float:,.2f}"
 
     def _format_currency(self, value: Decimal, with_sign: bool = False) -> str:
         """Format a decimal value as currency with optional sign."""

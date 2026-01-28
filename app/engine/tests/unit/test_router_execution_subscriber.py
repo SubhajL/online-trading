@@ -2,10 +2,12 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
+import app.engine.execution.router_execution_subscriber as router_module
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
@@ -140,7 +142,10 @@ def _make_valid_decision_event() -> TradingDecisionEvent:
         timestamp=now,
         timeframe=TimeFrame.M15,
         decision=decision,
-        metadata={"signal_id": "sig_test123"},
+        metadata={
+            "signal_id": "sig_test123",
+            "decision_source": "retest_decision_publisher",
+        },
     )
 
 
@@ -165,6 +170,7 @@ class TestExecutionSubscriberErrorHandling:
             bus=bus,
             router_client=router_client,
             execution_mode=ExecutionMode.FUTURES_TESTNET,
+            router_max_attempts=1,
         )
         await subscriber.start()
 
@@ -197,6 +203,7 @@ class TestExecutionSubscriberErrorHandling:
             bus=bus,
             router_client=router_client,
             execution_mode=ExecutionMode.FUTURES_TESTNET,
+            router_max_attempts=1,
         )
         await subscriber.start()
 
@@ -232,8 +239,11 @@ class TestExecutionSubscriberErrorHandling:
         assert callable(bus.handler)
         await bus.handler(event)
 
-        # No error event should be published
-        assert len(bus.published_events) == 0
+        # Only OrderPlacedEvent should be published (no ErrorEvent)
+        assert len(bus.published_events) == 1
+        from app.engine.models import OrderPlacedEvent
+
+        assert isinstance(bus.published_events[0], OrderPlacedEvent)
 
     @pytest.mark.asyncio
     async def test_handler_completes_after_error(self) -> None:
@@ -246,6 +256,7 @@ class TestExecutionSubscriberErrorHandling:
             bus=bus,
             router_client=router_client,
             execution_mode=ExecutionMode.FUTURES_TESTNET,
+            router_max_attempts=1,
         )
         await subscriber.start()
 
@@ -257,6 +268,72 @@ class TestExecutionSubscriberErrorHandling:
 
         # Subscriber should still be functional
         assert subscriber._subscription_id == "sub-1"
+
+
+@pytest.mark.asyncio
+async def test_execution_retries_on_transient_exception_then_succeeds(monkeypatch: Any) -> None:
+    from app.engine.models import OrderPlacedEvent
+    from app.engine.resilience.backoff import BackoffConfig
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.side_effect = [
+        Exception("timeout"),
+        Exception("connection reset"),
+        {"success": True, "order_id": "ok"},
+    ]
+
+    sleep = AsyncMock()
+    monkeypatch.setattr(router_module.asyncio, "sleep", sleep)
+
+    subscriber = RouterExecutionSubscriber(
+        bus=bus,
+        router_client=router_client,
+        execution_mode=ExecutionMode.FUTURES_TESTNET,
+        router_max_attempts=3,
+        router_backoff_config=BackoffConfig(
+            base_delay_s=0.001,
+            max_delay_s=0.001,
+            multiplier=2.0,
+            jitter_pct=0.0,
+        ),
+    )
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    assert callable(bus.handler)
+    await bus.handler(event)  # type: ignore[misc]
+
+    assert router_client.place_bracket_order.call_count == 3
+    assert sleep.call_count == 2
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], OrderPlacedEvent)
+
+
+@pytest.mark.asyncio
+async def test_execution_rejects_quantity_over_max_position_size() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+
+    subscriber = RouterExecutionSubscriber(
+        bus=bus,
+        router_client=router_client,
+        execution_mode=ExecutionMode.FUTURES_TESTNET,
+        max_position_size=Decimal("0.0005"),
+        router_max_attempts=1,
+    )
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    assert callable(bus.handler)
+    await bus.handler(event)  # type: ignore[misc]
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "risk_limit_exceeded"
 
 
 # =============================================================================
@@ -288,7 +365,7 @@ async def test_execution_subscriber_calls_router_place_bracket_with_provenance()
         stop_loss=Decimal("3187.16"),
         take_profit=Decimal("3152.52"),
         quantity=Decimal("0.01"),
-        confidence=Decimal("0.65"),
+        confidence=Decimal("0.75"),  # Above min_confidence threshold (0.70)
         reasoning="FVG fill with bearish bias",
     )
     event = TradingDecisionEvent(
@@ -298,6 +375,7 @@ async def test_execution_subscriber_calls_router_place_bracket_with_provenance()
         decision=decision,
         metadata={
             "signal_id": "sig_abc123",
+            "decision_source": "retest_decision_publisher",
             "timeframe": "15m",
             "zone": {
                 "zone_id": "zone_1",
@@ -320,6 +398,61 @@ async def test_execution_subscriber_calls_router_place_bracket_with_provenance()
     assert payload["metadata"]["signal_id"] == "sig_abc123"
     assert payload["metadata"]["timeframe"] == "15m"
     assert payload["metadata"]["zone"]["zone_type"] == "FAIR_VALUE_GAP"
+    assert payload["metadata"]["decision_source"] == "retest_decision_publisher"
+
+
+@pytest.mark.asyncio
+async def test_execution_rejects_missing_decision_source() -> None:
+    """Execution must reject decisions without provenance."""
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+
+    subscriber = RouterExecutionSubscriber(
+        bus=bus,
+        router_client=router_client,
+        execution_mode=ExecutionMode.FUTURES_TESTNET,
+    )
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata.pop("decision_source", None)
+
+    assert callable(bus.handler)
+    await bus.handler(event)  # type: ignore[misc]
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "invalid_decision_source"
+
+
+@pytest.mark.asyncio
+async def test_execution_rejects_signal_emitter_bypass_source() -> None:
+    """Even if bypass is enabled, it must not execute orders."""
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+
+    subscriber = RouterExecutionSubscriber(
+        bus=bus,
+        router_client=router_client,
+        execution_mode=ExecutionMode.FUTURES_TESTNET,
+    )
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["decision_source"] = "signal_emitter_bypass"
+
+    assert callable(bus.handler)
+    await bus.handler(event)  # type: ignore[misc]
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "invalid_decision_source"
 
 
 @pytest.mark.asyncio
@@ -357,3 +490,69 @@ async def test_execution_subscriber_ignores_decisions_missing_levels() -> None:
     await bus.handler(event)  # type: ignore[misc]
 
     router_client.place_bracket_order.assert_not_awaited()
+
+
+# =============================================================================
+# Tests for Snapshot Timing (Gap 2 fix)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_snapshot_triggered_before_order_placed_event() -> None:
+    """Snapshot should be triggered BEFORE OrderPlacedEvent is emitted.
+
+    This ensures the snapshot is available when alert handler runs.
+    """
+    call_order: list[str] = []
+
+    class _TrackingBus:
+        def __init__(self) -> None:
+            self.handler: object | None = None
+            self.event_types: list[EventType] | None = None
+
+        async def subscribe(
+            self,
+            subscriber_id: str,
+            handler: object,
+            event_types: list[EventType] | None = None,
+            priority: int = 0,
+        ) -> str:
+            _ = subscriber_id, priority
+            self.handler = handler
+            self.event_types = event_types
+            return "sub-1"
+
+        async def unsubscribe(self, subscription_id: str) -> bool:
+            _ = subscription_id
+            return True
+
+        async def publish(self, event: object, priority: int = 0) -> bool:
+            _ = event, priority
+            call_order.append("publish_order_placed")
+            return True
+
+    class _TrackingBffClient:
+        async def post(self, endpoint: str, payload: dict) -> dict:
+            _ = endpoint, payload
+            call_order.append("notify_snapshot")
+            return {"success": True}
+
+    bus = _TrackingBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+    bff_client = _TrackingBffClient()
+
+    subscriber = RouterExecutionSubscriber(
+        bus=bus,
+        router_client=router_client,
+        execution_mode=ExecutionMode.FUTURES_TESTNET,
+        bff_client=bff_client,
+    )
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    # Verify snapshot is triggered BEFORE order placed event is published
+    assert call_order == ["notify_snapshot", "publish_order_placed"]

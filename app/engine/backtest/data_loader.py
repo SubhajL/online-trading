@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Redis connection for feature caching
 try:
     redis_client = redis.from_url("redis://localhost:6379", decode_responses=False)
-except:
+except Exception:
     redis_client = None
     logger.warning("Redis not available, feature caching disabled")
 
@@ -227,11 +227,14 @@ def _compute_features_for_symbol(
         return pd.DataFrame()
 
     df = pd.concat(chunks)
+    df.attrs["symbol"] = symbol
 
     # Apply feature functions
     for func in feature_funcs:
         try:
-            df = func(df)
+            result = func(df)
+            if result is not None:
+                df = result
         except Exception as e:
             logger.warning(f"Feature function failed for {symbol}: {e}")
 

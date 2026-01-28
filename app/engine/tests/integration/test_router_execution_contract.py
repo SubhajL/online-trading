@@ -86,6 +86,7 @@ async def test_contract_decision_to_place_bracket_includes_provenance() -> None:
         decision=decision,
         metadata={
             "signal_id": "sig-1",
+            "decision_source": "retest_decision_publisher",
             "timeframe": "5m",
             "zone": {"kind": "OB"},
         },
@@ -100,6 +101,7 @@ async def test_contract_decision_to_place_bracket_includes_provenance() -> None:
     assert captured["metadata"]["signal_id"] == "sig-1"
     assert captured["metadata"]["timeframe"] == "5m"
     assert captured["metadata"]["zone"]["kind"] == "OB"
+    assert captured["metadata"]["decision_source"] == "retest_decision_publisher"
 
     ids = captured["client_order_ids"]
     assert ids["main"].endswith("_entry")

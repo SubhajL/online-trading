@@ -3,27 +3,28 @@ Unit tests for security module.
 Written first following TDD principles.
 """
 
+from datetime import datetime
 import os
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 import tempfile
-from datetime import datetime
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from app.engine.core.security import (
-    SecurityLevel,
-    ValidationError,
-    SecurityError,
-    ValidationRule,
-    ValidationResult,
-    SecurityAudit,
     EnvironmentValidator,
     SecretManager,
     SecureConfig,
+    SecurityAudit,
+    SecurityError,
     SecurityGuard,
-    validate_environment,
-    get_secure_config,
+    SecurityLevel,
+    ValidationError,
+    ValidationResult,
+    ValidationRule,
     get_secret,
+    get_secure_config,
+    validate_environment,
 )
 
 
@@ -117,9 +118,9 @@ class TestEnvironmentValidator:
 
         def is_even(value: str) -> bool:
             try:
-                return
+                return int(value) % 2 == 0
             except ValueError:
-                return
+                return False
 
         rule = ValidationRule(
             name="EVEN_NUMBER",

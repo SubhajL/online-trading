@@ -1,57 +1,49 @@
 """Integration tests for TimescaleDB DAL functions."""
 
 import asyncio
-import os
 from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 import asyncpg
 from asyncpg import Connection
+import pytest
+import pytest_asyncio
 
 from app.engine.adapters.db import timescale
-from app.engine.adapters.db.connection_pool import ConnectionPool, DBConfig
-from app.engine.adapters.db.migrations import MigrationRunner
+from app.engine.adapters.db.connection_pool import DBConfig
 from app.engine.models import (
     Candle,
-    TimeFrame,
-    TechnicalIndicators,
     SupplyDemandZone,
+    TechnicalIndicators,
+    TimeFrame,
     ZoneType,
 )
+from app.engine.tests.integration.db_config import TestDatabaseConfig
 
 
 @pytest.fixture(scope="session")
-def event_loop() -> None:
-    """Create event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="session")
-async def test_db_config() -> DBConfig:
-    """Test database configuration."""
+def test_db_config(test_database_config: TestDatabaseConfig) -> DBConfig:
+    """Test database configuration (from TEST_DATABASE_URL)."""
     return DBConfig(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        database=os.getenv("TEST_DB_NAME", "test_trading_db"),
-        username=os.getenv("DB_USER", "trading_user"),
-        password=os.getenv("DB_PASSWORD", "trading_pass"),
+        host=test_database_config.host,
+        port=test_database_config.port,
+        database=test_database_config.database,
+        username=test_database_config.username,
+        password=test_database_config.password,
         pool_size=5,
     )
 
 
-@pytest.fixture(scope="session")
-async def test_pool(test_db_config) -> None:
+@pytest_asyncio.fixture(scope="function")
+async def test_pool(test_db_config: DBConfig) -> None:
     """Create test connection pool."""
     await timescale.initialize_pool(test_db_config)
     yield timescale.get_pool()
     await timescale.close_pool()
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def clean_database(test_pool) -> None:
     """Clean database before each test."""
     async with test_pool.acquire() as conn:
@@ -60,7 +52,7 @@ async def clean_database(test_pool) -> None:
         await conn.execute("TRUNCATE TABLE zones CASCADE")
         await conn.execute("TRUNCATE TABLE orders CASCADE")
         await conn.execute("TRUNCATE TABLE positions CASCADE")
-        await conn.execute("TRUNCATE TABLE decisions CASCADE")
+        await conn.execute("TRUNCATE TABLE trading_decisions CASCADE")
         await conn.execute("TRUNCATE TABLE smc_events CASCADE")
 
 
@@ -242,7 +234,7 @@ class TestZoneOperations:
             top_price=Decimal("51000.00"),
             bottom_price=Decimal("50000.00"),
             created_at=datetime.utcnow(),
-            strength=Decimal("0.85"),
+            strength=9,
             volume_profile=Decimal("1000000.00"),
             touches=0,
             is_active=True,
@@ -279,6 +271,22 @@ class TestOrderOperations:
     async def test_order_lifecycle(self, test_pool) -> None:
         """Test order creation and updates."""
         # Create initial order
+        decision_id = str(uuid4())
+        async with test_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO trading_decisions (
+                    decision_id, timestamp, symbol, action, confidence, reasoning
+                ) VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                decision_id,
+                datetime.utcnow(),
+                "BTCUSDT",
+                "BUY",
+                Decimal("0.7"),
+                "test fixture",
+            )
+
         order_data = {
             "order_id": str(uuid4()),
             "client_order_id": f"test_order_{uuid4()}",
@@ -288,7 +296,7 @@ class TestOrderOperations:
             "quantity": "0.01",
             "price": "50000.00",
             "status": "NEW",
-            "decision_id": str(uuid4()),
+            "decision_id": decision_id,
         }
 
         result = await timescale.upsert_order(order_data)
@@ -361,38 +369,62 @@ class TestPositionOperations:
             decision_id = str(uuid4())
             await conn.execute(
                 """
-                INSERT INTO decisions (decision_id, timestamp, symbol)
-                VALUES ($1, $2, $3)
+                INSERT INTO trading_decisions (
+                    decision_id, timestamp, symbol, action, confidence, reasoning
+                ) VALUES ($1, $2, $3, $4, $5, $6)
                 """,
                 decision_id,
                 datetime.utcnow(),
                 "BTCUSDT",
+                "BUY",
+                Decimal("0.7"),
+                "test fixture",
             )
 
             # Insert positions
+            now = datetime.utcnow()
             for i, symbol in enumerate(["BTCUSDT", "ETHUSDT", "BTCUSDT"]):
                 position_id = str(uuid4())
+                side = "BUY"
+                size = Decimal(f"0.{i+1}")
+                entry_price = Decimal(f"{50000 + i*1000}.00")
+                current_price = Decimal(f"{51000 + i*1000}.00")
+                unrealized_pnl = (current_price - entry_price) * size
+                opened_at = now - timedelta(minutes=i)
+                updated_at = now
+                is_active = i < 2  # First two are active
+                closed_at = None if is_active else opened_at + timedelta(minutes=5)
                 await conn.execute(
                     """
                     INSERT INTO positions (
                         position_id, venue, symbol, side, size,
                         entry_price, current_price, unrealized_pnl,
                         realized_pnl, margin_used, leverage,
+                        opened_at, updated_at, closed_at,
                         is_active, decision_id
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ) VALUES (
+                        $1, $2, $3, $4, $5,
+                        $6, $7, $8,
+                        $9, $10, $11,
+                        $12, $13, $14,
+                        $15, $16
+                    )
                     """,
                     position_id,
                     "binance",
                     symbol,
-                    "LONG",
-                    Decimal(f"0.{i+1}"),
-                    Decimal(f"{50000 + i*1000}.00"),
-                    Decimal(f"{51000 + i*1000}.00"),
-                    Decimal(f"{100 + i*10}.00"),
+                    side,
+                    size,
+                    entry_price,
+                    current_price,
+                    unrealized_pnl,
                     Decimal("0.00"),
                     Decimal(f"{1000 + i*100}.00"),
                     Decimal("5.0"),
-                    i < 2,  # First two are active
+                    opened_at,
+                    updated_at,
+                    closed_at,
+                    is_active,
                     decision_id if symbol == "BTCUSDT" else None,
                 )
 
@@ -466,7 +498,7 @@ class TestConnectionPoolResilience:
     async def test_concurrent_operations(self, test_pool) -> None:
         """Test pool handles concurrent operations."""
 
-        async def insert_candle(i) -> None:
+        async def insert_candle(i) -> bool:
             candle = Candle(
                 venue="spot",
                 symbol="BTCUSDT",
@@ -483,6 +515,7 @@ class TestConnectionPoolResilience:
                 taker_buy_base_volume=Decimal("5.0"),
                 taker_buy_quote_volume=Decimal("250000.0"),
             )
+            return await timescale.upsert_candle(candle)
 
         # Run multiple concurrent inserts
         results = await asyncio.gather(*[insert_candle(i) for i in range(10)])
@@ -499,7 +532,7 @@ class TestErrorHandling:
     async def test_graceful_error_handling(self, test_pool) -> None:
         """Test DAL functions handle errors gracefully."""
         # Test with invalid data
-        invalid_candle = Candle(
+        invalid_candle = Candle.model_construct(
             venue="spot",
             symbol="X" * 50,  # Too long
             timeframe=TimeFrame.H1,

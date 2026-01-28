@@ -113,6 +113,9 @@ def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
                     },
                 )
 
+    missing_generics.sort(
+        key=lambda item: (item["line"], item["column"], item["type_name"]),
+    )
     return missing_generics
 
 
@@ -280,7 +283,7 @@ def infer_generic_parameters(
             if inferrer.tuple_types:
                 return f"[{', '.join(inferrer.tuple_types)}]"
 
-    except:
+    except Exception:
         pass
 
     # Return default parameters

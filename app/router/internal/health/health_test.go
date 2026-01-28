@@ -220,21 +220,9 @@ func TestHealthEndpointHandler(t *testing.T) {
 	checker := health.NewHealthChecker()
 	handler := health.NewHealthHandler(checker)
 
-	// Mock dependencies
-	mockBinance := new(mockBinanceClient)
-	mockBinance.On("Ping", mock.Anything).Return(nil)
-
-	mockRedis := new(mockRedisClient)
-	mockRedis.On("Ping", mock.Anything).Return(nil)
-
 	// Create test request
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	w := httptest.NewRecorder()
-
-	// Set dependencies in context
-	ctx := context.WithValue(req.Context(), "binanceClient", mockBinance)
-	ctx = context.WithValue(ctx, "redisClient", mockRedis)
-	req = req.WithContext(ctx)
 
 	handler.HandleHealth(w, req)
 

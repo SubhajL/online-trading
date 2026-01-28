@@ -19,6 +19,8 @@ from app.engine.decision.order_formatter import OrderFormatter, ExchangeInfo
 from app.engine.adapters.db.timescale import get_pool
 from app.engine.bus import get_event_bus
 
+pytestmark = pytest.mark.e2e
+
 
 @pytest.fixture(scope="session")
 def testnet_config():

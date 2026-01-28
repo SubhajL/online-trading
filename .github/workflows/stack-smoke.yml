@@ -1,0 +1,69 @@
+name: Stack Smoke
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch: {}
+
+env:
+  POSTGRES_USER: trading_user
+  POSTGRES_PASSWORD: password
+  POSTGRES_DB: trading_platform
+
+jobs:
+  stack-smoke:
+    name: Docker Compose stack smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start infra (postgres, redis)
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        run: |
+          docker compose up -d postgres redis
+
+      - name: Wait for infra health
+        run: |
+          for i in {1..60}; do
+            if docker inspect --format='{{.State.Health.Status}}' trading-postgres 2>/dev/null | grep -q healthy && \
+               docker inspect --format='{{.State.Health.Status}}' trading-redis 2>/dev/null | grep -q healthy; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Infra did not become healthy"
+          docker compose logs postgres redis
+          exit 1
+
+      - name: One-shot migrate
+        run: |
+          docker compose run --rm --build migrate
+
+      - name: Start full stack
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        run: |
+          docker compose up -d --build engine router bff ui
+
+      - name: Wait for service health
+        run: |
+          curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:8000/health/simple
+          curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:8001/health
+          curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:8002/health
+          curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:3000/api/health
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose logs --no-color
+
+      - name: Shutdown
+        if: always()
+        run: |
+          docker compose down -v

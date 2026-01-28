@@ -52,6 +52,6 @@ func NewStatsHandler(provider StatsProvider, logger zerolog.Logger) http.Handler
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(payload)
+		_, _ = w.Write(payload)
 	}
 }

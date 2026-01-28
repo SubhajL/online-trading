@@ -130,9 +130,9 @@ def validate_config_schema(config_dict: dict[str, Any]) -> None:
     """
     # Check required fields
     required_fields = ["database_url", "redis_url", "max_connections", "risk_limit"]
-    for field in required_fields:
-        if field not in config_dict:
-            raise ConfigError(f"Required field '{field}' is missing")
+    for required_field in required_fields:
+        if required_field not in config_dict:
+            raise ConfigError(f"Required field '{required_field}' is missing")
 
     # Type validation
     if not isinstance(config_dict.get("max_connections"), int):
