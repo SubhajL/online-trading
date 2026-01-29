@@ -12,8 +12,7 @@ def get_pool_config() -> dict[str, Any]:
         "min_size": int(os.getenv("POSTGRES_MIN_CONNECTIONS", "5")),
         "command_timeout": float(os.getenv("POSTGRES_IDLE_TIMEOUT", "30000"))
         / 1000,  # ms to seconds
-        "timeout": float(os.getenv("POSTGRES_CONNECTION_TIMEOUT", "60000"))
-        / 1000,  # ms to seconds
+        "timeout": float(os.getenv("POSTGRES_CONNECTION_TIMEOUT", "60000")) / 1000,  # ms to seconds
     }
 
 

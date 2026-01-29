@@ -45,15 +45,9 @@ def adapt_legacy_order_format(legacy_order: dict[str, Any]) -> OrderRequest:
 
     # Convert quantities and prices
     quantity = Decimal(str(legacy_order["quantity"]))
-    price = (
-        None
-        if legacy_order.get("price") is None
-        else Decimal(str(legacy_order["price"]))
-    )
+    price = None if legacy_order.get("price") is None else Decimal(str(legacy_order["price"]))
     stop_price = (
-        None
-        if legacy_order.get("stopPrice") is None
-        else Decimal(str(legacy_order["stopPrice"]))
+        None if legacy_order.get("stopPrice") is None else Decimal(str(legacy_order["stopPrice"]))
     )
 
     return OrderRequest(
@@ -89,15 +83,9 @@ def adapt_legacy_position_format(legacy_pos: dict[str, Any]) -> Position:
     # Optional fields with defaults
     realized_pnl = Decimal(str(legacy_pos.get("realizedPnl", "0")))
     total_commission = Decimal(str(legacy_pos.get("commission", "0")))
-    stop_loss = (
-        None
-        if legacy_pos.get("stopLoss") is None
-        else Decimal(str(legacy_pos["stopLoss"]))
-    )
+    stop_loss = None if legacy_pos.get("stopLoss") is None else Decimal(str(legacy_pos["stopLoss"]))
     take_profit = (
-        None
-        if legacy_pos.get("takeProfit") is None
-        else Decimal(str(legacy_pos["takeProfit"]))
+        None if legacy_pos.get("takeProfit") is None else Decimal(str(legacy_pos["takeProfit"]))
     )
     is_closed = legacy_pos.get("isClosed", False)
 
@@ -175,7 +163,5 @@ def adapt_order_response_to_legacy(response: OrderResponse) -> dict[str, Any]:
         "orderId": response.order_id,
         "status": response.status,
         "filledQuantity": str(response.filled_quantity),
-        "averagePrice": (
-            None if response.average_price is None else str(response.average_price)
-        ),
+        "averagePrice": (None if response.average_price is None else str(response.average_price)),
     }

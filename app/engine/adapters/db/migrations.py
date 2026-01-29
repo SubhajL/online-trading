@@ -201,8 +201,7 @@ class MigrationRunner:
                 )
 
             logger.info(
-                f"Applied migration {migration.version}: {migration.name} "
-                f"({execution_time_ms}ms)",
+                f"Applied migration {migration.version}: {migration.name} ({execution_time_ms}ms)",
             )
 
         except Exception as e:
@@ -311,8 +310,7 @@ class MigrationRunner:
 
         final_version = await self.get_current_version()
         logger.info(
-            f"Applied {migrations_applied} migrations. "
-            f"Database now at version {final_version}",
+            f"Applied {migrations_applied} migrations. Database now at version {final_version}",
         )
 
         return migrations_applied, final_version

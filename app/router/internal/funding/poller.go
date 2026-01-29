@@ -111,7 +111,7 @@ func applyFundingIncomeTx(ctx context.Context, tx pgx.Tx, records []rest.Futures
 			ctx,
 			`UPDATE positions
 			    SET funding_paid = COALESCE(funding_paid, 0) + $1
-			  WHERE venue = 'futures' AND symbol = $2 AND is_active = TRUE`,
+			  WHERE venue = 'USD_M' AND symbol = $2 AND is_active = TRUE`,
 			amount,
 			record.Symbol,
 		)

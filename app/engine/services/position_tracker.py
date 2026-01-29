@@ -91,18 +91,14 @@ def update_position(
 
     if is_same_side:
         # Adding to position - update average entry price
-        total_value = (position.quantity * position.entry_price) + (
-            fill.quantity * fill.price
-        )
+        total_value = (position.quantity * position.entry_price) + (fill.quantity * fill.price)
         new_quantity = position.quantity + fill.quantity
 
         new_position = Position(
             symbol=position.symbol,
             side=position.side,
             quantity=new_quantity,
-            entry_price=(
-                total_value / new_quantity if new_quantity > 0 else Decimal(0)
-            ),
+            entry_price=(total_value / new_quantity if new_quantity > 0 else Decimal(0)),
             realized_pnl=position.realized_pnl - fill.commission,
             total_commission=position.total_commission + fill.commission,
             open_time=position.open_time,

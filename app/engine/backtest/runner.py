@@ -322,27 +322,19 @@ class BacktestRunner:
                     {
                         "symbol": trade.symbol,
                         "side": trade.side,
-                        "entry_time": trade.entry_time.isoformat()
-                        if trade.entry_time
-                        else "",
-                        "exit_time": trade.exit_time.isoformat()
-                        if trade.exit_time
-                        else "",
+                        "entry_time": trade.entry_time.isoformat() if trade.entry_time else "",
+                        "exit_time": trade.exit_time.isoformat() if trade.exit_time else "",
                         "entry_price": str(trade.entry_price),
                         "exit_price": str(trade.exit_price) if trade.exit_price else "",
                         "size": str(trade.size),
                         "gross_pnl": str(trade.gross_pnl) if trade.gross_pnl else "",
-                        "gross_pnl_r": str(trade.gross_pnl_r)
-                        if trade.gross_pnl_r
-                        else "",
+                        "gross_pnl_r": str(trade.gross_pnl_r) if trade.gross_pnl_r else "",
                         "fees": str(trade.fees),
                         "slippage": str(trade.slippage),
                         "funding": str(trade.funding),
                         "net_pnl": str(trade.net_pnl) if trade.net_pnl else "",
                         "net_pnl_r": str(trade.net_pnl_r) if trade.net_pnl_r else "",
-                        "exit_reason": trade.exit_reason.value
-                        if trade.exit_reason
-                        else "",
+                        "exit_reason": trade.exit_reason.value if trade.exit_reason else "",
                         "duration_minutes": trade.duration_minutes or "",
                     },
                 )
@@ -415,9 +407,7 @@ def main():
             raise ValueError("--data-dir required for CSV data source")
         data_source_kwargs["data_directory"] = args.data_dir
     elif args.data_source == "timescale":
-        database_url = (
-            args.database_url or "postgresql://user:pass@localhost:5432/trading"
-        )
+        database_url = args.database_url or "postgresql://user:pass@localhost:5432/trading"
         data_source_kwargs["database_url"] = database_url
 
     try:

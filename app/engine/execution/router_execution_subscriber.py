@@ -10,6 +10,8 @@ import logging
 from typing import TYPE_CHECKING, Any, Protocol
 
 from app.engine.core.zone_identity import extract_zone_identity
+from app.engine.decision.pretrade_risk import evaluate_pretrade_risk
+from app.engine.decision.risk_state import build_risk_snapshot
 from app.engine.models import (
     BaseEvent,
     ErrorEvent,
@@ -26,7 +28,9 @@ from app.engine.resilience.backoff import BackoffConfig, ExponentialBackoff
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from app.engine.adapters.db.timescale_adapter import TimescaleDBAdapter
     from app.engine.core.signal_cooldown import SignalCooldown
+    from app.engine.models import RiskParameters
 
 
 logger = logging.getLogger(__name__)
@@ -174,6 +178,9 @@ class RouterExecutionSubscriber:
         *,
         bus: _EventBus,
         router_client: _RouterClient,
+        db_adapter: TimescaleDBAdapter,
+        risk: RiskParameters,
+        venue: str,
         execution_mode: ExecutionMode,
         cooldown: SignalCooldown | None = None,
         bff_client: _BffClient | None = None,
@@ -184,6 +191,9 @@ class RouterExecutionSubscriber:
     ) -> None:
         self._bus = bus
         self._router_client = router_client
+        self._db_adapter = db_adapter
+        self._risk = risk
+        self._venue = venue
         self._execution_mode = execution_mode
         self._cooldown = cooldown
         self._bff_client = bff_client
@@ -275,6 +285,35 @@ class RouterExecutionSubscriber:
                     f"Rejected quantity={quantity} > max_position_size={self._max_position_size} "
                     f"for {decision.symbol}"
                 ),
+                "risk_limit_exceeded",
+            )
+            return
+
+        snapshot, errors = await build_risk_snapshot(
+            db_adapter=self._db_adapter,
+            venue=self._venue,
+            now=datetime.now(UTC),
+            risk=self._risk,
+        )
+        if snapshot is None:
+            message = (
+                "; ".join(f"{e.error_type}:{e.message}" for e in errors)
+                or "risk snapshot unavailable"
+            )
+            await _emit_execution_error(
+                self._bus,
+                event,
+                message,
+                "risk_snapshot_unavailable",
+            )
+            return
+
+        ok, reasons = evaluate_pretrade_risk(snapshot=snapshot, decision=decision, risk=self._risk)
+        if not ok:
+            await _emit_execution_error(
+                self._bus,
+                event,
+                "; ".join(reasons),
                 "risk_limit_exceeded",
             )
             return

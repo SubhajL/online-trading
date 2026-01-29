@@ -83,7 +83,9 @@ class TestTelegramAlertAdapter:
 
     @pytest.mark.asyncio
     async def test_handle_decision_with_deduplication(
-        self, adapter: Any, mock_deduplicator: Any,
+        self,
+        adapter: Any,
+        mock_deduplicator: Any,
     ) -> None:
         decision = {
             "symbol": "BTCUSDT",

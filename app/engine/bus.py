@@ -279,13 +279,13 @@ class EventBus:
                 operation="publish",
                 event_id=str(event.event_id),
             )
-            error = ProcessingError(
+            pub_error = ProcessingError(
                 f"Error publishing event: {e}",
                 event_id=event.event_id,
                 context=context,
                 cause=e,
             )
-            await handle_error(error)
+            await handle_error(pub_error)
             return False
 
     async def publish_many(self, events: list[BaseEvent]) -> int:
@@ -313,9 +313,7 @@ class EventBus:
         """
         # Get subscription manager metrics
         subscription_count = await self._subscription_manager.get_subscription_count()
-        active_subscription_count = (
-            await self._subscription_manager.get_active_subscription_count()
-        )
+        active_subscription_count = await self._subscription_manager.get_active_subscription_count()
 
         # Get event processor metrics
         processor_stats = await self._event_processor.get_stats()
@@ -342,9 +340,7 @@ class EventBus:
             Dictionary containing health information
         """
         subscription_count = await self._subscription_manager.get_subscription_count()
-        active_subscription_count = (
-            await self._subscription_manager.get_active_subscription_count()
-        )
+        active_subscription_count = await self._subscription_manager.get_active_subscription_count()
         processor_stats = await self._event_processor.get_stats()
 
         return {
@@ -536,10 +532,10 @@ class EventBus:
         subscription_id: str,
     ) -> dict[str, Any] | None:
         """Get subscription status including circuit breaker state."""
-        sub = await self._subscription_manager.get_subscription_by_id(subscription_id)
+        sub = await self._subscription_manager.get_subscription_by_id(subscription_id)  # type: ignore[attr-defined]
         if not sub:
             return None
-        cb_state = await self._event_processor.get_circuit_breaker_state(
+        cb_state = await self._event_processor.get_circuit_breaker_state(  # type: ignore[attr-defined]
             sub.subscriber_id,
         )
         return {

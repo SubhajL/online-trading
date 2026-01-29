@@ -120,7 +120,7 @@ class TestHealthChecker:
 
         # Third failure - now unhealthy
         await checker._run_check("failing")
-        assert checker.components["failing"].status == HealthStatus.UNHEALTHY
+        assert checker.components["failing"].status == HealthStatus.UNHEALTHY  # type: ignore[comparison-overlap]
         assert checker.failure_counts["failing"] == 3
 
     @pytest.mark.asyncio
@@ -155,7 +155,7 @@ class TestHealthChecker:
 
         # Second recovery - now healthy
         await checker._run_check("recovering")
-        assert checker.components["recovering"].status == HealthStatus.HEALTHY
+        assert checker.components["recovering"].status == HealthStatus.HEALTHY  # type: ignore[comparison-overlap]
         assert checker.recovery_counts["recovering"] == 2
         assert checker.failure_counts["recovering"] == 0
 
@@ -206,7 +206,7 @@ class TestHealthChecker:
     async def test_monitoring_lifecycle(self) -> None:
         """Test starting and stopping monitoring"""
         config = HealthConfig(
-            check_interval=0.1,  # 100ms for faster test
+            check_interval=1,  # fast test
             timeout=1,
             failure_threshold=3,
             recovery_threshold=2,
@@ -252,7 +252,7 @@ class TestReadinessChecker:
         checker = ReadinessChecker()
 
         async def db_check() -> bool:
-            return
+            return True
 
         checker.register_check("database", db_check, required=True)
 
@@ -265,7 +265,7 @@ class TestReadinessChecker:
         checker = ReadinessChecker()
 
         async def passing_check() -> bool:
-            return
+            return True
 
         checker.register_check("service1", passing_check, required=True)
         checker.register_check("service2", passing_check, required=False)
@@ -282,7 +282,7 @@ class TestReadinessChecker:
         checker = ReadinessChecker()
 
         async def passing_check() -> bool:
-            return
+            return True
 
         async def failing_check() -> bool:
             raise Exception("Check failed")
@@ -302,7 +302,7 @@ class TestReadinessChecker:
         checker = ReadinessChecker()
 
         async def passing_check() -> bool:
-            return
+            return True
 
         async def failing_check() -> bool:
             raise Exception("Check failed")

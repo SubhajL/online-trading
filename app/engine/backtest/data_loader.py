@@ -71,9 +71,7 @@ def load_candles_chunked(
             yield pd.DataFrame()
 
         # Move to next chunk (with 1 day overlap for continuity)
-        current_start = (
-            chunk_end - timedelta(days=1) if chunk_end < end_date else end_date
-        )
+        current_start = chunk_end - timedelta(days=1) if chunk_end < end_date else end_date
 
         # Prevent infinite loop
         if current_start >= end_date:
@@ -85,23 +83,28 @@ def _load_candle_chunk(symbol: str, start: datetime, end: datetime) -> pd.DataFr
     Load actual candle data for a specific date range.
     This is a placeholder - would connect to real data source.
     """
-    # Generate sample data for testing
+    _ = symbol
+
+    # Generate deterministic sample data for testing.
     date_range = pd.date_range(start, end, freq="1H")
 
     if len(date_range) == 0:
         return pd.DataFrame()
 
-    # Simulate some missing data
-    if np.random.random() < 0.1:  # 10% chance of missing data
-        return pd.DataFrame()
+    idx = np.arange(len(date_range), dtype=float)
+    open_ = 100 + (idx % 100) * 0.1
+    close = open_ + 0.5
+    high = np.maximum(open_, close) + 1.0
+    low = np.minimum(open_, close) - 1.0
+    volume = 1000 + (idx % 1000)
 
     df = pd.DataFrame(
         {
-            "open": np.random.uniform(100, 200, len(date_range)),
-            "high": np.random.uniform(100, 200, len(date_range)),
-            "low": np.random.uniform(100, 200, len(date_range)),
-            "close": np.random.uniform(100, 200, len(date_range)),
-            "volume": np.random.uniform(1000, 10000, len(date_range)),
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
         },
         index=date_range,
     )

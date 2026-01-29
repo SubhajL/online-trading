@@ -65,7 +65,7 @@ func TestOrderRepo_ApplyFillUpdate_UpdatesTotalsAndStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = repo.UpsertOrderIntent(ctx, tx, OrderIntent{
-			Venue:          "futures",
+			Venue:          "USD_M",
 			Symbol:         "BTCUSDT",
 			ClientOrderID:  "abc_entry",
 			Side:           "BUY",
@@ -79,7 +79,7 @@ func TestOrderRepo_ApplyFillUpdate_UpdatesTotalsAndStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		rec, found, err := repo.ApplyFillUpdate(ctx, tx, "futures", "abc_entry", OrderFillUpdate{
+		rec, found, err := repo.ApplyFillUpdate(ctx, tx, "USD_M", "abc_entry", OrderFillUpdate{
 			Status:           "FILLED",
 			FilledQuantity:   decimal.RequireFromString("0.01"),
 			AverageFillPrice: decimal.RequireFromString("101"),

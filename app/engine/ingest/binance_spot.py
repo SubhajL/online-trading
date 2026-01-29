@@ -56,7 +56,7 @@ class BinanceSpotIngester:
         self.max_reconnect_attempts = max_reconnect_attempts
         self.reconnect_delay_ms = reconnect_delay_ms
 
-        self._websocket: websockets.WebSocketClientProtocol | None = None
+        self._websocket: Any = None
         self._running = False
         self._last_candle_times: dict[str, datetime] = {}
         self._reconnect_count = 0

@@ -68,13 +68,9 @@ def check_required_env_vars() -> CheckResult:
             try:
                 int_val = int(value)
                 if "min" in rules and int_val < rules["min"]:
-                    invalid[var_name] = (
-                        f"Value {int_val} is below minimum {rules['min']}"
-                    )
+                    invalid[var_name] = f"Value {int_val} is below minimum {rules['min']}"
                 if "max" in rules and int_val > rules["max"]:
-                    invalid[var_name] = (
-                        f"Value {int_val} is above maximum {rules['max']}"
-                    )
+                    invalid[var_name] = f"Value {int_val} is above maximum {rules['max']}"
             except ValueError:
                 invalid[var_name] = f"Expected integer, got '{value}'"
 

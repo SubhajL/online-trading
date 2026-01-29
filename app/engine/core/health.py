@@ -290,9 +290,7 @@ def aggregate_health_status(components: list[ComponentHealth]) -> HealthCheck:
     if unhealthy:
         overall_status = HealthStatus.UNHEALTHY
         problem_components = unhealthy + degraded
-        message = (
-            f"Components unhealthy: {', '.join(c.name for c in problem_components)}"
-        )
+        message = f"Components unhealthy: {', '.join(c.name for c in problem_components)}"
     elif degraded:
         overall_status = HealthStatus.DEGRADED
         message = f"Components degraded: {', '.join(c.name for c in degraded)}"
@@ -514,17 +512,9 @@ async def check_redis_adapter_health(redis_adapter: Any) -> ComponentHealth:
         status = (
             HealthStatus.HEALTHY
             if status_str == "healthy"
-            else (
-                HealthStatus.DEGRADED
-                if status_str == "degraded"
-                else HealthStatus.UNHEALTHY
-            )
+            else (HealthStatus.DEGRADED if status_str == "degraded" else HealthStatus.UNHEALTHY)
         )
-        message = (
-            "Redis operational"
-            if status == HealthStatus.HEALTHY
-            else f"Redis {status.value}"
-        )
+        message = "Redis operational" if status == HealthStatus.HEALTHY else f"Redis {status.value}"
         details = {
             "database_size": stats.get("database_size", 0),
             "connected_clients": stats.get("connected_clients", 0),

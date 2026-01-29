@@ -84,7 +84,9 @@ class EnhancedHealthChecker:
         self.dependencies[name] = (health_url, critical)
 
     async def check_service_dependency(
-        self, service: str, url: str,
+        self,
+        service: str,
+        url: str,
     ) -> ServiceDependency:
         """Check health of an external service dependency."""
         start_time = asyncio.get_event_loop().time()
@@ -123,7 +125,7 @@ class EnhancedHealthChecker:
                         details=details,
                     )
 
-        except aiohttp.ClientTimeout:
+        except asyncio.TimeoutError:
             return ServiceDependency(
                 service=service,
                 status=DependencyStatus.TIMEOUT,
@@ -184,7 +186,8 @@ class EnhancedHealthChecker:
                 # Check for processing lag
                 processing_lag = metrics.get("processing_lag_ms", 0)
                 backlog_size = metrics.get("events_published", 0) - metrics.get(
-                    "events_processed", 0,
+                    "events_processed",
+                    0,
                 )
                 details["backlog_size"] = backlog_size
 
@@ -193,8 +196,7 @@ class EnhancedHealthChecker:
                         name="event_bus",
                         status=HealthStatus.DEGRADED,
                         message=f"High processing lag: {processing_lag}ms",
-                        latency_ms=(asyncio.get_event_loop().time() - start_time)
-                        * 1000,
+                        latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000,
                         details=details,
                     )
 
@@ -258,10 +260,7 @@ class EnhancedHealthChecker:
                                 name="database",
                                 status=HealthStatus.DEGRADED,
                                 message=f"High replication lag: {lag_seconds:.1f}s",
-                                latency_ms=(
-                                    asyncio.get_event_loop().time() - start_time
-                                )
-                                * 1000,
+                                latency_ms=(asyncio.get_event_loop().time() - start_time) * 1000,
                                 details=details,
                             )
                 except Exception:
@@ -302,12 +301,8 @@ class EnhancedHealthChecker:
                 if self.config.include_details:
                     info = await client.info("memory")
                     if info:
-                        details["memory_used_mb"] = info.get("used_memory", 0) / (
-                            1024 * 1024
-                        )
-                        details["memory_peak_mb"] = info.get("used_memory_peak", 0) / (
-                            1024 * 1024
-                        )
+                        details["memory_used_mb"] = info.get("used_memory", 0) / (1024 * 1024)
+                        details["memory_peak_mb"] = info.get("used_memory_peak", 0) / (1024 * 1024)
 
                 latency_ms = (asyncio.get_event_loop().time() - start_time) * 1000
 
@@ -319,7 +314,7 @@ class EnhancedHealthChecker:
                     details=details,
                 )
             finally:
-                await client.aclose()
+                await client.close()
 
         except Exception as e:
             return ComponentHealth(
@@ -367,10 +362,7 @@ class EnhancedHealthChecker:
         )
 
         # Determine overall health
-        if (
-            any(s == HealthStatus.UNHEALTHY for s in all_statuses)
-            or not critical_deps_healthy
-        ):
+        if any(s == HealthStatus.UNHEALTHY for s in all_statuses) or not critical_deps_healthy:
             overall_status = HealthStatus.UNHEALTHY
             if not critical_deps_healthy:
                 message = "Critical dependency unavailable"
@@ -387,15 +379,11 @@ class EnhancedHealthChecker:
 
         # Calculate performance metrics
         perf_metrics = {
-            "avg_component_latency_ms": sum(
-                c.latency_ms or 0 for c in component_results.values()
-            )
+            "avg_component_latency_ms": sum(c.latency_ms or 0 for c in component_results.values())
             / len(component_results)
             if component_results
             else 0,
-            "avg_dependency_latency_ms": sum(
-                d.latency_ms for d in dependency_results.values()
-            )
+            "avg_dependency_latency_ms": sum(d.latency_ms for d in dependency_results.values())
             / len(dependency_results)
             if dependency_results
             else 0,

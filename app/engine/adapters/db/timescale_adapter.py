@@ -8,6 +8,7 @@ for trading data including candles, indicators, signals, and trading events.
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 import json
 import logging
 import os
@@ -577,7 +578,10 @@ class TimescaleDBAdapter:
             Latest candle or None if no data
         """
         candles = await self.get_candles(
-            symbol=symbol, timeframe=timeframe, venue=venue, limit=1,
+            symbol=symbol,
+            timeframe=timeframe,
+            venue=venue,
+            limit=1,
         )
         return candles[0] if candles else None
 
@@ -940,7 +944,7 @@ class TimescaleDBAdapter:
             async with self.get_read_connection() as conn:
                 if timeframe:
                     rows = await conn.fetch(
-                            """
+                        """
                             SELECT
                                 venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text
                                     as event_id,
@@ -963,7 +967,7 @@ class TimescaleDBAdapter:
                     )
                 else:
                     rows = await conn.fetch(
-                            """
+                        """
                             SELECT
                                 venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text
                                     as event_id,
@@ -1128,6 +1132,100 @@ class TimescaleDBAdapter:
     # ============================================================================
     # Health and Maintenance
     # ============================================================================
+
+    async def get_latest_equity_sample(self) -> tuple[Decimal, datetime] | None:
+        """Return latest equity sample as (equity, timestamp)."""
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT equity, timestamp
+                      FROM equity_samples
+                  ORDER BY timestamp DESC
+                     LIMIT 1
+                    """,
+                )
+                if row is None:
+                    return None
+                return row["equity"], row["timestamp"]
+        except Exception:
+            logger.exception("Error retrieving latest equity sample")
+            return None
+
+    async def insert_equity_sample(self, equity: Decimal, timestamp: datetime) -> bool:
+        """Insert an equity sample row."""
+        try:
+            async with self.get_write_connection() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO equity_samples (timestamp, equity)
+                    VALUES ($1, $2)
+                    """,
+                    timestamp,
+                    equity,
+                )
+            return True
+        except Exception:
+            logger.exception("Error inserting equity sample")
+            return False
+
+    async def get_equity_sample_at_or_after(self, timestamp: datetime) -> Decimal | None:
+        """Return equity from the first sample at/after timestamp."""
+        try:
+            async with self.get_read_connection() as conn:
+                value = await conn.fetchval(
+                    """
+                    SELECT equity
+                      FROM equity_samples
+                     WHERE timestamp >= $1
+                  ORDER BY timestamp ASC
+                     LIMIT 1
+                    """,
+                    timestamp,
+                )
+                return value
+        except Exception:
+            logger.exception("Error retrieving equity sample at/after %s", timestamp)
+            return None
+
+    async def get_peak_equity_since(self, timestamp: datetime) -> Decimal | None:
+        """Return MAX(equity) since timestamp (inclusive)."""
+        try:
+            async with self.get_read_connection() as conn:
+                value = await conn.fetchval(
+                    """
+                    SELECT MAX(equity)
+                      FROM equity_samples
+                     WHERE timestamp >= $1
+                    """,
+                    timestamp,
+                )
+                return value
+        except Exception:
+            logger.exception("Error retrieving peak equity since %s", timestamp)
+            return None
+
+    async def get_active_positions(self, venue: str) -> list[dict[str, Any]]:
+        """Return active positions for venue.
+
+        Minimal columns are returned for exposure calculations.
+        """
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT symbol, size, current_price
+                      FROM positions
+                     WHERE venue = $1
+                       AND is_active = TRUE
+                       AND size > 0
+                    """,
+                    venue,
+                )
+                return [dict(row) for row in rows]
+        except Exception:
+            logger.exception("Error retrieving active positions for venue=%s", venue)
+            return []
 
     async def health_check(self) -> dict[str, Any]:
         """Perform a health check on the database"""

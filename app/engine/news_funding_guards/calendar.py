@@ -143,9 +143,7 @@ class CalendarManager:
                 )
 
             # Filter for tracked event types
-            self._events = [
-                e for e in self._events if e.event_type in self.tracked_events
-            ]
+            self._events = [e for e in self._events if e.event_type in self.tracked_events]
 
             # Filter for high impact
             if self.config.get("high_impact_only", True):
@@ -179,9 +177,7 @@ class CalendarManager:
         cutoff_time = current_time + timedelta(hours=hours_ahead)
 
         upcoming = [
-            event
-            for event in self._events
-            if current_time <= event.timestamp <= cutoff_time
+            event for event in self._events if current_time <= event.timestamp <= cutoff_time
         ]
 
         # Sort by timestamp

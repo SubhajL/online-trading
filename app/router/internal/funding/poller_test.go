@@ -42,7 +42,7 @@ func TestApplyFundingIncomeTx_UpdatesActivePosition(t *testing.T) {
 		`)
 		require.NoError(t, err)
 
-		_, err = tx.Exec(ctx, `INSERT INTO positions (venue, symbol, is_active, funding_paid) VALUES ('futures','BTCUSDT', true, 0)`)
+		_, err = tx.Exec(ctx, `INSERT INTO positions (venue, symbol, is_active, funding_paid) VALUES ('USD_M','BTCUSDT', true, 0)`)
 		require.NoError(t, err)
 
 		records := []rest.FuturesIncomeRecord{
@@ -50,7 +50,7 @@ func TestApplyFundingIncomeTx_UpdatesActivePosition(t *testing.T) {
 		}
 		require.NoError(t, applyFundingIncomeTx(ctx, tx, records))
 
-		row := tx.QueryRow(ctx, `SELECT funding_paid FROM positions WHERE venue='futures' AND symbol='BTCUSDT' AND is_active=true`)
+		row := tx.QueryRow(ctx, `SELECT funding_paid FROM positions WHERE venue='USD_M' AND symbol='BTCUSDT' AND is_active=true`)
 		var got decimal.Decimal
 		require.NoError(t, row.Scan(&got))
 		require.True(t, decimal.RequireFromString("-0.01").Equal(got))

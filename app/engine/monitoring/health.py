@@ -53,8 +53,7 @@ class HealthConfig:
             timeout=int(os.getenv("HEALTH_CHECK_TIMEOUT", "5")),
             failure_threshold=int(os.getenv("HEALTH_FAILURE_THRESHOLD", "3")),
             recovery_threshold=int(os.getenv("HEALTH_RECOVERY_THRESHOLD", "2")),
-            include_details=os.getenv("HEALTH_INCLUDE_DETAILS", "true").lower()
-            == "true",
+            include_details=os.getenv("HEALTH_INCLUDE_DETAILS", "true").lower() == "true",
         )
 
 
@@ -196,12 +195,8 @@ class HealthChecker:
                 if self.config.include_details:
                     info = await client.info("memory")
                     if info:
-                        details["memory_used_mb"] = info.get("used_memory", 0) / (
-                            1024 * 1024
-                        )
-                        details["memory_peak_mb"] = info.get("used_memory_peak", 0) / (
-                            1024 * 1024
-                        )
+                        details["memory_used_mb"] = info.get("used_memory", 0) / (1024 * 1024)
+                        details["memory_peak_mb"] = info.get("used_memory_peak", 0) / (1024 * 1024)
 
                 latency_ms = (time.time() - start_time) * 1000
 
@@ -225,7 +220,7 @@ class HealthChecker:
                     details=details,
                 )
             finally:
-                await client.aclose()
+                await client.close()
 
         except TimeoutError:
             latency_ms = (time.time() - start_time) * 1000
@@ -499,8 +494,7 @@ class ReadinessChecker:
 
         # Check if all required components are ready
         all_required_ready = all(
-            results.get(name, {}).get("ready", False)
-            for name in self.required_components
+            results.get(name, {}).get("ready", False) for name in self.required_components
         )
 
         return {

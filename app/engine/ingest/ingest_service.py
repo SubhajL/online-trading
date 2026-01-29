@@ -436,7 +436,7 @@ class IngestService:
         _ = symbol, timeframe
         # This would implement gap detection logic
         # For now, return empty list
-        gaps = []
+        gaps: list[dict[Any, Any]] = []
 
         # TODO: Implement actual gap detection by checking timestamp sequences
         # in the database or cached data
@@ -489,7 +489,7 @@ class IngestService:
 
     def get_backfill_progress(self) -> dict[str, dict[str, bool]]:
         """Get backfill progress for all symbols and timeframes"""
-        progress = {}
+        progress: dict[str, dict[str, bool]] = {}
         for symbol in self.symbols:
             progress[symbol] = {}
             for timeframe in self.timeframes:
@@ -499,7 +499,7 @@ class IngestService:
                 )
         return progress
 
-    async def health_check(self) -> dict[str, any]:
+    async def health_check(self) -> dict[str, Any]:
         """Get health status of the ingestion service"""
         ws_health = (
             await self.ws_client.health_check() if self.enable_realtime else {"status": "disabled"}

@@ -61,7 +61,9 @@ class CostCalculator:
         return notional * base_rate
 
     def calculate_fill_fee(
-        self, fill: BacktestFill, is_futures: bool = False,
+        self,
+        fill: BacktestFill,
+        is_futures: bool = False,
     ) -> Decimal:
         """
         Calculate fee for a specific fill.
@@ -212,9 +214,7 @@ class CostCalculator:
 
         costs["total_fees"] = costs["entry_fee"] + costs["exit_fee"]
         costs["total_slippage"] = costs["entry_slippage"] + costs["exit_slippage"]
-        costs["total_cost"] = (
-            costs["total_fees"] + costs["total_slippage"] + costs["total_funding"]
-        )
+        costs["total_cost"] = costs["total_fees"] + costs["total_slippage"] + costs["total_funding"]
 
         return costs
 

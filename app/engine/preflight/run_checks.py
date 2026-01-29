@@ -62,10 +62,7 @@ def run_all_checks(fail_fast: bool = False) -> PreflightResults:
                 can_proceed = False
                 if fail_fast:
                     break
-            elif (
-                result.status == CheckStatus.WARNING
-                and overall_status != CheckStatus.FAILED
-            ):
+            elif result.status == CheckStatus.WARNING and overall_status != CheckStatus.FAILED:
                 overall_status = CheckStatus.WARNING
 
         except Exception as e:
@@ -177,10 +174,7 @@ def generate_preflight_report(results: PreflightResults) -> str:
             lines.append("   cp .env.example .env")
             lines.append("   # Edit .env and add required values")
 
-        if (
-            "packages" in results.checks
-            and results.checks["packages"].status == CheckStatus.FAILED
-        ):
+        if "packages" in results.checks and results.checks["packages"].status == CheckStatus.FAILED:
             lines.append("\n2. Install missing Python packages")
             lines.append("   pip install -r app/engine/requirements.txt")
 
@@ -195,10 +189,7 @@ def generate_preflight_report(results: PreflightResults) -> str:
             if "psql" in details.get("missing_commands", []):
                 lines.append("   # Install PostgreSQL client: brew install postgresql")
 
-        if (
-            "ports" in results.checks
-            and results.checks["ports"].status == CheckStatus.FAILED
-        ):
+        if "ports" in results.checks and results.checks["ports"].status == CheckStatus.FAILED:
             lines.append("\n4. Start required services")
             lines.append("   make infra-up  # Start PostgreSQL and Redis")
 

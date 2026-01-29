@@ -65,9 +65,9 @@ func buildBracketOrderIntents(
 	req orders.PlaceBracketRequest,
 	resp orders.PlaceBracketResponse,
 ) ([]storage.OrderIntent, error) {
-	venue := "spot"
+	venue := "SPOT"
 	if req.IsFutures {
-		venue = "futures"
+		venue = "USD_M"
 	}
 
 	prov := extractProvenance(req.Metadata)

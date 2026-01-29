@@ -51,7 +51,9 @@ class CandleDataset:
         raise NotImplementedError
 
     def get_date_range(
-        self, symbol: str, timeframe: TimeFrame,
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
     ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         raise NotImplementedError
@@ -168,7 +170,9 @@ class TimescaleDataset(CandleDataset):
             return []
 
     def get_date_range(
-        self, symbol: str, timeframe: TimeFrame,
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
     ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         try:
@@ -310,7 +314,9 @@ class CSVDataset(CandleDataset):
             return []
 
     def _calculate_close_time(
-        self, open_time: datetime, timeframe: TimeFrame,
+        self,
+        open_time: datetime,
+        timeframe: TimeFrame,
     ) -> datetime:
         """
         Calculate close time based on open time and timeframe.
@@ -352,7 +358,9 @@ class CSVDataset(CandleDataset):
         return sorted(list(symbols))
 
     def get_date_range(
-        self, symbol: str, timeframe: TimeFrame,
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
     ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         csv_path = self._get_csv_path(symbol, timeframe)

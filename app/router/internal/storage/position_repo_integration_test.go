@@ -120,7 +120,7 @@ func TestPositionRepo_UpsertAndCloseActivePosition(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, repo.UpsertActive(ctx, tx, ActivePositionUpsert{
-			Venue:          "futures",
+			Venue:          "USD_M",
 			Symbol:         "BTCUSDT",
 			Side:           "BUY",
 			Size:           decimal.RequireFromString("0.01"),
@@ -134,12 +134,12 @@ func TestPositionRepo_UpsertAndCloseActivePosition(t *testing.T) {
 			UpdatedAt:      now,
 		}))
 
-		pos, found, err := repo.GetActive(ctx, tx, "futures", "BTCUSDT")
+		pos, found, err := repo.GetActive(ctx, tx, "USD_M", "BTCUSDT")
 		require.NoError(t, err)
 		require.True(t, found)
 		require.Equal(t, "BUY", pos.Side)
 
-		require.NoError(t, repo.CloseActive(ctx, tx, "futures", "BTCUSDT", PositionClose{
+		require.NoError(t, repo.CloseActive(ctx, tx, "USD_M", "BTCUSDT", PositionClose{
 			ClosedAt:       now.Add(time.Minute),
 			CurrentPrice:   decimal.RequireFromString("110"),
 			RealizedPnL:    decimal.RequireFromString("1"),
@@ -147,7 +147,7 @@ func TestPositionRepo_UpsertAndCloseActivePosition(t *testing.T) {
 			SlippagePaid:   decimal.RequireFromString("0.01"),
 		}))
 
-		_, found, err = repo.GetActive(ctx, tx, "futures", "BTCUSDT")
+		_, found, err = repo.GetActive(ctx, tx, "USD_M", "BTCUSDT")
 		require.NoError(t, err)
 		require.False(t, found)
 		return nil
@@ -179,7 +179,7 @@ func TestPositionRepo_UpsertActive_PreservesPositionID(t *testing.T) {
 
 		// First upsert - creates position
 		err := repo.UpsertActive(ctx, tx, ActivePositionUpsert{
-			Venue:          "futures",
+			Venue:          "USD_M",
 			Symbol:         "ETHUSDT",
 			Side:           "BUY",
 			Size:           decimal.RequireFromString("1.0"),
@@ -195,13 +195,13 @@ func TestPositionRepo_UpsertActive_PreservesPositionID(t *testing.T) {
 		require.NoError(t, err)
 
 		// Record original position_id
-		originalID, err := getPositionID(ctx, tx, "futures", "ETHUSDT")
+		originalID, err := getPositionID(ctx, tx, "USD_M", "ETHUSDT")
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, originalID, "position_id should be generated")
 
 		// Second upsert - updates position with different values
 		err = repo.UpsertActive(ctx, tx, ActivePositionUpsert{
-			Venue:          "futures",
+			Venue:          "USD_M",
 			Symbol:         "ETHUSDT",
 			Side:           "SELL", // Changed side
 			Size:           decimal.RequireFromString("2.0"),
@@ -217,12 +217,12 @@ func TestPositionRepo_UpsertActive_PreservesPositionID(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify position_id is preserved
-		newID, err := getPositionID(ctx, tx, "futures", "ETHUSDT")
+		newID, err := getPositionID(ctx, tx, "USD_M", "ETHUSDT")
 		require.NoError(t, err)
 		assert.Equal(t, originalID, newID, "position_id should be preserved across upserts")
 
 		// Verify fields were updated
-		pos, found, err := repo.GetActive(ctx, tx, "futures", "ETHUSDT")
+		pos, found, err := repo.GetActive(ctx, tx, "USD_M", "ETHUSDT")
 		require.NoError(t, err)
 		require.True(t, found)
 		assert.Equal(t, "SELL", pos.Side, "side should be updated")
@@ -254,7 +254,7 @@ func TestPositionRepo_UpsertActive_UpdatesExistingFields(t *testing.T) {
 
 		// Initial insert
 		initialUpsert := ActivePositionUpsert{
-			Venue:          "spot",
+			Venue:          "SPOT",
 			Symbol:         "SOLUSDT",
 			Side:           "BUY",
 			Size:           decimal.RequireFromString("10"),
@@ -270,7 +270,7 @@ func TestPositionRepo_UpsertActive_UpdatesExistingFields(t *testing.T) {
 		require.NoError(t, repo.UpsertActive(ctx, tx, initialUpsert))
 
 		// Verify initial state
-		pos1, found, err := repo.GetActive(ctx, tx, "spot", "SOLUSDT")
+		pos1, found, err := repo.GetActive(ctx, tx, "SPOT", "SOLUSDT")
 		require.NoError(t, err)
 		require.True(t, found)
 		assert.Equal(t, "BUY", pos1.Side)
@@ -279,7 +279,7 @@ func TestPositionRepo_UpsertActive_UpdatesExistingFields(t *testing.T) {
 
 		// Update with new values
 		updateUpsert := ActivePositionUpsert{
-			Venue:          "spot",
+			Venue:          "SPOT",
 			Symbol:         "SOLUSDT",
 			Side:           "BUY",
 			Size:           decimal.RequireFromString("15"),
@@ -295,7 +295,7 @@ func TestPositionRepo_UpsertActive_UpdatesExistingFields(t *testing.T) {
 		require.NoError(t, repo.UpsertActive(ctx, tx, updateUpsert))
 
 		// Verify all fields updated
-		pos2, found, err := repo.GetActive(ctx, tx, "spot", "SOLUSDT")
+		pos2, found, err := repo.GetActive(ctx, tx, "SPOT", "SOLUSDT")
 		require.NoError(t, err)
 		require.True(t, found)
 
@@ -334,7 +334,7 @@ func TestPositionRepo_UpsertActive_NoDuplicatesWithMultipleUpserts(t *testing.T)
 		// with ON CONFLICT - they serialize at the database level)
 		for i := 0; i < 10; i++ {
 			err := repo.UpsertActive(ctx, tx, ActivePositionUpsert{
-				Venue:          "futures",
+				Venue:          "USD_M",
 				Symbol:         "BTCUSDT",
 				Side:           "BUY",
 				Size:           decimal.RequireFromString("0.001").Mul(decimal.NewFromInt(int64(i + 1))),
@@ -351,12 +351,12 @@ func TestPositionRepo_UpsertActive_NoDuplicatesWithMultipleUpserts(t *testing.T)
 		}
 
 		// Count should be exactly 1
-		count, err := countActivePositions(ctx, tx, "futures", "BTCUSDT")
+		count, err := countActivePositions(ctx, tx, "USD_M", "BTCUSDT")
 		require.NoError(t, err)
 		assert.Equal(t, 1, count, "multiple upserts should produce exactly one row")
 
 		// Verify final state has last values
-		pos, found, err := repo.GetActive(ctx, tx, "futures", "BTCUSDT")
+		pos, found, err := repo.GetActive(ctx, tx, "USD_M", "BTCUSDT")
 		require.NoError(t, err)
 		require.True(t, found)
 		// Last upsert was i=9, so size = 0.001 * 10 = 0.01
@@ -390,7 +390,7 @@ func TestPositionRepo_UpsertActive_DifferentSymbolsAreSeparate(t *testing.T) {
 		symbols := []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}
 		for _, symbol := range symbols {
 			err := repo.UpsertActive(ctx, tx, ActivePositionUpsert{
-				Venue:          "futures",
+				Venue:          "USD_M",
 				Symbol:         symbol,
 				Side:           "BUY",
 				Size:           decimal.RequireFromString("1"),
@@ -408,7 +408,7 @@ func TestPositionRepo_UpsertActive_DifferentSymbolsAreSeparate(t *testing.T) {
 
 		// Each symbol should have exactly one position
 		for _, symbol := range symbols {
-			count, err := countActivePositions(ctx, tx, "futures", symbol)
+			count, err := countActivePositions(ctx, tx, "USD_M", symbol)
 			require.NoError(t, err)
 			assert.Equal(t, 1, count, "symbol %s should have exactly one position", symbol)
 		}

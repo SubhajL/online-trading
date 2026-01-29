@@ -133,7 +133,8 @@ class BacktestSimulator:
         self._manage_positions(candle)
 
     def _calculate_indicators(
-        self, candles: list[Candle],
+        self,
+        candles: list[Candle],
     ) -> TechnicalIndicators | None:
         """
         Calculate technical indicators using the same calculator as live trading.
@@ -257,9 +258,7 @@ class BacktestSimulator:
                 )
                 new_quantity = position.quantity + fill.quantity
                 new_value = old_value + fill_value
-                position.entry_price = (
-                    new_value / new_quantity if new_quantity > 0 else Decimal(0)
-                )
+                position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal(0)
                 position.quantity = new_quantity
 
         elif position.side == "LONG":
@@ -269,15 +268,11 @@ class BacktestSimulator:
             # Opening/adding to short position
             position.side = "SHORT"
             old_value = (
-                position.quantity * position.entry_price
-                if position.quantity > 0
-                else Decimal(0)
+                position.quantity * position.entry_price if position.quantity > 0 else Decimal(0)
             )
             new_quantity = position.quantity + fill.quantity
             new_value = old_value + fill_value
-            position.entry_price = (
-                new_value / new_quantity if new_quantity > 0 else Decimal(0)
-            )
+            position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal(0)
             position.quantity = new_quantity
 
         position.mark_price = candle.close_price
@@ -312,9 +307,7 @@ class BacktestSimulator:
         else:
             # Partial close
             close_ratio = close_quantity / position.quantity
-            partial_pnl = (
-                self._calculate_position_pnl(position, close_price) * close_ratio
-            )
+            partial_pnl = self._calculate_position_pnl(position, close_price) * close_ratio
             position.realized_pnl += partial_pnl
             position.quantity -= close_quantity
             self.current_balance += partial_pnl
@@ -355,7 +348,8 @@ class BacktestSimulator:
             if symbol == candle.symbol:
                 position.mark_price = candle.close_price
                 position.unrealized_pnl = self._calculate_position_pnl(
-                    position, candle.close_price,
+                    position,
+                    candle.close_price,
                 )
 
     def _process_funding(self, candle: Candle) -> None:
@@ -378,10 +372,12 @@ class BacktestSimulator:
 
             # Check if funding should be charged
             if self.cost_calculator.should_charge_funding(
-                candle.close_time, position.opened_at,
+                candle.close_time,
+                position.opened_at,
             ):
                 funding_rate = self.cost_calculator.get_funding_rate(
-                    symbol, candle.close_time,
+                    symbol,
+                    candle.close_time,
                 )
                 funding_payment = self.cost_calculator.calculate_funding_payment(
                     position.quantity,
@@ -462,9 +458,7 @@ class BacktestSimulator:
         # Calculate position size (simplified)
         risk_per_trade = self.current_balance * Decimal("0.01")  # 1% risk
         stop_distance = abs(entry_price - signal["stop_loss"])
-        position_size = (
-            risk_per_trade / stop_distance if stop_distance > 0 else Decimal(100)
-        )
+        position_size = risk_per_trade / stop_distance if stop_distance > 0 else Decimal(100)
 
         # Place entry order
         entry_order = BacktestOrder(

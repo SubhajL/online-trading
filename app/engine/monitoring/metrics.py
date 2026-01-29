@@ -268,7 +268,9 @@ def track_time(metric: Histogram, labels: dict[str, str] | None = None):
 
 
 def increment_counter(
-    counter: Counter, labels: dict[str, str] | None = None, value: float = 1,
+    counter: Counter,
+    labels: dict[str, str] | None = None,
+    value: float = 1,
 ):
     """
     Increment a counter metric.
@@ -306,7 +308,9 @@ def set_gauge(gauge: Gauge, value: float, labels: dict[str, str] | None = None):
 
 
 def observe_histogram(
-    histogram: Histogram, value: float, labels: dict[str, str] | None = None,
+    histogram: Histogram,
+    value: float,
+    labels: dict[str, str] | None = None,
 ):
     """
     Record an observation in a histogram.

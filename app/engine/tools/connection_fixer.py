@@ -217,9 +217,7 @@ def add_connection_type_hints(arg: Any) -> Any:
     - If arg is a source code string: return transformed code string.
     """
     # Treat as file path only if it's a Path or a string without newlines
-    if isinstance(arg, Path) or (
-        isinstance(arg, str) and ("\n" not in arg and "\r" not in arg)
-    ):
+    if isinstance(arg, Path) or (isinstance(arg, str) and ("\n" not in arg and "\r" not in arg)):
         p = Path(str(arg))
         if not p.exists():
             # Not a real file; fall back to code path
@@ -228,7 +226,9 @@ def add_connection_type_hints(arg: Any) -> Any:
         modified = _add_connection_type_hints_to_code(original)
         # For file-based flow, normalize inline comments to '# type: asyncpg.Connection'
         modified = re.sub(
-            r"#\s*\w+\s*:\s*asyncpg\.Connection", "# type: asyncpg.Connection", modified,
+            r"#\s*\w+\s*:\s*asyncpg\.Connection",
+            "# type: asyncpg.Connection",
+            modified,
         )
         if modified == original:
             return 0

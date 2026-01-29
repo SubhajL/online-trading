@@ -158,13 +158,9 @@ class PaperPosition:
             # Opening new position
             self.net_quantity = fill_qty
             self.avg_entry_price = fill.price
-        elif (self.net_quantity > 0 and fill_qty > 0) or (
-            self.net_quantity < 0 and fill_qty < 0
-        ):
+        elif (self.net_quantity > 0 and fill_qty > 0) or (self.net_quantity < 0 and fill_qty < 0):
             # Adding to position
-            total_value = (self.net_quantity * self.avg_entry_price) + (
-                fill_qty * fill.price
-            )
+            total_value = (self.net_quantity * self.avg_entry_price) + (fill_qty * fill.price)
             self.net_quantity += fill_qty
             if not self.net_quantity.is_zero():
                 self.avg_entry_price = total_value / self.net_quantity
@@ -180,9 +176,7 @@ class PaperPosition:
         # Update unrealized PnL
         if not self.net_quantity.is_zero():
             if self.net_quantity > 0:
-                self.unrealized_pnl = (
-                    current_price - self.avg_entry_price
-                ) * self.net_quantity
+                self.unrealized_pnl = (current_price - self.avg_entry_price) * self.net_quantity
             else:
                 self.unrealized_pnl = (self.avg_entry_price - current_price) * abs(
                     self.net_quantity,
@@ -605,13 +599,9 @@ class PaperBroker:
             entry_order = BacktestOrder(
                 symbol=request.symbol,
                 side=OrderSide(request.side),
-                type=OrderType.MARKET
-                if request.order_type == "MARKET"
-                else OrderType.LIMIT,
+                type=OrderType.MARKET if request.order_type == "MARKET" else OrderType.LIMIT,
                 quantity=request.quantity,
-                price=request.entry_price
-                if request.order_type == "LIMIT"
-                else None,
+                price=request.entry_price if request.order_type == "LIMIT" else None,
                 client_order_id=client_order_ids.main,
                 status=OrderStatus.NEW,
                 reduce_only=False,
@@ -729,9 +719,7 @@ class PaperBroker:
         try:
             keys_to_close: list[tuple[str, UUID]]
             if request.symbol:
-                keys_to_close = [
-                    key for key in self.positions if key[0] == request.symbol
-                ]
+                keys_to_close = [key for key in self.positions if key[0] == request.symbol]
             else:
                 keys_to_close = list(self.positions.keys())
 
@@ -742,9 +730,7 @@ class PaperBroker:
                     continue
 
                 # Create market order to close position (schema-aligned)
-                close_side = (
-                    OrderSide.SELL if position.net_quantity > 0 else OrderSide.BUY
-                )
+                close_side = OrderSide.SELL if position.net_quantity > 0 else OrderSide.BUY
                 close_order = BacktestOrder(
                     symbol=symbol,
                     side=close_side,

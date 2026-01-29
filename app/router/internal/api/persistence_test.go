@@ -51,11 +51,11 @@ func TestBuildBracketOrderIntents_FuturesOneTP(t *testing.T) {
 	require.True(t, intents[2].ClosePosition)
 
 	for _, intent := range intents {
-		require.Equal(t, "futures", intent.Venue)
+		require.Equal(t, "USD_M", intent.Venue)
 		require.Equal(t, "sig-1", intent.SignalID)
 		require.Equal(t, "5m", intent.Timeframe)
 		require.NotNil(t, intent.Zone)
 	}
 
-	require.Equal(t, storage.OrderIntent{Venue: "futures"}, storage.OrderIntent{Venue: intents[0].Venue})
+	require.Equal(t, storage.OrderIntent{Venue: "USD_M"}, storage.OrderIntent{Venue: intents[0].Venue})
 }

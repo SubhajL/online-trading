@@ -1,7 +1,7 @@
 """Subscriber that bridges SMC signals to SignalEmitter."""
 
 import logging
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from app.engine.models import EventType, OrderSide, SMCSignalEvent
 
@@ -86,7 +86,7 @@ class SignalEmitterSubscriber:
             return
 
         # Map direction to side
-        side = "long" if signal.direction == OrderSide.BUY else "short"
+        side: Literal["long", "short"] = "long" if signal.direction == OrderSide.BUY else "short"
 
         # Split reasoning into list
         reasons = [r.strip() for r in signal.reasoning.split(";")]

@@ -31,7 +31,10 @@ class ParityTestFramework:
         self.tolerance = Decimal("0.000001")  # 1e-6 tolerance for decimal comparisons
 
     def compare_decimals(
-        self, live_value: Decimal, backtest_value: Decimal, name: str,
+        self,
+        live_value: Decimal,
+        backtest_value: Decimal,
+        name: str,
     ) -> bool:
         """Compare two decimal values with tolerance"""
         diff = abs(live_value - backtest_value)
@@ -43,7 +46,10 @@ class ParityTestFramework:
         return True
 
     def compare_arrays(
-        self, live_array: list[Decimal], backtest_array: list[Decimal], name: str,
+        self,
+        live_array: list[Decimal],
+        backtest_array: list[Decimal],
+        name: str,
     ) -> bool:
         """Compare two arrays of decimal values"""
         if len(live_array) != len(backtest_array):
@@ -73,9 +79,7 @@ class ParityTestFramework:
 
             # Create realistic OHLC
             open_price = base_price
-            close_price = base_price * (
-                Decimal(1) + Decimal(str(np.random.normal(0, 0.002)))
-            )
+            close_price = base_price * (Decimal(1) + Decimal(str(np.random.normal(0, 0.002))))
             high_price = max(open_price, close_price) * (
                 Decimal(1) + Decimal(str(abs(np.random.normal(0, 0.001))))
             )
@@ -99,10 +103,8 @@ class ParityTestFramework:
                 volume=volume,
                 quote_volume=quote_volume,
                 trades=int(np.random.uniform(80, 150)),
-                taker_buy_base_volume=volume
-                * Decimal(str(np.random.uniform(0.4, 0.6))),
-                taker_buy_quote_volume=quote_volume
-                * Decimal(str(np.random.uniform(0.4, 0.6))),
+                taker_buy_base_volume=volume * Decimal(str(np.random.uniform(0.4, 0.6))),
+                taker_buy_quote_volume=quote_volume * Decimal(str(np.random.uniform(0.4, 0.6))),
             )
 
             candles.append(candle)
@@ -242,9 +244,9 @@ class TestIndicatorParity:
             # Smoothed ATR using Wilder's smoothing
             current_atr = initial_atr
             for i in range(period, len(true_ranges)):
-                current_atr = (
-                    current_atr * Decimal(str(period - 1)) + true_ranges[i]
-                ) / Decimal(str(period))
+                current_atr = (current_atr * Decimal(str(period - 1)) + true_ranges[i]) / Decimal(
+                    str(period)
+                )
                 atr_values.append(current_atr)
 
             # Fill remaining values
@@ -271,7 +273,8 @@ class TestSMCParity:
         """Test pivot detection consistency"""
 
         def find_pivots(
-            candles: list[Candle], lookback: int = 5,
+            candles: list[Candle],
+            lookback: int = 5,
         ) -> dict[str, list[int]]:
             highs = []
             lows = []
@@ -377,12 +380,8 @@ class TestSignalParity:
             sma_slow = []
 
             for i in range(49, len(candles)):
-                fast_sum = sum(
-                    c.close_price for c in candles[i - 9 : i + 1]
-                )  # 10 period
-                slow_sum = sum(
-                    c.close_price for c in candles[i - 19 : i + 1]
-                )  # 20 period
+                fast_sum = sum(c.close_price for c in candles[i - 9 : i + 1])  # 10 period
+                slow_sum = sum(c.close_price for c in candles[i - 19 : i + 1])  # 20 period
 
                 sma_fast.append(fast_sum / Decimal(10))
                 sma_slow.append(slow_sum / Decimal(20))
@@ -527,11 +526,15 @@ class TestBacktestSystemParity:
         assert len(simulator1.equity_history) == len(simulator2.equity_history)
 
         for (time1, equity1), (time2, equity2) in zip(
-            simulator1.equity_history, simulator2.equity_history, strict=False,
+            simulator1.equity_history,
+            simulator2.equity_history,
+            strict=False,
         ):
             assert time1 == time2
             assert self.parity_framework.compare_decimals(
-                equity1, equity2, f"equity_{time1}",
+                equity1,
+                equity2,
+                f"equity_{time1}",
             )
 
     @pytest.mark.parity
@@ -565,7 +568,9 @@ class TestBacktestSystemParity:
             fill_price2 = fill_engine2.get_fill_price(order, candle)
 
             assert self.parity_framework.compare_decimals(
-                fill_price1, fill_price2, "fill_price",
+                fill_price1,
+                fill_price2,
+                "fill_price",
             )
 
 

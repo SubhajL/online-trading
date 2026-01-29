@@ -102,7 +102,7 @@ func main() {
 				storage.NewOrderRepo(),
 				storage.NewFillRepo(),
 				storage.NewPositionRepo(),
-				"futures",
+				"USD_M",
 			)
 			if err != nil {
 				logger.Fatal().Err(err).Msg("Failed to initialize trade processor")

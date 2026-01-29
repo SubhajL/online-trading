@@ -136,17 +136,9 @@ async def get_candles(
     for r in rows:
         d = dict(r) if not isinstance(r, dict) else r
         # Normalize to naive datetimes for tests
-        if (
-            "open_time" in d
-            and isinstance(d["open_time"], datetime)
-            and d["open_time"].tzinfo
-        ):
+        if "open_time" in d and isinstance(d["open_time"], datetime) and d["open_time"].tzinfo:
             d["open_time"] = d["open_time"].replace(tzinfo=None)
-        if (
-            "close_time" in d
-            and isinstance(d["close_time"], datetime)
-            and d["close_time"].tzinfo
-        ):
+        if "close_time" in d and isinstance(d["close_time"], datetime) and d["close_time"].tzinfo:
             d["close_time"] = d["close_time"].replace(tzinfo=None)
         result.append(d)
     return result
@@ -347,9 +339,7 @@ async def get_active_positions(symbol: str | None = None) -> list[dict[str, Any]
     if symbol:
         where.append("symbol = $2")
         params.append(symbol)
-    query = (
-        f"SELECT * FROM positions WHERE {' AND '.join(where)} ORDER BY opened_at DESC"
-    )
+    query = f"SELECT * FROM positions WHERE {' AND '.join(where)} ORDER BY opened_at DESC"
     async with acquire_connection() as conn:
         rows = await conn.fetch(query, *params)
     return [dict(r) if not isinstance(r, dict) else r for r in rows]

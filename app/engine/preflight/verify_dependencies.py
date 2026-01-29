@@ -34,8 +34,7 @@ def check_python_version() -> CheckResult:
     min_str = f"{MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}"
 
     meets_requirement = current_version[0] > MIN_PYTHON_VERSION[0] or (
-        current_version[0] == MIN_PYTHON_VERSION[0]
-        and current_version[1] >= MIN_PYTHON_VERSION[1]
+        current_version[0] == MIN_PYTHON_VERSION[0] and current_version[1] >= MIN_PYTHON_VERSION[1]
     )
 
     details = {

@@ -68,10 +68,7 @@ class ShutdownCoordinator:
     def get_shutdown_order(self) -> list[str]:
         """Calculate safe shutdown order based on dependencies."""
         # Build dependency graph
-        deps = {
-            name: set(comp.get("dependencies", []))
-            for name, comp in self.components.items()
-        }
+        deps = {name: set(comp.get("dependencies", [])) for name, comp in self.components.items()}
 
         # Topological sort (reverse for shutdown)
         order = []
@@ -92,10 +89,7 @@ class ShutdownCoordinator:
 
     def get_parallel_groups(self) -> list[list[str]]:
         """Group components that can shut down in parallel."""
-        deps = {
-            name: set(comp.get("dependencies", []))
-            for name, comp in self.components.items()
-        }
+        deps = {name: set(comp.get("dependencies", [])) for name, comp in self.components.items()}
 
         groups = []
         remaining = set(self.components.keys())

@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Response, status
 
 from .enhanced_health import EnhancedHealthChecker, HealthConfig
+from .health import HealthStatus
 
 
 def create_enhanced_health_endpoints(
@@ -35,7 +36,7 @@ def create_enhanced_health_endpoints(
         report = await health_checker.get_comprehensive_health()
 
         # Check if all critical components and dependencies are healthy
-        ready = report.all_critical_healthy and report.overall_status != "unhealthy"
+        ready = report.all_critical_healthy and report.overall_status != HealthStatus.UNHEALTHY
 
         if not ready:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -132,14 +133,10 @@ def create_enhanced_health_endpoints(
 
         dependencies = await health_checker.check_all_dependencies()
 
-        all_available = all(
-            dep.status.value == "available" for dep in dependencies.values()
-        )
+        all_available = all(dep.status.value == "available" for dep in dependencies.values())
 
         critical_available = all(
-            dep.status.value == "available"
-            for dep in dependencies.values()
-            if dep.critical
+            dep.status.value == "available" for dep in dependencies.values() if dep.critical
         )
 
         return {
@@ -168,7 +165,15 @@ def setup_enhanced_health_monitoring(
 ) -> EnhancedHealthChecker:
     """Setup enhanced health monitoring with dependency checking."""
     # Create enhanced health checker
-    config = HealthConfig.from_env()
+    import os
+
+    config = HealthConfig(
+        check_interval=int(os.getenv("HEALTH_CHECK_INTERVAL", "30")),
+        timeout=int(os.getenv("HEALTH_CHECK_TIMEOUT", "5")),
+        failure_threshold=int(os.getenv("HEALTH_FAILURE_THRESHOLD", "3")),
+        recovery_threshold=int(os.getenv("HEALTH_RECOVERY_THRESHOLD", "2")),
+        include_details=os.getenv("HEALTH_INCLUDE_DETAILS", "true").lower() == "true",
+    )
     if router_url:
         config.router_url = router_url
 

@@ -3,6 +3,7 @@ Side-by-side comparison of Captain vs Internal outcomes.
 Uses existing external_telegram_signal_validations to find matched pairs,
 then evaluates both through the same fill model.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -154,12 +155,16 @@ async def compare_captain_vs_internal_outcomes(
     """
     # 1. Get validations with matches (internal_kind IS NOT NULL)
     validations = await adapter.get_external_telegram_signal_validations(
-        source=source, start_time=start_time, end_time=end_time,
+        source=source,
+        start_time=start_time,
+        end_time=end_time,
     )
 
     # 2. Get corresponding external signals for full details
     signals = await adapter.get_external_telegram_signals(
-        source=source, start_time=start_time, end_time=end_time,
+        source=source,
+        start_time=start_time,
+        end_time=end_time,
     )
 
     # Build signal lookup by (chat_id, message_id)
@@ -276,9 +281,7 @@ async def compare_captain_vs_internal_outcomes(
     internal_win_rate = compute_win_rate(internal_outcomes)
 
     pnl_deltas = [c.pnl_delta for c in comparisons if c.pnl_delta is not None]
-    avg_pnl_delta = (
-        sum(pnl_deltas) / len(pnl_deltas) if pnl_deltas else Decimal(0)
-    )
+    avg_pnl_delta = sum(pnl_deltas) / len(pnl_deltas) if pnl_deltas else Decimal(0)
 
     avg_timing_delta = sum(timing_deltas) / len(timing_deltas) if timing_deltas else 0.0
 

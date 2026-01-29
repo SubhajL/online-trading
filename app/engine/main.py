@@ -211,6 +211,15 @@ def load_configuration() -> EngineConfig:
             risk_per_trade=Decimal(os.getenv("RISK_PER_TRADE", "0.02")),
             max_correlation=Decimal(os.getenv("MAX_CORRELATION", "0.7")),
             max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "5")),
+            max_total_exposure_leverage=Decimal(
+                os.getenv("MAX_TOTAL_EXPOSURE_LEVERAGE", "3"),
+            ),
+            max_symbol_exposure_pct=Decimal(os.getenv("MAX_SYMBOL_EXPOSURE_PCT", "0.25")),
+            max_position_notional_pct=Decimal(
+                os.getenv("MAX_POSITION_NOTIONAL_PCT", "0.10"),
+            ),
+            risk_data_max_age_seconds=int(os.getenv("RISK_DATA_MAX_AGE_SECONDS", "120")),
+            drawdown_lookback_days=int(os.getenv("DRAWDOWN_LOOKBACK_DAYS", "30")),
         )
 
         config = EngineConfig(
@@ -284,6 +293,15 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         execution_mode = execution_mode_from_env(os.environ)
         services["execution_mode"] = execution_mode  # Store for AlertSubscriber
         execution_enabled = execution_mode != ExecutionMode.DISABLED
+        execution_venue = (
+            "USD_M"
+            if execution_mode
+            in {
+                ExecutionMode.FUTURES_TESTNET,
+                ExecutionMode.FUTURES_MAINNET,
+            }
+            else "SPOT"
+        )
 
         # Create separate cooldown instances (execution vs alerts)
         from .core.signal_cooldown import SignalCooldown
@@ -299,6 +317,9 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
             services["execution_subscriber"] = RouterExecutionSubscriber(
                 bus=event_bus,
                 router_client=router_client,
+                db_adapter=db_adapter,
+                risk=config.risk_parameters,
+                venue=execution_venue,
                 execution_mode=execution_mode,
                 cooldown=execution_cooldown,
                 min_confidence=min_confidence,
@@ -372,8 +393,9 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         # Wire conservative pipeline: retest -> decision publisher
         services["retest_engine"] = RetestEngine(config={"retest": {}})
         services["decision_publisher"] = DecisionPublisher(
-            account_balance=Decimal(os.getenv("ACCOUNT_BALANCE", "10000")),
-            risk_per_trade=config.risk_parameters.risk_per_trade,
+            db_adapter=db_adapter,
+            risk=config.risk_parameters,
+            venue=execution_venue,
         )
 
         # Initialize alert subscriber (if Telegram configured)

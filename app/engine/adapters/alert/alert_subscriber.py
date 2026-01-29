@@ -393,7 +393,8 @@ class AlertSubscriber:
         logger.info("AlertSubscriber stopped")
 
     def _check_and_record_cooldown(
-        self, event: TradingDecisionEvent | OrderPlacedEvent,
+        self,
+        event: TradingDecisionEvent | OrderPlacedEvent,
     ) -> bool:
         """Check cooldown for alert deduplication.
 
@@ -423,9 +424,7 @@ class AlertSubscriber:
 
         # Get timeframe
         timeframe_str = (
-            event.timeframe.value
-            if event.timeframe
-            else event.metadata.get("timeframe", "unknown")
+            event.timeframe.value if event.timeframe else event.metadata.get("timeframe", "unknown")
         )
 
         # Check if cooldown allows this signal

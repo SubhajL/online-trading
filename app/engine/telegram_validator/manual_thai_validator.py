@@ -73,30 +73,18 @@ class ManualThaiSignalValidator:
                 "entry": str(signal.entry_price)
                 if signal.entry_price > 0
                 else "Manual entry needed",
-                "sl": str(signal.stop_loss)
-                if signal.stop_loss > 0
-                else "Not specified",
+                "sl": str(signal.stop_loss) if signal.stop_loss > 0 else "Not specified",
                 "tps": [str(tp) for tp in signal.take_profits],
-                "timeframe": signal.reasoning.split()[2]
-                if "Signal" in signal.reasoning
-                else "H4",
+                "timeframe": signal.reasoning.split()[2] if "Signal" in signal.reasoning else "H4",
             },
             "validation": {
                 "score": validation_result.overall_score,
                 "match": "✅" if validation_result.overall_score >= 70 else "❌",
                 "details": {
-                    "ทิศทาง (Direction)": "✅"
-                    if validation_result.direction_match
-                    else "❌",
-                    "ราคาเข้า (Entry)": "✅"
-                    if validation_result.entry_within_tolerance
-                    else "❌",
-                    "Stop Loss": "✅"
-                    if validation_result.sl_within_tolerance
-                    else "❌",
-                    "SMC Pattern": "✅"
-                    if validation_result.smc_pattern_match
-                    else "❌",
+                    "ทิศทาง (Direction)": "✅" if validation_result.direction_match else "❌",
+                    "ราคาเข้า (Entry)": "✅" if validation_result.entry_within_tolerance else "❌",
+                    "Stop Loss": "✅" if validation_result.sl_within_tolerance else "❌",
+                    "SMC Pattern": "✅" if validation_result.smc_pattern_match else "❌",
                 },
             },
             "recommendation": self._get_thai_recommendation(
@@ -162,18 +150,14 @@ class ManualThaiSignalValidator:
     def get_validation_summary(self) -> dict:
         """Get summary of today's validations"""
         today_logs = [
-            log
-            for log in self.validation_log
-            if log["time"].date() == datetime.now().date()
+            log for log in self.validation_log if log["time"].date() == datetime.now().date()
         ]
 
         if not today_logs:
             return {"message": "No validations today"}
 
         total = len(today_logs)
-        high_confidence = sum(
-            1 for log in today_logs if log["result"].overall_score >= 80
-        )
+        high_confidence = sum(1 for log in today_logs if log["result"].overall_score >= 80)
         avg_score = sum(log["result"].overall_score for log in today_logs) / total
 
         return {

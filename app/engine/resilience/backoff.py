@@ -55,7 +55,7 @@ class ExponentialBackoff:
         jitter_pct = self._config.jitter_pct
 
         # Exponential growth: base * multiplier^attempts
-        raw_delay = base * (multiplier ** self._attempts)
+        raw_delay = base * (multiplier**self._attempts)
 
         # Cap at maximum
         capped_delay = min(raw_delay, max_delay)

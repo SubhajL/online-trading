@@ -176,7 +176,8 @@ def infer_argument_type(code: str, function_name: str, arg_name: str) -> str:
                 if node.value.id == arg_name:
                     # Being subscripted suggests dict or list
                     if isinstance(node.slice, ast.Constant) and isinstance(
-                        node.slice.value, str,
+                        node.slice.value,
+                        str,
                     ):
                         self.inferred_types.add("dict")
                     else:
@@ -189,10 +190,7 @@ def infer_argument_type(code: str, function_name: str, arg_name: str) -> str:
             if self.in_target_function:
                 for value in node.values:
                     if isinstance(value, ast.FormattedValue):
-                        if (
-                            isinstance(value.value, ast.Name)
-                            and value.value.id == arg_name
-                        ):
+                        if isinstance(value.value, ast.Name) and value.value.id == arg_name:
                             self.inferred_types.add("str")
             self.generic_visit(node)
 
@@ -240,9 +238,7 @@ def add_argument_type_annotations(code: str) -> str:
         func_line = modified_lines[func_start_idx]
 
         # Check if multiline function signature
-        if func_line.rstrip().endswith(",") or (
-            "(" in func_line and ")" not in func_line
-        ):
+        if func_line.rstrip().endswith(",") or ("(" in func_line and ")" not in func_line):
             # Find the end of the function signature
             paren_count = func_line.count("(") - func_line.count(")")
             end_idx = func_start_idx
@@ -319,9 +315,7 @@ def add_argument_type_annotations(code: str) -> str:
                 typing_line_idx = i
                 match = re.match(r"from typing import (.+)", line)
                 if match:
-                    existing_imports = set(
-                        imp.strip() for imp in match.group(1).split(",")
-                    )
+                    existing_imports = set(imp.strip() for imp in match.group(1).split(","))
                     new_imports = existing_imports | needed_imports
                     new_import_str = ", ".join(sorted(new_imports))
                     modified_lines[i] = f"from typing import {new_import_str}"
@@ -346,10 +340,7 @@ def add_argument_type_annotations(code: str) -> str:
             if has_imports:
                 # Insert after other imports
                 modified_lines.insert(insert_idx, import_line)
-                if (
-                    insert_idx < len(modified_lines) - 1
-                    and modified_lines[insert_idx + 1].strip()
-                ):
+                if insert_idx < len(modified_lines) - 1 and modified_lines[insert_idx + 1].strip():
                     modified_lines.insert(insert_idx + 1, "")
             # Insert at beginning after docstring if present
             elif modified_lines[0].strip().startswith('"""'):

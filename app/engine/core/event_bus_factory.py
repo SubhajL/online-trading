@@ -70,18 +70,13 @@ class EventBusConfig:
             # Determine security level from environment
             env = os.getenv("ENVIRONMENT", "development").lower()
             security_level = (
-                SecurityLevel.PRODUCTION
-                if env == "production"
-                else SecurityLevel.DEVELOPMENT
+                SecurityLevel.PRODUCTION if env == "production" else SecurityLevel.DEVELOPMENT
             )
             secure_config = SecureConfig(security_level)
 
         # Validate environment before loading
         audit = secure_config.audit()
-        if (
-            audit.security_score < 0.5
-            and secure_config.security_level == SecurityLevel.PRODUCTION
-        ):
+        if audit.security_score < 0.5 and secure_config.security_level == SecurityLevel.PRODUCTION:
             raise InvalidConfigurationError(
                 f"Security audit failed with score {audit.security_score}. "
                 f"Missing required: {', '.join(audit.missing_required)}",
@@ -104,12 +99,10 @@ class EventBusConfig:
                 secure_config.get("EVENT_BUS_SLOW_EVENT_WARN_MS", 100),
             ),
             use_priority_queue=(
-                secure_config.get("EVENT_BUS_USE_PRIORITY_QUEUE", "true").lower()
-                == "true"
+                secure_config.get("EVENT_BUS_USE_PRIORITY_QUEUE", "true").lower() == "true"
             ),
             dlq_on_any_failure=(
-                secure_config.get("EVENT_BUS_DLQ_ON_ANY_FAILURE", "false").lower()
-                == "true"
+                secure_config.get("EVENT_BUS_DLQ_ON_ANY_FAILURE", "false").lower() == "true"
             ),
         )
 
@@ -181,9 +174,7 @@ class EventBusFactory:
         if security_level is None:
             env = os.getenv("ENVIRONMENT", "development").lower()
             security_level = (
-                SecurityLevel.PRODUCTION
-                if env == "production"
-                else SecurityLevel.DEVELOPMENT
+                SecurityLevel.PRODUCTION if env == "production" else SecurityLevel.DEVELOPMENT
             )
 
         secure_config = SecureConfig(security_level)

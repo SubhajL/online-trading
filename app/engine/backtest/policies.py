@@ -238,11 +238,7 @@ class FundingGuardPolicy:
             time_to_funding = (funding_time - timestamp).total_seconds() / 60
 
             # Check if within blocking window
-            if (
-                -self.block_minutes_after
-                <= time_to_funding
-                <= self.block_minutes_before
-            ):
+            if -self.block_minutes_after <= time_to_funding <= self.block_minutes_before:
                 return True
 
         return False
@@ -371,7 +367,9 @@ class TradingPolicyManager:
         # Check regime filter (if signal provided)
         if signal_direction and regime and indicators:
             if not self.regime_filter.is_regime_favorable(
-                regime, signal_direction, indicators,
+                regime,
+                signal_direction,
+                indicators,
             ):
                 blocking_reasons.append("regime_unfavorable")
 
@@ -392,7 +390,8 @@ class TradingPolicyManager:
         return {
             "session_allowed": self.session_policy.is_trading_allowed(timestamp),
             "news_block_active": self.news_guard.is_news_block_active(
-                timestamp, symbol,
+                timestamp,
+                symbol,
             ),
             "funding_block_active": self.funding_guard.is_funding_block_active(
                 timestamp,

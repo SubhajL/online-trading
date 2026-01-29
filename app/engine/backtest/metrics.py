@@ -97,20 +97,16 @@ class MetricsCalculator:
 
         # R multiples
         if winning_trades:
-            metrics.avg_win_r = sum(
-                t.net_pnl_r for t in winning_trades if t.net_pnl_r
-            ) / Decimal(len(winning_trades))
-            metrics.largest_win_r = max(
-                t.net_pnl_r for t in winning_trades if t.net_pnl_r
+            metrics.avg_win_r = sum(t.net_pnl_r for t in winning_trades if t.net_pnl_r) / Decimal(
+                len(winning_trades)
             )
+            metrics.largest_win_r = max(t.net_pnl_r for t in winning_trades if t.net_pnl_r)
 
         if losing_trades:
-            metrics.avg_loss_r = sum(
-                t.net_pnl_r for t in losing_trades if t.net_pnl_r
-            ) / Decimal(len(losing_trades))
-            metrics.largest_loss_r = min(
-                t.net_pnl_r for t in losing_trades if t.net_pnl_r
+            metrics.avg_loss_r = sum(t.net_pnl_r for t in losing_trades if t.net_pnl_r) / Decimal(
+                len(losing_trades)
             )
+            metrics.largest_loss_r = min(t.net_pnl_r for t in losing_trades if t.net_pnl_r)
 
         # Overall average R
         r_values = [t.net_pnl_r for t in trades if t.net_pnl_r]

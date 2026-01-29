@@ -9,12 +9,11 @@ Requirements:
 - RSI 40-55 bounce for longs
 """
 
-
 from collections import deque
 from datetime import UTC, datetime
 from decimal import Decimal
 import logging
-from typing import Any, NewType
+from typing import Any, Literal, NewType
 
 from app.engine.bus import get_event_bus
 from app.engine.models import (
@@ -334,11 +333,7 @@ class RetestEngine:
                 self._bos_events[key].append(
                     {
                         "timestamp": signal.timestamp,
-                        "type": (
-                            "BULLISH_BOS"
-                            if signal.direction == "BUY"
-                            else "BEARISH_BOS"
-                        ),
+                        "type": ("BULLISH_BOS" if signal.direction == "BUY" else "BEARISH_BOS"),
                         "level": signal.entry_price,
                         "strength": signal.confidence * 10,  # Convert to 1-10 scale
                     },
@@ -408,7 +403,9 @@ class RetestEngine:
     async def _emit_signal(self, signal_data: dict[str, Any]) -> None:
         """Emit signal_raw.v1 event."""
         try:
-            direction = "BUY" if signal_data["direction"] == "LONG" else "SELL"
+            direction: Literal["BUY", "SELL"] = (
+                "BUY" if signal_data["direction"] == "LONG" else "SELL"
+            )
             signal = RetestSignal(
                 symbol=signal_data["symbol"],
                 timeframe=TimeFrame(signal_data["timeframe"]),

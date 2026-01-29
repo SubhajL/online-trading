@@ -13,7 +13,13 @@ from app.engine.execution.router_execution_subscriber import (
     RouterExecutionSubscriber,
     _sanitize_value_for_json,
 )
-from app.engine.models import EventType, TimeFrame, TradingDecision, TradingDecisionEvent
+from app.engine.models import (
+    EventType,
+    RiskParameters,
+    TimeFrame,
+    TradingDecision,
+    TradingDecisionEvent,
+)
 
 # =============================================================================
 # Tests for _sanitize_value_for_json (P0 #2)
@@ -123,6 +129,60 @@ class _FakeBus:
         return True
 
 
+class _FakeDBAdapter:
+    async def get_latest_equity_sample(self):
+        return Decimal(10_000), datetime.now(UTC)
+
+    async def get_equity_sample_at_or_after(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_peak_equity_since(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_active_positions(self, _venue: str):
+        return []
+
+
+def _default_risk() -> RiskParameters:
+    return RiskParameters(
+        max_position_size=Decimal("999999"),
+        max_daily_loss=Decimal("1"),
+        max_drawdown=Decimal("1"),
+        risk_per_trade=Decimal("0.01"),
+        max_correlation=Decimal("1"),
+        max_open_positions=100,
+        max_total_exposure_leverage=Decimal("100"),
+        max_symbol_exposure_pct=Decimal("1"),
+        max_position_notional_pct=Decimal("1"),
+        risk_data_max_age_seconds=86400,
+        drawdown_lookback_days=30,
+    )
+
+
+def _venue_for_mode(mode: ExecutionMode) -> str:
+    if mode in {ExecutionMode.FUTURES_MAINNET, ExecutionMode.FUTURES_TESTNET}:
+        return "USD_M"
+    return "SPOT"
+
+
+def _make_subscriber(
+    *,
+    bus: _FakeBus,
+    router_client: AsyncMock,
+    execution_mode: ExecutionMode = ExecutionMode.FUTURES_TESTNET,
+    **kwargs: Any,
+) -> RouterExecutionSubscriber:
+    return RouterExecutionSubscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=_FakeDBAdapter(),
+        risk=_default_risk(),
+        venue=_venue_for_mode(execution_mode),
+        execution_mode=execution_mode,
+        **kwargs,
+    )
+
+
 def _make_valid_decision_event() -> TradingDecisionEvent:
     """Create a valid trading decision event for testing."""
     now = datetime.now(UTC)
@@ -166,12 +226,7 @@ class TestExecutionSubscriberErrorHandling:
         router_client = AsyncMock()
         router_client.place_bracket_order.side_effect = Exception("Connection refused")
 
-        subscriber = RouterExecutionSubscriber(
-            bus=bus,
-            router_client=router_client,
-            execution_mode=ExecutionMode.FUTURES_TESTNET,
-            router_max_attempts=1,
-        )
+        subscriber = _make_subscriber(bus=bus, router_client=router_client, router_max_attempts=1)
         await subscriber.start()
 
         event = _make_valid_decision_event()
@@ -199,12 +254,7 @@ class TestExecutionSubscriberErrorHandling:
             "error": "Insufficient balance",
         }
 
-        subscriber = RouterExecutionSubscriber(
-            bus=bus,
-            router_client=router_client,
-            execution_mode=ExecutionMode.FUTURES_TESTNET,
-            router_max_attempts=1,
-        )
+        subscriber = _make_subscriber(bus=bus, router_client=router_client, router_max_attempts=1)
         await subscriber.start()
 
         event = _make_valid_decision_event()
@@ -228,11 +278,7 @@ class TestExecutionSubscriberErrorHandling:
             "order_id": "order_123",
         }
 
-        subscriber = RouterExecutionSubscriber(
-            bus=bus,
-            router_client=router_client,
-            execution_mode=ExecutionMode.FUTURES_TESTNET,
-        )
+        subscriber = _make_subscriber(bus=bus, router_client=router_client)
         await subscriber.start()
 
         event = _make_valid_decision_event()
@@ -252,12 +298,7 @@ class TestExecutionSubscriberErrorHandling:
         router_client = AsyncMock()
         router_client.place_bracket_order.side_effect = Exception("Network error")
 
-        subscriber = RouterExecutionSubscriber(
-            bus=bus,
-            router_client=router_client,
-            execution_mode=ExecutionMode.FUTURES_TESTNET,
-            router_max_attempts=1,
-        )
+        subscriber = _make_subscriber(bus=bus, router_client=router_client, router_max_attempts=1)
         await subscriber.start()
 
         event = _make_valid_decision_event()
@@ -286,10 +327,9 @@ async def test_execution_retries_on_transient_exception_then_succeeds(monkeypatc
     sleep = AsyncMock()
     monkeypatch.setattr(router_module.asyncio, "sleep", sleep)
 
-    subscriber = RouterExecutionSubscriber(
+    subscriber = _make_subscriber(
         bus=bus,
         router_client=router_client,
-        execution_mode=ExecutionMode.FUTURES_TESTNET,
         router_max_attempts=3,
         router_backoff_config=BackoffConfig(
             base_delay_s=0.001,
@@ -317,11 +357,60 @@ async def test_execution_rejects_quantity_over_max_position_size() -> None:
     bus = _FakeBus()
     router_client = AsyncMock()
 
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        max_position_size=Decimal("0.0005"),
+        router_max_attempts=1,
+    )
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    assert callable(bus.handler)
+    await bus.handler(event)  # type: ignore[misc]
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "risk_limit_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_execution_blocks_when_daily_loss_exceeded() -> None:
+    """Execution must fail-closed when daily loss limit is breached."""
+    from app.engine.models import ErrorEvent
+
+    class _LossyDBAdapter(_FakeDBAdapter):
+        async def get_latest_equity_sample(self):
+            return Decimal(9000), datetime.now(UTC)
+
+        async def get_equity_sample_at_or_after(self, _ts: datetime):
+            return Decimal(10_000)
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+
+    risk = RiskParameters(
+        max_position_size=Decimal("999999"),
+        max_daily_loss=Decimal("0.05"),
+        max_drawdown=Decimal("1"),
+        risk_per_trade=Decimal("0.01"),
+        max_correlation=Decimal("1"),
+        max_open_positions=100,
+        max_total_exposure_leverage=Decimal("100"),
+        max_symbol_exposure_pct=Decimal("1"),
+        max_position_notional_pct=Decimal("1"),
+        risk_data_max_age_seconds=86400,
+        drawdown_lookback_days=30,
+    )
+
     subscriber = RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
+        db_adapter=_LossyDBAdapter(),
+        risk=risk,
+        venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
-        max_position_size=Decimal("0.0005"),
         router_max_attempts=1,
     )
     await subscriber.start()
@@ -347,11 +436,7 @@ async def test_execution_subscriber_calls_router_place_bracket_with_provenance()
     router_client = AsyncMock()
     router_client.place_bracket_order.return_value = {"success": True}
 
-    subscriber = RouterExecutionSubscriber(
-        bus=bus,
-        router_client=router_client,
-        execution_mode=ExecutionMode.FUTURES_TESTNET,
-    )
+    subscriber = _make_subscriber(bus=bus, router_client=router_client)
 
     await subscriber.start()
     assert bus.event_types == [EventType.TRADING_DECISION]
@@ -409,11 +494,7 @@ async def test_execution_rejects_missing_decision_source() -> None:
     bus = _FakeBus()
     router_client = AsyncMock()
 
-    subscriber = RouterExecutionSubscriber(
-        bus=bus,
-        router_client=router_client,
-        execution_mode=ExecutionMode.FUTURES_TESTNET,
-    )
+    subscriber = _make_subscriber(bus=bus, router_client=router_client)
     await subscriber.start()
 
     event = _make_valid_decision_event()
@@ -436,11 +517,7 @@ async def test_execution_rejects_signal_emitter_bypass_source() -> None:
     bus = _FakeBus()
     router_client = AsyncMock()
 
-    subscriber = RouterExecutionSubscriber(
-        bus=bus,
-        router_client=router_client,
-        execution_mode=ExecutionMode.FUTURES_TESTNET,
-    )
+    subscriber = _make_subscriber(bus=bus, router_client=router_client)
     await subscriber.start()
 
     event = _make_valid_decision_event()
@@ -460,11 +537,7 @@ async def test_execution_subscriber_ignores_decisions_missing_levels() -> None:
     bus = _FakeBus()
     router_client = AsyncMock()
 
-    subscriber = RouterExecutionSubscriber(
-        bus=bus,
-        router_client=router_client,
-        execution_mode=ExecutionMode.FUTURES_TESTNET,
-    )
+    subscriber = _make_subscriber(bus=bus, router_client=router_client)
     await subscriber.start()
 
     now = datetime.now(UTC)
@@ -545,6 +618,9 @@ async def test_snapshot_triggered_before_order_placed_event() -> None:
     subscriber = RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
+        db_adapter=_FakeDBAdapter(),
+        risk=_default_risk(),
+        venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
         bff_client=bff_client,
     )

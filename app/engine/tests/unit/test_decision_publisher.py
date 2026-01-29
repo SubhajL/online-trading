@@ -10,11 +10,34 @@ from app.engine.bus import create_event_bus, set_event_bus
 from app.engine.decision.decision_publisher import DecisionPublisher
 from app.engine.models import (
     EventType,
+    ErrorEvent,
+    RiskParameters,
     RetestSignal,
     RetestSignalEvent,
     TimeFrame,
     TradingDecisionEvent,
 )
+
+class _FakeDBAdapter:
+    async def get_latest_equity_sample(self):
+        return Decimal(10_000), datetime.now(UTC)
+
+    async def get_equity_sample_at_or_after(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_peak_equity_since(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_active_positions(self, _venue: str):
+        return []
+
+
+class _LossyDBAdapter(_FakeDBAdapter):
+    async def get_latest_equity_sample(self):
+        return Decimal(9000), datetime.now(UTC)
+
+    async def get_equity_sample_at_or_after(self, _ts: datetime):
+        return Decimal(10_000)
 
 
 @pytest.mark.asyncio
@@ -25,8 +48,21 @@ async def test_decision_publisher_emits_buy_decision_from_retest_signal() -> Non
 
     try:
         publisher = DecisionPublisher(
-            account_balance=Decimal(10_000),
-            risk_per_trade=Decimal("0.01"),
+            db_adapter=_FakeDBAdapter(),
+            risk=RiskParameters(
+                max_position_size=Decimal("999999"),
+                max_daily_loss=Decimal("1"),
+                max_drawdown=Decimal("1"),
+                risk_per_trade=Decimal("0.01"),
+                max_correlation=Decimal("1"),
+                max_open_positions=100,
+                max_total_exposure_leverage=Decimal("100"),
+                max_symbol_exposure_pct=Decimal("1"),
+                max_position_notional_pct=Decimal("1"),
+                risk_data_max_age_seconds=86400,
+                drawdown_lookback_days=30,
+            ),
+            venue="SPOT",
         )
         await publisher.start()
 
@@ -83,6 +119,76 @@ async def test_decision_publisher_emits_buy_decision_from_retest_signal() -> Non
 
 
 @pytest.mark.asyncio
+async def test_decision_publisher_blocks_when_daily_loss_exceeded() -> None:
+    bus = create_event_bus()
+    set_event_bus(bus)
+    await bus.start(num_workers=1)
+
+    try:
+        risk = RiskParameters(
+            max_position_size=Decimal("999999"),
+            max_daily_loss=Decimal("0.05"),
+            max_drawdown=Decimal("1"),
+            risk_per_trade=Decimal("0.01"),
+            max_correlation=Decimal("1"),
+            max_open_positions=100,
+            max_total_exposure_leverage=Decimal("100"),
+            max_symbol_exposure_pct=Decimal("1"),
+            max_position_notional_pct=Decimal("1"),
+            risk_data_max_age_seconds=86400,
+            drawdown_lookback_days=30,
+        )
+
+        publisher = DecisionPublisher(
+            db_adapter=_LossyDBAdapter(),
+            risk=risk,
+            venue="SPOT",
+        )
+        await publisher.start()
+
+        errors: list[ErrorEvent] = []
+        got_event = asyncio.Event()
+
+        async def on_error(event: ErrorEvent) -> None:
+            errors.append(event)
+            got_event.set()
+
+        await bus.subscribe(
+            subscriber_id="test_error_capture",
+            handler=on_error,
+            event_types=[EventType.ERROR],
+        )
+
+        signal = RetestSignal(
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M15,
+            timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+            level_price=Decimal(100),
+            direction="BUY",
+            stop_loss=Decimal(99),
+            take_profit=Decimal("101.5"),
+            retest_type="zone_retest",
+            success_probability=Decimal("0.8"),
+            volume_confirmation=True,
+            confluence_factors=["bos_confirmation"],
+        )
+        await bus.publish(
+            RetestSignalEvent(
+                timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+                symbol=signal.symbol,
+                timeframe=signal.timeframe,
+                signal=signal,
+            ),
+        )
+
+        await asyncio.wait_for(got_event.wait(), timeout=1.0)
+        assert len(errors) == 1
+        assert errors[0].error_type == "risk_limit_exceeded"
+    finally:
+        await bus.stop()
+
+
+@pytest.mark.asyncio
 async def test_decision_publisher_forwards_zone_metadata() -> None:
     """DecisionPublisher should forward zone metadata from RetestSignalEvent."""
     bus = create_event_bus()
@@ -91,8 +197,21 @@ async def test_decision_publisher_forwards_zone_metadata() -> None:
 
     try:
         publisher = DecisionPublisher(
-            account_balance=Decimal(10_000),
-            risk_per_trade=Decimal("0.01"),
+            db_adapter=_FakeDBAdapter(),
+            risk=RiskParameters(
+                max_position_size=Decimal("999999"),
+                max_daily_loss=Decimal("1"),
+                max_drawdown=Decimal("1"),
+                risk_per_trade=Decimal("0.01"),
+                max_correlation=Decimal("1"),
+                max_open_positions=100,
+                max_total_exposure_leverage=Decimal("100"),
+                max_symbol_exposure_pct=Decimal("1"),
+                max_position_notional_pct=Decimal("1"),
+                risk_data_max_age_seconds=86400,
+                drawdown_lookback_days=30,
+            ),
+            venue="SPOT",
         )
         await publisher.start()
 
@@ -165,8 +284,21 @@ async def test_decision_publisher_handles_missing_zone_metadata() -> None:
 
     try:
         publisher = DecisionPublisher(
-            account_balance=Decimal(10_000),
-            risk_per_trade=Decimal("0.01"),
+            db_adapter=_FakeDBAdapter(),
+            risk=RiskParameters(
+                max_position_size=Decimal("999999"),
+                max_daily_loss=Decimal("1"),
+                max_drawdown=Decimal("1"),
+                risk_per_trade=Decimal("0.01"),
+                max_correlation=Decimal("1"),
+                max_open_positions=100,
+                max_total_exposure_leverage=Decimal("100"),
+                max_symbol_exposure_pct=Decimal("1"),
+                max_position_notional_pct=Decimal("1"),
+                risk_data_max_age_seconds=86400,
+                drawdown_lookback_days=30,
+            ),
+            venue="SPOT",
         )
         await publisher.start()
 

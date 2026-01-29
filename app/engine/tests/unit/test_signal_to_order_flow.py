@@ -15,7 +15,13 @@ from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
 )
-from app.engine.models import EventType, RetestSignal, RetestSignalEvent, TimeFrame
+from app.engine.models import (
+    EventType,
+    RetestSignal,
+    RetestSignalEvent,
+    RiskParameters,
+    TimeFrame,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -54,6 +60,20 @@ class _InProcBus:
         return True
 
 
+class _FakeDBAdapter:
+    async def get_latest_equity_sample(self):
+        return Decimal(10_000), datetime.now(UTC)
+
+    async def get_equity_sample_at_or_after(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_peak_equity_since(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_active_positions(self, _venue: str):
+        return []
+
+
 @pytest.mark.asyncio
 async def test_flow_retest_signal_to_router_order() -> None:
     captured: dict[str, Any] = {}
@@ -80,13 +100,32 @@ async def test_flow_retest_signal_to_router_order() -> None:
     previous_bus = getattr(bus_module, "_global_event_bus", None)
     bus_module.set_event_bus(bus)  # DecisionPublisher pulls from global bus
 
-    decision_publisher = DecisionPublisher(
-        account_balance=Decimal(10000),
+    db_adapter = _FakeDBAdapter()
+    risk = RiskParameters(
+        max_position_size=Decimal("999999"),
+        max_daily_loss=Decimal("1"),
+        max_drawdown=Decimal("1"),
         risk_per_trade=Decimal("0.005"),
+        max_correlation=Decimal("1"),
+        max_open_positions=100,
+        max_total_exposure_leverage=Decimal("100"),
+        max_symbol_exposure_pct=Decimal("1"),
+        max_position_notional_pct=Decimal("1"),
+        risk_data_max_age_seconds=86400,
+        drawdown_lookback_days=30,
+    )
+
+    decision_publisher = DecisionPublisher(
+        db_adapter=db_adapter,
+        risk=risk,
+        venue="USD_M",
     )
     execution = RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
+        db_adapter=db_adapter,
+        risk=risk,
+        venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
     )
 

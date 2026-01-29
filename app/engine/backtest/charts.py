@@ -139,7 +139,12 @@ class ChartGenerator:
 
         # Plot drawdown
         ax.fill_between(
-            timestamps, drawdown_values, 0, alpha=0.7, color="#E74C3C", label="Drawdown",
+            timestamps,
+            drawdown_values,
+            0,
+            alpha=0.7,
+            color="#E74C3C",
+            label="Drawdown",
         )
         ax.plot(timestamps, drawdown_values, linewidth=1, color="#C0392B")
 
@@ -204,7 +209,10 @@ class ChartGenerator:
 
         # Create histogram
         n, bins_edges, patches = ax.hist(
-            returns_array, bins=bins, alpha=0.7, edgecolor="black",
+            returns_array,
+            bins=bins,
+            alpha=0.7,
+            edgecolor="black",
         )
 
         # Color bars based on positive/negative
@@ -216,7 +224,12 @@ class ChartGenerator:
 
         # Add vertical line at zero
         ax.axvline(
-            x=0, color="black", linestyle="-", linewidth=2, alpha=0.8, label="Breakeven",
+            x=0,
+            color="black",
+            linestyle="-",
+            linewidth=2,
+            alpha=0.8,
+            label="Breakeven",
         )
 
         # Add mean line
@@ -404,7 +417,10 @@ class ChartGenerator:
         if returns:
             returns_array = np.array(returns)
             n, bins_edges, patches = ax3.hist(
-                returns_array, bins=30, alpha=0.7, edgecolor="black",
+                returns_array,
+                bins=30,
+                alpha=0.7,
+                edgecolor="black",
             )
 
             # Color bars

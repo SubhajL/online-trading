@@ -9,6 +9,7 @@ from aiohttp import web
 import pytest
 
 from app.engine.adapters.router_client.http_client import RouterHTTPClient
+from app.engine.models import RiskParameters
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
@@ -34,6 +35,20 @@ class _FakeBus:
     async def unsubscribe(self, subscription_id: str) -> bool:
         _ = subscription_id
         return True
+
+
+class _FakeDBAdapter:
+    async def get_latest_equity_sample(self):
+        return Decimal("10000"), datetime.now(UTC)
+
+    async def get_equity_sample_at_or_after(self, _ts: datetime):
+        return Decimal("10000")
+
+    async def get_peak_equity_since(self, _ts: datetime):
+        return Decimal("10000")
+
+    async def get_active_positions(self, _venue: str):
+        return []
 
 
 @pytest.mark.asyncio
@@ -63,6 +78,21 @@ async def test_contract_decision_to_place_bracket_includes_provenance() -> None:
     subscriber = RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
+        db_adapter=_FakeDBAdapter(),
+        risk=RiskParameters(
+            max_position_size=Decimal("999999"),
+            max_daily_loss=Decimal("1"),
+            max_drawdown=Decimal("1"),
+            risk_per_trade=Decimal("0.02"),
+            max_correlation=Decimal("1"),
+            max_open_positions=100,
+            max_total_exposure_leverage=Decimal("100"),
+            max_symbol_exposure_pct=Decimal("1"),
+            max_position_notional_pct=Decimal("1"),
+            risk_data_max_age_seconds=86400,
+            drawdown_lookback_days=30,
+        ),
+        venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
     )
     await subscriber.start()

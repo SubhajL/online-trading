@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
 import logging
 import os
@@ -34,6 +35,7 @@ from app.engine.models import (
     CandleOrigin,
     CandleUpdateEvent,
     EventType,
+    RiskParameters,
     TimeFrame,
     TradingDecisionEvent,
 )
@@ -344,9 +346,7 @@ class LivePaperTradingHarness:
         await self._stop_component(
             errors,
             name="telegram_adapter",
-            stop_fn=self._config.telegram_adapter.stop
-            if self._config.telegram_adapter
-            else None,
+            stop_fn=self._config.telegram_adapter.stop if self._config.telegram_adapter else None,
         )
         await self._stop_component(
             errors,
@@ -375,15 +375,34 @@ class LivePaperTradingHarness:
         Each stage publishes to the bus and the next stage subscribes.
         """
         if self.feature_service is None:
-            self.feature_service = FeatureService()
+            self.feature_service = FeatureService(db_adapter=self.db_adapter)
         if self.smc_service is None:
             self.smc_service = SMCService()
         if self.retest_engine is None:
             self.retest_engine = RetestEngine(config={"retest": {}})
         if self.decision_publisher is None:
-            self.decision_publisher = DecisionPublisher(
-                account_balance=self._config.paper_account_balance,
+            now = datetime.now(UTC)
+            await self.db_adapter.insert_equity_sample(
+                equity=self._config.paper_account_balance,
+                timestamp=now,
+            )
+            risk = RiskParameters(
+                max_position_size=Decimal("999999"),
+                max_daily_loss=Decimal("1"),
+                max_drawdown=Decimal("1"),
                 risk_per_trade=self._config.paper_risk_per_trade,
+                max_correlation=Decimal("1"),
+                max_open_positions=100,
+                max_total_exposure_leverage=Decimal("100"),
+                max_symbol_exposure_pct=Decimal("1"),
+                max_position_notional_pct=Decimal("1"),
+                risk_data_max_age_seconds=86400,
+                drawdown_lookback_days=30,
+            )
+            self.decision_publisher = DecisionPublisher(
+                db_adapter=self.db_adapter,
+                risk=risk,
+                venue="SPOT",
             )
 
         await self.feature_service.start()
@@ -432,9 +451,7 @@ class LivePaperTradingHarness:
                 side=decision.action,
                 quantity=decision.quantity or Decimal("0.01"),
                 entry_price=decision.entry_price or Decimal(0),
-                take_profit_prices=[decision.take_profit]
-                if decision.take_profit
-                else [],
+                take_profit_prices=[decision.take_profit] if decision.take_profit else [],
                 stop_loss_price=decision.stop_loss or Decimal(0),
                 order_type="MARKET",
                 is_futures=False,

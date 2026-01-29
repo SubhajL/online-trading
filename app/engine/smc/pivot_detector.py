@@ -45,12 +45,11 @@ class PivotDetector:
         self.max_strength = max_strength
 
         # Buffer for candles needed for pivot detection
-        self._candle_buffer = deque(maxlen=left_bars + right_bars + 1)
+        self._candle_buffer: deque[Candle] = deque(maxlen=left_bars + right_bars + 1)
         self._confirmed_pivots: list[PivotPoint] = []
 
         logger.info(
-            f"PivotDetector initialized with left_bars={left_bars}, "
-            f"right_bars={right_bars}",
+            f"PivotDetector initialized with left_bars={left_bars}, right_bars={right_bars}",
         )
 
     def add_candle(self, candle: Candle) -> list[PivotPoint]:
@@ -222,9 +221,7 @@ class PivotDetector:
             volume_avg = sum(candle.volume for candle in self._candle_buffer) / len(
                 self._candle_buffer,
             )
-            volume_ratio = (
-                float(pivot_candle.volume) / float(volume_avg) if volume_avg > 0 else 1
-            )
+            volume_ratio = float(pivot_candle.volume) / float(volume_avg) if volume_avg > 0 else 1
             volume_strength = min(int(volume_ratio), 5)  # Scale to 0-5
 
             # Combine factors
@@ -264,9 +261,7 @@ class PivotDetector:
             list[Any] of PivotPoint objects in the time range
         """
         return [
-            pivot
-            for pivot in self._confirmed_pivots
-            if start_time <= pivot.timestamp <= end_time
+            pivot for pivot in self._confirmed_pivots if start_time <= pivot.timestamp <= end_time
         ]
 
     def get_swing_highs(self, count: int = 10) -> list[PivotPoint]:

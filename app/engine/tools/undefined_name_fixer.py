@@ -23,8 +23,8 @@ class UndefinedNameFixer:
             return content
 
         # Find existing imports
-        has_typing_import, typing_line_idx, typing_imports = (
-            UndefinedNameFixer._find_typing_import(lines)
+        has_typing_import, typing_line_idx, typing_imports = UndefinedNameFixer._find_typing_import(
+            lines
         )
         has_decimal_import = UndefinedNameFixer._has_decimal_import(lines)
 

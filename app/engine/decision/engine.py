@@ -247,9 +247,7 @@ def generate_decision(
             "account_balance": float(account_balance),
             "position_value": float(position_size * entry_price),
             "leverage": (
-                float((position_size * entry_price) / account_balance)
-                if is_futures
-                else 1.0
+                float((position_size * entry_price) / account_balance) if is_futures else 1.0
             ),
             "risk_reward_ratio": "1:3",
             "max_loss": float(risk_amount),

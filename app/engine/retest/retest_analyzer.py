@@ -156,8 +156,7 @@ class RetestAnalyzer:
 
             # Check for proper retest behavior
             if level_type == "support" and (
-                current_candle.low_price <= level_price
-                and current_candle.close_price > level_price
+                current_candle.low_price <= level_price and current_candle.close_price > level_price
             ):
                 volume_confirmation = self._check_volume_confirmation(
                     current_candle,
@@ -245,7 +244,7 @@ class RetestAnalyzer:
             avg_volume = sum(c.volume for c in recent_candles[-5:]) / 5
 
             # Check if current volume is above average
-            volume_ratio = float(current_candle.volume / avg_volume)
+            volume_ratio = float(current_candle.volume / Decimal(str(avg_volume)))
 
             return volume_ratio >= self.min_volume_ratio
 
@@ -301,20 +300,14 @@ class RetestAnalyzer:
                 return Decimal(0)
 
             # Simple volatility based on price range
-            recent = (
-                candles[-VOLATILITY_WINDOW:]
-                if len(candles) >= VOLATILITY_WINDOW
-                else candles
-            )
+            recent = candles[-VOLATILITY_WINDOW:] if len(candles) >= VOLATILITY_WINDOW else candles
             ranges = []
 
             for candle in recent:
-                price_range = (
-                    candle.high_price - candle.low_price
-                ) / candle.close_price
+                price_range = (candle.high_price - candle.low_price) / candle.close_price
                 ranges.append(price_range)
 
-            return sum(ranges) / len(ranges)
+            return Decimal(str(sum(ranges) / len(ranges)))
 
         except Exception:
             logger.exception("Error calculating volatility")
@@ -343,15 +336,9 @@ class RetestAnalyzer:
 
             # Wick confirmation
             if level["type"] == "support":
-                if (
-                    current_candle.low_price
-                    < level["price"]
-                    < current_candle.close_price
-                ):
+                if current_candle.low_price < level["price"] < current_candle.close_price:
                     factors.append("wick_rejection")
-            elif (
-                current_candle.close_price < level["price"] < current_candle.high_price
-            ):
+            elif current_candle.close_price < level["price"] < current_candle.high_price:
                 factors.append("wick_rejection")
 
             # Multiple timeframe confluence (simplified)
@@ -410,9 +397,7 @@ class RetestAnalyzer:
 
             # Keep only recent levels
             if len(self._key_levels[symbol]) > MAX_LEVELS_PER_SYMBOL:
-                self._key_levels[symbol] = self._key_levels[symbol][
-                    -MAX_LEVELS_PER_SYMBOL:
-                ]
+                self._key_levels[symbol] = self._key_levels[symbol][-MAX_LEVELS_PER_SYMBOL:]
 
             logger.debug("Added key level: %s %s at %s", symbol, level_type, price)
 
@@ -465,7 +450,5 @@ class RetestAnalyzer:
             "running": self._running,
             "tracked_symbols": len(self._key_levels),
             "total_levels": sum(len(levels) for levels in self._key_levels.values()),
-            "recent_candles": sum(
-                len(candles) for candles in self._recent_candles.values()
-            ),
+            "recent_candles": sum(len(candles) for candles in self._recent_candles.values()),
         }

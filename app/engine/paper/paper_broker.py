@@ -143,8 +143,7 @@ class PaperBroker:
             if order.side == position.side:
                 # Add to position
                 total_cost = (
-                    position.size * position.entry_price
-                    + order.filled_quantity * fill_price
+                    position.size * position.entry_price + order.filled_quantity * fill_price
                 )
                 position.size += order.filled_quantity
                 position.entry_price = total_cost / position.size
@@ -244,9 +243,7 @@ class PaperBroker:
             close_order = Order(
                 client_order_id=f"close_{uuid4().hex[:8]}",
                 symbol=symbol,
-                side=(
-                    OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
-                ),
+                side=(OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY),
                 type=OrderType.MARKET,
                 quantity=position.size,
                 price=position.current_price,

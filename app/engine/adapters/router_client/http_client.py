@@ -306,7 +306,7 @@ class RouterHTTPClient:
     ) -> list[dict[str, Any]]:
         """Get order history"""
         try:
-            params = {"limit": limit}
+            params: dict[str, Any] = {"limit": limit}
             if symbol:
                 params["symbol"] = symbol
 

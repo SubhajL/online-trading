@@ -130,15 +130,9 @@ def score_match(
         "direction": direction_match if direction_match is not None else 0.0,
         "time": max(0.0, 1.0 - (delta / float(time_window_seconds))),
         "entry": entry_component if entry_component is not None else 0.0,
-        "symbol": (
-            1.0
-            if external.symbol and external.symbol == candidate.symbol
-            else 0.0
-        ),
+        "symbol": (1.0 if external.symbol and external.symbol == candidate.symbol else 0.0),
         "timeframe": 1.0
-        if external.timeframe
-        and candidate.timeframe
-        and external.timeframe == candidate.timeframe
+        if external.timeframe and candidate.timeframe and external.timeframe == candidate.timeframe
         else 0.0,
         "timing_delta_seconds": timing_delta,
     }
@@ -193,9 +187,7 @@ def select_best_candidate(
             time_window_seconds=time_window_seconds,
             entry_tolerance=entry_tolerance,
         )
-        if scored.score > best_score or (
-            scored.score == best_score and delta < best_delta
-        ):
+        if scored.score > best_score or (scored.score == best_score and delta < best_delta):
             best = candidate
             best_score = scored.score
             best_delta = delta

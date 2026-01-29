@@ -144,10 +144,7 @@ class NoneOperationFixer:
                                 else:
                                     ternary_default = default
                                 condition = f"{var} is not None"
-                                new_line = (
-                                    f"{lhs}= {rhs} if {condition} else "
-                                    f"{ternary_default}"
-                                )
+                                new_line = f"{lhs}= {rhs} if {condition} else {ternary_default}"
                                 result_lines.append(new_line)
                                 modified = True
                                 break

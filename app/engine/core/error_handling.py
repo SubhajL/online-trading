@@ -279,9 +279,7 @@ class MetricsErrorHandler(ErrorHandler):
         now = datetime.now(UTC)
         minute_ago = now - timedelta(minutes=1)
 
-        recent_count = sum(
-            1 for ctx in self._stats.recent_errors if ctx.timestamp >= minute_ago
-        )
+        recent_count = sum(1 for ctx in self._stats.recent_errors if ctx.timestamp >= minute_ago)
 
         self._stats.error_rate_per_minute = recent_count
 
@@ -529,7 +527,8 @@ class error_boundary:
                 operation=self.operation,
             )
 
-            await handle_error(exc_val, context)
+            if isinstance(exc_val, Exception):
+                await handle_error(exc_val, context)
 
             if not self.reraise:
                 return True  # Suppress exception
@@ -561,7 +560,7 @@ class error_boundary:
                 eventbus_error = EventBusError(
                     message=str(exc_val),
                     context=context,
-                    cause=exc_val,
+                    cause=exc_val if isinstance(exc_val, Exception) else None,
                 )
 
                 # Use the global error manager's logging handler directly

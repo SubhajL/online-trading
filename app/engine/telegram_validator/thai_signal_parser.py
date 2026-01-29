@@ -50,7 +50,9 @@ class ThaiSignalParser(SignalParser):
 
     @classmethod
     def parse_thai_signal(
-        cls, text: str, source: str = "Thai SMC Group",
+        cls,
+        text: str,
+        source: str = "Thai SMC Group",
     ) -> TelegramSignal | None:
         """
         Parse Thai language signal
@@ -68,13 +70,16 @@ class ThaiSignalParser(SignalParser):
             "symbol": re.compile(r"สินทรัพย์\s*[:：]\s*(\w+)", re.IGNORECASE),
             "timeframe": re.compile(r"กรอบเวลา\s*[:：]\s*(\w+)", re.IGNORECASE),
             "entry": re.compile(
-                r"(?:ราคาเข้า|ราคาเปิด|Entry)\s*[:：]\s*([\d.]+)", re.IGNORECASE,
+                r"(?:ราคาเข้า|ราคาเปิด|Entry)\s*[:：]\s*([\d.]+)",
+                re.IGNORECASE,
             ),
             "sl": re.compile(
-                r"(?:ตัดขาดทุน|SL|Stop Loss)\s*[:：]\s*([\d.]+)", re.IGNORECASE,
+                r"(?:ตัดขาดทุน|SL|Stop Loss)\s*[:：]\s*([\d.]+)",
+                re.IGNORECASE,
             ),
             "tp": re.compile(
-                r"(?:เป้าหมาย|TP|Target)\s*[:：]\s*([\d.,\s]+)", re.IGNORECASE,
+                r"(?:เป้าหมาย|TP|Target)\s*[:：]\s*([\d.,\s]+)",
+                re.IGNORECASE,
             ),
         }
 

@@ -59,7 +59,7 @@ class BinanceUSDMIngester:
         self.reconnect_delay_ms = reconnect_delay_ms
         self.recv_window = recv_window
 
-        self._websocket: websockets.WebSocketClientProtocol | None = None
+        self._websocket: Any = None
         self._running = False
         self._last_candle_times: dict[str, datetime] = {}
         self._reconnect_count = 0
@@ -414,21 +414,18 @@ class BinanceUSDMIngester:
         logger.info(f"Current system UTC time: {system_time.isoformat()}")
         logger.info("You can check time offset at: https://www.time.is/")
 
-    async def get_metrics(self) -> dict[str, any]:
+    async def get_metrics(self) -> dict[str, Any]:
         """Get ingester metrics."""
         return {
             "venue": self.venue,
             "running": self._running,
             "websocket_connected": (
-                self._websocket is not None
-                and self._websocket.state == WebSocketState.OPEN
+                self._websocket is not None and self._websocket.state == WebSocketState.OPEN
             ),
             "reconnect_count": self._reconnect_count,
             "time_sync_errors": self._time_sync_errors,
             "recv_window": self.recv_window,
-            "last_candle_times": {
-                k: v.isoformat() for k, v in self._last_candle_times.items()
-            },
+            "last_candle_times": {k: v.isoformat() for k, v in self._last_candle_times.items()},
             "symbols": self.symbols,
             "timeframes": self.timeframes,
         }

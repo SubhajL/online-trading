@@ -197,9 +197,7 @@ class SMCService:
                     recent_candles[-10:],
                 )
 
-                total_new_zones = (
-                    len(new_sd_zones) + len(new_ob_zones) + len(new_fvg_zones)
-                )
+                total_new_zones = len(new_sd_zones) + len(new_ob_zones) + len(new_fvg_zones)
                 if total_new_zones > 0:
                     self._zones_identified += total_new_zones
                     logger.debug(
@@ -399,8 +397,7 @@ class SMCService:
                                 direction=OrderSide.BUY,
                                 entry_price=current_candle.close_price,
                                 stop_loss=zone.bottom_price * Decimal("0.998"),
-                                take_profit=current_candle.close_price
-                                * Decimal("1.015"),
+                                take_profit=current_candle.close_price * Decimal("1.015"),
                                 confidence=Decimal(str(confidence)),
                                 zone=zone,
                                 reasoning="Bullish reaction at bullish order block",
@@ -423,8 +420,7 @@ class SMCService:
                                 direction=OrderSide.SELL,
                                 entry_price=current_candle.close_price,
                                 stop_loss=zone.top_price * Decimal("1.002"),
-                                take_profit=current_candle.close_price
-                                * Decimal("0.985"),
+                                take_profit=current_candle.close_price * Decimal("0.985"),
                                 confidence=Decimal(str(confidence)),
                                 zone=zone,
                                 reasoning="Bearish reaction at bearish order block",
@@ -521,15 +517,13 @@ class SMCService:
             if len(recent_candles) >= 5:
                 avg_volume = sum(c.volume for c in recent_candles[-5:]) / 5
                 volume_ratio = (
-                    float(current_candle.volume / avg_volume) if avg_volume > 0 else 1
+                    float(current_candle.volume / Decimal(str(avg_volume))) if avg_volume > 0 else 1
                 )
                 volume_factor = min(volume_ratio * 0.1, 0.15)
                 confidence += volume_factor
 
             # Zone age factor (newer zones might be more relevant)
-            age_hours = (
-                current_candle.close_time - zone.created_at
-            ).total_seconds() / 3600
+            age_hours = (current_candle.close_time - zone.created_at).total_seconds() / 3600
             age_factor = max(0, 0.1 - (age_hours * 0.001))
             confidence += age_factor
 
@@ -543,9 +537,7 @@ class SMCService:
         """Publish an SMC signal event"""
         try:
             # Check if we already have too many signals for this symbol
-            symbol_signals = [
-                s for s in self._active_signals if s.symbol == signal.symbol
-            ]
+            symbol_signals = [s for s in self._active_signals if s.symbol == signal.symbol]
             if len(symbol_signals) >= self.max_signals_per_symbol:
                 return
 
@@ -578,9 +570,7 @@ class SMCService:
                 hours=self.signal_timeout_hours,
             )
             self._active_signals = [
-                signal
-                for signal in self._active_signals
-                if signal.timestamp > cutoff_time
+                signal for signal in self._active_signals if signal.timestamp > cutoff_time
             ]
 
         except Exception as e:

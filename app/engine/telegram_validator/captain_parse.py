@@ -119,4 +119,3 @@ def _extract_timeframe_token(reasoning: str, text: str) -> str:
         return match.group(1)
 
     return "H4"
-

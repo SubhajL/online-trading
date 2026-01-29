@@ -69,7 +69,8 @@ class TestEnhancedHealthChecker:
             mock_session_class.return_value = mock_session
 
             result = await checker.check_service_dependency(
-                "router", "http://localhost:8080/healthz",
+                "router",
+                "http://localhost:8080/healthz",
             )
 
             assert result.service == "router"
@@ -91,7 +92,8 @@ class TestEnhancedHealthChecker:
             mock_session_class.return_value = mock_session
 
             result = await checker.check_service_dependency(
-                "router", "http://localhost:8080/healthz",
+                "router",
+                "http://localhost:8080/healthz",
             )
 
             assert result.service == "router"
@@ -111,7 +113,8 @@ class TestEnhancedHealthChecker:
             mock_session_class.return_value = mock_session
 
             result = await checker.check_service_dependency(
-                "router", "http://localhost:8080/healthz",
+                "router",
+                "http://localhost:8080/healthz",
             )
 
             assert result.service == "router"
@@ -125,17 +128,24 @@ class TestEnhancedHealthChecker:
 
         # Register dependencies
         checker.register_dependency(
-            "router", "http://localhost:8080/healthz", critical=True,
+            "router",
+            "http://localhost:8080/healthz",
+            critical=True,
         )
         checker.register_dependency(
-            "external_api", "https://api.example.com/health", critical=False,
+            "external_api",
+            "https://api.example.com/health",
+            critical=False,
         )
 
         with patch.object(checker, "check_service_dependency") as mock_check:
             mock_check.side_effect = [
                 ServiceDependency("router", DependencyStatus.AVAILABLE, "Healthy", 10),
                 ServiceDependency(
-                    "external_api", DependencyStatus.UNAVAILABLE, "Connection error", 0,
+                    "external_api",
+                    DependencyStatus.UNAVAILABLE,
+                    "Connection error",
+                    0,
                 ),
             ]
 
@@ -147,7 +157,9 @@ class TestEnhancedHealthChecker:
 
     @pytest.mark.asyncio
     async def test_check_event_bus_health_with_backlog(
-        self, health_config, mock_event_bus,
+        self,
+        health_config,
+        mock_event_bus,
     ):
         """Test event bus health check with message backlog."""
         checker = EnhancedHealthChecker(health_config)
@@ -214,16 +226,24 @@ class TestEnhancedHealthChecker:
 
         # Register components and dependencies
         checker.register_component(
-            "database", checker.check_database_health, "postgresql://test",
+            "database",
+            checker.check_database_health,
+            "postgresql://test",
         )
         checker.register_component(
-            "redis", checker.check_redis_health, "redis://localhost",
+            "redis",
+            checker.check_redis_health,
+            "redis://localhost",
         )
         checker.register_component(
-            "event_bus", checker.check_event_bus_health, mock_event_bus,
+            "event_bus",
+            checker.check_event_bus_health,
+            mock_event_bus,
         )
         checker.register_dependency(
-            "router", "http://localhost:8080/healthz", critical=True,
+            "router",
+            "http://localhost:8080/healthz",
+            critical=True,
         )
 
         # Mock health check results
@@ -274,16 +294,22 @@ class TestEnhancedHealthChecker:
 
     @pytest.mark.asyncio
     async def test_comprehensive_health_with_critical_failure(
-        self, health_config, mock_event_bus,
+        self,
+        health_config,
+        mock_event_bus,
     ):
         """Test comprehensive health report with critical dependency failure."""
         checker = EnhancedHealthChecker(health_config)
 
         checker.register_component(
-            "database", checker.check_database_health, "postgresql://test",
+            "database",
+            checker.check_database_health,
+            "postgresql://test",
         )
         checker.register_dependency(
-            "router", "http://localhost:8080/healthz", critical=True,
+            "router",
+            "http://localhost:8080/healthz",
+            critical=True,
         )
 
         with patch.multiple(
@@ -331,7 +357,9 @@ class TestEnhancedHealthChecker:
             status = health_states[min(check_count, len(health_states) - 1)]
             check_count += 1
             return ComponentHealth(
-                name="test", status=status, message=f"Check {check_count}",
+                name="test",
+                status=status,
+                message=f"Check {check_count}",
             )
 
         checker.register_component("test", mock_check)

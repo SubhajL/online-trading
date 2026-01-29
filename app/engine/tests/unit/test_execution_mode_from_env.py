@@ -9,7 +9,37 @@ from app.engine.execution.router_execution_subscriber import (
     RouterExecutionSubscriber,
     execution_mode_from_env,
 )
-from app.engine.models import EventType, TradingDecision, TradingDecisionEvent
+from app.engine.models import EventType, RiskParameters, TradingDecision, TradingDecisionEvent
+
+
+class _FakeDBAdapter:
+    async def get_latest_equity_sample(self):
+        return Decimal(10_000), datetime.now(UTC)
+
+    async def get_equity_sample_at_or_after(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_peak_equity_since(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_active_positions(self, _venue: str):
+        return []
+
+
+def _default_risk() -> RiskParameters:
+    return RiskParameters(
+        max_position_size=Decimal("999999"),
+        max_daily_loss=Decimal("1"),
+        max_drawdown=Decimal("1"),
+        risk_per_trade=Decimal("0.01"),
+        max_correlation=Decimal("1"),
+        max_open_positions=100,
+        max_total_exposure_leverage=Decimal("100"),
+        max_symbol_exposure_pct=Decimal("1"),
+        max_position_notional_pct=Decimal("1"),
+        risk_data_max_age_seconds=86400,
+        drawdown_lookback_days=30,
+    )
 
 
 class TestExecutionModeFromEnv:
@@ -115,6 +145,9 @@ class TestBuildOrderPayload:
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,
             router_client=mock_router,
+            db_adapter=_FakeDBAdapter(),
+            risk=_default_risk(),
+            venue="SPOT",
             execution_mode=ExecutionMode.SPOT_TESTNET,
         )
 
@@ -138,6 +171,9 @@ class TestBuildOrderPayload:
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,
             router_client=mock_router,
+            db_adapter=_FakeDBAdapter(),
+            risk=_default_risk(),
+            venue="SPOT",
             execution_mode=ExecutionMode.SPOT_TESTNET,
         )
 
@@ -181,6 +217,9 @@ class TestBuildOrderPayload:
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,
             router_client=mock_router,
+            db_adapter=_FakeDBAdapter(),
+            risk=_default_risk(),
+            venue="SPOT",
             execution_mode=ExecutionMode.SPOT_TESTNET,
         )
 

@@ -87,9 +87,7 @@ def add_missing_imports(file_path: Path, imports_needed: set[str]) -> bool:
             # Parse existing imports
             imports_str = match.group(1)
             # Handle multi-line imports by removing line continuations
-            imports_str = (
-                imports_str.replace("\\", "").replace("(", "").replace(")", "")
-            )
+            imports_str = imports_str.replace("\\", "").replace("(", "").replace(")", "")
             # Split by comma and strip whitespace
             for imp in imports_str.split(","):
                 imp = imp.strip()
@@ -118,11 +116,7 @@ def add_missing_imports(file_path: Path, imports_needed: set[str]) -> bool:
             stripped = line.strip()
             if stripped.startswith("from __future__"):
                 future_idx = i
-            elif (
-                stripped
-                and not stripped.startswith("#")
-                and not stripped.startswith('"""')
-            ):
+            elif stripped and not stripped.startswith("#") and not stripped.startswith('"""'):
                 if first_code_idx == -1:
                     first_code_idx = i
                     break

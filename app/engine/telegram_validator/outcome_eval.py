@@ -146,4 +146,3 @@ def evaluate_trade_outcome_with_fill_model(
         candles_held=result.candles_held,
         fill_result=result,
     )
-

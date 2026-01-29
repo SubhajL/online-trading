@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import json
 import logging
-from typing import Any
+from typing import Any, TypeAlias
 
-from ...database import KyselyDatabase, Transaction
 from ...smc_types import Pivot, SMCEvent, Zone
+
+KyselyDatabase: TypeAlias = Any
+Transaction: TypeAlias = Any
 
 logger = logging.getLogger(__name__)
 
@@ -184,9 +186,7 @@ async def expire_zones(
             .execute()
         )
 
-        expired_count = (
-            result.num_updated_rows if hasattr(result, "num_updated_rows") else 0
-        )
+        expired_count = result.num_updated_rows if hasattr(result, "num_updated_rows") else 0
         if expired_count > 0:
             logger.debug(f"Expired {expired_count} zones for {symbol} {timeframe}")
 

@@ -36,7 +36,7 @@ func TestTradeProcessor_UpdatesOrdersFillsAndPositions(t *testing.T) {
 		orders:    ordersRepo,
 		fills:     fillRepo,
 		positions: posRepo,
-		venue:     "futures",
+		venue:     "USD_M",
 	}
 
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -124,7 +124,7 @@ func TestTradeProcessor_UpdatesOrdersFillsAndPositions(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = ordersRepo.UpsertOrderIntent(ctx, tx, storage.OrderIntent{
-			Venue:          "futures",
+			Venue:          "USD_M",
 			Symbol:         "BTCUSDT",
 			ClientOrderID:  "abc_entry",
 			Side:           "BUY",
@@ -159,14 +159,14 @@ func TestTradeProcessor_UpdatesOrdersFillsAndPositions(t *testing.T) {
 		}
 		require.NoError(t, processor.handleFuturesOrderTradeUpdateTx(ctx, tx, entryEvent))
 
-		pos, found, err := posRepo.GetActive(ctx, tx, "futures", "BTCUSDT")
+		pos, found, err := posRepo.GetActive(ctx, tx, "USD_M", "BTCUSDT")
 		require.NoError(t, err)
 		require.True(t, found)
 		require.Equal(t, "BUY", pos.Side)
 		require.True(t, decimal.RequireFromString("0.01").Equal(pos.Size))
 
 		_, err = ordersRepo.UpsertOrderIntent(ctx, tx, storage.OrderIntent{
-			Venue:          "futures",
+			Venue:          "USD_M",
 			Symbol:         "BTCUSDT",
 			ClientOrderID:  "abc_tp1",
 			Side:           "SELL",
@@ -202,7 +202,7 @@ func TestTradeProcessor_UpdatesOrdersFillsAndPositions(t *testing.T) {
 		}
 		require.NoError(t, processor.handleFuturesOrderTradeUpdateTx(ctx, tx, exitEvent))
 
-		_, found, err = posRepo.GetActive(ctx, tx, "futures", "BTCUSDT")
+		_, found, err = posRepo.GetActive(ctx, tx, "USD_M", "BTCUSDT")
 		require.NoError(t, err)
 		require.False(t, found)
 

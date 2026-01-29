@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import logging
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.engine.models import ErrorEvent
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class _EventBus(Protocol):
-    async def publish(self, event: object, priority: int = 0) -> bool: ...
+    async def publish(self, event: Any, priority: int = 0) -> bool: ...
 
 
 class _IngestService(Protocol):
@@ -138,7 +139,7 @@ class PipelineHealthService:
         bus: _EventBus,
         ingest_service: _IngestService,
         thresholds: PipelineHealthThresholds | None = None,
-        now_fn: callable[[], datetime] | None = None,
+        now_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self._bus = bus
         self._ingest_service = ingest_service

@@ -90,8 +90,8 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
         return ValidationResult(is_valid=False, errors=errors)
 
     # Check quantity limits
-    min_qty = filters.get("min_qty", Decimal(0))
-    max_qty = filters.get("max_qty", Decimal(1000000))
+    min_qty = Decimal(str(filters.get("min_qty", Decimal(0))))
+    max_qty = Decimal(str(filters.get("max_qty", Decimal(1000000))))
 
     if order.quantity < min_qty:
         errors.append(f"Quantity {order.quantity} below minimum quantity {min_qty}")
@@ -116,7 +116,7 @@ def validate_order_params(order: OrderRequest) -> ValidationResult:
 
             # Check notional value
             notional = order.quantity * order.price
-            min_notional = filters.get("min_notional", Decimal(0))
+            min_notional = Decimal(str(filters.get("min_notional", Decimal(0))))
             if notional < min_notional:
                 errors.append(f"Notional value {notional} below minimum {min_notional}")
 

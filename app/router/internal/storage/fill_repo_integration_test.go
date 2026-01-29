@@ -51,7 +51,7 @@ func TestFillRepo_InsertFillIfNew_DedupesByTradeID(t *testing.T) {
 		require.NoError(t, err)
 
 		inserted, err := repo.InsertFillIfNew(ctx, tx, FillRecord{
-			Venue:         "futures",
+			Venue:         "USD_M",
 			Symbol:        "BTCUSDT",
 			TradeID:       123,
 			ClientOrderID: "abc",
@@ -65,7 +65,7 @@ func TestFillRepo_InsertFillIfNew_DedupesByTradeID(t *testing.T) {
 		require.True(t, inserted)
 
 		inserted, err = repo.InsertFillIfNew(ctx, tx, FillRecord{
-			Venue:         "futures",
+			Venue:         "USD_M",
 			Symbol:        "BTCUSDT",
 			TradeID:       123,
 			ClientOrderID: "abc",

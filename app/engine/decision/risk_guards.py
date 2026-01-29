@@ -112,7 +112,9 @@ class MaxPositionsGuard:
                 del self.correlation_groups[group]
 
     def can_open_position(
-        self, symbol: str, correlation_group: str,
+        self,
+        symbol: str,
+        correlation_group: str,
     ) -> tuple[bool, str]:
         """Check if a new position can be opened."""
         # Check total positions
@@ -182,9 +184,7 @@ class DrawdownGuard:
     def _cleanup_old_history(self) -> None:
         """Remove old balance history."""
         cutoff = datetime.now() - timedelta(days=self.lookback_days)
-        self.balance_history = [
-            h for h in self.balance_history if h["timestamp"] > cutoff
-        ]
+        self.balance_history = [h for h in self.balance_history if h["timestamp"] > cutoff]
 
         # Recalculate peak from remaining history
         if self.balance_history:
@@ -236,9 +236,7 @@ class CorrelationGuard:
 
         # Crypto correlation
         crypto_symbols = ["BTC", "ETH", "BNB", "SOL"]
-        if any(s in symbol1 for s in crypto_symbols) and any(
-            s in symbol2 for s in crypto_symbols
-        ):
+        if any(s in symbol1 for s in crypto_symbols) and any(s in symbol2 for s in crypto_symbols):
             return Decimal("0.7")
 
         # Default low correlation
@@ -292,7 +290,9 @@ class RiskGuardManager:
             self.load_state()
 
     def can_trade(
-        self, symbol: str, account_balance: Decimal,
+        self,
+        symbol: str,
+        account_balance: Decimal,
     ) -> tuple[bool, list[str]]:
         """Check if trading is allowed by ALL guards."""
         reasons = []
@@ -316,7 +316,8 @@ class RiskGuardManager:
 
         # Check position limits (assuming default correlation group)
         positions_ok, positions_reason = self.positions_guard.can_open_position(
-            symbol, "default",
+            symbol,
+            "default",
         )
         if not positions_ok:
             can_trade = False
@@ -339,7 +340,10 @@ class RiskGuardManager:
         return can_trade, reasons
 
     def record_trade_result(
-        self, symbol: str, pnl: Decimal, timestamp: datetime,
+        self,
+        symbol: str,
+        pnl: Decimal,
+        timestamp: datetime,
     ) -> None:
         """Record a completed trade."""
         self.daily_loss_guard.add_trade_result(pnl, timestamp)
@@ -348,7 +352,9 @@ class RiskGuardManager:
             logger.warning(f"Loss recorded: {symbol} ${pnl:.2f}")
 
     def add_open_position(
-        self, symbol: str, correlation_group: str = "default",
+        self,
+        symbol: str,
+        correlation_group: str = "default",
     ) -> None:
         """Add a new open position."""
         self.positions_guard.add_position(symbol, correlation_group)
@@ -458,9 +464,7 @@ class RiskGuardManager:
             "max_drawdown": float(self.config.max_drawdown_pct),
             "guards": {
                 "daily_loss": self.daily_loss_guard.can_trade(Decimal(100000))[0],
-                "positions": self.positions_guard.can_open_position("TEST", "default")[
-                    0
-                ],
+                "positions": self.positions_guard.can_open_position("TEST", "default")[0],
                 "drawdown": self.drawdown_guard.can_trade(Decimal(100000))[0],
             },
         }

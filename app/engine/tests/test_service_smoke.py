@@ -36,6 +36,11 @@ class TestDecisionEngineSmoke:
             risk_per_trade=Decimal("0.02"),     # 2% per trade
             max_correlation=Decimal("0.7"),     # 70% max correlation
             max_open_positions=3,
+            max_total_exposure_leverage=Decimal("3"),
+            max_symbol_exposure_pct=Decimal("0.25"),
+            max_position_notional_pct=Decimal("0.10"),
+            risk_data_max_age_seconds=120,
+            drawdown_lookback_days=30,
             allowed_symbols=["BTCUSDT", "ETHUSDT"]
         )
 

@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 import logging
-from typing import Protocol
+from typing import Any, Protocol
 
-from app.engine.models import CandleOrigin, CandleUpdateEvent, TimeFrame
+from app.engine.models import Candle, CandleOrigin, CandleUpdateEvent, TimeFrame
 
 logger = logging.getLogger(__name__)
 
 
 class _EventBus(Protocol):
-    async def publish(self, event: object, priority: int = 0) -> bool: ...
+    async def publish(self, event: Any, priority: int = 0) -> bool: ...
 
 
 class _WsClient(Protocol):
@@ -27,11 +28,11 @@ class _RestClient(Protocol):
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 1000,
-    ) -> list[object]: ...
+    ) -> list[Candle]: ...
 
 
 class _IngestService(Protocol):
-    async def get_latest_candle(self, symbol: str, timeframe: TimeFrame) -> object | None: ...
+    async def get_latest_candle(self, symbol: str, timeframe: TimeFrame) -> Candle | None: ...
 
 
 class LiveRestFallbackService:
@@ -45,7 +46,7 @@ class LiveRestFallbackService:
         symbols: list[str],
         timeframes: list[TimeFrame],
         poll_interval_seconds: int = 30,
-        now_fn: callable[[], datetime] | None = None,
+        now_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self._bus = bus
         self._rest_client = rest_client

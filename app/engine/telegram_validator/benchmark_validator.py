@@ -170,9 +170,7 @@ async def validate_external_signals(  # noqa: PLR0913
                         id=str(s["id"]),
                         timestamp=s["timestamp"],
                         symbol=str(s["symbol"]),
-                        timeframe=str(s.get("timeframe"))
-                        if s.get("timeframe")
-                        else None,
+                        timeframe=str(s.get("timeframe")) if s.get("timeframe") else None,
                         direction=direction,  # type: ignore[arg-type]
                         entry_price=_as_decimal(s.get("entry_price")),
                         venue=s.get("venue"),  # SMC signals have venue

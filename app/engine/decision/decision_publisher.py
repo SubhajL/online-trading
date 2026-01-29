@@ -11,7 +11,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from app.engine.bus import get_event_bus
+from app.engine.decision.pretrade_risk import evaluate_pretrade_risk
+from app.engine.decision.risk_state import build_risk_snapshot
 from app.engine.models import (
+    ErrorEvent,
     EventType,
     RetestSignalEvent,
     TradingDecision,
@@ -21,19 +24,22 @@ from app.engine.models import (
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from decimal import Decimal
+    from app.engine.adapters.db.timescale_adapter import TimescaleDBAdapter
+    from app.engine.models import RiskParameters
 
 
 class DecisionPublisher:
     def __init__(
         self,
         *,
-        account_balance: Decimal,
-        risk_per_trade: Decimal,
+        db_adapter: TimescaleDBAdapter,
+        risk: RiskParameters,
+        venue: str,
     ) -> None:
         self._event_bus = get_event_bus()
-        self._account_balance = account_balance
-        self._risk_per_trade = risk_per_trade
+        self._db_adapter = db_adapter
+        self._risk = risk
+        self._venue = venue
         self._running = False
         self._subscription_id: str | None = None
 
@@ -62,6 +68,36 @@ class DecisionPublisher:
 
     async def _on_retest_signal(self, event: RetestSignalEvent) -> None:
         signal = event.signal
+
+        snapshot, errors = await build_risk_snapshot(
+            db_adapter=self._db_adapter,
+            venue=self._venue,
+            now=datetime.now(UTC),
+            risk=self._risk,
+        )
+        if snapshot is None:
+            message = (
+                "; ".join(f"{e.error_type}:{e.message}" for e in errors)
+                or "risk snapshot unavailable"
+            )
+            error_event = ErrorEvent(
+                event_type=EventType.ERROR,
+                timestamp=datetime.now(UTC),
+                symbol=signal.symbol,
+                timeframe=signal.timeframe,
+                error_type="risk_snapshot_unavailable",
+                error_message=message,
+                component="decision_publisher",
+                metadata={
+                    "signal_id": str(signal.signal_id),
+                },
+            )
+            try:
+                await self._event_bus.publish(error_event, priority=7)
+            except Exception:
+                logger.exception("Error publishing risk snapshot error")
+            return
+
         entry_price = signal.level_price
         stop_loss = signal.stop_loss
         stop_distance = abs(entry_price - stop_loss)
@@ -69,7 +105,7 @@ class DecisionPublisher:
         if stop_distance == 0:
             return
 
-        risk_amount = self._account_balance * self._risk_per_trade
+        risk_amount = snapshot.equity * self._risk.risk_per_trade
         quantity = risk_amount / stop_distance
 
         decision = TradingDecision(
@@ -84,6 +120,26 @@ class DecisionPublisher:
             reasoning="; ".join(signal.confluence_factors) or signal.retest_type,
             signals=[signal],
         )
+
+        ok, reasons = evaluate_pretrade_risk(snapshot=snapshot, decision=decision, risk=self._risk)
+        if not ok:
+            error_event = ErrorEvent(
+                event_type=EventType.ERROR,
+                timestamp=datetime.now(UTC),
+                symbol=signal.symbol,
+                timeframe=signal.timeframe,
+                error_type="risk_limit_exceeded",
+                error_message="; ".join(reasons),
+                component="decision_publisher",
+                metadata={
+                    "signal_id": str(signal.signal_id),
+                },
+            )
+            try:
+                await self._event_bus.publish(error_event, priority=7)
+            except Exception:
+                logger.exception("Error publishing pretrade risk error")
+            return
 
         # Forward zone metadata from retest signal for cooldown keying
         signal_metadata = event.metadata or {}

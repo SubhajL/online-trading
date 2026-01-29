@@ -242,7 +242,11 @@ class WFORunner:
 
         # Generate windows
         windows = self.generate_windows(
-            start_dt, end_dt, train_days, test_days, step_days,
+            start_dt,
+            end_dt,
+            train_days,
+            test_days,
+            step_days,
         )
 
         if not windows:
@@ -428,9 +432,7 @@ class WFORunner:
         # Prioritize: Sharpe ratio, total return, max drawdown
         sharpe_score = float(metrics.sharpe_ratio) if metrics.sharpe_ratio else 0
         return_score = float(metrics.total_pnl_pct) / 100  # Normalize to 0-1 range
-        drawdown_penalty = (
-            float(metrics.max_drawdown_pct) / 100
-        )  # Penalty for high drawdown
+        drawdown_penalty = float(metrics.max_drawdown_pct) / 100  # Penalty for high drawdown
 
         # Weighted composite score
         score = sharpe_score * 0.5 + return_score * 0.3 - drawdown_penalty * 0.2
@@ -438,7 +440,8 @@ class WFORunner:
         return score
 
     def _analyze_parameter_stability(
-        self, parameter_sets: list[dict[str, Any]],
+        self,
+        parameter_sets: list[dict[str, Any]],
     ) -> dict[str, float]:
         """Analyze parameter stability across windows"""
         if not parameter_sets:
@@ -478,8 +481,7 @@ class WFORunner:
             "std_test_return": float(np.std(test_returns)),
             "avg_train_return": float(np.mean(train_returns)),
             "std_train_return": float(np.std(train_returns)),
-            "overfitting_ratio": float(np.mean(train_returns))
-            / float(np.mean(test_returns))
+            "overfitting_ratio": float(np.mean(train_returns)) / float(np.mean(test_returns))
             if np.mean(test_returns) != 0
             else float("inf"),
             "win_rate": len([r for r in test_returns if r > 0]) / len(test_returns)
@@ -576,18 +578,10 @@ class WFORunner:
 
             for i, window in enumerate(result.windows):
                 train_result = (
-                    result.training_results[i]
-                    if i < len(result.training_results)
-                    else None
+                    result.training_results[i] if i < len(result.training_results) else None
                 )
-                test_result = (
-                    result.testing_results[i]
-                    if i < len(result.testing_results)
-                    else None
-                )
-                best_params = (
-                    result.best_parameters[i] if i < len(result.best_parameters) else {}
-                )
+                test_result = result.testing_results[i] if i < len(result.testing_results) else None
+                best_params = result.best_parameters[i] if i < len(result.best_parameters) else {}
 
                 writer.writerow(
                     {
@@ -603,12 +597,8 @@ class WFORunner:
                         "test_pnl_pct": float(test_result.metrics.total_pnl_pct)
                         if test_result
                         else 0,
-                        "train_trades": train_result.metrics.total_trades
-                        if train_result
-                        else 0,
-                        "test_trades": test_result.metrics.total_trades
-                        if test_result
-                        else 0,
+                        "train_trades": train_result.metrics.total_trades if train_result else 0,
+                        "test_trades": test_result.metrics.total_trades if test_result else 0,
                         "train_hit_rate": float(train_result.metrics.hit_rate_pct)
                         if train_result
                         else 0,
@@ -637,17 +627,20 @@ class WFORunner:
 
         # 1. Train vs Test performance comparison
         self._create_train_test_comparison_chart(
-            result, output_dir / "train_vs_test.png",
+            result,
+            output_dir / "train_vs_test.png",
         )
 
         # 2. Rolling window performance
         self._create_rolling_performance_chart(
-            result, output_dir / "rolling_performance.png",
+            result,
+            output_dir / "rolling_performance.png",
         )
 
         # 3. Parameter stability chart
         self._create_parameter_stability_chart(
-            result, output_dir / "parameter_stability.png",
+            result,
+            output_dir / "parameter_stability.png",
         )
 
     def _create_train_test_comparison_chart(self, result: WFOResult, path: Path):
@@ -661,10 +654,18 @@ class WFORunner:
         fig, ax = plt.subplots(figsize=(12, 6))
 
         ax.bar(
-            [w - 0.2 for w in windows], train_returns, 0.4, label="Training", alpha=0.7,
+            [w - 0.2 for w in windows],
+            train_returns,
+            0.4,
+            label="Training",
+            alpha=0.7,
         )
         ax.bar(
-            [w + 0.2 for w in windows], test_returns, 0.4, label="Testing", alpha=0.7,
+            [w + 0.2 for w in windows],
+            test_returns,
+            0.4,
+            label="Testing",
+            alpha=0.7,
         )
 
         ax.set_xlabel("WFO Window")

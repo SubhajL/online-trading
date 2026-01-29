@@ -138,8 +138,7 @@ class LineAlertAdapter:
                 continue
 
             segments = [
-                line[i : i + LINE_MESSAGE_LIMIT]
-                for i in range(0, len(line), LINE_MESSAGE_LIMIT)
+                line[i : i + LINE_MESSAGE_LIMIT] for i in range(0, len(line), LINE_MESSAGE_LIMIT)
             ]
             chunks.extend(segments[:-1])
             current = segments[-1]

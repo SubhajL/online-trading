@@ -67,8 +67,8 @@ class FeatureService:
         )
 
         # Latest indicators: symbol -> timeframe -> TechnicalIndicators
-        self._latest_indicators: dict[str, dict[TimeFrame, TechnicalIndicators]] = (
-            defaultdict(dict[Any, Any])
+        self._latest_indicators: dict[str, dict[TimeFrame, TechnicalIndicators]] = defaultdict(
+            dict[Any, Any]
         )
 
         self._event_bus = get_event_bus()
@@ -80,8 +80,7 @@ class FeatureService:
         self._last_calculation_time: datetime | None = None
 
         logger.info(
-            f"FeatureService initialized with buffer_size={buffer_size}, "
-            f"EMA periods={ema_periods}",
+            f"FeatureService initialized with buffer_size={buffer_size}, EMA periods={ema_periods}",
         )
 
     async def start(self) -> None:
@@ -305,7 +304,9 @@ class FeatureService:
             )
 
             if len(buffer) >= min_required:
-                await self._calculate_and_publish_indicators(symbol, timeframe)
+                await self._calculate_and_publish_indicators(
+                    venue="spot", symbol=symbol, timeframe=timeframe
+                )
 
             logger.info(f"Added {len(candles)} candles for {symbol} {timeframe.value}")
 
@@ -335,7 +336,9 @@ class FeatureService:
         """Force recalculation of indicators for a symbol and timeframe"""
         try:
             if len(self._candle_buffers[symbol][timeframe]) > 0:
-                await self._calculate_and_publish_indicators(symbol, timeframe)
+                await self._calculate_and_publish_indicators(
+                    venue="spot", symbol=symbol, timeframe=timeframe
+                )
                 logger.info(f"Recalculated indicators for {symbol} {timeframe.value}")
             else:
                 logger.warning(f"No candles available for {symbol} {timeframe.value}")
@@ -345,10 +348,7 @@ class FeatureService:
     def clear_buffer(self, symbol: str, timeframe: TimeFrame) -> None:
         """Clear the candle buffer for a symbol and timeframe"""
         self._candle_buffers[symbol][timeframe].clear()
-        if (
-            symbol in self._latest_indicators
-            and timeframe in self._latest_indicators[symbol]
-        ):
+        if symbol in self._latest_indicators and timeframe in self._latest_indicators[symbol]:
             del self._latest_indicators[symbol][timeframe]
         logger.info(f"Cleared buffer for {symbol} {timeframe.value}")
 
@@ -361,9 +361,7 @@ class FeatureService:
     async def health_check(self) -> dict[Any, Any]:
         """Get health status of the feature service"""
         total_symbols = len(self._candle_buffers)
-        total_timeframes = sum(
-            len(tf_dict) for tf_dict in self._candle_buffers.values()
-        )
+        total_timeframes = sum(len(tf_dict) for tf_dict in self._candle_buffers.values())
         total_candles = sum(
             len(buffer)
             for symbol_dict in self._candle_buffers.values()
@@ -378,9 +376,7 @@ class FeatureService:
             "total_candles_buffered": total_candles,
             "calculations_performed": self._calculations_performed,
             "last_calculation": (
-                self._last_calculation_time.isoformat()
-                if self._last_calculation_time
-                else None
+                self._last_calculation_time.isoformat() if self._last_calculation_time else None
             ),
             "configuration": {
                 "buffer_size": self.buffer_size,

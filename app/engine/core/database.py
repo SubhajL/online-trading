@@ -87,8 +87,7 @@ class ConnectionPool:
     def __init__(
         self,
         config: DatabaseConfig,
-        pg_pool_factory: Callable[[DatabaseConfig], Awaitable[asyncpg.Pool]]
-        | None = None,
+        pg_pool_factory: Callable[[DatabaseConfig], Awaitable[asyncpg.Pool]] | None = None,
         redis_factory: Callable[[DatabaseConfig], redis.Redis] | None = None,
     ) -> None:
         self.config = config

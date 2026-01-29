@@ -88,8 +88,7 @@ class FeatureEngine:
         self._db_writes = 0
 
         logger.info(
-            f"FeatureEngine initialized with buffer_size={buffer_size}, "
-            f"EMA periods={ema_periods}",
+            f"FeatureEngine initialized with buffer_size={buffer_size}, EMA periods={ema_periods}",
         )
 
     async def start(self) -> None:
@@ -212,27 +211,19 @@ class FeatureEngine:
                 ema_values = calculate_ema(close_prices, period)
                 if period == 9:
                     indicators.ema_9 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
+                        Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
                     )
                 elif period == 20 or period == 21:
                     indicators.ema_21 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
+                        Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
                     )
                 elif period == 50:
                     indicators.ema_50 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
+                        Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
                     )
                 elif period == 200:
                     indicators.ema_200 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
+                        Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
                     )
 
             # Calculate RSI
@@ -297,9 +288,9 @@ class FeatureEngine:
                 indicators.bb_width = (
                     indicators.bb_upper - indicators.bb_lower
                 ) / indicators.bb_middle
-                indicators.bb_percent = (
-                    latest_candle.close_price - indicators.bb_lower
-                ) / (indicators.bb_upper - indicators.bb_lower)
+                indicators.bb_percent = (latest_candle.close_price - indicators.bb_lower) / (
+                    indicators.bb_upper - indicators.bb_lower
+                )
 
             self._calculations_performed += 1
             return indicators
@@ -391,12 +382,8 @@ class FeatureEngine:
                 stats["buffer_stats"][symbol][timeframe.value] = {
                     "buffer_size": len(buffer),
                     "processed_count": len(processed),
-                    "oldest_candle": (
-                        buffer[0].open_time.isoformat() if buffer else None
-                    ),
-                    "newest_candle": (
-                        buffer[-1].close_time.isoformat() if buffer else None
-                    ),
+                    "oldest_candle": (buffer[0].open_time.isoformat() if buffer else None),
+                    "newest_candle": (buffer[-1].close_time.isoformat() if buffer else None),
                 }
 
         return stats

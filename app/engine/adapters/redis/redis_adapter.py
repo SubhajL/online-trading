@@ -5,11 +5,12 @@ Redis adapter for caching, session management, and real-time data storage.
 Provides high-performance caching for trading data and coordination between services.
 """
 
+from collections.abc import Awaitable
 from datetime import datetime, timezone
 from decimal import Decimal
 import json
 import logging
-from typing import Any
+from typing import Any, TypeVar, cast
 
 import redis.asyncio as redis
 from redis.asyncio import Redis
@@ -18,6 +19,12 @@ from redis.asyncio.client import PubSub
 from ...models import Candle, TechnicalIndicators, TimeFrame
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+async def _await_redis(value: Awaitable[_T] | _T) -> _T:
+    return await cast("Awaitable[_T]", value)
 
 
 class RedisAdapter:
@@ -280,7 +287,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, hash_key)
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
-            result = await self._redis.hset(redis_key, field, serialized_value)
+            result = await _await_redis(self._redis.hset(redis_key, field, serialized_value))
             return bool(result)
 
         except Exception as e:
@@ -299,7 +306,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            value = await self._redis.hget(redis_key, field)
+            value = await _await_redis(self._redis.hget(redis_key, field))
 
             if value is None:
                 return None
@@ -319,7 +326,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            result = await self._redis.hgetall(redis_key)
+            result = await _await_redis(self._redis.hgetall(redis_key))
 
             if not result:
                 return {}
@@ -344,7 +351,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, hash_key)
             assert self._redis is not None
-            result = await self._redis.hdel(redis_key, field)
+            result = await _await_redis(self._redis.hdel(redis_key, field))
             return bool(result)
 
         except Exception as e:
@@ -363,7 +370,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, list_key)
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
-            result = await self._redis.lpush(redis_key, serialized_value)
+            result = await _await_redis(self._redis.lpush(redis_key, serialized_value))
             return int(result)
 
         except Exception as e:
@@ -378,7 +385,7 @@ class RedisAdapter:
             redis_key = self._build_key(prefix, list_key)
             serialized_value = self._serialize_value(value)
             assert self._redis is not None
-            result = await self._redis.rpush(redis_key, serialized_value)
+            result = await _await_redis(self._redis.rpush(redis_key, serialized_value))
             return int(result)
 
         except Exception as e:
@@ -392,14 +399,16 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
-            value = await self._redis.lpop(redis_key)
+            value = await _await_redis(self._redis.lpop(redis_key))
 
             if value is None:
                 return None
 
-            return self._deserialize_value(
-                value.decode() if isinstance(value, bytes) else value,
-            )
+            if isinstance(value, bytes):
+                return self._deserialize_value(value.decode())
+            if isinstance(value, str):
+                return self._deserialize_value(value)
+            return None
 
         except Exception as e:
             logger.error(f"Error popping from list {list_key}: {e}")
@@ -418,12 +427,15 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
-            values = await self._redis.lrange(redis_key, start, end)
+            values = await _await_redis(self._redis.lrange(redis_key, start, end))
 
             result: list[Any] = []
             for value in values:
-                value_str = value.decode() if isinstance(value, bytes) else value
-                result.append(self._deserialize_value(value_str))
+                if isinstance(value, bytes):
+                    result.append(self._deserialize_value(value.decode()))
+                    continue
+                if isinstance(value, str):
+                    result.append(self._deserialize_value(value))
 
             return result
 
@@ -444,7 +456,7 @@ class RedisAdapter:
         try:
             redis_key = self._build_key(prefix, list_key)
             assert self._redis is not None
-            result = await self._redis.ltrim(redis_key, start, end)
+            result = await _await_redis(self._redis.ltrim(redis_key, start, end))
             return bool(result)
 
         except Exception as e:
@@ -572,27 +584,17 @@ class RedisAdapter:
                 ema_50=Decimal(str(data["ema_50"])) if data["ema_50"] else None,
                 ema_200=Decimal(str(data["ema_200"])) if data["ema_200"] else None,
                 rsi_14=Decimal(str(data["rsi_14"])) if data["rsi_14"] else None,
-                macd_line=(
-                    Decimal(str(data["macd_line"])) if data["macd_line"] else None
-                ),
-                macd_signal=(
-                    Decimal(str(data["macd_signal"])) if data["macd_signal"] else None
-                ),
+                macd_line=(Decimal(str(data["macd_line"])) if data["macd_line"] else None),
+                macd_signal=(Decimal(str(data["macd_signal"])) if data["macd_signal"] else None),
                 macd_histogram=(
-                    Decimal(str(data["macd_histogram"]))
-                    if data["macd_histogram"]
-                    else None
+                    Decimal(str(data["macd_histogram"])) if data["macd_histogram"] else None
                 ),
                 atr_14=Decimal(str(data["atr_14"])) if data["atr_14"] else None,
                 bb_upper=Decimal(str(data["bb_upper"])) if data["bb_upper"] else None,
-                bb_middle=(
-                    Decimal(str(data["bb_middle"])) if data["bb_middle"] else None
-                ),
+                bb_middle=(Decimal(str(data["bb_middle"])) if data["bb_middle"] else None),
                 bb_lower=Decimal(str(data["bb_lower"])) if data["bb_lower"] else None,
                 bb_width=Decimal(str(data["bb_width"])) if data["bb_width"] else None,
-                bb_percent=(
-                    Decimal(str(data["bb_percent"])) if data["bb_percent"] else None
-                ),
+                bb_percent=(Decimal(str(data["bb_percent"])) if data["bb_percent"] else None),
             )
 
         except Exception as e:
@@ -675,14 +677,13 @@ class RedisAdapter:
         self._ensure_connected()
 
         try:
-            # Accept both str/bytes keys and various JSON-serializable basic values
-            redis_pairs: dict[str | bytes, str | int | float | bytes] = {}
+            redis_pairs: dict[str, str] = {}
             for key, value in key_value_pairs.items():
                 redis_key = self._build_key(prefix, key)
                 redis_pairs[redis_key] = self._serialize_value(value)
 
             assert self._redis is not None
-            result = await self._redis.mset(redis_pairs)
+            result = await _await_redis(self._redis.mset(redis_pairs))
             return bool(result)
 
         except Exception as e:

@@ -17,7 +17,9 @@ class ManualSignalValidator:
         self.results = []
 
     async def validate_pasted_signal(
-        self, message_text: str, source: str = "Manual",
+        self,
+        message_text: str,
+        source: str = "Manual",
     ) -> dict:
         """
         Validate a signal you copied from Telegram
@@ -83,8 +85,7 @@ class ManualSignalValidator:
 
         return {
             "total_validated": len(self.results),
-            "average_score": sum(r.overall_score for r in self.results)
-            / len(self.results),
+            "average_score": sum(r.overall_score for r in self.results) / len(self.results),
             "high_confidence": sum(1 for r in self.results if r.overall_score >= 80),
             "direction_accuracy": sum(1 for r in self.results if r.direction_match)
             / len(self.results)

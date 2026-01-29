@@ -12,8 +12,7 @@ from typing import Protocol
 class Clock(Protocol):
     """Protocol for time source (enables testing without sleep)."""
 
-    def monotonic(self) -> float:
-        ...
+    def monotonic(self) -> float: ...
 
 
 class _SystemClock:

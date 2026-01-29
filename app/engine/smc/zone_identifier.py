@@ -338,8 +338,7 @@ class ZoneIdentifier:
 
             if (
                 prev_candle.close_price < prev_candle.open_price  # Bearish
-                and prev_body_ratio
-                >= self.order_block_min_body_ratio  # Significant body
+                and prev_body_ratio >= self.order_block_min_body_ratio  # Significant body
                 and current.close_price > prev_candle.high_price  # Break structure
                 and next_candle.close_price > current.close_price
             ):  # Confirmation
@@ -382,8 +381,7 @@ class ZoneIdentifier:
 
             if (
                 prev_candle.close_price > prev_candle.open_price  # Bullish
-                and prev_body_ratio
-                >= self.order_block_min_body_ratio  # Significant body
+                and prev_body_ratio >= self.order_block_min_body_ratio  # Significant body
                 and current.close_price < prev_candle.low_price  # Break structure
                 and next_candle.close_price < current.close_price
             ):  # Confirmation
@@ -451,8 +449,7 @@ class ZoneIdentifier:
             zone_candles = [
                 c
                 for c in candles
-                if abs((c.open_time - zone_time).total_seconds())
-                < 3600  # Within 1 hour
+                if abs((c.open_time - zone_time).total_seconds()) < 3600  # Within 1 hour
             ]
 
             if not zone_candles:
@@ -556,11 +553,7 @@ class ZoneIdentifier:
             filtered_zones = [
                 zone
                 for zone in zones
-                if (
-                    zone.symbol == symbol
-                    and zone.timeframe == timeframe
-                    and zone.is_active
-                )
+                if (zone.symbol == symbol and zone.timeframe == timeframe and zone.is_active)
             ]
             result.extend(filtered_zones)
 

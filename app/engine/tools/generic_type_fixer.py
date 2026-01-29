@@ -81,10 +81,7 @@ def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
                     continue
 
                 # Skip if it's a function call (e.g., list(), dict())
-                if (
-                    match.end() < len(line)
-                    and line[match.end() : match.end() + 1] == "("
-                ):
+                if match.end() < len(line) and line[match.end() : match.end() + 1] == "(":
                     continue
 
                 # Determine context (return type, argument, variable annotation, etc.)
@@ -120,7 +117,10 @@ def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
 
 
 def infer_generic_parameters(
-    code: str, type_name: str, function_name: str | None, line_num: int,
+    code: str,
+    type_name: str,
+    function_name: str | None,
+    line_num: int,
 ) -> str:
     """
     Try to infer the generic parameters based on usage
@@ -319,7 +319,9 @@ def add_generic_type_parameters(code: str) -> str:
     # Process each line with missing generics
     for line_idx in sorted(lines_to_process.keys(), reverse=True):
         items = sorted(
-            lines_to_process[line_idx], key=lambda x: x["column"], reverse=True,
+            lines_to_process[line_idx],
+            key=lambda x: x["column"],
+            reverse=True,
         )
         line = modified_lines[line_idx]
 
@@ -381,10 +383,7 @@ def add_generic_type_parameters(code: str) -> str:
 
             if has_imports:
                 modified_lines.insert(insert_idx, "from typing import Any")
-                if (
-                    insert_idx < len(modified_lines) - 1
-                    and modified_lines[insert_idx + 1].strip()
-                ):
+                if insert_idx < len(modified_lines) - 1 and modified_lines[insert_idx + 1].strip():
                     modified_lines.insert(insert_idx + 1, "")
             # Add at the beginning
             elif modified_lines[0].strip().startswith('"""'):

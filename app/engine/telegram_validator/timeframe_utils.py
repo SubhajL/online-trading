@@ -27,4 +27,3 @@ def timeframe_to_timedelta(timeframe: str) -> timedelta:
         return timedelta(weeks=n)
 
     raise ValueError(f"Unsupported timeframe: {timeframe}")
-

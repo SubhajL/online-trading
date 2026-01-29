@@ -17,7 +17,12 @@ from urllib.parse import urlparse
 
 import websockets
 from websockets import State as WebSocketState
-from websockets.exceptions import ConnectionClosed, InvalidStatusCode
+from websockets.exceptions import ConnectionClosed
+
+try:
+    from websockets.exceptions import InvalidStatusCode  # type: ignore[attr-defined]
+except ImportError:
+    from websockets.exceptions import InvalidStatus as InvalidStatusCode
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
@@ -128,7 +133,7 @@ class BinanceWebSocketClient:
         self.ping_interval = ping_interval
         self.ping_timeout = ping_timeout
 
-        self._websocket: websockets.WebSocketServerProtocol | None = None
+        self._websocket: Any = None
         self._subscriptions: set[str] = set()
         self._symbols: set[str] = set()
         self._timeframes: set[TimeFrame] = set()

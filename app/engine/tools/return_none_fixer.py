@@ -45,9 +45,7 @@ class ReturnNoneFixer:
 
                 # Check if function has -> None return annotation
                 if node.returns:
-                    return_type = (
-                        ast.unparse(node.returns) if hasattr(ast, "unparse") else None
-                    )
+                    return_type = ast.unparse(node.returns) if hasattr(ast, "unparse") else None
 
                     # Special case for __hash__ method
                     if node.name == "__hash__" and return_type == "None":
@@ -61,10 +59,7 @@ class ReturnNoneFixer:
                     elif return_type == "None":
                         # Find all return statements with values
                         for child in ast.walk(node):
-                            if (
-                                isinstance(child, ast.Return)
-                                and child.value is not None
-                            ):
+                            if isinstance(child, ast.Return) and child.value is not None:
                                 # Don't process returns in nested functions
                                 if self._is_in_current_function(child, node):
                                     fixes.append(
@@ -147,9 +142,9 @@ class ReturnNoneFixer:
                     content = f.read()
 
                 # Look for functions with -> None that have return statements with values
-                if (
-                    "-> None:" in content and re.search(r"return\s+[^:\s]", content)
-                ) or re.search(r"def __hash__\(self\)\s*->\s*None:", content):
+                if ("-> None:" in content and re.search(r"return\s+[^:\s]", content)) or re.search(
+                    r"def __hash__\(self\)\s*->\s*None:", content
+                ):
                     files_with_errors.append(str(py_file))
             except Exception:
                 # Skip files that can't be read

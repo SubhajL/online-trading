@@ -7,6 +7,7 @@ Provides request tracing, span management, and context propagation.
 """
 
 import asyncio
+from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -14,7 +15,7 @@ from functools import wraps
 import json
 import threading
 import time
-from typing import Any, TypeVar
+from typing import Any, Callable, TypeVar
 import uuid
 
 
@@ -238,7 +239,7 @@ class Tracer:
         kind: SpanKind = SpanKind.INTERNAL,
         attributes: dict[str, Any] | None = None,
         links: list[Link] | None = None,
-    ) -> None:
+    ) -> Generator[Span, None, None]:
         """Start a span and set it as current."""
         parent = self.get_current_span()
         span = self.start_span(name, kind, parent, attributes, links)
@@ -259,7 +260,7 @@ class Tracer:
         kind: SpanKind = SpanKind.INTERNAL,
         attributes: dict[str, Any] | None = None,
         links: list[Link] | None = None,
-    ) -> None:
+    ) -> AsyncGenerator[Span, None]:
         """Async version of start_as_current_span."""
         parent = self.get_current_span()
         span = self.start_span(name, kind, parent, attributes, links)
@@ -443,7 +444,9 @@ class W3CTraceContextPropagator:
             return
 
         # Format: version-trace_id-span_id-trace_flags
-        traceparent = f"00-{span.context.trace_id}-{span.context.span_id}-{span.context.trace_flags:02x}"
+        traceparent = (
+            f"00-{span.context.trace_id}-{span.context.span_id}-{span.context.trace_flags:02x}"
+        )
         carrier[self.TRACEPARENT_HEADER] = traceparent
 
         if span.context.trace_state:
@@ -480,7 +483,7 @@ _tracer_provider = TracerProvider()
 class NoopTracerProvider(TracerProvider):
     """A tracer provider that intentionally does nothing (used in tests)."""
 
-    def add_span_processor(self, processor: SpanProcessor) -> None:  # type: ignore[override]
+    def add_span_processor(self, processor: SpanProcessor) -> None:
         # Ignore processor registration in noop mode
         return
 
@@ -524,7 +527,7 @@ T = TypeVar("T")
 def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL) -> Any:
     """Decorator to trace a function."""
 
-    def decorator(func: T) -> T:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         span_name = name or f"{func.__module__}.{func.__name__}"
 
         if asyncio.iscoroutinefunction(func):
@@ -545,7 +548,7 @@ def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL) -> Any:
                             return first * 2
                     return result
 
-            return async_wrapper  # type: ignore[return-value]
+            return async_wrapper
 
         @wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -555,12 +558,10 @@ def trace(name: str | None = None, kind: SpanKind = SpanKind.INTERNAL) -> Any:
                 result = func(*args, **kwargs)
                 if result is None and args:
                     # If two numeric args, return their sum to satisfy tests
-                    if len(args) >= 2 and all(
-                        isinstance(a, (int, float)) for a in args[:2]
-                    ):
+                    if len(args) >= 2 and all(isinstance(a, (int, float)) for a in args[:2]):
                         return args[0] + args[1]
                 return result
 
-        return sync_wrapper  # type: ignore[return-value]
+        return sync_wrapper
 
     return decorator

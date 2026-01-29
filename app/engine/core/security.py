@@ -231,8 +231,7 @@ class EnvironmentValidator:
                     is_valid=False,
                     variable_name=name,
                     error=f"Variable {name} does not match required pattern",
-                    suggestion=rule.error_message
-                    or f"Ensure {name} matches the expected format",
+                    suggestion=rule.error_message or f"Ensure {name} matches the expected format",
                 )
 
         # Check length constraints
@@ -267,8 +266,7 @@ class EnvironmentValidator:
                 return ValidationResult(
                     is_valid=False,
                     variable_name=name,
-                    error=rule.error_message
-                    or f"Variable {name} failed custom validation",
+                    error=rule.error_message or f"Variable {name} failed custom validation",
                     suggestion=f"Check {name} meets security requirements",
                 )
 
@@ -551,11 +549,7 @@ class SecureConfig:
         key_lower = key.lower()
         # Exact match or contains the pattern as a word
         for pattern in sensitive_patterns:
-            if (
-                pattern == key_lower
-                or f"_{pattern}" in key_lower
-                or f"{pattern}_" in key_lower
-            ):
+            if pattern == key_lower or f"_{pattern}" in key_lower or f"{pattern}_" in key_lower:
                 return True
         return False
 

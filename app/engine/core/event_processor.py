@@ -171,7 +171,7 @@ class EventProcessor:
                 tg = None  # Py<3.11 safeguard; not expected in this env
 
             if tg is not None:
-                async with tg:  # type: ignore[attr-defined]
+                async with tg:
                     for sub in sorted_subscriptions:
                         if not sub.is_active:
                             continue
@@ -195,9 +195,7 @@ class EventProcessor:
                 successful_handlers += 1
             else:
                 failed_handlers += 1
-                error_type = (
-                    type(exc).__name__ if exc is not None else "ProcessingError"
-                )
+                error_type = type(exc).__name__ if exc is not None else "ProcessingError"
                 error_message = str(exc) if exc is not None else "Unknown error"
                 if error_message == "CircuitBreakerOpen":
                     error_type = "CircuitBreakerOpen"

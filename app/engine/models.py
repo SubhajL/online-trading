@@ -558,6 +558,11 @@ class RiskParameters(BaseModel):
     risk_per_trade: Decimal = Field(gt=0, le=0.1)  # Max 10% per trade
     max_correlation: Decimal = Field(ge=0, le=1)
     max_open_positions: int = Field(ge=1)
+    max_total_exposure_leverage: Decimal = Field(gt=0)
+    max_symbol_exposure_pct: Decimal = Field(gt=0, le=1)
+    max_position_notional_pct: Decimal = Field(gt=0, le=1)
+    risk_data_max_age_seconds: int = Field(ge=1)
+    drawdown_lookback_days: int = Field(ge=1)
     allowed_symbols: list[str] = Field(default_factory=list)
     trading_hours: dict[str, Any] | None = None
 

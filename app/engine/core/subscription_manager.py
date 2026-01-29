@@ -69,9 +69,7 @@ class SubscriptionManager:
         self._config = config or SubscriptionConfig()
 
         # Subscriptions by event type
-        self._specific_subscriptions: dict[EventType, list[EventSubscription]] = (
-            defaultdict(list)
-        )
+        self._specific_subscriptions: dict[EventType, list[EventSubscription]] = defaultdict(list)
 
         # Subscriptions for all events
         self._all_event_subscriptions: list[EventSubscription] = []
@@ -136,13 +134,9 @@ class SubscriptionManager:
                 subscriber_id=subscriber_id,
                 handler=handler,
                 event_types=event_type_set,
-                priority=(
-                    priority if priority is not None else self._config.default_priority
-                ),
+                priority=(priority if priority is not None else self._config.default_priority),
                 max_retries=(
-                    max_retries
-                    if max_retries is not None
-                    else self._config.default_max_retries
+                    max_retries if max_retries is not None else self._config.default_max_retries
                 ),
             )
 
@@ -217,11 +211,7 @@ class SubscriptionManager:
             # Add specific event type subscriptions
             if event_type in self._specific_subscriptions:
                 subscriptions.extend(
-                    [
-                        sub
-                        for sub in self._specific_subscriptions[event_type]
-                        if sub.is_active
-                    ],
+                    [sub for sub in self._specific_subscriptions[event_type] if sub.is_active],
                 )
 
             # Add all-events subscriptions

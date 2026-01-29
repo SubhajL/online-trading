@@ -97,9 +97,7 @@ class BacktestEngine:
                         balance -= trade["cost"]
 
             # Record equity
-            total_equity = balance + sum(
-                p["unrealized_pnl"] for p in self.positions.values()
-            )
+            total_equity = balance + sum(p["unrealized_pnl"] for p in self.positions.values())
             self.equity_curve.append((timestamp, total_equity))
 
         # Close remaining positions
@@ -226,7 +224,9 @@ class BacktestEngine:
         return True
 
     def _check_structure_break(
-        self, df: pd.DataFrame, index: int,
+        self,
+        df: pd.DataFrame,
+        index: int,
     ) -> dict[Any, Any] | None:
         """
         Check for market structure break.
@@ -316,11 +316,7 @@ class BacktestEngine:
             quantity=position_size,
             stop_loss=signal["stop_loss"],
             take_profit=Decimal(str(signal["entry_price"]))
-            + (
-                stop_distance * 2
-                if signal["direction"] == "bullish"
-                else -stop_distance * 2
-            ),
+            + (stop_distance * 2 if signal["direction"] == "bullish" else -stop_distance * 2),
             confidence=Decimal("0.7"),
             reasoning=f"Structure break {signal['direction']}",
         )
