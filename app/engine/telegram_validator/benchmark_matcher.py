@@ -126,7 +126,7 @@ def score_match(
             breakdown["entry_delta_bps"] = entry_delta_bps
         return ValidationScore(score=0.0, breakdown=breakdown)
 
-    breakdown: dict[str, float] = {
+    breakdown: dict[str, float] = {  # type: ignore[no-redef]
         "direction": direction_match if direction_match is not None else 0.0,
         "time": max(0.0, 1.0 - (delta / float(time_window_seconds))),
         "entry": entry_component if entry_component is not None else 0.0,

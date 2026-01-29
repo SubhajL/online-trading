@@ -40,7 +40,7 @@ async def test_upsert_external_telegram_signal_uses_on_conflict_upsert() -> None
     )
 
     fake_conn = _FakeConn()
-    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     await adapter.upsert_external_telegram_signal(
         source="captain",
@@ -80,7 +80,7 @@ async def test_upsert_external_telegram_signal_validation_uses_on_conflict_upser
     )
 
     fake_conn = _FakeConn()
-    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     await adapter.upsert_external_telegram_signal_validation(
         source="captain",
@@ -115,7 +115,7 @@ async def test_upsert_external_telegram_signal_validation_serializes_breakdown_t
     )
 
     fake_conn = _FakeConn()
-    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     breakdown_dict = {"direction": 1.0, "time": 0.8, "entry": 0.95}
     await adapter.upsert_external_telegram_signal_validation(
@@ -150,7 +150,7 @@ async def test_upsert_external_telegram_signal_validation_handles_none_breakdown
     )
 
     fake_conn = _FakeConn()
-    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     await adapter.upsert_external_telegram_signal_validation(
         source="captain",

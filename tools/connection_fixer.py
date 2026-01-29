@@ -7,7 +7,7 @@ Other functions are forwarded as-is.
 
 from typing import Any, List, Tuple
 
-from app.engine.tools.connection_fixer import (  # type: ignore
+from app.engine.tools.connection_fixer import (
     add_connection_type_hints as _engine_add_connection_type_hints,
     detect_connection_patterns as _engine_detect_connection_patterns,
     fix_connection_annotations,

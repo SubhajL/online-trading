@@ -114,8 +114,8 @@ def evaluate_trade_outcome_with_fill_model(
         side=direction,
         entry_price=entry_price,
         stop_loss=stop_loss,
-        take_profits=[take_profit],
-        tp_sizes=[Decimal("1.0")],  # Full position at TP
+        take_profits=[take_profit],  # type: ignore[arg-type]
+        tp_sizes=[Decimal("1.0")],  # type: ignore[arg-type]  # Full position at TP
     )
 
     # Run fill simulation

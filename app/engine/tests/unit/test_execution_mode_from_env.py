@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
@@ -55,10 +56,12 @@ class TestExecutionModeFromEnv:
             execution_mode_from_env({"EXECUTION_MODE": "futures_mainnet"})
 
     def test_allows_futures_mainnet_with_ack(self) -> None:
-        result = execution_mode_from_env({
-            "EXECUTION_MODE": "futures_mainnet",
-            "I_UNDERSTAND_LIVE_TRADING": "1",
-        })
+        result = execution_mode_from_env(
+            {
+                "EXECUTION_MODE": "futures_mainnet",
+                "I_UNDERSTAND_LIVE_TRADING": "1",
+            }
+        )
         assert result == ExecutionMode.FUTURES_MAINNET
 
     def test_allows_futures_testnet(self) -> None:
@@ -77,10 +80,12 @@ class TestExecutionModeFromEnv:
 
     def test_allows_spot_mainnet_with_ack(self) -> None:
         """Test that spot_mainnet is accepted with safety flag."""
-        result = execution_mode_from_env({
-            "EXECUTION_MODE": "spot_mainnet",
-            "I_UNDERSTAND_LIVE_TRADING": "1",
-        })
+        result = execution_mode_from_env(
+            {
+                "EXECUTION_MODE": "spot_mainnet",
+                "I_UNDERSTAND_LIVE_TRADING": "1",
+            }
+        )
         assert result == ExecutionMode.SPOT_MAINNET
 
 
@@ -135,7 +140,8 @@ class TestBuildOrderPayload:
 
     @pytest.mark.asyncio
     async def test_payload_includes_decision_ts(
-        self, sample_event: TradingDecisionEvent,
+        self,
+        sample_event: TradingDecisionEvent,
     ) -> None:
         mock_bus = MagicMock()
         mock_bus.publish = AsyncMock()
@@ -145,10 +151,11 @@ class TestBuildOrderPayload:
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,
             router_client=mock_router,
-            db_adapter=_FakeDBAdapter(),
+            db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
             risk=_default_risk(),
             venue="SPOT",
             execution_mode=ExecutionMode.SPOT_TESTNET,
+            order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
         )
 
         await subscriber._on_trading_decision(sample_event)
@@ -161,7 +168,8 @@ class TestBuildOrderPayload:
 
     @pytest.mark.asyncio
     async def test_payload_includes_expected_price(
-        self, sample_event: TradingDecisionEvent,
+        self,
+        sample_event: TradingDecisionEvent,
     ) -> None:
         mock_bus = MagicMock()
         mock_bus.publish = AsyncMock()
@@ -171,10 +179,11 @@ class TestBuildOrderPayload:
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,
             router_client=mock_router,
-            db_adapter=_FakeDBAdapter(),
+            db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
             risk=_default_risk(),
             venue="SPOT",
             execution_mode=ExecutionMode.SPOT_TESTNET,
+            order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
         )
 
         await subscriber._on_trading_decision(sample_event)
@@ -187,7 +196,8 @@ class TestBuildOrderPayload:
 
     @pytest.mark.asyncio
     async def test_expected_price_is_string_decimal(
-        self, sample_decision: TradingDecision,
+        self,
+        sample_decision: TradingDecision,
     ) -> None:
         sample_decision = TradingDecision(
             symbol="BTCUSDT",
@@ -217,10 +227,11 @@ class TestBuildOrderPayload:
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,
             router_client=mock_router,
-            db_adapter=_FakeDBAdapter(),
+            db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
             risk=_default_risk(),
             venue="SPOT",
             execution_mode=ExecutionMode.SPOT_TESTNET,
+            order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
         )
 
         await subscriber._on_trading_decision(event)

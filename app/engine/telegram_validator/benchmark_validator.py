@@ -203,7 +203,7 @@ async def validate_external_signals(  # noqa: PLR0913
             internal_ts = best.timestamp
             # Build internal match snapshot for reproducibility
             internal_match = InternalMatchSnapshot(
-                kind=best.kind,  # type: ignore[arg-type]
+                kind=best.kind,
                 internal_id=best.id,
                 timestamp=best.timestamp.isoformat(),
                 direction=best.direction,

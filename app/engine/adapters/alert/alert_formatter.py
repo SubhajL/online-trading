@@ -94,19 +94,36 @@ class AlertFormatter:
         status = order["status"]
         quantity = order["quantity"]
 
+        normalized_status = (
+            status.lower() if isinstance(status, str) else str(status).lower()
+        ).replace("cancelled", "canceled")
+
         # Status emoji
         status_emoji = {
+            "new": "✅",
             "filled": "✅",
             "partially_filled": "🔄",
-            "cancelled": "❌",
+            "canceled": "❌",
             "rejected": "🚫",
-        }.get(status, "ℹ️")  # noqa: RUF001
+        }.get(normalized_status, "ℹ️")  # noqa: RUF001
 
         # Build message
-        lines = [f"{status_emoji} Order {status.title()}"]
+        status_title = (
+            "Accepted"
+            if normalized_status == "new"
+            else normalized_status.replace("_", " ").title()
+        )
+        lines = [f"{status_emoji} Order {status_title}"]
         lines.append(f"{symbol}")
 
-        if status == "filled" and "filled_price" in order:
+        if (
+            normalized_status in {"new", "filled"}
+            and "price" in order
+            and order["price"] is not None
+        ):
+            price = order["price"]
+            lines.append(f"{side.title()} {quantity} @ {self._format_currency(price)}")
+        elif normalized_status == "filled" and "filled_price" in order:
             price = order["filled_price"]
             lines.append(f"{side.title()} {quantity} @ {self._format_currency(price)}")
         else:

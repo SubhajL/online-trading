@@ -142,7 +142,7 @@ class TestCacheFeatures:
         df = pd.DataFrame({"value": [1, 2, 3]})
 
         # Cache with 1 second TTL
-        cache_features(df, "expire_key", ttl_hours=1 / 3600)  # 1 second
+        cache_features(df, "expire_key", ttl_hours=1 / 3600)  # type: ignore[arg-type]  # 1 second
 
         # Sleep briefly
         import time

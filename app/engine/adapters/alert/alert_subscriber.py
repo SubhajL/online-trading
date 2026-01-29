@@ -3,7 +3,7 @@ AlertSubscriber - Routes trading events to alert adapters.
 Subscribes to the event bus and dispatches events to configured alert channels.
 
 Mode-aware behavior:
-- When execution_enabled=True: Subscribes to ORDER_PLACED (alerts after order confirmation)
+- When execution_enabled=True: Subscribes to ORDER_UPDATE (alerts on router/exchange updates)
 - When execution_enabled=False: Subscribes to TRADING_DECISION (alerts on signal, with snapshots)
 """
 
@@ -18,7 +18,7 @@ from app.engine.models import (
     ErrorEvent,
     EventType,
     OrderFilledEvent,
-    OrderPlacedEvent,
+    OrderUpdateEvent,
     TradingDecisionEvent,
 )
 
@@ -117,6 +117,48 @@ def _order_filled_event_to_order_update_payload(
     }
 
 
+def _normalize_order_update_status(raw: str) -> str:
+    status = raw.strip().upper()
+    mapping = {
+        "NEW": "new",
+        "PARTIALLY_FILLED": "partially_filled",
+        "FILLED": "filled",
+        "CANCELED": "canceled",
+        "CANCELLED": "canceled",
+        "REJECTED": "rejected",
+        "EXPIRED": "expired",
+    }
+    return mapping.get(status, status.lower())
+
+
+def _order_update_event_to_order_update_payload(
+    event: OrderUpdateEvent,
+) -> dict[str, object]:
+    upd = event.update
+    status = _normalize_order_update_status(upd.status)
+    side = upd.side.lower() if isinstance(upd.side, str) else "unknown"
+
+    quantity = upd.quantity if upd.quantity is not None else upd.executed_qty
+
+    payload: dict[str, object] = {
+        "symbol": upd.symbol,
+        "side": side,
+        "status": status,
+        "quantity": quantity,
+        "price": upd.price,
+        "executed_qty": upd.executed_qty,
+        "client_order_id": upd.client_order_id,
+    }
+
+    if upd.reason:
+        payload["reason"] = upd.reason
+
+    if status == "filled" and upd.price is not None:
+        payload["filled_price"] = upd.price
+
+    return payload
+
+
 def _error_event_to_text(event: ErrorEvent) -> str:
     return (
         "🚨 Engine error\n"
@@ -133,10 +175,9 @@ DEFAULT_ALERT_EVENT_TYPES: list[EventType] = [
     EventType.ERROR,
 ]
 
-# Event types for execution-enabled mode (alert after order placed)
+# Event types for execution-enabled mode (alert on order updates)
 EXECUTION_ENABLED_EVENT_TYPES: list[EventType] = [
-    EventType.ORDER_PLACED,
-    EventType.ORDER_FILLED,
+    EventType.ORDER_UPDATE,
     EventType.ERROR,
 ]
 
@@ -147,87 +188,6 @@ EXECUTION_DISABLED_EVENT_TYPES: list[EventType] = [
 ]
 
 
-def _order_placed_event_to_alert_payload(
-    event: OrderPlacedEvent,
-) -> dict[str, object] | None:
-    """Convert OrderPlacedEvent with enriched decision context to alert payload."""
-    # Use enriched decision context if available
-    if event.decision is None:
-        # Fallback to minimal Order info
-        order = event.order
-        return {
-            "symbol": order.symbol,
-            "side": "long" if order.side.value == "BUY" else "short",
-            "timestamp": event.timestamp,
-            "timeframe": event.timeframe.value if event.timeframe else None,
-            "venue": event.metadata.get("venue"),
-            "zone": event.metadata.get("zone"),
-            "signal_id": event.metadata.get("signal_id"),
-            "entry_price": order.price,
-            "stop_loss": None,
-            "take_profit": None,
-            "quantity": order.quantity,
-            "confidence": None,
-            "reasons": [],
-            "is_order_placed": True,
-        }
-
-    # Use enriched decision context
-    decision = event.decision
-    action = str(decision.action).upper()
-    if action not in {"BUY", "SELL"}:
-        return None
-
-    metadata_timeframe = event.metadata.get("timeframe")
-    timeframe = (
-        metadata_timeframe
-        if isinstance(metadata_timeframe, str) and metadata_timeframe
-        else (event.timeframe.value if event.timeframe else None)
-    )
-
-    entry_price = decision.entry_price
-    stop_loss = decision.stop_loss
-    take_profit = decision.take_profit
-    quantity = decision.quantity
-
-    if entry_price is None or stop_loss is None or take_profit is None or quantity is None:
-        return None
-
-    side = "long" if action == "BUY" else "short"
-    reasons = [r for r in decision.reasoning.split("; ") if r] if decision.reasoning else []
-
-    signal_id = event.metadata.get("signal_id")
-    if not isinstance(signal_id, str):
-        signal_id = None
-
-    venue = event.metadata.get("venue")
-    if not isinstance(venue, str):
-        venue = None
-
-    zone = event.metadata.get("zone")
-    if not isinstance(zone, dict):
-        zone = None
-
-    return {
-        "symbol": event.symbol,
-        "side": side,
-        "timestamp": event.timestamp,
-        "timeframe": timeframe,
-        "venue": venue,
-        "zone": zone,
-        "signal_id": signal_id,
-        "entry_price": entry_price,
-        "stop_loss": stop_loss,
-        "take_profit": take_profit,
-        "quantity": quantity,
-        "confidence": float(decision.confidence)
-        if isinstance(decision.confidence, Decimal)
-        else decision.confidence,
-        "reasons": reasons,
-        "is_order_placed": True,  # Flag to indicate order was placed
-    }
-
-
 class AlertSubscriber:
     """
     Subscribes to trading events and routes to alert channels.
@@ -236,7 +196,7 @@ class AlertSubscriber:
     using the correct bus API (subscriber_id, handler, event_types, priority).
 
     Mode-aware behavior:
-    - execution_enabled=True: Subscribes to ORDER_PLACED (alerts after order confirmation)
+    - execution_enabled=True: Subscribes to ORDER_UPDATE (alerts on router/exchange updates)
     - execution_enabled=False: Subscribes to TRADING_DECISION (alerts on signal)
     """
 
@@ -248,6 +208,7 @@ class AlertSubscriber:
         execution_enabled: bool = False,
         bff_client: _BffClient | None = None,
         cooldown: SignalCooldown | None = None,
+        allowed_decision_sources: set[str] | None = None,
     ) -> None:
         """
         Initialize the alert subscriber.
@@ -265,6 +226,11 @@ class AlertSubscriber:
         self._execution_enabled = execution_enabled
         self._bff_client = bff_client
         self._cooldown = cooldown
+        self._allowed_decision_sources = (
+            allowed_decision_sources
+            if allowed_decision_sources is not None
+            else {"retest_decision_publisher"}
+        )
 
         # Mode-dependent default event types if not explicitly provided
         if event_types is not None:
@@ -311,20 +277,16 @@ class AlertSubscriber:
             if not self.telegram:
                 return
 
-            if isinstance(event, OrderPlacedEvent):
-                # Execution-enabled mode: alert after order is placed
-                payload = _order_placed_event_to_alert_payload(event)
-                if payload is None:
+            if isinstance(event, OrderUpdateEvent):
+                if not self._is_allowed_trade_alert_event(event):
                     return
-
-                # Check cooldown (defense-in-depth, complements execution cooldown)
-                if not self._check_and_record_cooldown(event):
-                    return
-
-                await self.telegram._handle_decision(payload)
+                payload = _order_update_event_to_order_update_payload(event)
+                await self.telegram._handle_order_update(payload)
                 return
 
             if isinstance(event, TradingDecisionEvent):
+                if not self._is_allowed_trade_alert_event(event):
+                    return
                 # Execution-disabled mode: alert on decision (signal-only)
                 payload = _decision_event_to_alert_payload(event)
                 if payload is None:
@@ -355,6 +317,15 @@ class AlertSubscriber:
 
         except Exception:
             logger.exception("Error handling event %s", event.event_type)
+
+    def _is_allowed_trade_alert_event(
+        self,
+        event: TradingDecisionEvent | OrderUpdateEvent,
+    ) -> bool:
+        decision_source = event.metadata.get("decision_source")
+        if not isinstance(decision_source, str):
+            return False
+        return decision_source in self._allowed_decision_sources
 
     async def _notify_snapshot_for_decision(self, event: TradingDecisionEvent) -> None:
         """Trigger snapshot generation via BFF client for decision alerts.
@@ -392,18 +363,12 @@ class AlertSubscriber:
         await self.unregister()
         logger.info("AlertSubscriber stopped")
 
-    def _check_and_record_cooldown(
-        self,
-        event: TradingDecisionEvent | OrderPlacedEvent,
-    ) -> bool:
+    def _check_and_record_cooldown(self, event: TradingDecisionEvent) -> bool:
         """Check cooldown for alert deduplication.
 
         Returns True if alert should proceed, False if blocked by cooldown.
         If allowed and cooldown is configured, records the signal for future checks.
         """
-        if isinstance(event, OrderPlacedEvent):
-            return True
-
         if self._cooldown is None:
             return True
 
@@ -415,12 +380,7 @@ class AlertSubscriber:
             return True
 
         # Get direction from decision
-        is_order_placed = isinstance(event, OrderPlacedEvent) and event.decision
-        is_decision = isinstance(event, TradingDecisionEvent)
-        if is_order_placed or is_decision:
-            direction = str(event.decision.action).upper()
-        else:
-            direction = "UNKNOWN"
+        direction = str(event.decision.action).upper()
 
         # Get timeframe
         timeframe_str = (

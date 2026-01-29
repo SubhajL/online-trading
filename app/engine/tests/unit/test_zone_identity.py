@@ -62,10 +62,10 @@ class TestExtractZoneIdentity:
 
     def test_returns_none_for_non_dict_metadata(self) -> None:
         """Should return None for non-dict metadata."""
-        assert extract_zone_identity(None) is None  # type: ignore[arg-type]
-        assert extract_zone_identity("not a dict") is None  # type: ignore[arg-type]
-        assert extract_zone_identity(123) is None  # type: ignore[arg-type]
-        assert extract_zone_identity([]) is None  # type: ignore[arg-type]
+        assert extract_zone_identity(None) is None
+        assert extract_zone_identity("not a dict") is None
+        assert extract_zone_identity(123) is None
+        assert extract_zone_identity([]) is None
 
     def test_includes_zone_type_if_present(self) -> None:
         """Should include zone_type in result if available."""

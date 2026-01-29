@@ -13,11 +13,12 @@ from app.engine.models import (
     ErrorEvent,
     EventType,
     Order,
-    OrderPlacedEvent,
-    OrderStatus,
     OrderFilledEvent,
     OrderSide,
+    OrderStatus,
     OrderType,
+    OrderUpdate,
+    OrderUpdateEvent,
     TimeFrame,
     TradingDecision,
     TradingDecisionEvent,
@@ -71,7 +72,10 @@ def _make_trading_decision_event(*, timestamp: datetime) -> TradingDecisionEvent
         timestamp=timestamp,
         symbol="BTCUSDT",
         timeframe=TimeFrame.H1,
-        metadata={"signal_id": "sig_123"},
+        metadata={
+            "signal_id": "sig_123",
+            "decision_source": "retest_decision_publisher",
+        },
         decision=decision,
     )
 
@@ -127,9 +131,9 @@ class TestAlertSubscriberRegister:
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
         # Default is execution_enabled=False, which subscribes to decision-only events
-        assert EventType.TRADING_DECISION in event_types
-        assert EventType.ERROR in event_types
-        assert len(event_types) == 2
+        assert EventType.TRADING_DECISION in event_types  # type: ignore[operator]
+        assert EventType.ERROR in event_types  # type: ignore[operator]
+        assert len(event_types) == 2  # type: ignore[arg-type]
 
     @pytest.mark.asyncio
     async def test_registers_with_low_priority(self) -> None:
@@ -178,6 +182,66 @@ class TestAlertSubscriberHandleEvent:
         assert payload["reasons"] == ["SMC Break", "Trend Alignment"]
 
     @pytest.mark.asyncio
+    async def test_trade_alert_is_skipped_when_decision_source_missing(self) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_decision = AsyncMock()
+
+        subscriber = AlertSubscriber(telegram_adapter=mock_telegram)
+        ts = datetime.now(UTC)
+
+        event = _make_trading_decision_event(timestamp=ts)
+        event.metadata.pop("decision_source", None)
+
+        await subscriber._handle_event(event)
+
+        mock_telegram._handle_decision.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_trade_alert_is_skipped_when_decision_source_is_bypass(self) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_decision = AsyncMock()
+
+        subscriber = AlertSubscriber(telegram_adapter=mock_telegram)
+        ts = datetime.now(UTC)
+
+        event = _make_trading_decision_event(timestamp=ts)
+        event.metadata["decision_source"] = "signal_emitter_bypass"
+
+        await subscriber._handle_event(event)
+
+        mock_telegram._handle_decision.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_order_placed_alert_is_skipped_when_decision_source_missing(self) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_order_update = AsyncMock()
+
+        subscriber = AlertSubscriber(telegram_adapter=mock_telegram, execution_enabled=True)
+        ts = datetime.now(UTC)
+
+        event = OrderUpdateEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            metadata={"signal_id": "sig_123"},
+            update=OrderUpdate(
+                symbol="BTCUSDT",
+                order_id=123,
+                client_order_id="order-123",
+                status="NEW",
+                side="BUY",
+                order_type="LIMIT",
+                price=Decimal("50000.00"),
+                quantity=Decimal("0.01"),
+                executed_qty=Decimal("0"),
+                update_time=ts,
+            ),
+        )
+
+        await subscriber._handle_event(event)
+
+        mock_telegram._handle_order_update.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_routes_zone_metadata_to_telegram_payload(self) -> None:
         mock_telegram = MagicMock()
         mock_telegram._handle_decision = AsyncMock()
@@ -203,6 +267,7 @@ class TestAlertSubscriberHandleEvent:
             decision=decision,
             metadata={
                 "signal_id": "sig_456",
+                "decision_source": "retest_decision_publisher",
                 "timeframe": "15m",
                 "zone": {
                     "zone_type": "FAIR_VALUE_GAP",
@@ -297,13 +362,13 @@ class TestAlertSubscriberEventTypesParameter:
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
         # Default is execution_enabled=False
-        assert len(event_types) == 2
-        assert EventType.TRADING_DECISION in event_types
-        assert EventType.ERROR in event_types
+        assert len(event_types) == 2  # type: ignore[arg-type]
+        assert EventType.TRADING_DECISION in event_types  # type: ignore[operator]
+        assert EventType.ERROR in event_types  # type: ignore[operator]
 
     @pytest.mark.asyncio
     async def test_execution_enabled_event_types(self) -> None:
-        """When execution_enabled=True, subscribes to ORDER_PLACED events."""
+        """When execution_enabled=True, subscribes to ORDER_UPDATE events."""
         bus = _FakeBus()
         subscriber = AlertSubscriber(execution_enabled=True)
 
@@ -311,10 +376,9 @@ class TestAlertSubscriberEventTypesParameter:
 
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
-        assert len(event_types) == 3
-        assert EventType.ORDER_PLACED in event_types
-        assert EventType.ORDER_FILLED in event_types
-        assert EventType.ERROR in event_types
+        assert len(event_types) == 2  # type: ignore[arg-type]
+        assert EventType.ORDER_UPDATE in event_types  # type: ignore[operator]
+        assert EventType.ERROR in event_types  # type: ignore[operator]
 
     @pytest.mark.asyncio
     async def test_custom_event_types_override(self) -> None:
@@ -337,8 +401,8 @@ class TestAlertSubscriberEventTypesParameter:
         await subscriber.register(bus)
 
         event_types = bus.subscriptions[0]["event_types"]
-        assert EventType.ORDER_FILLED not in event_types
-        assert EventType.ERROR not in event_types
+        assert EventType.ORDER_FILLED not in event_types  # type: ignore[operator]
+        assert EventType.ERROR not in event_types  # type: ignore[operator]
 
     @pytest.mark.asyncio
     async def test_multiple_custom_event_types(self) -> None:
@@ -350,10 +414,10 @@ class TestAlertSubscriberEventTypesParameter:
         await subscriber.register(bus)
 
         event_types = bus.subscriptions[0]["event_types"]
-        assert len(event_types) == 2
-        assert EventType.TRADING_DECISION in event_types
-        assert EventType.ERROR in event_types
-        assert EventType.ORDER_FILLED not in event_types
+        assert len(event_types) == 2  # type: ignore[arg-type]
+        assert EventType.TRADING_DECISION in event_types  # type: ignore[operator]
+        assert EventType.ERROR in event_types  # type: ignore[operator]
+        assert EventType.ORDER_FILLED not in event_types  # type: ignore[operator]
 
 
 class TestAlertSubscriberSnapshotTiming:
@@ -377,7 +441,7 @@ class TestAlertSubscriberSnapshotTiming:
         mock_telegram = _TrackingTelegram()
 
         subscriber = AlertSubscriber(
-            telegram_adapter=mock_telegram,
+            telegram_adapter=mock_telegram,  # type: ignore[arg-type]
             execution_enabled=False,
             bff_client=bff_client,
         )
@@ -401,7 +465,7 @@ class TestAlertSubscriberSnapshotTiming:
         mock_telegram = _TrackingTelegram()
 
         subscriber = AlertSubscriber(
-            telegram_adapter=mock_telegram,
+            telegram_adapter=mock_telegram,  # type: ignore[arg-type]
             execution_enabled=False,
             bff_client=None,  # No BFF client
         )
@@ -433,7 +497,7 @@ class TestAlertSubscriberCooldown:
         cooldown = SignalCooldown(cooldown_seconds=300)
 
         subscriber = AlertSubscriber(
-            telegram_adapter=mock_telegram,
+            telegram_adapter=mock_telegram,  # type: ignore[arg-type]
             execution_enabled=False,
             cooldown=cooldown,
         )
@@ -456,6 +520,7 @@ class TestAlertSubscriberCooldown:
             timeframe=TimeFrame.H1,
             metadata={
                 "signal_id": "sig_123",
+                "decision_source": "retest_decision_publisher",
                 "zone": {"zone_id": "zone-abc", "zone_type": "DEMAND"},
             },
             decision=decision,
@@ -485,7 +550,7 @@ class TestAlertSubscriberCooldown:
         cooldown = SignalCooldown(cooldown_seconds=300)
 
         subscriber = AlertSubscriber(
-            telegram_adapter=mock_telegram,
+            telegram_adapter=mock_telegram,  # type: ignore[arg-type]
             execution_enabled=False,
             cooldown=cooldown,
         )
@@ -499,6 +564,7 @@ class TestAlertSubscriberCooldown:
             timeframe=TimeFrame.H1,
             metadata={
                 "signal_id": "sig_1",
+                "decision_source": "retest_decision_publisher",
                 "zone": {"zone_id": "zone-1", "zone_type": "DEMAND"},
             },
             decision=TradingDecision(
@@ -521,6 +587,7 @@ class TestAlertSubscriberCooldown:
             timeframe=TimeFrame.H1,
             metadata={
                 "signal_id": "sig_2",
+                "decision_source": "retest_decision_publisher",
                 "zone": {"zone_id": "zone-2", "zone_type": "SUPPLY"},
             },
             decision=TradingDecision(
@@ -558,7 +625,7 @@ class TestAlertSubscriberCooldown:
         cooldown = SignalCooldown(cooldown_seconds=300)
 
         subscriber = AlertSubscriber(
-            telegram_adapter=mock_telegram,
+            telegram_adapter=mock_telegram,  # type: ignore[arg-type]
             execution_enabled=False,
             cooldown=cooldown,
         )
@@ -568,7 +635,10 @@ class TestAlertSubscriberCooldown:
             timestamp=ts,
             symbol="BTCUSDT",
             timeframe=TimeFrame.H1,
-            metadata={"signal_id": "sig_123"},  # No zone
+            metadata={
+                "signal_id": "sig_123",
+                "decision_source": "retest_decision_publisher",
+            },  # No zone
             decision=TradingDecision(
                 symbol="BTCUSDT",
                 timestamp=ts,
@@ -590,57 +660,45 @@ class TestAlertSubscriberCooldown:
         assert call_count == 2
 
     @pytest.mark.asyncio
-    async def test_order_placed_alert_is_not_cooldown_blocked(self) -> None:
-        """ORDER_PLACED alerts should never be suppressed by cooldown."""
+    async def test_order_update_alert_is_not_cooldown_blocked(self) -> None:
+        """ORDER_UPDATE alerts should never be suppressed by cooldown."""
         from app.engine.core.signal_cooldown import SignalCooldown
 
         call_count = 0
 
         class _TrackingTelegram:
-            async def _handle_decision(self, payload: dict) -> None:
+            async def _handle_order_update(self, payload: dict) -> None:
                 nonlocal call_count
                 call_count += 1
 
         ts = datetime.now(UTC)
         cooldown = SignalCooldown(cooldown_seconds=300)
         subscriber = AlertSubscriber(
-            telegram_adapter=_TrackingTelegram(),
+            telegram_adapter=_TrackingTelegram(),  # type: ignore[arg-type]
             execution_enabled=True,
             cooldown=cooldown,
         )
 
-        decision = TradingDecision(
-            symbol="BTCUSDT",
-            timestamp=ts,
-            action="BUY",
-            entry_price=Decimal(50000),
-            stop_loss=Decimal(49000),
-            take_profit=Decimal(52000),
-            quantity=Decimal("0.01"),
-            confidence=Decimal("0.85"),
-            reasoning="SMC Break",
-        )
-        order = Order(
-            client_order_id="order-123",
-            symbol="BTCUSDT",
-            side=OrderSide.BUY,
-            type=OrderType.LIMIT,
-            quantity=Decimal("0.01"),
-            price=Decimal(50000),
-            status=OrderStatus.NEW,
-            created_at=ts,
-        )
-        event = OrderPlacedEvent(
+        event = OrderUpdateEvent(
             timestamp=ts,
             symbol="BTCUSDT",
-            timeframe=TimeFrame.H1,
             metadata={
                 "signal_id": "sig_123",
+                "decision_source": "retest_decision_publisher",
                 "zone": {"zone_id": "zone-abc", "zone_type": "DEMAND"},
             },
-            order=order,
-            decision=decision,
-            router_response={"success": True},
+            update=OrderUpdate(
+                symbol="BTCUSDT",
+                order_id=123,
+                client_order_id="order-123",
+                status="NEW",
+                side="BUY",
+                order_type="LIMIT",
+                price=Decimal("50000.00"),
+                quantity=Decimal("0.01"),
+                executed_qty=Decimal("0"),
+                update_time=ts,
+            ),
         )
 
         await subscriber._handle_event(event)

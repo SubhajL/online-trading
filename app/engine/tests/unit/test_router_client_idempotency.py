@@ -65,7 +65,7 @@ class TestRouterClientIdempotency:
             captured_data = data
             return {"success": True, "orderId": "12345"}
 
-        router_client._make_request = AsyncMock(side_effect=capture_request)
+        router_client._make_request = AsyncMock(side_effect=capture_request)  # type: ignore[method-assign]
 
         await router_client.place_order(sample_decision)
 
@@ -94,7 +94,7 @@ class TestRouterClientIdempotency:
                 captured_ids.append(data["newClientOrderId"])
             return {"success": True, "orderId": "12345"}
 
-        router_client._make_request = AsyncMock(side_effect=capture_request)
+        router_client._make_request = AsyncMock(side_effect=capture_request)  # type: ignore[method-assign]
 
         await router_client.place_order(sample_decision)
         await router_client.place_order(sample_decision)
@@ -120,7 +120,7 @@ class TestRouterClientIdempotency:
                 captured_ids.append(data["newClientOrderId"])
             return {"success": True, "orderId": "12345"}
 
-        router_client._make_request = AsyncMock(side_effect=capture_request)
+        router_client._make_request = AsyncMock(side_effect=capture_request)  # type: ignore[method-assign]
 
         decision1 = TradingDecision(
             decision_id=UUID("11111111-1111-1111-1111-111111111111"),
@@ -164,7 +164,7 @@ class TestRouterClientIdempotency:
             captured_payloads.append(data or {})
             return {"success": True}
 
-        router_client._make_request = AsyncMock(side_effect=capture_request)
+        router_client._make_request = AsyncMock(side_effect=capture_request)  # type: ignore[method-assign]
 
         payload = {
             "symbol": "BTCUSDT",

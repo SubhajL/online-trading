@@ -172,8 +172,8 @@ class DeliveryOrchestrator:
                         "error": str(result),
                     }
                 else:
-                    results[channel_name] = result
-                    if result.get("success"):
+                    results[channel_name] = result  # type: ignore[assignment]
+                    if result.get("success"):  # type: ignore[union-attr]
                         success_count += 1
 
         # Overall success if at least one channel succeeded
@@ -293,7 +293,7 @@ class DeliveryOrchestrator:
                 if isinstance(result, Exception):
                     results[channel_name] = {"success": False, "error": str(result)}
                 else:
-                    results[channel_name] = result
+                    results[channel_name] = result  # type: ignore[assignment]
 
         return results
 

@@ -80,7 +80,7 @@ def infer_return_type(code: str, function_name: str) -> str:
 
     class ReturnTypeFinder(ast.NodeVisitor):
         def __init__(self) -> None:
-            self.return_values = []
+            self.return_values: list[object] = []
             self.in_target_function = False
             self.has_bare_return = False
 

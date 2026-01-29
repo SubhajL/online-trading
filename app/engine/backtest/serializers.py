@@ -280,7 +280,7 @@ class ResultSerializer:
                     s3_key = f"{s3_prefix}/{relative_path}".replace("\\", "/")
 
                     try:
-                        self.s3_client.upload_file(str(file_path), bucket, s3_key)
+                        self.s3_client.upload_file(str(file_path), bucket, s3_key)  # type: ignore[attr-defined]
                         success_count += 1
                     except Exception as e:
                         logger.error(f"Failed to upload {file_path}: {e}")
@@ -430,7 +430,7 @@ class ResultSerializer:
             )
             if report_id:
                 status["database"] = True
-                status["report_id"] = report_id
+                status["report_id"] = report_id  # type: ignore[assignment]
 
         # Upload to S3
         if upload_to_s3 and result.artifacts_path and self.s3_client:

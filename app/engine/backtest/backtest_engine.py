@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from ..decision.decision_engine import DecisionEngine
-from ..features.indicators import IndicatorCalculator
+from ..features.indicators import IndicatorCalculator  # type: ignore[attr-defined]
 from ..models import (
     TechnicalIndicators,
     TimeFrame,

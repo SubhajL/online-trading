@@ -89,7 +89,7 @@ class TestSpan:
         assert span.status.code == StatusCode.UNSET
 
         span.set_status(StatusCode.OK)
-        assert span.status.code == StatusCode.OK
+        assert span.status.code == StatusCode.OK  # type: ignore[comparison-overlap]
 
         span.set_status(StatusCode.ERROR, "Error message")
         assert span.status.code == StatusCode.ERROR
@@ -316,7 +316,7 @@ class TestW3CTraceContextPropagator:
         )
         span = Span("test", context)
 
-        carrier = {}
+        carrier: dict[str, str] = {}
         propagator.inject(span, carrier)
 
         assert "traceparent" in carrier

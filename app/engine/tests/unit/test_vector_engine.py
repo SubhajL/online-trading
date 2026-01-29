@@ -158,7 +158,7 @@ class TestApplySignalVectorized:
         signals = np.array([0, 1, 1, -1, -1, 0, 1, 0])
         prices = np.array([100, 105, 110, 108, 106, 105, 110, 115])
 
-        def simple_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:  # type: ignore[type-arg]
+        def simple_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:
             assert xs.shape == ps.shape
             return xs.astype(float)
 
@@ -171,7 +171,7 @@ class TestApplySignalVectorized:
         signals = np.array([2, 3, 1, -2, -3], dtype=float)
         prices = np.array([100, 105, 110, 108, 106], dtype=float)
 
-        def limited_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:  # type: ignore[type-arg]
+        def limited_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:
             return xs  # deliberately out of allowed range
 
         positions = apply_signal_vectorized(signals, prices, limited_sizer)
@@ -184,7 +184,7 @@ class TestApplySignalVectorized:
         signals = np.array([1, 1, 1])
         prices = np.array([100, 200, 50], dtype=float)
 
-        def inverse_price_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:  # type: ignore[type-arg]
+        def inverse_price_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:
             # More exposure when price is lower, normalized to ~[-1, 1]
             return ps[0] / np.maximum(ps, 1e-9)
 
@@ -197,7 +197,7 @@ class TestApplySignalVectorized:
         signals = np.array([0, 1, 0], dtype=float)
         prices = np.array([10, 11, 12], dtype=float)
 
-        def bad_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:  # type: ignore[type-arg]
+        def bad_sizer(xs: np.ndarray, ps: np.ndarray) -> np.ndarray:
             return xs[:-1]
 
         with pytest.raises(ValueError):

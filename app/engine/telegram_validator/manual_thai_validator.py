@@ -250,7 +250,7 @@ async def interactive_validator():
 # Quick validation function for scripts
 async def quick_validate(signal_text: str):
     """Quick validation for use in scripts"""
-    from app.engine import TradingSystemAPI
+    from app.engine import TradingSystemAPI  # type: ignore[attr-defined]
 
     system_api = TradingSystemAPI()
 

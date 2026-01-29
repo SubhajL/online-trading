@@ -171,10 +171,10 @@ class TelegramSignalValidator:
     async def setup_telegram_monitor(self, api_id: int, api_hash: str, phone: str):
         """Setup live Telegram monitoring"""
         self.telegram_client = TelegramClient("signal_validator", api_id, api_hash)
-        await self.telegram_client.start(phone)
+        await self.telegram_client.start(phone)  # type: ignore[attr-defined]
 
         # Monitor specific groups/channels
-        @self.telegram_client.on(
+        @self.telegram_client.on(  # type: ignore[attr-defined]
             events.NewMessage(chats=self.config["telegram_channels"]),
         )
         async def handle_new_message(event):

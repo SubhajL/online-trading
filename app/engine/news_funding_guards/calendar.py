@@ -53,7 +53,7 @@ async def load_calendar_events(
 
 def parse_csv_events(file_path: Path) -> list[EconomicEvent]:
     """Parse events from CSV file."""
-    events = []
+    events: list[EconomicEvent] = []
 
     if not file_path.exists():
         logger.warning(f"Calendar CSV file not found: {file_path}")

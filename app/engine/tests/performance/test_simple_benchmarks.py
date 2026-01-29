@@ -46,7 +46,7 @@ class SimpleBenchmark:
 
         sorted_samples = sorted(self.samples)
         return {
-            "name": self.name,
+            "name": self.name,  # type: ignore[dict-item]
             "samples": len(self.samples),
             "mean_ms": statistics.mean(self.samples) * 1000,
             "median_ms": statistics.median(self.samples) * 1000,

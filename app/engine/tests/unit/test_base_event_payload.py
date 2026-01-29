@@ -89,8 +89,8 @@ class TestTopicToEventTypeMapping:
         assert TOPIC_TO_EVENT_TYPE["decision.v1"] == EventType.TRADING_DECISION
 
     def test_order_update_topic_maps_to_order_placed(self) -> None:
-        """order_update.v1 should map to ORDER_PLACED."""
-        assert TOPIC_TO_EVENT_TYPE["order_update.v1"] == EventType.ORDER_PLACED
+        """order_update.v1 should map to ORDER_UPDATE."""
+        assert TOPIC_TO_EVENT_TYPE["order_update.v1"] == EventType.ORDER_UPDATE
 
     def test_signals_raw_topic_maps_to_retest_signal(self) -> None:
         """signals_raw.v1 should map to RETEST_SIGNAL."""

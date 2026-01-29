@@ -39,7 +39,7 @@ async def test_upsert_external_telegram_message_uses_on_conflict_upsert() -> Non
     )
 
     fake_conn = _FakeConn()
-    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     await adapter.upsert_external_telegram_message(
         source="captain",

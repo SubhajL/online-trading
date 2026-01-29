@@ -39,7 +39,7 @@ async def test_get_external_telegram_signals_filters_source_and_time() -> None:
         password="pass",
     )
     fake_conn = _FakeConn()
-    adapter.get_read_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_read_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     start = datetime(2025, 12, 26, 0, 0, tzinfo=UTC)
     end = datetime(2025, 12, 26, 23, 59, tzinfo=UTC)
@@ -64,7 +64,7 @@ async def test_get_trading_decisions_in_window_filters_symbol_and_time() -> None
         password="pass",
     )
     fake_conn = _FakeConn()
-    adapter.get_read_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_read_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     start = datetime(2025, 12, 26, 8, 0, tzinfo=UTC)
     end = datetime(2025, 12, 26, 9, 0, tzinfo=UTC)
@@ -86,7 +86,7 @@ async def test_get_smc_signals_in_window_filters_symbol_timeframe_time() -> None
         password="pass",
     )
     fake_conn = _FakeConn()
-    adapter.get_read_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_read_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     start = datetime(2025, 12, 26, 8, 0, tzinfo=UTC)
     end = datetime(2025, 12, 26, 9, 0, tzinfo=UTC)
@@ -110,7 +110,7 @@ async def test_get_external_telegram_signal_validations_filters_source_and_time(
         password="pass",
     )
     fake_conn = _FakeConn()
-    adapter.get_read_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_read_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     start = datetime(2025, 12, 26, 0, 0, tzinfo=UTC)
     end = datetime(2025, 12, 26, 23, 59, tzinfo=UTC)

@@ -36,7 +36,7 @@ def test_db_config(test_database_config: TestDatabaseConfig) -> DBConfig:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_pool(test_db_config: DBConfig) -> None:
+async def test_pool(test_db_config: DBConfig) -> None:  # type: ignore[misc]
     """Create test connection pool."""
     await timescale.initialize_pool(test_db_config)
     yield timescale.get_pool()
@@ -227,7 +227,7 @@ class TestZoneOperations:
     async def test_zone_upsert_and_update(self, test_pool) -> None:
         """Test supply/demand zone operations."""
         zone = SupplyDemandZone(
-            zone_id=str(uuid4()),
+            zone_id=str(uuid4()),  # type: ignore[arg-type]
             symbol="BTCUSDT",
             timeframe=TimeFrame.H4,
             zone_type=ZoneType.DEMAND,

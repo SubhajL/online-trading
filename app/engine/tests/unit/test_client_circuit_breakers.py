@@ -126,8 +126,8 @@ async def test_router_client_circuit_breaker_opens_and_fast_fails() -> None:
         retry_delay=0.0,
     )
     # Initialize without real HTTP
-    client._initialized = True  # type: ignore[attr-defined]
-    client._session = _FailingSession(Exception("network down"))  # type: ignore[attr-defined]
+    client._initialized = True
+    client._session = _FailingSession(Exception("network down"))  # type: ignore[assignment]
 
     # Cause consecutive failures to trip the breaker
     tripped = False
@@ -139,7 +139,7 @@ async def test_router_client_circuit_breaker_opens_and_fast_fails() -> None:
             pass
         # Try a call that should fast-fail once breaker is open
         try:
-            resp = await client._make_request("GET", "/health")  # type: ignore[attr-defined]
+            resp = await client._make_request("GET", "/health")
             if resp.get("error") == "circuit_breaker_open":
                 tripped = True
                 break
@@ -154,7 +154,7 @@ async def test_router_client_circuit_breaker_opens_and_fast_fails() -> None:
 async def test_binance_rest_circuit_breaker_opens_and_raises() -> None:
     client = BinanceRestClient(api_key="k", api_secret="s", testnet=True)
     # Avoid real session; inject failing session and mark started
-    client._session = _FailingSession(Exception("network down"))  # type: ignore[attr-defined]
+    client._session = _FailingSession(Exception("network down"))  # type: ignore[assignment]
 
     tripped = False
     for i in range(6):  # threshold 5, then open
@@ -172,43 +172,43 @@ async def test_binance_rest_circuit_breaker_opens_and_raises() -> None:
 @pytest.mark.asyncio
 async def test_router_per_endpoint_breakers_independent() -> None:
     client = RouterHTTPClient(base_url="http://example", timeout=1, retry_attempts=1, retry_delay=0)
-    client._initialized = True  # type: ignore[attr-defined]
+    client._initialized = True
     # Trip breaker for /orders, keep /health successful
     mapping = {
         ("GET", "/orders"): [(500, "e")] * 6,
         ("GET", "/health"): [(200, {"ok": True})],
     }
-    client._session = _RouterSession(mapping)  # type: ignore[attr-defined]
+    client._session = _RouterSession(mapping)  # type: ignore[arg-type, assignment]
 
     # Cause multiple failures on /orders
     for _ in range(5):
-        await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+        await client._make_request("GET", "/orders")
     # Next publish on /orders fast-fails with breaker open
-    resp = await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    resp = await client._make_request("GET", "/orders")
     assert resp.get("error") == "circuit_breaker_open"
 
     # Independent endpoint should still work
-    ok = await client._make_request("GET", "/health")  # type: ignore[attr-defined]
+    ok = await client._make_request("GET", "/health")
     assert ok.get("ok") is True
 
 
 @pytest.mark.asyncio
 async def test_router_throttling_429_does_not_trip_breaker() -> None:
     client = RouterHTTPClient(base_url="http://example", timeout=1, retry_attempts=1, retry_delay=0)
-    client._initialized = True  # type: ignore[attr-defined]
+    client._initialized = True
     mapping = {
         ("GET", "/orders"): [(429, "rate limited")] * 10,
     }
-    client._session = _RouterSession(mapping)  # type: ignore[attr-defined]
+    client._session = _RouterSession(mapping)  # type: ignore[arg-type, assignment]
 
     # Many throttled responses should not open breaker
     for _ in range(8):
-        resp = await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+        resp = await client._make_request("GET", "/orders")
         assert resp.get("status") == 429
         assert resp.get("error") == "throttled"
 
     # Should still not be breaker open
-    resp = await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    resp = await client._make_request("GET", "/orders")
     assert resp.get("status") == 429 and resp.get("error") == "throttled"
 
 
@@ -220,7 +220,7 @@ async def test_binance_per_endpoint_breakers_independent() -> None:
         ("GET", "/api/v3/depth"): [(500, {"msg": "error"})] * 6,
         ("GET", "/api/v3/time"): [(200, {"serverTime": 1700000000000})],
     }
-    client._session = _BinanceSession(mapping)  # type: ignore[attr-defined]
+    client._session = _BinanceSession(mapping)  # type: ignore[arg-type, assignment]
 
     # Trip breaker on depth
     tripped = False
@@ -245,7 +245,7 @@ async def test_binance_throttling_does_not_trip_breaker() -> None:
     mapping = {
         ("GET", "/api/v3/time"): [(429, {"msg": "throttled"})] * 8,
     }
-    client._session = _BinanceSession(mapping)  # type: ignore[attr-defined]
+    client._session = _BinanceSession(mapping)  # type: ignore[arg-type, assignment]
 
     # Ensure repeated throttling doesn't produce CircuitBreakerOpen
     for _ in range(7):
@@ -269,28 +269,28 @@ async def test_router_half_open_probe_closes_on_success() -> None:
 
     cfg = {"GET:/orders": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)}
     client = RouterHTTPClient(base_url="http://example", timeout=1, retry_attempts=1, retry_delay=0, per_endpoint_breakers_config=cfg)
-    client._initialized = True  # type: ignore[attr-defined]
+    client._initialized = True
 
     # First request fails and opens breaker
     mapping = {
         ("GET", "/orders"): [(500, "e")],
     }
-    client._session = _RouterSession(mapping)  # type: ignore[attr-defined]
-    await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    client._session = _RouterSession(mapping)  # type: ignore[arg-type, assignment]
+    await client._make_request("GET", "/orders")
 
     # Immediately next call should be fast-failed due to OPEN
-    resp = await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    resp = await client._make_request("GET", "/orders")
     assert resp.get("error") == "circuit_breaker_open"
 
     # Wait for timeout to transition to HALF_OPEN, then return success
     await asyncio.sleep(0.03)
-    mapping[("GET", "/orders")] = [(200, {"ok": True})]
-    resp2 = await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    mapping[("GET", "/orders")] = [(200, {"ok": True})]  # type: ignore[list-item]
+    resp2 = await client._make_request("GET", "/orders")
     assert resp2.get("ok") is True
 
     # After successful probe, breaker should be CLOSED and subsequent call works
-    mapping[("GET", "/orders")] = [(200, {"ok": True})]
-    resp3 = await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    mapping[("GET", "/orders")] = [(200, {"ok": True})]  # type: ignore[list-item]
+    resp3 = await client._make_request("GET", "/orders")
     assert resp3.get("ok") is True
 
 
@@ -300,24 +300,24 @@ async def test_router_half_open_failure_reopens() -> None:
 
     cfg = {"GET:/orders": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)}
     client = RouterHTTPClient(base_url="http://example", timeout=1, retry_attempts=1, retry_delay=0, per_endpoint_breakers_config=cfg)
-    client._initialized = True  # type: ignore[attr-defined]
+    client._initialized = True
 
     mapping = {
         ("GET", "/orders"): [(500, "e")],
     }
-    client._session = _RouterSession(mapping)  # type: ignore[attr-defined]
-    await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    client._session = _RouterSession(mapping)  # type: ignore[arg-type, assignment]
+    await client._make_request("GET", "/orders")
     # Wait for half-open
     await asyncio.sleep(0.03)
     # First probe fails -> back to OPEN
     mapping[("GET", "/orders")] = [(500, "e")]
     try:
-        await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+        await client._make_request("GET", "/orders")
     except Exception:
         # Router client returns error dict not raise; but in case of unexpected exception ignore
         pass
     # Next call should be fast-failed
-    resp = await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    resp = await client._make_request("GET", "/orders")
     assert resp.get("error") == "circuit_breaker_open"
 
 
@@ -334,7 +334,7 @@ async def test_binance_half_open_probe_and_close() -> None:
         ("GET", "/api/v3/depth"): [(500, {"msg": "error"})],
         ("GET", "/api/v3/time"): [(200, {"serverTime": 1700000000000})],
     }
-    client._session = _BinanceSession(mapping)  # type: ignore[attr-defined]
+    client._session = _BinanceSession(mapping)  # type: ignore[arg-type, assignment]
     with pytest.raises(Exception):
         await client.get_order_book("BTCUSDT", 5)
     # Next call during OPEN should raise CircuitBreakerOpen
@@ -360,7 +360,7 @@ async def test_binance_half_open_failure_reopens() -> None:
     mapping = {
         ("GET", "/api/v3/depth"): [(500, {"msg": "error"})],
     }
-    client._session = _BinanceSession(mapping)  # type: ignore[attr-defined]
+    client._session = _BinanceSession(mapping)  # type: ignore[arg-type, assignment]
     with pytest.raises(Exception):
         await client.get_order_book("BTCUSDT", 5)
     # Wait for half-open and fail again
@@ -380,21 +380,21 @@ async def test_router_breaker_metrics_shape_and_values() -> None:
 
     cfg = {"GET:/orders": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)}
     client = RouterHTTPClient(base_url="http://example", timeout=1, retry_attempts=1, retry_delay=0, per_endpoint_breakers_config=cfg)
-    client._initialized = True  # type: ignore[attr-defined]
+    client._initialized = True
     mapping = {("GET", "/orders"): [(500, "e")]}  # one failure trips OPEN
-    client._session = _RouterSession(mapping)  # type: ignore[attr-defined]
-    await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    client._session = _RouterSession(mapping)  # type: ignore[arg-type, assignment]
+    await client._make_request("GET", "/orders")
 
-    metrics_open = await client.get_breaker_metrics()  # type: ignore[attr-defined]
+    metrics_open = await client.get_breaker_metrics()
     assert "GET:/orders" in metrics_open
     assert metrics_open["GET:/orders"]["state"] in ("OPEN", "HALF_OPEN", "CLOSED")
     assert metrics_open["GET:/orders"]["failure_count"] >= 1
 
     # Wait and close with a success
     await asyncio.sleep(0.03)
-    mapping[("GET", "/orders")] = [(200, {"ok": True})]
-    await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
-    metrics_closed = await client.get_breaker_metrics()  # type: ignore[attr-defined]
+    mapping[("GET", "/orders")] = [(200, {"ok": True})]  # type: ignore[list-item]
+    await client._make_request("GET", "/orders")
+    metrics_closed = await client.get_breaker_metrics()
     assert metrics_closed["GET:/orders"]["success_count"] >= 1
     assert metrics_closed["GET:/orders"]["state"] == "CLOSED"
 
@@ -407,11 +407,11 @@ async def test_binance_breaker_metrics_shape_and_values() -> None:
         "GET:/api/v3/depth": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)
     })
     mapping = {("GET", "/api/v3/depth"): [(500, {"msg": "error"})]}
-    client._session = _BinanceSession(mapping)  # type: ignore[attr-defined]
+    client._session = _BinanceSession(mapping)  # type: ignore[arg-type, assignment]
     with pytest.raises(Exception):
         await client.get_order_book("BTCUSDT", 5)
 
-    m1 = await client.get_breaker_metrics()  # type: ignore[attr-defined]
+    m1 = await client.get_breaker_metrics()
     assert "GET:/api/v3/depth" in m1
     assert m1["GET:/api/v3/depth"]["state"] in ("OPEN", "HALF_OPEN", "CLOSED")
     assert m1["GET:/api/v3/depth"]["failure_count"] >= 1
@@ -422,7 +422,7 @@ async def test_binance_breaker_metrics_shape_and_values() -> None:
         await client.get_order_book("BTCUSDT", 5)
     except Exception:
         pass
-    m2 = await client.get_breaker_metrics()  # type: ignore[attr-defined]
+    m2 = await client.get_breaker_metrics()
     assert m2["GET:/api/v3/depth"]["success_count"] >= 0  # monotonic
 def test_router_breaker_config_wired_from_env(monkeypatch) -> None:
     from app.engine.core.breaker_config import router_breaker_config_from_env

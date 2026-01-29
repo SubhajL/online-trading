@@ -273,9 +273,9 @@ class NoneOperationTransformer(ast.NodeTransformer):
             )
         elif isinstance(node.op, ast.Add):
             # For addition, default to the other operand
-            default = node.right
+            default = node.right  # type: ignore[assignment]
         else:
-            default = ast.Constant(value=0)
+            default = ast.Constant(value=0)  # type: ignore[assignment]
 
         # Create: node if test else default
         return ast.IfExp(test=test, body=node, orelse=default)

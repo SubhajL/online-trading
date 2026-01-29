@@ -179,9 +179,15 @@ class TelegramAlertAdapter:
         """Handle order update events."""
         try:
             # Only alert on important status changes
-            important_statuses = {"filled", "cancelled", "rejected"}
-            if event.get("status") not in important_statuses:
+            status = event.get("status")
+            normalized_status = (
+                status.lower() if isinstance(status, str) else str(status).lower()
+            ).replace("cancelled", "canceled")
+
+            important_statuses = {"new", "filled", "canceled", "rejected"}
+            if normalized_status not in important_statuses:
                 return
+            event["status"] = normalized_status
 
             message = self.formatter.format_order_update(event)
             await self._send_alert(message)

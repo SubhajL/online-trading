@@ -343,7 +343,7 @@ class TestPaperBrokerDbPersistence:
         database_url = os.environ["TEST_DATABASE_URL"]
         cfg = load_test_database_config()
 
-        conn = await _connect_test_db(cfg)
+        conn = await _connect_test_db(cfg)  # type: ignore[arg-type]
         try:
             await conn.execute("TRUNCATE TABLE paper_orders CASCADE")
         finally:
@@ -377,7 +377,7 @@ class TestPaperBrokerDbPersistence:
             )
 
             bracket_id = UUID(response.bracket_order_id)
-            conn = await _connect_test_db(cfg)
+            conn = await _connect_test_db(cfg)  # type: ignore[arg-type]
             try:
                 order_rows = await conn.fetch(
                     """
@@ -421,7 +421,7 @@ class TestPaperBrokerDbPersistence:
         database_url = os.environ["TEST_DATABASE_URL"]
         cfg = load_test_database_config()
 
-        conn = await _connect_test_db(cfg)
+        conn = await _connect_test_db(cfg)  # type: ignore[arg-type]
         try:
             await conn.execute("TRUNCATE TABLE paper_orders CASCADE")
         finally:
@@ -466,7 +466,7 @@ class TestPaperBrokerDbPersistence:
             await broker.update_market_data(tp_candle)
 
             bracket_id = UUID(response.bracket_order_id)
-            conn = await _connect_test_db(cfg)
+            conn = await _connect_test_db(cfg)  # type: ignore[arg-type]
             try:
                 statuses = await conn.fetch(
                     """
@@ -523,9 +523,9 @@ class TestLiveTestnetConnection:
         harness = LivePaperTradingHarness(config)
 
         # Mock broker to avoid DB connection
-        harness.broker.initialize = AsyncMock()
-        harness.broker.close = AsyncMock()
-        harness.broker.update_market_data = AsyncMock()
+        harness.broker.initialize = AsyncMock()  # type: ignore[method-assign]
+        harness.broker.close = AsyncMock()  # type: ignore[method-assign]
+        harness.broker.update_market_data = AsyncMock()  # type: ignore[method-assign]
 
         try:
             await harness.start()
@@ -572,10 +572,10 @@ class TestLiveDecisionHandling:
         harness = LivePaperTradingHarness(config)
 
         # Mock dependencies
-        harness.broker.initialize = AsyncMock()
-        harness.broker.close = AsyncMock()
-        harness.broker.place_bracket_order = AsyncMock(return_value=MagicMock())
-        harness._persist_decision = AsyncMock()  # noqa: SLF001
+        harness.broker.initialize = AsyncMock()  # type: ignore[method-assign]
+        harness.broker.close = AsyncMock()  # type: ignore[method-assign]
+        harness.broker.place_bracket_order = AsyncMock(return_value=MagicMock())  # type: ignore[method-assign]
+        harness._persist_decision = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
 
         # Create test decision event
         decision = TradingDecision(

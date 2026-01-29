@@ -23,7 +23,7 @@ class TestAlertFormatter:
 
         result = self.formatter.format_decision(decision)
 
-        assert "🟢 LONG: BTCUSDT" in result
+        assert "📊 LONG SIGNAL: BTCUSDT" in result
         assert "Entry: $42,000.50" in result
         assert "SL: $41,000.00 (-2.38%)" in result
         assert "TP: $44,000.00 (+4.76%)" in result
@@ -47,7 +47,7 @@ class TestAlertFormatter:
 
         result = self.formatter.format_decision(decision)
 
-        assert "🔴 SHORT: ETHUSDT" in result
+        assert "📉 SHORT SIGNAL: ETHUSDT" in result
         assert "Entry: $2,500.00" in result
         assert "SL: $2,600.00 (+4.00%)" in result
         assert "TP: $2,300.00 (-8.00%)" in result
@@ -81,7 +81,7 @@ class TestAlertFormatter:
 
         result = self.formatter.format_order_update(order_update)
 
-        assert "❌ Order Cancelled" in result
+        assert "❌ Order Canceled" in result
         assert "ETHUSDT" in result
         assert "Sell 1.5" in result
         assert "Reason: Insufficient balance" in result
@@ -121,11 +121,11 @@ class TestAlertFormatter:
         assert "Reasons:" not in result
 
     def test_calculate_percentage_change(self) -> None:
-        assert self.formatter._calculate_pct_change(100, 110) == 10.0
-        assert self.formatter._calculate_pct_change(100, 90) == -10.0
-        assert self.formatter._calculate_pct_change(100, 100) == 0.0
+        assert self.formatter._calculate_pct_change(100, 110) == 10.0  # type: ignore[arg-type]
+        assert self.formatter._calculate_pct_change(100, 90) == -10.0  # type: ignore[arg-type]
+        assert self.formatter._calculate_pct_change(100, 100) == 0.0  # type: ignore[arg-type]
 
     def test_format_currency_with_different_scales(self) -> None:
-        assert self.formatter._format_currency(42000) == "$42,000.00"
-        assert self.formatter._format_currency(0.00012345) == "$0.000123"
-        assert self.formatter._format_currency(1234567.89) == "$1,234,567.89"
+        assert self.formatter._format_currency(42000) == "$42,000.00"  # type: ignore[arg-type]
+        assert self.formatter._format_currency(0.00012345) == "$0.000123"  # type: ignore[arg-type]
+        assert self.formatter._format_currency(1234567.89) == "$1,234,567.89"  # type: ignore[arg-type]

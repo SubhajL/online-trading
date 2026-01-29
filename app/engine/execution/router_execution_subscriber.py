@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from app.engine.core.zone_identity import extract_zone_identity
 from app.engine.decision.pretrade_risk import evaluate_pretrade_risk
 from app.engine.decision.risk_state import build_risk_snapshot
+from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 from app.engine.models import (
     BaseEvent,
     ErrorEvent,
@@ -182,6 +183,7 @@ class RouterExecutionSubscriber:
         risk: RiskParameters,
         venue: str,
         execution_mode: ExecutionMode,
+        order_update_correlation_store: OrderUpdateCorrelationStore,
         cooldown: SignalCooldown | None = None,
         bff_client: _BffClient | None = None,
         min_confidence: Decimal = Decimal("0.70"),
@@ -195,6 +197,7 @@ class RouterExecutionSubscriber:
         self._risk = risk
         self._venue = venue
         self._execution_mode = execution_mode
+        self._order_update_correlation_store = order_update_correlation_store
         self._cooldown = cooldown
         self._bff_client = bff_client
         self._min_confidence = min_confidence
@@ -383,6 +386,16 @@ class RouterExecutionSubscriber:
             else decision.timestamp.isoformat(),
         }
         sanitized_metadata = _sanitize_value_for_json(raw_metadata)
+        try:
+            await self._order_update_correlation_store.register(
+                client_order_id=client_ids.main,
+                metadata=sanitized_metadata,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to register order update correlation for client_order_id=%s",
+                client_ids.main,
+            )
 
         decision_ts = decision.timestamp
         if decision_ts.tzinfo is None:

@@ -49,7 +49,7 @@ class _StubEventBus(_StubAsyncService):
         self.subscribed: list[tuple[str, list[object] | None]] = []
         self.unsubscribed: list[str] = []
 
-    async def subscribe(  # type: ignore[no-untyped-def]
+    async def subscribe(
         self,
         subscriber_id: str,
         handler: object,

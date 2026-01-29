@@ -100,8 +100,8 @@ async def test_get_candles_uses_read_pool(monkeypatch) -> None:
         username="user",
         password="pass",
     )
-    adapter._read_pool = read_pool  # type: ignore[attr-defined]
-    adapter._write_pool = write_pool  # type: ignore[attr-defined]
+    adapter._read_pool = read_pool
+    adapter._write_pool = write_pool
 
     # Patch read connection context manager to yield a fake conn with fetch that returns []
     from contextlib import asynccontextmanager
@@ -118,7 +118,7 @@ async def test_get_candles_uses_read_pool(monkeypatch) -> None:
         conn.fetchrow = _fetchrow
         yield conn
 
-    adapter.get_read_connection = _fake_read_conn  # type: ignore[assignment]
+    adapter.get_read_connection = _fake_read_conn  # type: ignore[method-assign]
 
     # Call get_candles; should use read pool and not touch write pool
     from app.engine.models import TimeFrame

@@ -126,6 +126,7 @@ class EventType(str, Enum):
     NEWS_ALERT = "news_alert"
     FUNDING_ALERT = "funding_alert"
     TRADING_DECISION = "trading_decision"
+    ORDER_UPDATE = "order_update"
     ORDER_PLACED = "order_placed"
     ORDER_FILLED = "order_filled"
     POSITION_UPDATE = "position_update"
@@ -662,6 +663,28 @@ class Order(BaseModel):
     decision_id: UUID | None = None
 
 
+class OrderUpdate(BaseModel):
+    """Order status update originating from the router/exchange."""
+
+    symbol: str
+    order_id: int | None = None
+    client_order_id: str
+    status: str
+    side: str | None = None
+    order_type: str | None = None
+    price: Decimal | None = None
+    quantity: Decimal | None = None
+    executed_qty: Decimal | None = None
+    update_time: datetime | None = None
+    reason: str | None = None
+
+    model_config = ConfigDict(extra="ignore")
+
+    @field_serializer("price", "quantity", "executed_qty")
+    def _ser_update_decimals(self, v: Decimal | None) -> str | None:
+        return None if v is None else str(v)
+
+
 class Position(BaseModel):
     """Position representation"""
 
@@ -746,6 +769,13 @@ class OrderPlacedEvent(BaseEvent):
     # Optional enriched context for alerts (backward compatible)
     decision: TradingDecision | None = None
     router_response: dict[str, Any] | None = None
+
+
+class OrderUpdateEvent(BaseEvent):
+    """Order update event emitted from router/exchange order updates."""
+
+    event_type: EventType = EventType.ORDER_UPDATE
+    update: OrderUpdate
 
 
 class OrderFilledEvent(BaseEvent):

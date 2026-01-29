@@ -125,7 +125,7 @@ class E2ETestOrchestrator:
             ]
         }
 
-        self.log_event("SMC", f"BOS detected, {len(smc_analysis['zones'])} zones identified")
+        self.log_event("SMC", f"BOS detected, {len(smc_analysis['zones'])} zones identified")  # type: ignore[arg-type]
         self.checkpoint("smc_analysis", True, 15.2)
         return smc_analysis
 
@@ -264,7 +264,7 @@ class E2ETestOrchestrator:
             "database": {"saved": True, "record_id": "rec_456"}
         }
 
-        self.log_event("DELIVERY", f"Alerts delivered: {len([k for k,v in delivery.items() if v.get('sent')])} channels")
+        self.log_event("DELIVERY", f"Alerts delivered: {len([k for k,v in delivery.items() if v.get('sent')])} channels")  # type: ignore[attr-defined]
         self.checkpoint("alert_delivery", True, 50.3)
         return delivery
 

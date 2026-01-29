@@ -64,18 +64,18 @@ def check_required_env_vars() -> CheckResult:
             continue
 
         # Validate value
-        if "type" in rules and rules["type"] == "int":
+        if "type" in rules and rules["type"] == "int":  # type: ignore[index, operator]
             try:
                 int_val = int(value)
-                if "min" in rules and int_val < rules["min"]:
-                    invalid[var_name] = f"Value {int_val} is below minimum {rules['min']}"
-                if "max" in rules and int_val > rules["max"]:
-                    invalid[var_name] = f"Value {int_val} is above maximum {rules['max']}"
+                if "min" in rules and int_val < rules["min"]:  # type: ignore[index, operator]
+                    invalid[var_name] = f"Value {int_val} is below minimum {rules['min']}"  # type: ignore[index]
+                if "max" in rules and int_val > rules["max"]:  # type: ignore[index, operator]
+                    invalid[var_name] = f"Value {int_val} is above maximum {rules['max']}"  # type: ignore[index]
             except ValueError:
                 invalid[var_name] = f"Expected integer, got '{value}'"
 
-        if "min_length" in rules and len(value) < rules["min_length"]:
-            invalid[var_name] = f"Too short (min {rules['min_length']} chars)"
+        if "min_length" in rules and len(value) < rules["min_length"]:  # type: ignore[index, operator]
+            invalid[var_name] = f"Too short (min {rules['min_length']} chars)"  # type: ignore[index]
 
     # Check optional variables
     for var_name, rules in OPTIONAL_ENV_VARS.items():
@@ -119,8 +119,8 @@ def check_port_availability() -> CheckResult:
     all_ok = True
 
     for service_name, config in SERVICE_PORTS.items():
-        host = os.environ.get(config["host_env"], "localhost")
-        port = int(os.environ.get(config["port_env"], config["default_port"]))
+        host = os.environ.get(config["host_env"], "localhost")  # type: ignore[call-overload]
+        port = int(os.environ.get(config["port_env"], config["default_port"]))  # type: ignore[call-overload]
 
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

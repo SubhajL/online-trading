@@ -131,7 +131,7 @@ class TimescaleDataset(CandleDataset):
 
                 candles = []
                 for row in result:
-                    candle = Candle(
+                    candle = Candle(  # type: ignore[call-arg]
                         symbol=row.symbol,
                         timeframe=TimeFrame(row.tf),
                         open_time=row.open_time,
@@ -287,7 +287,7 @@ class CSVDataset(CandleDataset):
                     # Calculate close time (approximate)
                     close_time = self._calculate_close_time(open_time, timeframe)
 
-                    candle = Candle(
+                    candle = Candle(  # type: ignore[call-arg]
                         symbol=symbol,
                         timeframe=timeframe,
                         open_time=open_time,

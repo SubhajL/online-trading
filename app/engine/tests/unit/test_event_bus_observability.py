@@ -104,7 +104,7 @@ async def test_process_one_event_updates_queue_metrics(monkeypatch):
     ev.metadata["priority"] = 3
 
     # Act
-    result = await bus._process_one_event(ev)  # type: ignore[attr-defined]
+    result = await bus._process_one_event(ev)
 
     # Assert
     assert result.successful_handlers == 1

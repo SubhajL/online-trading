@@ -64,7 +64,7 @@ class TestBuildCombinedStreamUrl:
 
     def test_empty_streams_returns_base_stream_url(self) -> None:
         base_url = "wss://stream.binance.com:9443/ws/"
-        streams = []
+        streams: list[str] = []
 
         result = build_combined_stream_url(base_url, streams)
 
@@ -250,11 +250,11 @@ class TestWatchdog:
             client._running = False
 
         binance_ws_asyncio_sleep = binance_ws.asyncio.sleep
-        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[method-assign]
+        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[assignment]
         try:
             await client._watchdog_loop()
         finally:
-            binance_ws.asyncio.sleep = binance_ws_asyncio_sleep  # type: ignore[method-assign]
+            binance_ws.asyncio.sleep = binance_ws_asyncio_sleep
 
         websocket.close.assert_awaited_once()
 
@@ -414,11 +414,11 @@ class TestPingKeepalive:
             if ping_count >= 2:
                 client._running = False
 
-        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[method-assign]
+        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[assignment]
         try:
             await client._ping_keepalive_loop()
         finally:
-            binance_ws.asyncio.sleep = original_sleep  # type: ignore[method-assign]
+            binance_ws.asyncio.sleep = original_sleep
 
         assert websocket.ping.await_count >= 1
 
@@ -446,11 +446,11 @@ class TestPingKeepalive:
             if loop_count >= 2:
                 client._running = False
 
-        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[method-assign]
+        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[assignment]
         try:
             await client._ping_keepalive_loop()
         finally:
-            binance_ws.asyncio.sleep = original_sleep  # type: ignore[method-assign]
+            binance_ws.asyncio.sleep = original_sleep
 
         websocket.ping.assert_not_awaited()
 
@@ -479,11 +479,11 @@ class TestPingKeepalive:
             if loop_count >= 2:
                 client._running = False
 
-        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[method-assign]
+        binance_ws.asyncio.sleep = fake_sleep  # type: ignore[assignment]
         try:
             await client._ping_keepalive_loop()
         finally:
-            binance_ws.asyncio.sleep = original_sleep  # type: ignore[method-assign]
+            binance_ws.asyncio.sleep = original_sleep
 
         # Should have attempted ping and closed connection on failure
         websocket.ping.assert_awaited()

@@ -176,7 +176,7 @@ async def test_upsert_indicator(pool) -> None:
 @pytest.mark.asyncio
 async def test_upsert_zone(pool) -> None:
     zone = SupplyDemandZone(
-        zone_id=str(uuid4()),
+        zone_id=str(uuid4()),  # type: ignore[arg-type]
         symbol="BTCUSDT",
         timeframe=TimeFrame.H4,
         zone_type=ZoneType.DEMAND,

@@ -53,7 +53,7 @@ class TestCandleOrigin:
         assert CandleOrigin.REALTIME.value == "realtime"
         assert CandleOrigin.BACKFILL.value == "backfill"
         # Can compare with string
-        assert CandleOrigin.REALTIME == "realtime"
+        assert CandleOrigin.REALTIME == "realtime"  # type: ignore[comparison-overlap]
         assert CandleOrigin.BACKFILL == "backfill"
 
 

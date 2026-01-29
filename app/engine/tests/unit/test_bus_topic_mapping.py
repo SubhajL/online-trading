@@ -13,7 +13,7 @@ EXPECTED_TOPIC_MAPPINGS: dict[str, EventType] = {
     "zones.v1": EventType.SMC_SIGNAL,
     "signals_raw.v1": EventType.RETEST_SIGNAL,
     "decision.v1": EventType.TRADING_DECISION,
-    "order_update.v1": EventType.ORDER_PLACED,
+    "order_update.v1": EventType.ORDER_UPDATE,
     "regime.v1": EventType.REGIME_UPDATE,
     "news_window.v1": EventType.NEWS_ALERT,
     "funding_window.v1": EventType.FUNDING_ALERT,

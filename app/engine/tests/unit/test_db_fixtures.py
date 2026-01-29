@@ -26,7 +26,7 @@ def mock_pool() -> tuple[MagicMock, AsyncMock]:
 
     # Create async context manager for acquire
     @asynccontextmanager
-    async def mock_acquire() -> None:
+    async def mock_acquire() -> None:  # type: ignore[misc]
         yield conn
 
     pool.acquire = mock_acquire
@@ -155,7 +155,7 @@ class TestDataFactories:
 
 
 @pytest.fixture
-async def db_session(mock_pool) -> None:
+async def db_session(mock_pool) -> None:  # type: ignore[misc]
     """Pytest fixture for database session."""
     pool, conn = mock_pool
     fixtures = DBFixtures(pool)

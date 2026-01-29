@@ -60,15 +60,15 @@ def test_models_imports() -> None:
         timeframe=TimeFrame.M1,
         open_time=datetime.fromtimestamp(1234567890),
         close_time=datetime.fromtimestamp(1234567950),
-        open_price="100.0",
-        high_price="110.0",
-        low_price="95.0",
-        close_price="105.0",
-        volume="1000.0",
-        quote_volume="105000.0",
+        open_price="100.0",  # type: ignore[arg-type]
+        high_price="110.0",  # type: ignore[arg-type]
+        low_price="95.0",  # type: ignore[arg-type]
+        close_price="105.0",  # type: ignore[arg-type]
+        volume="1000.0",  # type: ignore[arg-type]
+        quote_volume="105000.0",  # type: ignore[arg-type]
         trades=50,
-        taker_buy_base_volume="500.0",
-        taker_buy_quote_volume="52500.0",
+        taker_buy_base_volume="500.0",  # type: ignore[arg-type]
+        taker_buy_quote_volume="52500.0",  # type: ignore[arg-type]
     )
     assert candle.symbol == "BTCUSDT"
     assert candle.timeframe == TimeFrame.M1

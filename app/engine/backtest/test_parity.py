@@ -91,7 +91,7 @@ class ParityTestFramework:
             volume = Decimal(str(np.random.uniform(50, 200)))
             quote_volume = volume * (high_price + low_price) / Decimal(2)
 
-            candle = Candle(
+            candle = Candle(  # type: ignore[call-arg]
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M15,
                 open_time=base_time,
@@ -369,7 +369,7 @@ class TestSignalParity:
         """Test that signals are generated consistently"""
 
         def generate_simple_signals(candles: list[Candle]) -> list[dict[str, Any]]:
-            signals = []
+            signals: list[dict[str, object]] = []
 
             # Simple moving average crossover signals
             if len(candles) < 50:

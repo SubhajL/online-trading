@@ -210,8 +210,8 @@ class TestLivePaperTradingHarnessOnDecision:
             call_order.append("place_bracket")
             return MagicMock()
 
-        harness._persist_decision = mock_persist
-        harness.broker.place_bracket_order = mock_place_bracket
+        harness._persist_decision = mock_persist  # type: ignore[assignment, method-assign]
+        harness.broker.place_bracket_order = mock_place_bracket  # type: ignore[assignment, method-assign]
 
         event = _make_trading_decision_event()
         await harness._on_decision(event)
@@ -224,8 +224,8 @@ class TestLivePaperTradingHarnessOnDecision:
         config = _make_harness_config()
         harness = LivePaperTradingHarness(config)
 
-        harness._persist_decision = AsyncMock()
-        harness.broker.place_bracket_order = AsyncMock(return_value=MagicMock())
+        harness._persist_decision = AsyncMock()  # type: ignore[method-assign]
+        harness.broker.place_bracket_order = AsyncMock(return_value=MagicMock())  # type: ignore[method-assign]
 
         event = _make_trading_decision_event()
         await harness._on_decision(event)
@@ -241,8 +241,8 @@ class TestLivePaperTradingHarnessOnDecision:
         config = _make_harness_config()
         harness = LivePaperTradingHarness(config)
 
-        harness._persist_decision = AsyncMock()
-        harness.broker.place_bracket_order = AsyncMock(return_value=MagicMock())
+        harness._persist_decision = AsyncMock()  # type: ignore[method-assign]
+        harness.broker.place_bracket_order = AsyncMock(return_value=MagicMock())  # type: ignore[method-assign]
 
         event = _make_trading_decision_event()
         await harness._on_decision(event)
@@ -262,7 +262,7 @@ class TestLivePaperTradingHarnessPersistDecision:
         harness = LivePaperTradingHarness(config)
 
         # Mock db_adapter.insert_trading_decision
-        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=True)
+        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
         event = _make_trading_decision_event()
         await harness._persist_decision(event)
@@ -278,7 +278,7 @@ class TestLivePaperTradingHarnessPersistDecision:
         harness = LivePaperTradingHarness(config)
 
         # Mock db_adapter.insert_trading_decision to return False
-        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=False)
+        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=False)  # type: ignore[method-assign]
 
         initial_error_count = harness._metrics.error_count
         event = _make_trading_decision_event()
@@ -293,7 +293,7 @@ class TestLivePaperTradingHarnessPersistDecision:
         harness = LivePaperTradingHarness(config)
 
         # Mock db_adapter.insert_trading_decision to raise exception
-        harness.db_adapter.insert_trading_decision = AsyncMock(
+        harness.db_adapter.insert_trading_decision = AsyncMock(  # type: ignore[method-assign]
             side_effect=Exception("DB connection error"),
         )
 
@@ -310,7 +310,7 @@ class TestLivePaperTradingHarnessPersistDecision:
         harness = LivePaperTradingHarness(config)
 
         # Mock db_adapter.insert_trading_decision to return True
-        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=True)
+        harness.db_adapter.insert_trading_decision = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
         initial_error_count = harness._metrics.error_count
         event = _make_trading_decision_event()
@@ -328,7 +328,7 @@ class TestLivePaperTradingHarnessOnCandle:
         config = _make_harness_config()
         harness = LivePaperTradingHarness(config)
 
-        harness.broker.update_market_data = AsyncMock()
+        harness.broker.update_market_data = AsyncMock()  # type: ignore[method-assign]
 
         candle = Candle(
             venue="spot",
@@ -366,7 +366,7 @@ class TestLivePaperTradingHarnessWarmBuffers:
         async def mock_fetch_and_publish(origin: CandleOrigin) -> None:
             backfill_origins.append(origin)
 
-        harness._fetch_historical_candles = mock_fetch_and_publish
+        harness._fetch_historical_candles = mock_fetch_and_publish  # type: ignore[method-assign]
 
         await harness.warm_buffers()
 

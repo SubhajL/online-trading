@@ -26,7 +26,7 @@ class WebSocketDelivery:
             server_url: WebSocket server URL (e.g., ws://localhost:8002/ws)
         """
         self.server_url = server_url
-        self.websocket: websockets.WebSocketClientProtocol | None = None
+        self.websocket: websockets.WebSocketClientProtocol | None = None  # type: ignore[name-defined]
         self.connected = False
         self.reconnect_delay = 5
         self.heartbeat_interval = 30

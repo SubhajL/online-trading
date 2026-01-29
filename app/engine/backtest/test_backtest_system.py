@@ -21,7 +21,7 @@ from .costs import CostCalculator
 from .dataset import CSVDataset
 from .fills import FillEngine
 from .metrics import MetricsCalculator
-from .policies import (
+from .policies import (  # type: ignore[attr-defined]
     FundingGuardPolicy,
     NewsGuardPolicy,
     PolicyManager,

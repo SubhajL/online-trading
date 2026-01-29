@@ -212,11 +212,11 @@ class CostCalculator:
             costs["exit_fee"] = self.calculate_fill_fee(exit_fill, is_futures)
             costs["exit_slippage"] = exit_fill.slippage
 
-        costs["total_fees"] = costs["entry_fee"] + costs["exit_fee"]
-        costs["total_slippage"] = costs["entry_slippage"] + costs["exit_slippage"]
-        costs["total_cost"] = costs["total_fees"] + costs["total_slippage"] + costs["total_funding"]
+        costs["total_fees"] = costs["entry_fee"] + costs["exit_fee"]  # type: ignore[assignment]
+        costs["total_slippage"] = costs["entry_slippage"] + costs["exit_slippage"]  # type: ignore[assignment]
+        costs["total_cost"] = costs["total_fees"] + costs["total_slippage"] + costs["total_funding"]  # type: ignore[assignment]
 
-        return costs
+        return costs  # type: ignore[return-value]
 
     def calculate_breakeven_price(
         self,

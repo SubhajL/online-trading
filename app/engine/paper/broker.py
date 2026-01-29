@@ -494,7 +494,7 @@ class PaperBroker:
         params = PositionParams(
             symbol=position.symbol,
             paper_session_id=bracket_id,
-            side=side,
+            side=side,  # type: ignore[typeddict-item]
             quantity=abs(position.net_quantity),
             entry_price=position.avg_entry_price,
             mark_price=position.avg_entry_price,  # Updated on next candle

@@ -314,6 +314,14 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
 
         if execution_enabled:
             min_confidence = Decimal(os.getenv("MIN_CONFIDENCE_TO_EXECUTE", "0.70"))
+            from .execution.order_update_correlation import OrderUpdateCorrelationStore
+
+            correlation_ttl_seconds = int(
+                os.getenv("ORDER_UPDATE_CORRELATION_TTL_SECONDS", "21600")
+            )
+            correlation_store = OrderUpdateCorrelationStore(ttl_seconds=correlation_ttl_seconds)
+            services["order_update_correlation_store"] = correlation_store
+
             services["execution_subscriber"] = RouterExecutionSubscriber(
                 bus=event_bus,
                 router_client=router_client,
@@ -321,6 +329,7 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
                 risk=config.risk_parameters,
                 venue=execution_venue,
                 execution_mode=execution_mode,
+                order_update_correlation_store=correlation_store,
                 cooldown=execution_cooldown,
                 min_confidence=min_confidence,
                 max_position_size=config.risk_parameters.max_position_size,
@@ -727,6 +736,51 @@ async def get_system_health() -> Any:
             content={"status": "unhealthy", "message": f"system health error: {e!s}"},
             status_code=503,
         )
+
+
+@app.post("/internal/order_update")
+async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
+    """Ingest router/exchange order updates for execution-mode alerting.
+
+    Router POSTs `order_update.v1` payloads; we correlate client_order_id back to
+    the originating trading decision and publish an OrderUpdateEvent on the bus.
+    """
+    if "event_bus" not in services:
+        raise HTTPException(status_code=503, detail="event_bus not initialized")
+
+    from .models import OrderUpdate, OrderUpdateEvent
+
+    try:
+        parsed = OrderUpdate.model_validate(update)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"invalid order update: {exc!s}") from exc
+
+    ts = parsed.update_time or datetime.now(UTC)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+
+    metadata: dict[str, Any] = {}
+    store = services.get("order_update_correlation_store")
+    if store is not None:
+        corr = await store.get(client_order_id=parsed.client_order_id)
+        if corr is not None:
+            metadata = dict(corr.metadata)
+
+    event = OrderUpdateEvent(
+        timestamp=ts,
+        symbol=parsed.symbol,
+        metadata=metadata,
+        update=parsed,
+        payload=update,
+    )
+
+    await services["event_bus"].publish(event, priority=7)
+
+    status = parsed.status.strip().upper()
+    if store is not None and status in {"FILLED", "REJECTED", "CANCELED", "EXPIRED"}:
+        await store.delete(client_order_id=parsed.client_order_id)
+
+    return {"status": "ok"}
 
 
 # Service Control Endpoints

@@ -85,8 +85,8 @@ def evaluate_bracket_outcome(
         side=direction,  # type: ignore[arg-type]
         entry_price=entry_price,
         stop_loss=stop_loss,
-        take_profits=[take_profit],
-        tp_sizes=[Decimal("1.0")],
+        take_profits=[take_profit],  # type: ignore[arg-type]
+        tp_sizes=[Decimal("1.0")],  # type: ignore[arg-type]
     )
 
     result = simulate_bracket_fills(
@@ -291,7 +291,7 @@ async def compare_captain_vs_internal_outcomes(
         matched_count=len([c for c in comparisons if c.internal_outcome]),
         captain_win_rate=captain_win_rate,
         internal_win_rate=internal_win_rate,
-        avg_pnl_delta=avg_pnl_delta,
+        avg_pnl_delta=avg_pnl_delta,  # type: ignore[arg-type]
         timing_delta_seconds=avg_timing_delta,
         comparisons=tuple(comparisons),
     )

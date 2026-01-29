@@ -97,11 +97,11 @@ def categorize_existing_tests() -> Dict[int, List[str]]:
     Returns:
         Dictionary mapping level number to list of test file paths
     """
-    categorized = {0: [], 1: [], 2: [], 3: [], 4: []}
+    categorized: dict[int, list[str]] = {0: [], 1: [], 2: [], 3: [], 4: []}
 
     # Find all test files
     test_root = Path("app/engine/tests")
-    test_files = []
+    test_files: list[Path] = []
 
     # Use rglob to find all test files recursively
     for pattern in ["test_*.py", "*_test.py"]:

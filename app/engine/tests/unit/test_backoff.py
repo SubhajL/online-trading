@@ -139,7 +139,7 @@ class TestExponentialBackoff:
         backoff = ExponentialBackoff(config)
 
         # With 10% jitter on 100s base, delay should be in [90, 110]
-        delays = [backoff.reset() or backoff.next_delay() for _ in range(50)]
+        delays = [backoff.reset() or backoff.next_delay() for _ in range(50)]  # type: ignore[func-returns-value]
 
         assert all(90.0 <= d <= 110.0 for d in delays)
         # Verify there's actual variation (not all the same)

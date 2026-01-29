@@ -7,11 +7,18 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.engine.adapters.db.timescale_adapter import TimescaleDBAdapter
+from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
 )
-from app.engine.models import ErrorEvent, RiskParameters, TimeFrame, TradingDecision, TradingDecisionEvent
+from app.engine.models import (
+    ErrorEvent,
+    RiskParameters,
+    TimeFrame,
+    TradingDecision,
+    TradingDecisionEvent,
+)
 from app.engine.tests.integration.db_config import load_test_database_config
 
 
@@ -19,7 +26,7 @@ class _CapturingBus:
     def __init__(self) -> None:
         self.published: list[object] = []
 
-    async def subscribe(self, *args, **kwargs) -> str:  # type: ignore[no-untyped-def]
+    async def subscribe(self, *args, **kwargs) -> str:
         _ = args, kwargs
         return "sub-1"
 
@@ -82,6 +89,7 @@ async def test_execution_blocks_router_call_when_daily_loss_exceeded() -> None:
             risk=risk,
             venue="USD_M",
             execution_mode=ExecutionMode.FUTURES_TESTNET,
+            order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
             router_max_attempts=1,
         )
 
@@ -115,4 +123,3 @@ async def test_execution_blocks_router_call_when_daily_loss_exceeded() -> None:
         assert bus.published[0].error_type == "risk_limit_exceeded"
     finally:
         await db.close()
-

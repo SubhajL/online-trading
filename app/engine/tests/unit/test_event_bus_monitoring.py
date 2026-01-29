@@ -41,7 +41,7 @@ async def test_worker_warns_on_slow_event(caplog: pytest.LogCaptureFixture) -> N
     async def slow_process(event):  # noqa: ANN001
         await asyncio.sleep(0.08)
 
-    bus._process_event_with_subscriptions = slow_process  # type: ignore[attr-defined]
+    bus._process_event_with_subscriptions = slow_process  # type: ignore[method-assign]
 
     caplog.set_level(logging.WARNING)
     await bus.start(num_workers=1)

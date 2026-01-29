@@ -114,9 +114,9 @@ class MetricsCalculator:
             metrics.avg_r = sum(r_values) / Decimal(len(r_values))
 
         # Cost breakdown
-        metrics.total_fees = sum(t.fees for t in trades)
-        metrics.total_slippage = sum(t.slippage for t in trades)
-        metrics.total_funding = sum(t.funding for t in trades)
+        metrics.total_fees = sum(t.fees for t in trades)  # type: ignore[assignment]
+        metrics.total_slippage = sum(t.slippage for t in trades)  # type: ignore[assignment]
+        metrics.total_funding = sum(t.funding for t in trades)  # type: ignore[assignment]
 
     def _calculate_pnl_metrics(
         self,
@@ -148,8 +148,8 @@ class MetricsCalculator:
             sum(t.net_pnl for t in trades if t.net_pnl and t.net_pnl <= 0),
         )
 
-        if gross_losses > 0:
-            metrics.profit_factor = gross_wins / gross_losses
+        if gross_losses > 0:  # type: ignore[operator]
+            metrics.profit_factor = gross_wins / gross_losses  # type: ignore[assignment, operator]
 
     def _calculate_risk_metrics(
         self,

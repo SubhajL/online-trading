@@ -48,7 +48,7 @@ async def test_decision_publisher_emits_buy_decision_from_retest_signal() -> Non
 
     try:
         publisher = DecisionPublisher(
-            db_adapter=_FakeDBAdapter(),
+            db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
             risk=RiskParameters(
                 max_position_size=Decimal("999999"),
                 max_daily_loss=Decimal("1"),
@@ -140,7 +140,7 @@ async def test_decision_publisher_blocks_when_daily_loss_exceeded() -> None:
         )
 
         publisher = DecisionPublisher(
-            db_adapter=_LossyDBAdapter(),
+            db_adapter=_LossyDBAdapter(),  # type: ignore[arg-type]
             risk=risk,
             venue="SPOT",
         )
@@ -197,7 +197,7 @@ async def test_decision_publisher_forwards_zone_metadata() -> None:
 
     try:
         publisher = DecisionPublisher(
-            db_adapter=_FakeDBAdapter(),
+            db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
             risk=RiskParameters(
                 max_position_size=Decimal("999999"),
                 max_daily_loss=Decimal("1"),
@@ -284,7 +284,7 @@ async def test_decision_publisher_handles_missing_zone_metadata() -> None:
 
     try:
         publisher = DecisionPublisher(
-            db_adapter=_FakeDBAdapter(),
+            db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
             risk=RiskParameters(
                 max_position_size=Decimal("999999"),
                 max_daily_loss=Decimal("1"),

@@ -22,7 +22,7 @@ class TestEventBusFactory:
 @pytest.mark.asyncio
 class TestEventBus:
     @pytest_asyncio.fixture
-    async def event_bus(self) -> None:
+    async def event_bus(self) -> None:  # type: ignore[misc]
         config = EventBusConfig(max_queue_size=100, num_workers=1)
         bus = EventBusFactory().create_with_config(config)
         await bus.start()

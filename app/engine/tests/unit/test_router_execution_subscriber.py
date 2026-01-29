@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 import app.engine.execution.router_execution_subscriber as router_module
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
@@ -172,13 +173,18 @@ def _make_subscriber(
     execution_mode: ExecutionMode = ExecutionMode.FUTURES_TESTNET,
     **kwargs: Any,
 ) -> RouterExecutionSubscriber:
+    correlation_store = kwargs.pop(
+        "order_update_correlation_store",
+        OrderUpdateCorrelationStore(ttl_seconds=3600),
+    )
     return RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
-        db_adapter=_FakeDBAdapter(),
+        db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
         risk=_default_risk(),
         venue=_venue_for_mode(execution_mode),
         execution_mode=execution_mode,
+        order_update_correlation_store=correlation_store,
         **kwargs,
     )
 
@@ -342,7 +348,7 @@ async def test_execution_retries_on_transient_exception_then_succeeds(monkeypatc
 
     event = _make_valid_decision_event()
     assert callable(bus.handler)
-    await bus.handler(event)  # type: ignore[misc]
+    await bus.handler(event)
 
     assert router_client.place_bracket_order.call_count == 3
     assert sleep.call_count == 2
@@ -367,7 +373,7 @@ async def test_execution_rejects_quantity_over_max_position_size() -> None:
 
     event = _make_valid_decision_event()
     assert callable(bus.handler)
-    await bus.handler(event)  # type: ignore[misc]
+    await bus.handler(event)
 
     router_client.place_bracket_order.assert_not_awaited()
     assert len(bus.published_events) == 1
@@ -407,17 +413,18 @@ async def test_execution_blocks_when_daily_loss_exceeded() -> None:
     subscriber = RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
-        db_adapter=_LossyDBAdapter(),
+        db_adapter=_LossyDBAdapter(),  # type: ignore[arg-type]
         risk=risk,
         venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
+        order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
         router_max_attempts=1,
     )
     await subscriber.start()
 
     event = _make_valid_decision_event()
     assert callable(bus.handler)
-    await bus.handler(event)  # type: ignore[misc]
+    await bus.handler(event)
 
     router_client.place_bracket_order.assert_not_awaited()
     assert len(bus.published_events) == 1
@@ -472,7 +479,7 @@ async def test_execution_subscriber_calls_router_place_bracket_with_provenance()
     )
 
     assert callable(bus.handler)
-    await bus.handler(event)  # type: ignore[misc]
+    await bus.handler(event)
 
     router_client.place_bracket_order.assert_awaited_once()
     payload = router_client.place_bracket_order.call_args.args[0]
@@ -501,7 +508,7 @@ async def test_execution_rejects_missing_decision_source() -> None:
     event.metadata.pop("decision_source", None)
 
     assert callable(bus.handler)
-    await bus.handler(event)  # type: ignore[misc]
+    await bus.handler(event)
 
     router_client.place_bracket_order.assert_not_awaited()
     assert len(bus.published_events) == 1
@@ -524,7 +531,7 @@ async def test_execution_rejects_signal_emitter_bypass_source() -> None:
     event.metadata["decision_source"] = "signal_emitter_bypass"
 
     assert callable(bus.handler)
-    await bus.handler(event)  # type: ignore[misc]
+    await bus.handler(event)
 
     router_client.place_bracket_order.assert_not_awaited()
     assert len(bus.published_events) == 1
@@ -560,7 +567,7 @@ async def test_execution_subscriber_ignores_decisions_missing_levels() -> None:
     )
 
     assert callable(bus.handler)
-    await bus.handler(event)  # type: ignore[misc]
+    await bus.handler(event)
 
     router_client.place_bracket_order.assert_not_awaited()
 
@@ -618,10 +625,11 @@ async def test_snapshot_triggered_before_order_placed_event() -> None:
     subscriber = RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
-        db_adapter=_FakeDBAdapter(),
+        db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
         risk=_default_risk(),
         venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
+        order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
         bff_client=bff_client,
     )
     await subscriber.start()

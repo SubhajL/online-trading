@@ -55,7 +55,7 @@ def test_db_config() -> DatabaseConfig:
 
 
 @pytest_asyncio.fixture
-async def test_pool(test_db_config: DatabaseConfig) -> None:
+async def test_pool(test_db_config: DatabaseConfig) -> None:  # type: ignore[misc]
     """Fixture for initialized connection pool."""
     pool = ConnectionPool(test_db_config)
     await pool.initialize()
@@ -64,7 +64,7 @@ async def test_pool(test_db_config: DatabaseConfig) -> None:
 
 
 @pytest_asyncio.fixture
-async def test_db_manager(test_db_config: DatabaseConfig) -> None:
+async def test_db_manager(test_db_config: DatabaseConfig) -> None:  # type: ignore[misc]
     """Fixture for initialized database manager."""
     manager = DatabaseManager(test_db_config)
     await manager.initialize()
@@ -73,7 +73,7 @@ async def test_db_manager(test_db_config: DatabaseConfig) -> None:
 
 
 @pytest_asyncio.fixture
-async def setup_test_table(test_pool) -> None:
+async def setup_test_table(test_pool) -> None:  # type: ignore[misc]
     """Create test table for integration tests."""
     async with test_pool.get_postgres_connection() as conn:
         # Drop and recreate test table

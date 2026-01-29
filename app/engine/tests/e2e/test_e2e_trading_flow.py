@@ -16,10 +16,10 @@ from app.engine.models import (
     Candle, TimeFrame, CandleUpdateEvent, FeaturesUpdateEvent,
     SMCEvent, ZoneEvent, SignalEvent, TradingDecision
 )
-from app.engine.features.indicators import IndicatorCalculator
+from app.engine.features.indicators import IndicatorCalculator  # type: ignore[attr-defined]
 from app.engine.smc.core import SMCAnalyzer, StructureTracker
 from app.engine.retest.analyzer import RetestAnalyzer
-from app.engine.decision.engine import DecisionEngine
+from app.engine.decision.engine import DecisionEngine  # type: ignore[attr-defined]
 from app.engine.decision.risk_manager import RiskManager, RiskManagerConfig
 from app.engine.decision.position_sizer import PositionSizer, PositionSizeConfig
 from app.engine.decision.order_formatter import OrderFormatter, ExchangeInfo

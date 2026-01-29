@@ -520,6 +520,10 @@ playwright-report/
 # ===========================
 # Project caches and temp directories
 # ===========================
+# Local Graphite state (should not be committed)
+.graphite-config/
+.graphite-data/
+
 # pnpm store (workspace-local cache)
 app/bff/.pnpm-store/
 

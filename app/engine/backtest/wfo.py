@@ -347,7 +347,7 @@ class WFORunner:
                 config = self._update_config_with_params(params)
 
                 # Create temporary runner with updated config
-                temp_runner = BacktestRunner(self.config_path)
+                temp_runner = BacktestRunner(self.config_path)  # type: ignore[arg-type]
                 temp_runner.config = config
 
                 # Run backtest on training data
@@ -393,7 +393,7 @@ class WFORunner:
         config = self._update_config_with_params(params)
 
         # Create temporary runner
-        temp_runner = BacktestRunner(self.config_path)
+        temp_runner = BacktestRunner(self.config_path)  # type: ignore[arg-type]
         temp_runner.config = config
 
         # Run backtest on test data
@@ -477,18 +477,18 @@ class WFORunner:
 
         return {
             "total_windows": len(result.windows),
-            "avg_test_return": float(np.mean(test_returns)),
-            "std_test_return": float(np.std(test_returns)),
-            "avg_train_return": float(np.mean(train_returns)),
-            "std_train_return": float(np.std(train_returns)),
-            "overfitting_ratio": float(np.mean(train_returns)) / float(np.mean(test_returns))
-            if np.mean(test_returns) != 0
+            "avg_test_return": float(np.mean(test_returns)),  # type: ignore[arg-type]
+            "std_test_return": float(np.std(test_returns)),  # type: ignore[arg-type]
+            "avg_train_return": float(np.mean(train_returns)),  # type: ignore[arg-type]
+            "std_train_return": float(np.std(train_returns)),  # type: ignore[arg-type]
+            "overfitting_ratio": float(np.mean(train_returns)) / float(np.mean(test_returns))  # type: ignore[arg-type]
+            if np.mean(test_returns) != 0  # type: ignore[arg-type]
             else float("inf"),
             "win_rate": len([r for r in test_returns if r > 0]) / len(test_returns)
             if test_returns
             else 0,
-            "best_test_window": int(np.argmax(test_returns)) + 1,
-            "worst_test_window": int(np.argmin(test_returns)) + 1,
+            "best_test_window": int(np.argmax(test_returns)) + 1,  # type: ignore[arg-type]
+            "worst_test_window": int(np.argmin(test_returns)) + 1,  # type: ignore[arg-type]
             "parameter_stability": result.parameter_stability,
         }
 
@@ -655,14 +655,14 @@ class WFORunner:
 
         ax.bar(
             [w - 0.2 for w in windows],
-            train_returns,
+            train_returns,  # type: ignore[arg-type]
             0.4,
             label="Training",
             alpha=0.7,
         )
         ax.bar(
             [w + 0.2 for w in windows],
-            test_returns,
+            test_returns,  # type: ignore[arg-type]
             0.4,
             label="Testing",
             alpha=0.7,
@@ -687,7 +687,7 @@ class WFORunner:
 
         fig, ax = plt.subplots(figsize=(12, 6))
 
-        ax.plot(windows, test_returns, marker="o", linewidth=2, markersize=6)
+        ax.plot(windows, test_returns, marker="o", linewidth=2, markersize=6)  # type: ignore[arg-type]
         ax.axhline(y=0, color="red", linestyle="--", alpha=0.7)
 
         ax.set_xlabel("WFO Window")

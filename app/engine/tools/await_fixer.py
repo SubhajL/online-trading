@@ -14,7 +14,7 @@ class AwaitFixer:
             return content
 
         lines = content.split("\n")
-        result_lines = []
+        result_lines: list[str] = []
         counter = 1
 
         for i, line in enumerate(lines):

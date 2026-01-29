@@ -9,12 +9,18 @@ from aiohttp import web
 import pytest
 
 from app.engine.adapters.router_client.http_client import RouterHTTPClient
-from app.engine.models import RiskParameters
+from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
 )
-from app.engine.models import EventType, TimeFrame, TradingDecision, TradingDecisionEvent
+from app.engine.models import (
+    EventType,
+    RiskParameters,
+    TimeFrame,
+    TradingDecision,
+    TradingDecisionEvent,
+)
 
 
 class _FakeBus:
@@ -76,9 +82,9 @@ async def test_contract_decision_to_place_bracket_includes_provenance() -> None:
 
     bus = _FakeBus()
     subscriber = RouterExecutionSubscriber(
-        bus=bus,
+        bus=bus,  # type: ignore[arg-type]
         router_client=router_client,
-        db_adapter=_FakeDBAdapter(),
+        db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
         risk=RiskParameters(
             max_position_size=Decimal("999999"),
             max_daily_loss=Decimal("1"),
@@ -94,6 +100,7 @@ async def test_contract_decision_to_place_bracket_includes_provenance() -> None:
         ),
         venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
+        order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
     )
     await subscriber.start()
 
@@ -123,7 +130,7 @@ async def test_contract_decision_to_place_bracket_includes_provenance() -> None:
     )
 
     assert callable(bus.handler)
-    await bus.handler(event)  # type: ignore[misc]
+    await bus.handler(event)
     await asyncio.wait_for(got_request.wait(), timeout=2)
 
     assert captured["symbol"] == "BTCUSDT"

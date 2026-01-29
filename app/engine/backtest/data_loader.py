@@ -185,24 +185,36 @@ def precompute_features_parallel(
 
     results = {}
 
-    # Use ProcessPoolExecutor for parallel computation
-    with ProcessPoolExecutor(max_workers=config.parallel_workers) as executor:
-        # Submit tasks
-        future_to_symbol = {
-            executor.submit(_compute_features_for_symbol, symbol, feature_funcs): symbol
-            for symbol in symbols
-        }
+    try:
+        # Use ProcessPoolExecutor for parallel computation
+        with ProcessPoolExecutor(max_workers=config.parallel_workers) as executor:
+            # Submit tasks
+            future_to_symbol = {
+                executor.submit(_compute_features_for_symbol, symbol, feature_funcs): symbol
+                for symbol in symbols
+            }
 
-        # Collect results
-        for future in as_completed(future_to_symbol):
-            symbol = future_to_symbol[future]
+            # Collect results
+            for future in as_completed(future_to_symbol):
+                symbol = future_to_symbol[future]
+                try:
+                    features = future.result()
+                    results[symbol] = features
+                    logger.info(f"Computed features for {symbol}")
+                except Exception as e:
+                    logger.error(f"Failed to compute features for {symbol}: {e}")
+                    # Still include symbol with empty DataFrame
+                    results[symbol] = pd.DataFrame()
+    except (PermissionError, NotImplementedError) as exc:
+        logger.warning(
+            "ProcessPoolExecutor unavailable; falling back to in-process computation: %s",
+            exc,
+        )
+        for symbol in symbols:
             try:
-                features = future.result()
-                results[symbol] = features
-                logger.info(f"Computed features for {symbol}")
+                results[symbol] = _compute_features_for_symbol(symbol, feature_funcs)
             except Exception as e:
                 logger.error(f"Failed to compute features for {symbol}: {e}")
-                # Still include symbol with empty DataFrame
                 results[symbol] = pd.DataFrame()
 
     return results

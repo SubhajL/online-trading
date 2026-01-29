@@ -199,7 +199,7 @@ class TestStatePersistence:
 
     def test_state_persistence_empty(self) -> None:
         """Handles empty state gracefully."""
-        empty_state = {"positions": {}, "pending_orders": [], "config": {}}
+        empty_state: dict[str, object] = {"positions": {}, "pending_orders": [], "config": {}}
 
         result = save_application_state(empty_state)
 

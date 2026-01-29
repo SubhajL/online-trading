@@ -16,7 +16,7 @@ class NewsGuard:
     """Guards against trading during major news events"""
 
     def __init__(self) -> None:
-        self.high_impact_events = []
+        self.high_impact_events: list[dict[str, object]] = []
         self.guard_window_minutes = 30
 
     def is_news_safe(self, symbol: str) -> bool:

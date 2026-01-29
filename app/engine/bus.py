@@ -38,7 +38,7 @@ TOPIC_TO_EVENT_TYPE: dict[str, EventType] = {
     "zones.v1": EventType.SMC_SIGNAL,
     "signals_raw.v1": EventType.RETEST_SIGNAL,
     "decision.v1": EventType.TRADING_DECISION,
-    "order_update.v1": EventType.ORDER_PLACED,
+    "order_update.v1": EventType.ORDER_UPDATE,
     "regime.v1": EventType.REGIME_UPDATE,
     "news_window.v1": EventType.NEWS_ALERT,
     "funding_window.v1": EventType.FUNDING_ALERT,
@@ -636,11 +636,24 @@ async def publish_event(topic: str, data: dict[str, Any]) -> bool:
     # Extract timestamp, default to now
     timestamp = data.get("timestamp", datetime.now(UTC))
 
-    event = BaseEvent(
-        event_type=event_type,
-        timestamp=timestamp,
-        symbol=symbol,
-        timeframe=timeframe,
-        payload=data,
-    )
+    event: BaseEvent
+    if event_type == EventType.ORDER_UPDATE:
+        from .models import OrderUpdate, OrderUpdateEvent
+
+        update = OrderUpdate.model_validate(data)
+        event = OrderUpdateEvent(
+            timestamp=timestamp,
+            symbol=symbol or update.symbol,
+            timeframe=timeframe,
+            update=update,
+            payload=data,
+        )
+    else:
+        event = BaseEvent(
+            event_type=event_type,
+            timestamp=timestamp,
+            symbol=symbol,
+            timeframe=timeframe,
+            payload=data,
+        )
     return await bus.publish(event)

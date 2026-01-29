@@ -25,7 +25,7 @@ class TestEvent(BaseEvent):
     test_data: str
 
     def __init__(self, test_data: str, **kwargs) -> None:
-        super().__init__(
+        super().__init__(  # type: ignore[call-arg]
             event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
             timestamp=kwargs.get("timestamp", datetime.utcnow()),
             symbol=kwargs.get("symbol", "BTCUSDT"),

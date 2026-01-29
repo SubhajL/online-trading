@@ -62,7 +62,7 @@ class ChartGenerator:
         fig, ax = plt.subplots(figsize=self.figsize)
 
         # Plot equity curve
-        ax.plot(timestamps, equity_values, linewidth=2, color="#2E86C1", label="Equity")
+        ax.plot(timestamps, equity_values, linewidth=2, color="#2E86C1", label="Equity")  # type: ignore[arg-type]
 
         # Add horizontal line for starting balance
         initial_balance = equity_values[0]
@@ -139,14 +139,14 @@ class ChartGenerator:
 
         # Plot drawdown
         ax.fill_between(
-            timestamps,
+            timestamps,  # type: ignore[arg-type]
             drawdown_values,
             0,
             alpha=0.7,
             color="#E74C3C",
             label="Drawdown",
         )
-        ax.plot(timestamps, drawdown_values, linewidth=1, color="#C0392B")
+        ax.plot(timestamps, drawdown_values, linewidth=1, color="#C0392B")  # type: ignore[arg-type]
 
         # Formatting
         ax.set_title(title, fontsize=16, fontweight="bold")
@@ -216,7 +216,7 @@ class ChartGenerator:
         )
 
         # Color bars based on positive/negative
-        for i, patch in enumerate(patches):
+        for i, patch in enumerate(patches):  # type: ignore[arg-type]
             if bins_edges[i] < 0:
                 patch.set_facecolor("#E74C3C")  # Red for losses
             else:
@@ -313,10 +313,10 @@ class ChartGenerator:
 
         matrix = np.full((len(years_sorted), 12), np.nan)
 
-        for i, year in enumerate(years_sorted):
+        for i, year in enumerate(years_sorted):  # type: ignore[assignment]
             for j in range(1, 13):  # Months 1-12
-                if (year, j) in data_dict:
-                    matrix[i, j - 1] = data_dict[(year, j)]
+                if (year, j) in data_dict:  # type: ignore[comparison-overlap]
+                    matrix[i, j - 1] = data_dict[(year, j)]  # type: ignore[index]
 
         # Create figure
         fig, ax = plt.subplots(figsize=(12, max(6, len(years_sorted))))
@@ -343,7 +343,7 @@ class ChartGenerator:
             ],
         )
         ax.set_yticks(range(len(years_sorted)))
-        ax.set_yticklabels(years_sorted)
+        ax.set_yticklabels(years_sorted)  # type: ignore[arg-type]
 
         # Add text annotations
         for i in range(len(years_sorted)):

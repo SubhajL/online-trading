@@ -30,7 +30,7 @@ async def test_binance_ws_uses_injected_connector(monkeypatch):
 
     called = {}
 
-    def fake_connector(url: str, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_connector(url: str, **kwargs):
         called["url"] = url
         called["kwargs"] = kwargs
         return DummyWS()

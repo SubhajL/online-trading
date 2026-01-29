@@ -4,13 +4,13 @@ import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from unittest.mock import AsyncMock
 
-from aiohttp import web
 import pytest
 
 from app.engine import bus as bus_module
-from app.engine.adapters.router_client.http_client import RouterHTTPClient
 from app.engine.decision.decision_publisher import DecisionPublisher
+from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
@@ -45,7 +45,7 @@ class _InProcBus:
             raise TypeError("handler must be callable")
         sub_id = f"sub-{self._next_id}"
         self._next_id += 1
-        self._subs[sub_id] = (event_types, handler)  # type: ignore[assignment]
+        self._subs[sub_id] = (event_types, handler)
         return sub_id
 
     async def unsubscribe(self, subscription_id: str) -> bool:
@@ -76,29 +76,12 @@ class _FakeDBAdapter:
 
 @pytest.mark.asyncio
 async def test_flow_retest_signal_to_router_order() -> None:
-    captured: dict[str, Any] = {}
-    got_request = asyncio.Event()
-
-    async def handle_place_bracket(request: web.Request) -> web.Response:
-        nonlocal captured
-        captured = await request.json()
-        got_request.set()
-        return web.json_response({"success": True})
-
-    app = web.Application()
-    app.router.add_post("/place_bracket", handle_place_bracket)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "127.0.0.1", 0)
-    await site.start()
-    port = site._server.sockets[0].getsockname()[1]  # type: ignore[attr-defined]
-
-    router_client = RouterHTTPClient(base_url=f"http://127.0.0.1:{port}")
-    await router_client.initialize()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
 
     bus = _InProcBus()
     previous_bus = getattr(bus_module, "_global_event_bus", None)
-    bus_module.set_event_bus(bus)  # DecisionPublisher pulls from global bus
+    bus_module.set_event_bus(bus)  # type: ignore[arg-type]  # DecisionPublisher pulls from global bus
 
     db_adapter = _FakeDBAdapter()
     risk = RiskParameters(
@@ -116,17 +99,18 @@ async def test_flow_retest_signal_to_router_order() -> None:
     )
 
     decision_publisher = DecisionPublisher(
-        db_adapter=db_adapter,
+        db_adapter=db_adapter,  # type: ignore[arg-type]
         risk=risk,
         venue="USD_M",
     )
     execution = RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
-        db_adapter=db_adapter,
+        db_adapter=db_adapter,  # type: ignore[arg-type]
         risk=risk,
         venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
+        order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
     )
 
     try:
@@ -159,7 +143,8 @@ async def test_flow_retest_signal_to_router_order() -> None:
         )
 
         await bus.publish(event)
-        await asyncio.wait_for(got_request.wait(), timeout=2)
+        router_client.place_bracket_order.assert_awaited_once()
+        captured = router_client.place_bracket_order.call_args.args[0]
 
         assert captured["symbol"] == "BTCUSDT"
         assert captured["side"] == "BUY"
@@ -168,6 +153,4 @@ async def test_flow_retest_signal_to_router_order() -> None:
     finally:
         await decision_publisher.stop()
         await execution.stop()
-        await router_client.close()
-        await runner.cleanup()
         bus_module._global_event_bus = previous_bus

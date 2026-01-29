@@ -54,7 +54,7 @@ def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
     Returns:
         List of generic types missing parameters with context
     """
-    missing_generics = []
+    missing_generics: list[Any] = []
     lines = code.split("\n")
 
     for line_idx, line in enumerate(lines):
@@ -238,12 +238,12 @@ def infer_generic_parameters(
                                         self.element_types.add("float")
                     self.generic_visit(node)
 
-            inferrer = ListInferrer()
+            inferrer = ListInferrer()  # type: ignore[assignment]
             inferrer.visit(tree)
 
-            if inferrer.element_types:
-                if len(inferrer.element_types) == 1:
-                    return f"[{inferrer.element_types.pop()}]"
+            if inferrer.element_types:  # type: ignore[attr-defined]
+                if len(inferrer.element_types) == 1:  # type: ignore[attr-defined]
+                    return f"[{inferrer.element_types.pop()}]"  # type: ignore[attr-defined]
 
         # For tuple/Tuple types
         elif type_name.lower() == "tuple" and function_name:
@@ -277,11 +277,11 @@ def infer_generic_parameters(
                                 self.tuple_types = types
                     self.generic_visit(node)
 
-            inferrer = TupleInferrer()
+            inferrer = TupleInferrer()  # type: ignore[assignment]
             inferrer.visit(tree)
 
-            if inferrer.tuple_types:
-                return f"[{', '.join(inferrer.tuple_types)}]"
+            if inferrer.tuple_types:  # type: ignore[attr-defined]
+                return f"[{', '.join(inferrer.tuple_types)}]"  # type: ignore[attr-defined]
 
     except Exception:
         pass
@@ -309,7 +309,7 @@ def add_generic_type_parameters(code: str) -> str:
     needs_any = False
 
     # Group by line number and process in reverse order
-    lines_to_process = {}
+    lines_to_process: dict[Any, Any] = {}
     for item in missing:
         line_idx = item["line"]
         if line_idx not in lines_to_process:

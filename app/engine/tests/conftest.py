@@ -40,7 +40,10 @@ async def redis_client() -> AsyncIterator[redis.Redis]:
     client = redis.from_url(url, decode_responses=False)
     try:
         # Basic connectivity check
-        pong = await client.ping()
+        try:
+            pong = await client.ping()
+        except Exception as exc:
+            pytest.skip(f"Redis connection failed; skipping ({exc!s})")
         if pong is not True:
             pytest.skip("Redis PING failed; skipping")
         yield client
@@ -76,6 +79,7 @@ async def event_bus_and_services() -> AsyncIterator[None]:
     from app.engine.core.event_bus_factory import EventBusConfig, EventBusFactory
     from app.engine.features.feature_service import FeatureService
     from app.engine.smc.smc_service import SMCService
+
     # Configure event bus consistent with tests: priority queue on, DLQ off
     cfg = EventBusConfig(
         use_priority_queue=True,
@@ -117,11 +121,11 @@ class _DBClient:
         self._pool = pool
 
     async def execute(self, sql: str, *args: object) -> str:
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire() as conn:  # type: ignore[attr-defined]
             return await conn.execute(sql, *args)
 
     async def fetch_one(self, sql: str, *args: object) -> Record | None:
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire() as conn:  # type: ignore[attr-defined]
             return await conn.fetchrow(sql, *args)
 
 

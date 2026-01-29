@@ -11,7 +11,7 @@ class TestTracingStartup:
         # Arrange: stub configure_tracing_from_env to observe calls
         called = {"count": 0}
 
-        def _stub():  # type: ignore[no-untyped-def]
+        def _stub():
             called["count"] += 1
 
         monkeypatch.setenv("TRACING_DISABLED", "true")

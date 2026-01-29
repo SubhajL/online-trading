@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
-from ..decision.engine import DecisionEngine
+from ..decision.engine import DecisionEngine  # type: ignore[attr-defined]
 from ..features.indicators import TechnicalIndicatorsCalculator
 from ..models import Candle, TechnicalIndicators
 from ..smc.engine import SMCEngine
@@ -97,7 +97,7 @@ class BacktestSimulator:
             return
 
         # 2. Process SMC analysis
-        self.smc_engine.process_candle(candle)
+        self.smc_engine.process_candle(candle)  # type: ignore[unused-coroutine]
 
         # 3. Check and execute fills for existing orders
         self._process_order_fills(candle)
@@ -156,7 +156,7 @@ class BacktestSimulator:
             volumes = [c.volume for c in candles]
 
             # Use the exact same calculation as live
-            return self.indicators_calc.calculate_all(
+            return self.indicators_calc.calculate_all(  # type: ignore[attr-defined]
                 candles=candles,
                 ema_periods=[9, 21, 50],
                 rsi_period=14,

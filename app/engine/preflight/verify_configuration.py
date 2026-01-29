@@ -80,7 +80,7 @@ def validate_yaml_configs() -> CheckResult:
     validation_errors = {}
 
     # Find all config files
-    found_files = set()  # Use set to avoid duplicates
+    found_files: set[Path] = set()  # Use set to avoid duplicates
     for pattern in CONFIG_PATTERNS:
         if pattern.endswith(".yaml") or pattern.endswith(".yml"):
             found_files.update(Path().glob(pattern))
