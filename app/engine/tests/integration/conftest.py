@@ -122,6 +122,10 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "integration: mark test as an integration test requiring database",
     )
+    config.addinivalue_line(
+        "markers",
+        "e2e: mark test as end-to-end requiring full stack (BFF, Telegram, Binance)",
+    )
 
 
 def pytest_collection_modifyitems(
@@ -130,4 +134,6 @@ def pytest_collection_modifyitems(
 ) -> None:
     del config
     for item in items:
-        item.add_marker(pytest.mark.integration)
+        existing = {m.name for m in item.iter_markers()}
+        if "e2e" not in existing:
+            item.add_marker(pytest.mark.integration)

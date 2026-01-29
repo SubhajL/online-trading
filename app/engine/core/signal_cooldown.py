@@ -1,12 +1,22 @@
 """Signal cooldown to prevent duplicate orders on same zone.
 
-Uses dict + monotonic clock (no external dependencies like cachetools).
+Supports two backends:
+- In-memory dict + monotonic clock (default, for tests)
+- Redis SETEX (production, survives engine restarts)
 """
 
 from __future__ import annotations
 
+import logging
 import time
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from app.engine.adapters.redis.redis_adapter import RedisAdapter
+
+logger = logging.getLogger(__name__)
+
+COOLDOWN_PREFIX = "cooldown"
 
 
 class Clock(Protocol):
@@ -26,23 +36,22 @@ class SignalCooldown:
     """Cooldown cache to prevent duplicate signals on same zone.
 
     Key: (symbol, timeframe, zone_id, direction)
-    Uses simple dict + monotonic clock, no external dependencies.
+
+    When ``redis`` is provided, uses Redis SETEX so cooldowns survive
+    engine restarts. Falls back to in-memory dict otherwise.
     """
 
     def __init__(
         self,
         cooldown_seconds: int = 300,
         clock: Clock | None = None,
+        redis: RedisAdapter | None = None,
     ) -> None:
-        """Initialize cooldown cache.
-
-        Args:
-            cooldown_seconds: Time in seconds before same signal is allowed again.
-            clock: Optional clock for testing. Defaults to system monotonic clock.
-        """
         self._cooldown_seconds = cooldown_seconds
         self._clock = clock if clock is not None else _SystemClock()
-        self._cache: dict[str, float] = {}  # key -> expiry_time
+        self._redis = redis
+        # In-memory fallback (always maintained for fast-path / when Redis unavailable)
+        self._cache: dict[str, float] = {}
 
     def _build_key(
         self,
@@ -51,15 +60,32 @@ class SignalCooldown:
         zone_id: str,
         direction: str,
     ) -> str:
-        """Build cache key from signal identifiers."""
         return f"{symbol}:{timeframe}:{zone_id}:{direction}"
 
     def _purge_expired(self) -> None:
-        """Remove expired entries to prevent memory leak."""
         now = self._clock.monotonic()
         expired = [k for k, expiry in self._cache.items() if expiry <= now]
         for k in expired:
             del self._cache[k]
+
+    async def should_allow_async(
+        self,
+        symbol: str,
+        timeframe: str,
+        zone_id: str,
+        direction: str,
+    ) -> bool:
+        """Async version that checks Redis first if available."""
+        key = self._build_key(symbol, timeframe, zone_id, direction)
+        if self._redis is not None:
+            try:
+                val = await self._redis.get(key, prefix=COOLDOWN_PREFIX)
+                if val is not None:
+                    return False
+                return True
+            except Exception:
+                logger.warning("Redis cooldown check failed, falling back to in-memory")
+        return self.should_allow(symbol, timeframe, zone_id, direction)
 
     def should_allow(
         self,
@@ -68,20 +94,34 @@ class SignalCooldown:
         zone_id: str,
         direction: str,
     ) -> bool:
-        """Check if signal is allowed (not in cooldown).
-
-        Args:
-            symbol: Trading symbol (e.g., BTCUSDT)
-            timeframe: Candle timeframe (e.g., 15m)
-            zone_id: Zone identifier
-            direction: Order direction (BUY/SELL)
-
-        Returns:
-            True if signal is allowed, False if in cooldown.
-        """
+        """Check if signal is allowed (not in cooldown). Synchronous in-memory check."""
         self._purge_expired()
         key = self._build_key(symbol, timeframe, zone_id, direction)
         return key not in self._cache
+
+    async def record_signal_async(
+        self,
+        symbol: str,
+        timeframe: str,
+        zone_id: str,
+        direction: str,
+    ) -> None:
+        """Record signal with Redis persistence if available."""
+        key = self._build_key(symbol, timeframe, zone_id, direction)
+        # Always update in-memory cache
+        expiry = self._clock.monotonic() + self._cooldown_seconds
+        self._cache[key] = expiry
+
+        if self._redis is not None:
+            try:
+                await self._redis.set(
+                    key,
+                    "1",
+                    expire=self._cooldown_seconds,
+                    prefix=COOLDOWN_PREFIX,
+                )
+            except Exception:
+                logger.warning("Redis cooldown write failed, in-memory only")
 
     def record_signal(
         self,
@@ -90,14 +130,7 @@ class SignalCooldown:
         zone_id: str,
         direction: str,
     ) -> None:
-        """Record signal to start cooldown period.
-
-        Args:
-            symbol: Trading symbol (e.g., BTCUSDT)
-            timeframe: Candle timeframe (e.g., 15m)
-            zone_id: Zone identifier
-            direction: Order direction (BUY/SELL)
-        """
+        """Record signal (synchronous, in-memory only). For backwards compat."""
         key = self._build_key(symbol, timeframe, zone_id, direction)
         expiry = self._clock.monotonic() + self._cooldown_seconds
         self._cache[key] = expiry

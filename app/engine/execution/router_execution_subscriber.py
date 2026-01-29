@@ -207,6 +207,7 @@ class RouterExecutionSubscriber:
         self._router_max_attempts = router_max_attempts
         self._router_backoff_config = router_backoff_config
         self._subscription_id: str | None = None
+        self._symbol_locks: dict[str, asyncio.Lock] = {}
 
     async def _place_bracket_with_retries(self, payload: dict[str, Any]) -> dict[str, Any]:
         backoff = ExponentialBackoff(
@@ -257,6 +258,11 @@ class RouterExecutionSubscriber:
         await self._bus.unsubscribe(self._subscription_id)
         self._subscription_id = None
 
+    def _get_symbol_lock(self, symbol: str) -> asyncio.Lock:
+        if symbol not in self._symbol_locks:
+            self._symbol_locks[symbol] = asyncio.Lock()
+        return self._symbol_locks[symbol]
+
     async def _on_trading_decision(self, event: TradingDecisionEvent) -> None:  # noqa: C901
         decision_source = event.metadata.get("decision_source")
         if decision_source != "retest_decision_publisher":
@@ -269,6 +275,13 @@ class RouterExecutionSubscriber:
             return
 
         decision = event.decision
+        symbol_lock = self._get_symbol_lock(decision.symbol)
+        async with symbol_lock:
+            await self._execute_decision(event)
+
+    async def _execute_decision(self, event: TradingDecisionEvent) -> None:  # noqa: C901
+        decision = event.decision
+        decision_source = event.metadata.get("decision_source")
         action = str(decision.action).upper()
         if action not in {"BUY", "SELL"}:
             return
@@ -339,7 +352,7 @@ class RouterExecutionSubscriber:
         if (
             self._cooldown is not None
             and zone_identity is not None
-            and not self._cooldown.should_allow(
+            and not await self._cooldown.should_allow_async(
                 decision.symbol,
                 timeframe_str,
                 zone_identity.zone_id,
@@ -426,12 +439,15 @@ class RouterExecutionSubscriber:
             if success:
                 # Record cooldown AFTER successful placement
                 if self._cooldown is not None and zone_identity is not None:
-                    self._cooldown.record_signal(
+                    await self._cooldown.record_signal_async(
                         decision.symbol,
                         timeframe_str,
                         zone_identity.zone_id,
                         action,
                     )
+
+                # Persist order to DB BEFORE emitting event to prevent orphans
+                await self._persist_order_to_db(event, response, client_ids.main)
 
                 # Trigger snapshot FIRST so it's available when alert handler runs
                 await self._notify_snapshot(event)
@@ -464,6 +480,36 @@ class RouterExecutionSubscriber:
                 decision.symbol,
             )
             await _emit_execution_error(self._bus, event, str(exc), "router_exception")
+
+    async def _persist_order_to_db(
+        self,
+        event: TradingDecisionEvent,
+        response: dict[str, Any],
+        client_order_id: str,
+    ) -> None:
+        """Persist order to DB before emitting event to prevent orphaned exchange orders."""
+        decision = event.decision
+        order_row = {
+            "client_order_id": client_order_id,
+            "symbol": decision.symbol,
+            "side": str(decision.action).upper(),
+            "type": "LIMIT",
+            "quantity": str(decision.quantity) if decision.quantity else "0",
+            "price": str(decision.entry_price) if decision.entry_price else None,
+            "stop_price": str(decision.stop_loss) if decision.stop_loss else None,
+            "status": "NEW",
+            "decision_id": str(decision.decision_id),
+            "exchange_order_id": response.get("order_id"),
+        }
+        try:
+            from app.engine.adapters.db.timescale import upsert_order
+
+            await upsert_order(order_row)
+        except Exception:
+            logger.exception(
+                "Failed to persist order to DB for %s (order may be orphaned on exchange)",
+                client_order_id,
+            )
 
     async def _emit_order_placed(
         self,
@@ -518,7 +564,7 @@ class RouterExecutionSubscriber:
                 "entry": str(decision.entry_price) if decision.entry_price else None,
                 "stopLoss": str(decision.stop_loss) if decision.stop_loss else None,
                 "takeProfit": str(decision.take_profit) if decision.take_profit else None,
-                "confidence": float(decision.confidence) if decision.confidence else None,
+                "confidence": str(decision.confidence) if decision.confidence else None,
                 "reasons": decision.reasoning.split("; ") if decision.reasoning else [],
                 "timeframe": event.timeframe.value if event.timeframe else None,
                 "signalTime": decision.timestamp.isoformat() if decision.timestamp else None,

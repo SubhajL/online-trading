@@ -17,12 +17,14 @@ from .verify_environment import (
     check_file_permissions,
     check_port_availability,
     check_required_env_vars,
+    check_risk_parameters,
 )
 
 # Define check order and names
 PREFLIGHT_CHECKS = [
     # Environment checks first
     ("environment", check_required_env_vars),
+    ("risk_parameters", check_risk_parameters),
     ("python_version", check_python_version),
     ("packages", check_python_packages),
     ("system_commands", check_system_commands),

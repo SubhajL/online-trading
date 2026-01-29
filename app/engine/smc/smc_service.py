@@ -14,6 +14,7 @@ from ..bus import get_event_bus
 from ..models import (
     Candle,
     CandleUpdateEvent,
+    ErrorEvent,
     EventType,
     OrderSide,
     PivotPoint,
@@ -212,6 +213,21 @@ class SMCService:
 
         except Exception as e:
             logger.error(f"Error handling candle update in SMC service: {e}")
+            await self._emit_error(str(e), "smc_candle_update_failed", symbol=event.symbol)
+
+    async def _emit_error(self, message: str, error_type: str, symbol: str = "") -> None:
+        try:
+            error_event = ErrorEvent(
+                event_type=EventType.ERROR,
+                timestamp=datetime.now(UTC),
+                symbol=symbol,
+                error_type=error_type,
+                error_message=message,
+                component="smc_service",
+            )
+            await self._event_bus.publish(error_event, priority=7)
+        except Exception:
+            logger.exception("Failed to publish SMC service error event")
 
     def _store_candle(self, candle: Candle) -> None:
         """Store candle in history for analysis"""

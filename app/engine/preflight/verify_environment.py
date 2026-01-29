@@ -31,6 +31,13 @@ OPTIONAL_ENV_VARS = {
     "ROUTER_URL": {"min_length": 10},
 }
 
+# Risk parameters with mandatory bounds
+RISK_ENV_VARS = {
+    "RISK_PER_TRADE_PCT": {"type": "float", "min": 0.001, "max": 0.05},
+    "MAX_DAILY_LOSS_PCT": {"type": "float", "min": 0.01, "max": 0.10},
+    "MAX_POSITION_SIZE": {"type": "float", "min": 0.0001, "max": 100000},
+}
+
 # Service ports to check
 SERVICE_PORTS = {
     "postgres": {
@@ -109,6 +116,56 @@ def check_required_env_vars() -> CheckResult:
     return CheckResult(
         status=CheckStatus.PASSED,
         message="All required environment variables are set",
+        details=details,
+    )
+
+
+def check_risk_parameters() -> CheckResult:
+    """Verify risk parameters are set and within safe bounds.
+
+    If any risk env var is missing or out of bounds, returns FAILED to prevent
+    the engine from starting with permissive defaults.
+    """
+    missing = []
+    invalid = {}
+
+    for var_name, rules in RISK_ENV_VARS.items():
+        value = os.environ.get(var_name, "")
+
+        if not value:
+            missing.append(var_name)
+            continue
+
+        try:
+            float_val = float(value)
+        except ValueError:
+            invalid[var_name] = f"Expected float, got '{value}'"
+            continue
+
+        if float_val < rules["min"]:  # type: ignore[operator]
+            invalid[var_name] = f"Value {float_val} below minimum {rules['min']}"
+        elif float_val > rules["max"]:  # type: ignore[operator]
+            invalid[var_name] = f"Value {float_val} above maximum {rules['max']}"
+
+    details: dict[str, Any] = {
+        "total_checked": len(RISK_ENV_VARS),
+        "missing": missing,
+        "invalid": invalid,
+    }
+
+    if missing or invalid:
+        return CheckResult(
+            status=CheckStatus.FAILED,
+            message=(
+                f"Risk parameters not configured safely: "
+                f"{len(missing)} missing, {len(invalid)} invalid"
+            ),
+            details=details,
+        )
+
+    return CheckResult(
+        status=CheckStatus.PASSED,
+        message="All risk parameters are within safe bounds",
         details=details,
     )
 

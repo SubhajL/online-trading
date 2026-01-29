@@ -419,10 +419,16 @@ class PaperBroker:
 
         self.positions[position_key].update_position(fill, candle.close_price)
 
-        # Save to database using schema-aligned methods
-        await self._insert_paper_fill(fill)
-        await self._update_order_in_db(order)
-        await self._upsert_paper_position(self.positions[position_key], bracket_id)
+        # Save to database in a single transaction to prevent partial writes
+        async with self.db_pool.acquire() as conn:
+            async with conn.transaction():
+                await self._insert_paper_fill(fill, conn=conn)
+                await self._update_order_in_db(order, conn=conn)
+                await self._upsert_paper_position(
+                    self.positions[position_key],
+                    bracket_id,
+                    conn=conn,
+                )
 
         # Cancel OCO siblings if this is a reduce_only (TP/SL) order
         if order.reduce_only:
@@ -451,37 +457,50 @@ class PaperBroker:
         self,
         fill: BacktestFill,
         position_id: UUID | None = None,
+        conn: asyncpg.Connection | None = None,
     ) -> None:
         """Insert fill to database using schema-aligned SQL builder."""
         sql, params = build_insert_paper_fill(fill, position_id)
-        async with self.db_pool.acquire() as conn:
+        if conn is not None:
             await conn.execute(sql, *params)
+        else:
+            async with self.db_pool.acquire() as c:
+                await c.execute(sql, *params)
 
-    async def _update_order_in_db(self, order: BacktestOrder) -> None:
+    async def _update_order_in_db(
+        self,
+        order: BacktestOrder,
+        conn: asyncpg.Connection | None = None,
+    ) -> None:
         """Update order status and fill info in database."""
-        async with self.db_pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE paper_orders SET
-                    status = $2,
-                    filled_quantity = $3,
-                    remaining_quantity = $4,
-                    fill_time = $5,
-                    updated_at = $6
-                WHERE id = $1
-                """,
-                order.id,
-                status_to_db(order.status),
-                order.filled_quantity,
-                order.remaining_quantity,
-                order.fill_time,
-                datetime.now(UTC),
-            )
+        query = """
+            UPDATE paper_orders SET
+                status = $2,
+                filled_quantity = $3,
+                remaining_quantity = $4,
+                fill_time = $5,
+                updated_at = $6
+            WHERE id = $1
+        """
+        params = (
+            order.id,
+            status_to_db(order.status),
+            order.filled_quantity,
+            order.remaining_quantity,
+            order.fill_time,
+            datetime.now(UTC),
+        )
+        if conn is not None:
+            await conn.execute(query, *params)
+        else:
+            async with self.db_pool.acquire() as c:
+                await c.execute(query, *params)
 
     async def _upsert_paper_position(
         self,
         position: PaperPosition,
         bracket_id: UUID,
+        conn: asyncpg.Connection | None = None,
     ) -> None:
         """Upsert position to database using schema-aligned SQL builder."""
         side: str | None
@@ -504,8 +523,11 @@ class PaperBroker:
             total_funding=position.total_funding,
         )
         sql, sql_params = build_upsert_paper_position(params)
-        async with self.db_pool.acquire() as conn:
+        if conn is not None:
             await conn.execute(sql, *sql_params)
+        else:
+            async with self.db_pool.acquire() as c:
+                await c.execute(sql, *sql_params)
 
     async def _cancel_oco_siblings(
         self,

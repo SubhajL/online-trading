@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from ..models import (
     Candle,
     CandleUpdateEvent,
+    ErrorEvent,
     EventType,
     FeaturesCalculatedEvent,
     TechnicalIndicators,
@@ -158,6 +159,7 @@ class FeatureService:
 
         except Exception as e:
             logger.error(f"Error handling candle update: {e}")
+            await self._emit_error(str(e), "candle_update_failed", symbol=event.symbol)
 
     async def _calculate_and_publish_indicators(
         self,
@@ -208,6 +210,21 @@ class FeatureService:
             logger.error(
                 f"Error calculating indicators for {symbol} {timeframe.value}: {e}",
             )
+            await self._emit_error(str(e), "indicator_calculation_failed", symbol=symbol)
+
+    async def _emit_error(self, message: str, error_type: str, symbol: str = "") -> None:
+        try:
+            error_event = ErrorEvent(
+                event_type=EventType.ERROR,
+                timestamp=datetime.now(UTC),
+                symbol=symbol,
+                error_type=error_type,
+                error_message=message,
+                component="feature_service",
+            )
+            await self._event_bus.publish(error_event, priority=7)
+        except Exception:
+            logger.exception("Failed to publish feature service error event")
 
     async def get_latest_indicators(
         self,

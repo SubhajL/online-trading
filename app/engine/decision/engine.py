@@ -195,8 +195,8 @@ def generate_decision(
                 "reasons": ["approaching_daily_drawdown_limit"],
                 "confidence": signal.get("confidence", 0),
                 "risk_metadata": {
-                    "current_drawdown": float(current_dd),
-                    "max_allowed": float(max_daily_drawdown),
+                    "current_drawdown": str(current_dd),
+                    "max_allowed": str(max_daily_drawdown),
                 },
             }
 
@@ -240,17 +240,17 @@ def generate_decision(
         "take_profit_3": tp_levels["tp3"],
         "position_size": position_size,
         "risk_amount": risk_amount,
-        "risk_percentage": float(risk_percentage),
+        "risk_percentage": str(risk_percentage),
         "confidence": signal.get("confidence", signal.get("adjusted_confidence", 0.5)),
         "reasons": _build_reasons(signal),
         "risk_metadata": {
-            "account_balance": float(account_balance),
-            "position_value": float(position_size * entry_price),
+            "account_balance": str(account_balance),
+            "position_value": str(position_size * entry_price),
             "leverage": (
-                float((position_size * entry_price) / account_balance) if is_futures else 1.0
+                str((position_size * entry_price) / account_balance) if is_futures else "1"
             ),
             "risk_reward_ratio": "1:3",
-            "max_loss": float(risk_amount),
+            "max_loss": str(risk_amount),
         },
     }
 

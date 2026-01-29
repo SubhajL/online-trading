@@ -12,7 +12,7 @@ from typing import Any
 
 from ..bus import get_event_bus
 from ..core.interfaces import DatabaseAdapterInterface
-from ..models import Candle, CandleOrigin, CandleUpdateEvent, EventType, TimeFrame
+from ..models import Candle, CandleOrigin, CandleUpdateEvent, ErrorEvent, EventType, TimeFrame
 from .binance_rest import BinanceRestClient
 from .binance_ws import BinanceWebSocketClient
 
@@ -20,6 +20,17 @@ logger = logging.getLogger(__name__)
 
 # Number of recent candles to publish for pipeline warm-up during backfill
 WARMUP_CANDLE_COUNT = 10
+
+# Mapping of timeframe suffix to seconds multiplier
+_TF_SECONDS: dict[str, int] = {"m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+
+def _timeframe_to_seconds(tf: TimeFrame) -> int:
+    """Convert TimeFrame enum value (e.g. '15m', '4h') to seconds."""
+    val = tf.value  # e.g. "15m"
+    suffix = val[-1]
+    num = int(val[:-1])
+    return num * _TF_SECONDS.get(suffix, 60)
 
 
 class IngestService:
@@ -250,8 +261,27 @@ class IngestService:
                 )
             except Exception as e:
                 logger.error(f"Failed to persist candle {symbol} {timeframe.value}: {e}")
+                await self._emit_error(
+                    str(e),
+                    "candle_persistence_failed",
+                    symbol=symbol,
+                )
         else:
             logger.warning(f"No db_adapter - skipping candle persist: {symbol} {timeframe.value}")
+
+    async def _emit_error(self, message: str, error_type: str, symbol: str = "") -> None:
+        try:
+            error_event = ErrorEvent(
+                event_type=EventType.ERROR,
+                timestamp=datetime.now(UTC),
+                symbol=symbol,
+                error_type=error_type,
+                error_message=message,
+                component="ingest_service",
+            )
+            await self._event_bus.publish(error_event, priority=7)
+        except Exception:
+            logger.exception("Failed to publish ingest service error event")
 
     async def _start_backfill(self) -> None:
         """Start historical data backfill for all symbols and timeframes"""
@@ -432,14 +462,53 @@ class IngestService:
         symbol: str,
         timeframe: TimeFrame,
     ) -> list[dict[Any, Any]]:
-        """Detect gaps in historical data"""
-        _ = symbol, timeframe
-        # This would implement gap detection logic
-        # For now, return empty list
-        gaps: list[dict[Any, Any]] = []
+        """Detect gaps in candle data by comparing consecutive close_times.
 
-        # TODO: Implement actual gap detection by checking timestamp sequences
-        # in the database or cached data
+        Compares each candle's close_time against the expected next close.
+        If the delta exceeds the timeframe duration, a gap is reported.
+        """
+        if self._db_adapter is None or not hasattr(self._db_adapter, "get_candles"):
+            return []
+
+        try:
+            candles = await self._db_adapter.get_candles(  # type: ignore[union-attr]
+                symbol=symbol,
+                timeframe=timeframe,
+                limit=1000,
+            )
+        except Exception as e:
+            logger.error(f"Gap detection query failed for {symbol} {timeframe.value}: {e}")
+            return []
+
+        if len(candles) < 2:
+            return []
+
+        duration_s = _timeframe_to_seconds(timeframe)
+        # Allow 10% tolerance for slight timestamp drift
+        threshold_s = duration_s * 1.1
+
+        gaps: list[dict[Any, Any]] = []
+        for i in range(1, len(candles)):
+            prev_close = candles[i - 1].close_time
+            curr_open = candles[i].open_time
+            delta = (curr_open - prev_close).total_seconds()
+            if delta > threshold_s:
+                gaps.append(
+                    {
+                        "start_time": prev_close,
+                        "end_time": curr_open,
+                        "missing_seconds": delta,
+                        "expected_candles": int(delta / duration_s) - 1,
+                    }
+                )
+
+        if gaps:
+            logger.warning(
+                "Detected %d gaps for %s %s",
+                len(gaps),
+                symbol,
+                timeframe.value,
+            )
 
         return gaps
 
