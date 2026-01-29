@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 """
 Feature Service
@@ -12,6 +12,9 @@ from datetime import UTC, datetime
 import logging
 
 from ..bus import get_event_bus
+
+if TYPE_CHECKING:
+    from ..adapters.db.timescale_adapter import TimescaleDBAdapter
 from ..models import (
     Candle,
     CandleUpdateEvent,
@@ -40,6 +43,7 @@ class FeatureService:
 
     def __init__(
         self,
+        db_adapter: "TimescaleDBAdapter | None" = None,
         buffer_size: int = 1000,
         ema_periods: list[int] = [9, 21, 50, 200],
         rsi_period: int = 14,
@@ -55,6 +59,7 @@ class FeatureService:
         self.atr_period = atr_period
         self.bb_period = bb_period
         self.bb_std_dev = bb_std_dev
+        self._db_adapter = db_adapter
 
         # Candle buffers: symbol -> timeframe -> deque of candles
         self._candle_buffers: dict[str, dict[TimeFrame, deque[Candle]]] = defaultdict(
@@ -144,7 +149,11 @@ class FeatureService:
             )
 
             if len(self._candle_buffers[symbol][timeframe]) >= min_required:
-                await self._calculate_and_publish_indicators(symbol, timeframe)
+                await self._calculate_and_publish_indicators(
+                    venue=candle.venue,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
 
             logger.debug(f"Processed candle update for {symbol} {timeframe.value}")
 
@@ -153,6 +162,8 @@ class FeatureService:
 
     async def _calculate_and_publish_indicators(
         self,
+        *,
+        venue: str,
         symbol: str,
         timeframe: TimeFrame,
     ) -> None:
@@ -174,6 +185,9 @@ class FeatureService:
 
             # Store latest indicators
             self._latest_indicators[symbol][timeframe] = indicators
+
+            if self._db_adapter is not None:
+                await self._db_adapter.insert_technical_indicators(venue, indicators)
 
             # Create and publish features calculated event
             event = FeaturesCalculatedEvent(

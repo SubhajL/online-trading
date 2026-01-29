@@ -361,8 +361,8 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
                     timeframes=timeframes,
                 )
 
-        # Initialize feature service
-        feature_service = FeatureService()
+        # Initialize feature service (and persist indicators via canonical `indicators` table)
+        feature_service = FeatureService(db_adapter=db_adapter)
         services["features"] = feature_service
 
         # Initialize SMC service

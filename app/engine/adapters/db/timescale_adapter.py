@@ -664,6 +664,7 @@ class TimescaleDBAdapter:
 
     async def insert_technical_indicators(
         self,
+        venue: str,
         indicators: TechnicalIndicators,
     ) -> bool:
         """Insert technical indicators into the canonical indicators table."""
@@ -696,7 +697,7 @@ class TimescaleDBAdapter:
                         bb_width = EXCLUDED.bb_width,
                         bb_percent = EXCLUDED.bb_percent
                 """,
-                    os.getenv("TRADING_VENUE", "binance"),
+                    venue,
                     indicators.symbol,
                     indicators.timeframe.value,
                     indicators.timestamp,

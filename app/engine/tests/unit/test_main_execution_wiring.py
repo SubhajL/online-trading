@@ -102,7 +102,7 @@ class TestMainExecutionWiring:
         monkeypatch.setattr(main_mod, "RouterHTTPClient", lambda **_: _StubRouterClient())
 
         monkeypatch.setattr(main_mod, "IngestService", lambda **_: _StubAsyncService())
-        monkeypatch.setattr(main_mod, "FeatureService", lambda: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "FeatureService", lambda **_: _StubAsyncService())
         monkeypatch.setattr(main_mod, "SMCService", lambda: _StubAsyncService())
         monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
         monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
@@ -162,7 +162,7 @@ class TestMainExecutionWiring:
         retest = _StubAsyncService()
         publisher = _StubAsyncService()
         monkeypatch.setattr(main_mod, "IngestService", lambda **_: ingest)
-        monkeypatch.setattr(main_mod, "FeatureService", lambda: features)
+        monkeypatch.setattr(main_mod, "FeatureService", lambda **_: features)
         monkeypatch.setattr(main_mod, "SMCService", lambda: smc)
         monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: retest)
         monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: publisher)
