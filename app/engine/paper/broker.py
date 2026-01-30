@@ -404,13 +404,19 @@ class PaperBroker:
         )
         fill.fee = fee
 
-        # Update order status with schema-aligned fields
+        # Snapshot state for rollback on DB failure
+        prev_status = order.status
+        prev_filled_qty = order.filled_quantity
+        prev_remaining_qty = order.remaining_quantity
+        prev_fill_time = order.fill_time
+        had_position = position_key in self.positions
+
+        # Mutate order/position so DB helpers can read current values
         order.status = OrderStatus.FILLED
         order.filled_quantity = order.quantity
         order.remaining_quantity = Decimal(0)
         order.fill_time = fill.fill_time
 
-        # Update position
         if position_key not in self.positions:
             self.positions[position_key] = PaperPosition(
                 order.symbol,
@@ -419,16 +425,25 @@ class PaperBroker:
 
         self.positions[position_key].update_position(fill, candle.close_price)
 
-        # Save to database in a single transaction to prevent partial writes
-        async with self.db_pool.acquire() as conn:
-            async with conn.transaction():
-                await self._insert_paper_fill(fill, conn=conn)
-                await self._update_order_in_db(order, conn=conn)
-                await self._upsert_paper_position(
-                    self.positions[position_key],
-                    bracket_id,
-                    conn=conn,
-                )
+        # Persist in a single transaction; revert memory on failure
+        try:
+            async with self.db_pool.acquire() as conn:
+                async with conn.transaction():
+                    await self._insert_paper_fill(fill, conn=conn)
+                    await self._update_order_in_db(order, conn=conn)
+                    await self._upsert_paper_position(
+                        self.positions[position_key],
+                        bracket_id,
+                        conn=conn,
+                    )
+        except Exception:
+            order.status = prev_status
+            order.filled_quantity = prev_filled_qty
+            order.remaining_quantity = prev_remaining_qty
+            order.fill_time = prev_fill_time
+            if not had_position:
+                self.positions.pop(position_key, None)
+            raise
 
         # Cancel OCO siblings if this is a reduce_only (TP/SL) order
         if order.reduce_only:

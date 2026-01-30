@@ -307,8 +307,8 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         from .core.signal_cooldown import SignalCooldown
 
         cooldown_seconds = int(os.getenv("SIGNAL_COOLDOWN_SECONDS", "300"))
-        execution_cooldown = SignalCooldown(cooldown_seconds=cooldown_seconds)
-        alert_cooldown = SignalCooldown(cooldown_seconds=cooldown_seconds)
+        execution_cooldown = SignalCooldown(cooldown_seconds=cooldown_seconds, redis=redis_adapter)
+        alert_cooldown = SignalCooldown(cooldown_seconds=cooldown_seconds, redis=redis_adapter)
         services["execution_cooldown"] = execution_cooldown
         services["alert_cooldown"] = alert_cooldown
 

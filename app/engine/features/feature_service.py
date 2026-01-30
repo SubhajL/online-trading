@@ -158,7 +158,7 @@ class FeatureService:
             logger.debug(f"Processed candle update for {symbol} {timeframe.value}")
 
         except Exception as e:
-            logger.error(f"Error handling candle update: {e}")
+            logger.exception("Error handling candle update")
             await self._emit_error(str(e), "candle_update_failed", symbol=event.symbol)
 
     async def _calculate_and_publish_indicators(

@@ -212,7 +212,7 @@ class SMCService:
             self._cleanup_old_signals()
 
         except Exception as e:
-            logger.error(f"Error handling candle update in SMC service: {e}")
+            logger.exception("Error handling candle update in SMC service")
             await self._emit_error(str(e), "smc_candle_update_failed", symbol=event.symbol)
 
     async def _emit_error(self, message: str, error_type: str, symbol: str = "") -> None:

@@ -207,6 +207,33 @@ class RedisAdapter:
             logger.error(f"Error setting key {key}: {e}")
             return False
 
+    async def set_nx(
+        self,
+        key: str,
+        value: Any,
+        expire: int,
+        prefix: str = "cache",
+    ) -> bool:
+        """Atomically set key only if it does not exist (SET NX EX).
+
+        Returns True if the key was set (acquired), False if already present.
+        """
+        self._ensure_connected()
+
+        try:
+            redis_key = self._build_key(prefix, key)
+            serialized_value = self._serialize_value(value)
+
+            assert self._redis is not None
+            result = await self._redis.set(
+                redis_key, serialized_value, ex=expire, nx=True,
+            )
+            return result is not None and bool(result)
+
+        except Exception as e:
+            logger.error(f"Error in set_nx for key {key}: {e}")
+            return False
+
     async def get(self, key: str, prefix: str = "cache") -> Any | None:
         """Get value by key"""
         self._ensure_connected()

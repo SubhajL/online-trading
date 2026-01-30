@@ -348,15 +348,16 @@ class RouterExecutionSubscriber:
         zone_identity = extract_zone_identity(event.metadata)
         timeframe_str = event.timeframe.value if event.timeframe else "unknown"
 
-        # Check cooldown (only if cooldown configured and zone_id extractable)
+        # Check cooldown atomically (only if cooldown configured and zone_id extractable)
         if (
             self._cooldown is not None
             and zone_identity is not None
-            and not await self._cooldown.should_allow_async(
+            and not await self._cooldown.try_acquire_async(
                 decision.symbol,
                 timeframe_str,
                 zone_identity.zone_id,
                 action,
+                venue=self._venue,
             )
         ):
             logger.info(
@@ -437,14 +438,7 @@ class RouterExecutionSubscriber:
             response = await self._place_bracket_with_retries(payload)
             success, error_msg = _check_router_response(response)
             if success:
-                # Record cooldown AFTER successful placement
-                if self._cooldown is not None and zone_identity is not None:
-                    await self._cooldown.record_signal_async(
-                        decision.symbol,
-                        timeframe_str,
-                        zone_identity.zone_id,
-                        action,
-                    )
+                # Cooldown already acquired atomically via try_acquire_async above
 
                 # Persist order to DB BEFORE emitting event to prevent orphans
                 await self._persist_order_to_db(event, response, client_ids.main)
@@ -499,7 +493,7 @@ class RouterExecutionSubscriber:
             "stop_price": str(decision.stop_loss) if decision.stop_loss else None,
             "status": "NEW",
             "decision_id": str(decision.decision_id),
-            "exchange_order_id": response.get("order_id"),
+            "exchange_order_id": response.get("bracket_order_id"),
         }
         try:
             from app.engine.adapters.db.timescale import upsert_order

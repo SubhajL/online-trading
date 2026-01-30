@@ -260,7 +260,7 @@ class IngestService:
                     f"Persisted {event.origin.value} candle to DB: {symbol} {timeframe.value}",
                 )
             except Exception as e:
-                logger.error(f"Failed to persist candle {symbol} {timeframe.value}: {e}")
+                logger.exception("Failed to persist candle %s %s", symbol, timeframe.value)
                 await self._emit_error(
                     str(e),
                     "candle_persistence_failed",
@@ -482,6 +482,8 @@ class IngestService:
 
         if len(candles) < 2:
             return []
+
+        candles = sorted(candles, key=lambda c: c.open_time)
 
         duration_s = _timeframe_to_seconds(timeframe)
         # Allow 10% tolerance for slight timestamp drift

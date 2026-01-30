@@ -59,7 +59,10 @@ class SignalCooldown:
         timeframe: str,
         zone_id: str,
         direction: str,
+        venue: str = "",
     ) -> str:
+        if venue:
+            return f"{venue}:{symbol}:{timeframe}:{zone_id}:{direction}"
         return f"{symbol}:{timeframe}:{zone_id}:{direction}"
 
     def _purge_expired(self) -> None:
@@ -122,6 +125,38 @@ class SignalCooldown:
                 )
             except Exception:
                 logger.warning("Redis cooldown write failed, in-memory only")
+
+    async def try_acquire_async(
+        self,
+        symbol: str,
+        timeframe: str,
+        zone_id: str,
+        direction: str,
+        venue: str = "",
+    ) -> bool:
+        """Atomically check and reserve a cooldown slot.
+
+        Uses Redis SET NX EX when available (single atomic command).
+        Falls back to in-memory check-and-set otherwise.
+        Returns True if acquired (signal allowed), False if blocked.
+        """
+        key = self._build_key(symbol, timeframe, zone_id, direction, venue=venue)
+        if self._redis is not None:
+            try:
+                acquired = await self._redis.set_nx(
+                    key, "1", expire=self._cooldown_seconds, prefix=COOLDOWN_PREFIX,
+                )
+                if acquired:
+                    self._cache[key] = self._clock.monotonic() + self._cooldown_seconds
+                return acquired
+            except Exception:
+                logger.warning("Redis cooldown acquire failed, falling back to in-memory")
+
+        self._purge_expired()
+        if key in self._cache:
+            return False
+        self._cache[key] = self._clock.monotonic() + self._cooldown_seconds
+        return True
 
     def record_signal(
         self,
