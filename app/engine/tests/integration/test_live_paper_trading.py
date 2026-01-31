@@ -127,6 +127,7 @@ def _make_trading_decision(
 ) -> TradingDecision:
     """Create a sample trading decision."""
     return TradingDecision(
+        venue="SPOT",
         symbol=symbol,
         timestamp=datetime.now(UTC),
         action=action,
@@ -579,6 +580,7 @@ class TestLiveDecisionHandling:
 
         # Create test decision event
         decision = TradingDecision(
+            venue="SPOT",
             symbol="BTCUSDT",
             timestamp=datetime.now(UTC),
             action="BUY",

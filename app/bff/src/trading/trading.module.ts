@@ -9,7 +9,6 @@ import { OrdersModule } from '../orders/orders.module';
 import { TradingService } from './trading.service';
 import { TradingController } from './trading.controller';
 import { TradingGateway } from './trading.gateway';
-import { Order, Position } from '../database/entities';
 import { CommandHandlers } from './commands/handlers';
 import { EmergencyCloseService } from './emergency-close.service';
 import { EmergencyCloseOperationEntity } from './entities/emergency-close-operation.entity';
@@ -19,7 +18,7 @@ import { EmergencyCloseOperationRepository } from './repositories/emergency-clos
   imports: [
     EventEmitterModule,
     CqrsModule,
-    TypeOrmModule.forFeature([Order, Position, EmergencyCloseOperationEntity]),
+    TypeOrmModule.forFeature([EmergencyCloseOperationEntity]),
     EngineClientModule,
     RouterClientModule,
     AuthModule,

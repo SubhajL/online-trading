@@ -9,8 +9,8 @@ from app.engine.models import EventType
 EXPECTED_TOPIC_MAPPINGS: dict[str, EventType] = {
     "candles.v1": EventType.CANDLE_UPDATE,
     "features.v1": EventType.FEATURES_CALCULATED,
-    "smc_events.v1": EventType.SMC_SIGNAL,
-    "zones.v1": EventType.SMC_SIGNAL,
+    "smc_events.v1": EventType.SMC_EVENT,
+    "zones.v1": EventType.ZONE_UPDATE,
     "signals_raw.v1": EventType.RETEST_SIGNAL,
     "decision.v1": EventType.TRADING_DECISION,
     "order_update.v1": EventType.ORDER_UPDATE,

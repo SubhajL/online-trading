@@ -60,6 +60,7 @@ class SignalEmitter:
             action = "BUY" if side == "long" else "SELL"
 
             decision = TradingDecision(
+                venue=venue,
                 symbol=symbol,
                 timestamp=decision_time,
                 action=action,

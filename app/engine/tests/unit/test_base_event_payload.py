@@ -80,9 +80,9 @@ class TestTopicToEventTypeMapping:
         """features.v1 should map to FEATURES_CALCULATED."""
         assert TOPIC_TO_EVENT_TYPE["features.v1"] == EventType.FEATURES_CALCULATED
 
-    def test_smc_events_topic_maps_to_smc_signal(self) -> None:
-        """smc_events.v1 should map to SMC_SIGNAL."""
-        assert TOPIC_TO_EVENT_TYPE["smc_events.v1"] == EventType.SMC_SIGNAL
+    def test_smc_events_topic_maps_to_smc_event(self) -> None:
+        """smc_events.v1 should map to SMC_EVENT."""
+        assert TOPIC_TO_EVENT_TYPE["smc_events.v1"] == EventType.SMC_EVENT
 
     def test_decision_topic_maps_to_trading_decision(self) -> None:
         """decision.v1 should map to TRADING_DECISION."""

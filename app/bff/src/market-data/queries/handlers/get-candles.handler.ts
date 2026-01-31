@@ -16,7 +16,10 @@ export class GetCandlesHandler implements IQueryHandler<GetCandlesQuery> {
 
     const queryBuilder = this.candleRepository
       .createQueryBuilder('candle')
-      .where('candle.symbol = :symbol AND candle.tf = :tf', { symbol, tf });
+      .where('candle.symbol = :symbol AND candle.timeframe = :timeframe', {
+        symbol,
+        timeframe: tf,
+      });
 
     if (startTime) {
       queryBuilder.andWhere('candle.open_time >= :startTime', { startTime });

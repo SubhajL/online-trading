@@ -24,6 +24,7 @@ from ..models import (
     OrderType,
     TimeFrame,
 )
+from .bar_index import bar_index_from_open_time
 from ..resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -336,11 +337,12 @@ class BinanceRestClient:
 
         candles = []
         for kline in data:
+            open_time = datetime.fromtimestamp(int(kline[0]) / 1000, tz=UTC)
             candle = Candle(
-                venue="spot",
+                venue="SPOT",
                 symbol=symbol,
                 timeframe=timeframe,
-                open_time=datetime.fromtimestamp(int(kline[0]) / 1000, tz=UTC),
+                open_time=open_time,
                 close_time=datetime.fromtimestamp(int(kline[6]) / 1000, tz=UTC),
                 open_price=Decimal(kline[1]),
                 high_price=Decimal(kline[2]),
@@ -351,6 +353,7 @@ class BinanceRestClient:
                 trades=int(kline[8]),
                 taker_buy_base_volume=Decimal(kline[9]),
                 taker_buy_quote_volume=Decimal(kline[10]),
+                bar_index=bar_index_from_open_time(open_time, timeframe),
             )
             candles.append(candle)
 

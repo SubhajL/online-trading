@@ -5,8 +5,9 @@ import logging
 from typing import Any
 
 from ..bus import get_event_bus
-from ..models import Candle, CandleUpdateEvent, EventType, TimeFrame
+from ..models import Candle, CandleUpdateEvent, EventType, TimeFrame, is_realtime_candle_event
 from ..smc_types import StructureState, StructureTracker, Zone
+from app.engine.ingest.bar_index import bar_index_from_open_time
 from .atr import atr
 from .events import create_smc_event, create_zone_event, publish_events
 from .numutils import to_float_ohlc_arrays
@@ -59,6 +60,7 @@ class SMCEngine:
             handler=self._handle_candle_update,
             event_types=[EventType.CANDLE_UPDATE],
             priority=4,
+            serialize_by_key=True,
         )
 
         logger.info("SMCEngine started")
@@ -74,7 +76,13 @@ class SMCEngine:
 
         logger.info("SMCEngine stopped")
 
-    async def process_candle(self, candle: Candle) -> None:
+    async def process_candle(self, candle: Candle, *, emit_events: bool) -> None:
+        if candle.bar_index is None:
+            candle.bar_index = bar_index_from_open_time(candle.open_time, candle.timeframe)
+        if candle.bar_index is None:
+            # Unsupported timeframe (e.g. month-based); skip SMC processing safely.
+            return
+
         key = (candle.symbol, candle.timeframe)
 
         # Initialize state if needed
@@ -91,7 +99,7 @@ class SMCEngine:
         if len(candles) < self.pivot_n:
             return  # Need minimum candles for pivot detection
 
-        events_to_publish = []
+        events_to_publish: list[Any] = []
 
         # 1. Detect pivots
         pivots = self._detect_pivots(candles)
@@ -110,14 +118,16 @@ class SMCEngine:
         if choch_event:
             tracker.state = choch_event.to_state  # Update state on CHOCH
             key_levels = get_key_levels(tracker)
-            event = create_smc_event(
-                candle.symbol,
-                candle.timeframe,
-                choch_event,
-                tracker.state,
-                key_levels,
-            )
-            events_to_publish.append(event)
+            if emit_events:
+                event = create_smc_event(
+                    candle.venue,
+                    candle.symbol,
+                    candle.timeframe,
+                    choch_event,
+                    tracker.state,
+                    key_levels,
+                )
+                events_to_publish.append(event)
 
             # Detect order block on CHOCH if we have previous candles
             if len(candles) >= 2 and choch_event.reference_pivot:
@@ -134,9 +144,14 @@ class SMCEngine:
                             )
                             if ob_zone:
                                 self._add_zone(key, ob_zone)
-                                zone_event = create_zone_event(ob_zone, "created")
-                                events_to_publish.append(zone_event)
-                            break
+                                if emit_events:
+                                    zone_event = create_zone_event(
+                                        candle.venue,
+                                        ob_zone,
+                                        "created",
+                                    )
+                                    events_to_publish.append(zone_event)
+                                break
                     # Look for last bullish candle
                     elif c.close_price > c.open_price:
                         ob_zone = detect_order_block(
@@ -146,21 +161,29 @@ class SMCEngine:
                         )
                         if ob_zone:
                             self._add_zone(key, ob_zone)
-                            zone_event = create_zone_event(ob_zone, "created")
-                            events_to_publish.append(zone_event)
+                            if emit_events:
+                                zone_event = create_zone_event(
+                                    candle.venue,
+                                    ob_zone,
+                                    "created",
+                                )
+                                events_to_publish.append(zone_event)
+                            break
                         break
 
         bos_event = detect_bos(tracker, close_price, close_bar_index, timestamp)
         if bos_event:
             key_levels = get_key_levels(tracker)
-            event = create_smc_event(
-                candle.symbol,
-                candle.timeframe,
-                bos_event,
-                tracker.state,
-                key_levels,
-            )
-            events_to_publish.append(event)
+            if emit_events:
+                event = create_smc_event(
+                    candle.venue,
+                    candle.symbol,
+                    candle.timeframe,
+                    bos_event,
+                    tracker.state,
+                    key_levels,
+                )
+                events_to_publish.append(event)
 
             # Detect order block on BOS
             if len(candles) >= 2:
@@ -168,8 +191,9 @@ class SMCEngine:
                 ob_zone = detect_order_block(last_opposite, bos_event, candle.timeframe)
                 if ob_zone:
                     self._add_zone(key, ob_zone)
-                    zone_event = create_zone_event(ob_zone, "created")
-                    events_to_publish.append(zone_event)
+                    if emit_events:
+                        zone_event = create_zone_event(candle.venue, ob_zone, "created")
+                        events_to_publish.append(zone_event)
 
         # 4. Detect FVG zones
         if len(candles) >= 3:
@@ -181,8 +205,9 @@ class SMCEngine:
             )
             if fvg_zone:
                 self._add_zone(key, fvg_zone)
-                zone_event = create_zone_event(fvg_zone, "created")
-                events_to_publish.append(zone_event)
+                if emit_events:
+                    zone_event = create_zone_event(candle.venue, fvg_zone, "created")
+                    events_to_publish.append(zone_event)
 
         # 5. Update zone touches
         zones = self._zones.get(key, [])
@@ -190,8 +215,9 @@ class SMCEngine:
             if zone.bottom_price <= close_price <= zone.top_price:
                 zone.touches += 1
                 if zone.touches == 1:  # First touch
-                    zone_event = create_zone_event(zone, "touched")
-                    events_to_publish.append(zone_event)
+                    if emit_events:
+                        zone_event = create_zone_event(candle.venue, zone, "touched")
+                        events_to_publish.append(zone_event)
 
         # 6. Expire old zones
         if zones:
@@ -202,14 +228,17 @@ class SMCEngine:
                 logger.debug(f"Expired {expired_count} zones for {key}")
 
         # 7. Publish all events
-        if events_to_publish:
+        if emit_events and events_to_publish:
             await publish_events(events_to_publish)
 
     async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
         try:
-            await self.process_candle(event.candle)
-        except Exception as e:
-            logger.error(f"Error processing candle in SMC engine: {e}")
+            await self.process_candle(
+                event.candle,
+                emit_events=is_realtime_candle_event(event.origin),
+            )
+        except Exception:
+            logger.exception("Error processing candle in SMC engine")
 
     def _initialize_state(self, key: tuple[str, TimeFrame]) -> None:
         symbol, timeframe = key

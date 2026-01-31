@@ -193,6 +193,7 @@ def _make_valid_decision_event() -> TradingDecisionEvent:
     """Create a valid trading decision event for testing."""
     now = datetime.now(UTC)
     decision = TradingDecision(
+        venue="SPOT",
         symbol="BTCUSDT",
         timestamp=now,
         action="BUY",
@@ -450,6 +451,7 @@ async def test_execution_subscriber_calls_router_place_bracket_with_provenance()
 
     now = datetime.now(UTC)
     decision = TradingDecision(
+        venue="SPOT",
         symbol="ETHUSDT",
         timestamp=now,
         action="SELL",
@@ -549,6 +551,7 @@ async def test_execution_subscriber_ignores_decisions_missing_levels() -> None:
 
     now = datetime.now(UTC)
     decision = TradingDecision(
+        venue="SPOT",
         symbol="BTCUSDT",
         timestamp=now,
         action="BUY",

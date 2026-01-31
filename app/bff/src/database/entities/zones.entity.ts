@@ -1,57 +1,67 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
+import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
-export type ZoneType = 'order_block' | 'fair_value_gap' | 'liquidity_void';
-export type ZoneSide = 'supply' | 'demand';
+export type ZoneType =
+  | 'SUPPLY'
+  | 'DEMAND'
+  | 'ORDER_BLOCK_BULLISH'
+  | 'ORDER_BLOCK_BEARISH'
+  | 'FAIR_VALUE_GAP';
 
 @Entity('zones')
-@Index('idx_zones_symbol_tf', ['symbol', 'tf'])
-@Index('idx_zones_status', ['is_active'])
+@Index('idx_zones_symbol_tf_created', ['symbol', 'timeframe', 'created_at'])
+@Index('idx_zones_active', ['symbol', 'timeframe', 'created_at'])
 export class Zone {
-  @PrimaryGeneratedColumn()
-  id!: number;
+  @PrimaryColumn({ name: 'created_at', type: 'timestamptz' })
+  created_at!: Date;
 
-  @Column({ type: 'varchar', length: 20 })
+  @PrimaryColumn({ name: 'zone_id', type: 'uuid' })
+  zone_id!: string;
+
+  @Column({ type: 'text' })
   venue!: string;
 
-  @Column({ type: 'varchar', length: 20 })
+  @Column({ type: 'text' })
   symbol!: string;
 
-  @Column({ type: 'varchar', length: 5 })
-  tf!: string;
+  @Column({ name: 'timeframe', type: 'text' })
+  timeframe!: string;
 
-  @Column({ type: 'varchar', length: 20 })
+  @Column({ name: 'zone_type', type: 'text' })
   zone_type!: ZoneType;
 
-  @Column({ type: 'varchar', length: 10 })
-  side!: ZoneSide;
+  @Column({ name: 'top_price', type: 'numeric' })
+  top_price!: string;
 
-  @Column({ type: 'timestamptz' })
-  start_time!: Date;
+  @Column({ name: 'bottom_price', type: 'numeric' })
+  bottom_price!: string;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  end_time?: Date;
+  @Column({ name: 'strength', type: 'integer' })
+  strength!: number;
 
-  @Column({ type: 'decimal', precision: 18, scale: 8 })
-  top!: number;
+  @Column({ name: 'volume_profile', type: 'numeric' })
+  volume_profile!: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 8 })
-  bottom!: number;
+  @Column({ name: 'touches', type: 'integer' })
+  touches!: number;
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  strength?: number;
-
-  @Column({ type: 'boolean', default: true })
+  @Column({ name: 'is_active', type: 'boolean' })
   is_active!: boolean;
 
-  @Column({ type: 'integer', default: 0 })
-  test_count!: number;
+  @Column({ name: 'tested_at', type: 'timestamptz', nullable: true })
+  tested_at!: Date | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  last_test_time?: Date;
+  @Column({ name: 'invalidated_at', type: 'timestamptz', nullable: true })
+  invalidated_at!: Date | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  broken_time?: Date;
+  @Column({ name: 'invalidation_reason', type: 'text', nullable: true })
+  invalidation_reason!: string | null;
 
-  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
-  created_at!: Date;
+  @Column({ name: 'origin_candle_time', type: 'timestamptz', nullable: true })
+  origin_candle_time!: Date | null;
+
+  @Column({ name: 'origin_swing_price', type: 'numeric', nullable: true })
+  origin_swing_price!: string | null;
+
+  @Column({ name: 'updated_at', type: 'timestamptz' })
+  updated_at!: Date;
 }

@@ -18,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -523,10 +524,9 @@ class TestPaperBrokerMemoryMutation:
         broker.db_pool = mock_pool
         broker.positions = {}
         broker.active_orders = {}
-        broker._order_bracket_ids = {"order-1": "bracket-1"}
+        broker._order_bracket_ids = {"order-1": uuid4()}
         broker.cost_calculator = MagicMock()
         broker.cost_calculator.calculate_trading_fee = MagicMock(return_value=Decimal("0.50"))
-        broker._insert_paper_fill = AsyncMock(side_effect=Exception("DB down"))
 
         order = MagicMock(spec=BacktestOrder)
         order.client_order_id = "order-1"
@@ -548,8 +548,9 @@ class TestPaperBrokerMemoryMutation:
         candle = MagicMock()
         candle.close_price = Decimal("50000")
 
-        with pytest.raises(Exception, match="DB down"):
-            await broker._apply_fill(order, fill, candle)
+        with patch.object(broker, "_insert_paper_fill", AsyncMock(side_effect=Exception("DB down"))):
+            with pytest.raises(Exception, match="DB down"):
+                await broker._apply_fill(order, fill, candle)
 
         # Memory must NOT be mutated
         assert order.status == OrderStatus.NEW
@@ -584,26 +585,26 @@ class TestConcurrentSerialization:
             await asyncio.sleep(0.05)
             execution_log.append(("end", symbol))
 
-        sub._execute_decision = tracking_execute  # type: ignore[assignment]
+        with patch.object(sub, "_execute_decision", tracking_execute):
 
-        def make_event(symbol: str) -> MagicMock:
-            ev = MagicMock()
-            ev.decision.symbol = symbol
-            ev.decision.action = "BUY"
-            ev.metadata = {"decision_source": "retest_decision_publisher"}
-            ev.timeframe = MagicMock(value="15m")
-            return ev
+            def make_event(symbol: str) -> MagicMock:
+                ev = MagicMock()
+                ev.decision.symbol = symbol
+                ev.decision.action = "BUY"
+                ev.metadata = {"decision_source": "retest_decision_publisher"}
+                ev.timeframe = MagicMock(value="15m")
+                return ev
 
-        await asyncio.gather(
-            sub._on_trading_decision(make_event("BTCUSDT")),
-            sub._on_trading_decision(make_event("BTCUSDT")),
-        )
+            await asyncio.gather(
+                sub._on_trading_decision(make_event("BTCUSDT")),
+                sub._on_trading_decision(make_event("BTCUSDT")),
+            )
 
-        # Serial: [start, end, start, end] not [start, start, end, end]
-        assert execution_log[0] == ("start", "BTCUSDT")
-        assert execution_log[1] == ("end", "BTCUSDT")
-        assert execution_log[2] == ("start", "BTCUSDT")
-        assert execution_log[3] == ("end", "BTCUSDT")
+            # Serial: [start, end, start, end] not [start, start, end, end]
+            assert execution_log[0] == ("start", "BTCUSDT")
+            assert execution_log[1] == ("end", "BTCUSDT")
+            assert execution_log[2] == ("start", "BTCUSDT")
+            assert execution_log[3] == ("end", "BTCUSDT")
 
 
 class TestGapDetectionRound2:
@@ -751,14 +752,14 @@ class TestLoggerExceptionTracebacks:
         assert 'logger.error(f"Error handling candle update: {e}")' not in source
         assert "logger.exception" in source
 
-    def test_smc_service_uses_logger_exception(self) -> None:
-        """smc_service error handler must use logger.exception."""
+    def test_smc_engine_uses_logger_exception(self) -> None:
+        """smc engine error handler must use logger.exception."""
         import inspect
 
-        from app.engine.smc.smc_service import SMCService
+        from app.engine.smc.engine import SMCEngine
 
-        source = inspect.getsource(SMCService)
-        assert 'logger.error(f"Error handling candle update in SMC service: {e}")' not in source
+        source = inspect.getsource(SMCEngine)
+        assert 'logger.error(f"Error processing candle in SMC engine: {e}")' not in source
         assert "logger.exception" in source
 
     def test_ingest_service_uses_logger_exception(self) -> None:

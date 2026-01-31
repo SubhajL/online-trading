@@ -34,6 +34,7 @@ class TestRouterClientIdempotency:
         """Create a sample trading decision."""
         return TradingDecision(
             decision_id=UUID("12345678-1234-5678-1234-567812345678"),
+            venue="SPOT",
             symbol="BTCUSDT",
             timestamp=datetime.now(UTC),
             action="BUY",
@@ -124,6 +125,7 @@ class TestRouterClientIdempotency:
 
         decision1 = TradingDecision(
             decision_id=UUID("11111111-1111-1111-1111-111111111111"),
+            venue="SPOT",
             symbol="BTCUSDT",
             timestamp=datetime.now(UTC),
             action="BUY",
@@ -133,6 +135,7 @@ class TestRouterClientIdempotency:
 
         decision2 = TradingDecision(
             decision_id=UUID("22222222-2222-2222-2222-222222222222"),
+            venue="SPOT",
             symbol="BTCUSDT",
             timestamp=datetime.now(UTC),
             action="BUY",

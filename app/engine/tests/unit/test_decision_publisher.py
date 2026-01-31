@@ -80,6 +80,7 @@ async def test_decision_publisher_emits_buy_decision_from_retest_signal() -> Non
         )
 
         signal = RetestSignal(
+            venue="SPOT",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M15,
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
@@ -160,6 +161,7 @@ async def test_decision_publisher_blocks_when_daily_loss_exceeded() -> None:
         )
 
         signal = RetestSignal(
+            venue="SPOT",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M15,
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
@@ -229,6 +231,7 @@ async def test_decision_publisher_forwards_zone_metadata() -> None:
         )
 
         signal = RetestSignal(
+            venue="SPOT",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M15,
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),
@@ -316,6 +319,7 @@ async def test_decision_publisher_handles_missing_zone_metadata() -> None:
         )
 
         signal = RetestSignal(
+            venue="SPOT",
             symbol="ETHUSDT",
             timeframe=TimeFrame.H1,
             timestamp=datetime(2024, 1, 1, tzinfo=UTC),

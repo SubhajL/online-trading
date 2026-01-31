@@ -82,16 +82,11 @@ class TestServiceImports:
             IngestService, BinanceWebSocketClient, BinanceRestClient
         ])
 
-    def test_smc_service_imports(self):
-        """SMC service and analysis components should be importable."""
-        from app.engine.smc.smc_service import SMCService
-        from app.engine.smc.pivot_detector import PivotDetector
-        from app.engine.smc.zone_identifier import ZoneIdentifier
+    def test_smc_engine_imports(self):
+        """SMC engine should be importable."""
         from app.engine.smc.engine import SMCEngine
 
-        assert all(cls is not None for cls in [
-            SMCService, PivotDetector, ZoneIdentifier, SMCEngine
-        ])
+        assert SMCEngine is not None
 
     def test_retest_service_imports(self):
         """Retest analysis components should be importable."""

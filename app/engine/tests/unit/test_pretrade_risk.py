@@ -34,6 +34,7 @@ def test_evaluate_pretrade_risk_blocks_on_daily_loss() -> None:
     )
 
     decision = TradingDecision(
+        venue="SPOT",
         symbol="BTCUSDT",
         timestamp=datetime(2026, 1, 29, 0, 2, tzinfo=UTC),
         action="BUY",
@@ -76,6 +77,7 @@ def test_evaluate_pretrade_risk_blocks_on_total_exposure_leverage() -> None:
     )
 
     decision = TradingDecision(
+        venue="SPOT",
         symbol="BTCUSDT",
         timestamp=datetime(2026, 1, 29, 0, 2, tzinfo=UTC),
         action="BUY",
@@ -118,6 +120,7 @@ def test_evaluate_pretrade_risk_allows_when_limits_ok() -> None:
     )
 
     decision = TradingDecision(
+        venue="SPOT",
         symbol="BTCUSDT",
         timestamp=datetime(2026, 1, 29, 0, 2, tzinfo=UTC),
         action="BUY",

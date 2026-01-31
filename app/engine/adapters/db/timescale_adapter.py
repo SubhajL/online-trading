@@ -761,7 +761,7 @@ class TimescaleDBAdapter:
                     decision.news_sentiment,
                     decision.funding_rate_impact,
                     decision.volatility_filter,
-                    os.getenv("TRADING_VENUE"),
+                    decision.venue,
                 )
                 return True
 

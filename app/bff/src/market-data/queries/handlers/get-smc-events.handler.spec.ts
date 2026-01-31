@@ -59,10 +59,10 @@ describe('GetSmcEventsHandler', () => {
 
       expect(result).toEqual(mockEvents);
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-        'smc_event.symbol = :symbol AND smc_event.tf = :tf',
-        { symbol: 'BTCUSDT', tf: '1h' },
+        'smc_event.symbol = :symbol AND smc_event.timeframe = :timeframe',
+        { symbol: 'BTCUSDT', timeframe: '1h' },
       );
-      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('smc_event.candle_open_time', 'DESC');
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('smc_event.timestamp', 'DESC');
       expect(mockQueryBuilder.limit).toHaveBeenCalledWith(10);
     });
 
@@ -105,14 +105,12 @@ describe('GetSmcEventsHandler', () => {
 
       await handler.execute(query);
 
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-        'smc_event.candle_open_time >= :startTime',
-        { startTime },
-      );
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-        'smc_event.candle_open_time <= :endTime',
-        { endTime },
-      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('smc_event.timestamp >= :startTime', {
+        startTime,
+      });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('smc_event.timestamp <= :endTime', {
+        endTime,
+      });
     });
   });
 });

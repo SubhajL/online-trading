@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from app.engine.core.subscription_manager import EventSubscription
+from app.engine.core.keyed_executor import KeyedExecutor
 from app.engine.models import BaseEvent
 from app.engine.resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
@@ -93,6 +94,10 @@ class EventProcessor:
 
         # Circuit breakers per subscriber
         self._circuit_breakers: dict[str, CircuitBreaker] = {}
+
+        # Keyed executors per subscriber (for stateful handlers)
+        self._keyed_executors: dict[str, KeyedExecutor] = {}
+        self._keyed_executors_lock = asyncio.Lock()
 
         # Semaphore for concurrency control
         self._concurrency_semaphore = asyncio.Semaphore(
@@ -269,9 +274,32 @@ class EventProcessor:
         Returns:
             Handler result
         """
-        if asyncio.iscoroutinefunction(subscription.handler):
-            return await subscription.handler(event)
-        return subscription.handler(event)
+        async def _invoke() -> Any:
+            if asyncio.iscoroutinefunction(subscription.handler):
+                return await subscription.handler(event)
+            return subscription.handler(event)
+
+        if not getattr(subscription, "serialize_by_key", False):
+            return await _invoke()
+
+        key_extractor = getattr(subscription, "key_extractor", None)
+        if key_extractor is None:
+            tf = getattr(event, "timeframe", None)
+            key = f"{event.symbol}:{tf.value}" if tf is not None else str(event.symbol)
+        else:
+            key = key_extractor(event)
+
+        executor = await self._get_keyed_executor(subscription.subscriber_id)
+        return await executor.run(key, _invoke)
+
+    async def _get_keyed_executor(self, subscriber_id: str) -> KeyedExecutor:
+        async with self._keyed_executors_lock:
+            existing = self._keyed_executors.get(subscriber_id)
+            if existing is not None:
+                return existing
+            ex = KeyedExecutor()
+            self._keyed_executors[subscriber_id] = ex
+            return ex
 
     async def _get_circuit_breaker(self, subscriber_id: str) -> CircuitBreaker:
         """

@@ -15,6 +15,7 @@ from app.engine.models import (
 
 def test_retest_signal_serialization() -> None:
     rs = RetestSignal(
+        venue="SPOT",
         symbol="BTCUSDT",
         timeframe=TimeFrame.M5,
         timestamp=datetime(2024, 1, 1, 0, 0, tzinfo=UTC),

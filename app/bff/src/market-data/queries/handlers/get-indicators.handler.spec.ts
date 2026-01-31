@@ -62,10 +62,10 @@ describe('GetIndicatorsHandler', () => {
 
       expect(result).toEqual(mockIndicators);
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-        'indicators.symbol = :symbol AND indicators.tf = :tf',
-        { symbol: 'BTCUSDT', tf: '1h' },
+        'indicators.symbol = :symbol AND indicators.timeframe = :timeframe',
+        { symbol: 'BTCUSDT', timeframe: '1h' },
       );
-      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('indicators.candle_open_time', 'DESC');
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('indicators.timestamp', 'DESC');
       expect(mockQueryBuilder.limit).toHaveBeenCalledWith(10);
     });
 
@@ -86,14 +86,12 @@ describe('GetIndicatorsHandler', () => {
 
       await handler.execute(query);
 
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-        'indicators.candle_open_time >= :startTime',
-        { startTime },
-      );
-      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-        'indicators.candle_open_time <= :endTime',
-        { endTime },
-      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('indicators.timestamp >= :startTime', {
+        startTime,
+      });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('indicators.timestamp <= :endTime', {
+        endTime,
+      });
     });
   });
 });

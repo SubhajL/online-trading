@@ -4,6 +4,7 @@ import { EngineClientService } from '../engine-client/engine-client.service';
 import { RouterClientService } from '../router-client/router-client.service';
 import { OrderRepository } from '../orders/repositories/order.repository';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CONTRACT_TOPICS } from '../contracts/topics';
 
 describe('TradingService', () => {
   let service: TradingService;
@@ -92,7 +93,7 @@ describe('TradingService', () => {
 
       expect(result).toEqual(orderResponse);
       expect(routerClient.placeOrder).toHaveBeenCalledWith(orderRequest);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.placed', orderResponse);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderResponse);
     });
 
     it('should place a limit order with price', async () => {
@@ -120,7 +121,7 @@ describe('TradingService', () => {
       const result = await service.placeOrder(orderRequest);
 
       expect(result).toEqual(orderResponse);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.placed', orderResponse);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderResponse);
     });
 
     it('should handle order placement errors', async () => {
@@ -136,7 +137,7 @@ describe('TradingService', () => {
       mockRouterClientService.placeOrder.mockRejectedValue(error);
 
       await expect(service.placeOrder(orderRequest)).rejects.toThrow('Insufficient balance');
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.failed', {
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderFailedV1, {
         request: orderRequest,
         error: 'Insufficient balance',
       });
@@ -181,7 +182,7 @@ describe('TradingService', () => {
 
       expect(result).toEqual(cancelResponse);
       expect(routerClient.cancelOrder).toHaveBeenCalledWith(orderId, symbol, venue);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.canceled', cancelResponse);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, cancelResponse);
     });
   });
 
@@ -229,7 +230,7 @@ describe('TradingService', () => {
       // Simulate decision event
       subscribeCallback(decisionEvent);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith('decision.received', decisionEvent);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.decisionV1, decisionEvent);
     });
 
     it('should handle order update events from engine', () => {
@@ -251,7 +252,7 @@ describe('TradingService', () => {
       // Simulate order update event
       subscribeCallback(orderUpdate);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.updated', orderUpdate);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderUpdate);
     });
   });
 
@@ -305,7 +306,7 @@ describe('TradingService', () => {
       await service.handleDecisionEvent(decisionEvent);
 
       expect(routerClient.placeOrder).not.toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith('decision.skipped', {
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.decisionSkippedV1, {
         reason: 'Auto trading disabled',
         decision: decisionEvent,
       });

@@ -16,16 +16,19 @@ export class GetIndicatorsHandler implements IQueryHandler<GetIndicatorsQuery> {
 
     const queryBuilder = this.indicatorsRepository
       .createQueryBuilder('indicators')
-      .where('indicators.symbol = :symbol AND indicators.tf = :tf', { symbol, tf });
+      .where('indicators.symbol = :symbol AND indicators.timeframe = :timeframe', {
+        symbol,
+        timeframe: tf,
+      });
 
     if (startTime) {
-      queryBuilder.andWhere('indicators.candle_open_time >= :startTime', { startTime });
+      queryBuilder.andWhere('indicators.timestamp >= :startTime', { startTime });
     }
 
     if (endTime) {
-      queryBuilder.andWhere('indicators.candle_open_time <= :endTime', { endTime });
+      queryBuilder.andWhere('indicators.timestamp <= :endTime', { endTime });
     }
 
-    return queryBuilder.orderBy('indicators.candle_open_time', 'DESC').limit(limit).getMany();
+    return queryBuilder.orderBy('indicators.timestamp', 'DESC').limit(limit).getMany();
   }
 }

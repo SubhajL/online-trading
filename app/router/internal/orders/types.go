@@ -39,6 +39,7 @@ type ClientOrderIDs struct {
 // OrderUpdate represents an order status update event
 type OrderUpdate struct {
 	EventType     string          `json:"event_type"`
+	Venue         string          `json:"venue"`
 	Symbol        string          `json:"symbol"`
 	OrderID       int64           `json:"order_id"`
 	ClientOrderID string          `json:"client_order_id"`

@@ -26,6 +26,7 @@ except ImportError:
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
+from .bar_index import bar_index_from_open_time
 from ..resilience.backoff import BackoffConfig, ExponentialBackoff
 from ..resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
@@ -504,11 +505,12 @@ class BinanceWebSocketClient:
             logger.info(f"Received CLOSED candle: {symbol} {timeframe}")
 
             # Parse candle data
+            open_time = datetime.fromtimestamp(kline_data["t"] / 1000, tz=UTC)
             candle = Candle(
-                venue="spot",
+                venue="SPOT",
                 symbol=kline_data["s"],
                 timeframe=TimeFrame(kline_data["i"]),
-                open_time=datetime.fromtimestamp(kline_data["t"] / 1000, tz=UTC),
+                open_time=open_time,
                 close_time=datetime.fromtimestamp(kline_data["T"] / 1000, tz=UTC),
                 open_price=Decimal(kline_data["o"]),
                 high_price=Decimal(kline_data["h"]),
@@ -519,6 +521,7 @@ class BinanceWebSocketClient:
                 trades=int(kline_data["n"]),
                 taker_buy_base_volume=Decimal(kline_data["V"]),
                 taker_buy_quote_volume=Decimal(kline_data["Q"]),
+                bar_index=bar_index_from_open_time(open_time, TimeFrame(kline_data["i"])),
             )
 
             # Create and publish candle update event

@@ -40,7 +40,7 @@ export function usePositions(venue?: Venue, client?: ApiClient): UsePositionsRet
 
   // Subscribe to WebSocket position updates
   useEffect(() => {
-    const unsubscribe = websocketService.subscribe('position.updated', (position: Position) => {
+    const unsubscribe = websocketService.subscribe('position_update.v1', (position: Position) => {
       setWsPositions(prev => {
         const updated = new Map(prev)
         const key = `${position.symbol}-${position.venue}`

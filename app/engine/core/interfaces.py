@@ -3,6 +3,7 @@ Interfaces and protocols for event bus dependency injection.
 Defines contracts for all major components.
 """
 
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from app.engine.core.event_processor import (
@@ -23,6 +24,9 @@ class SubscriptionManagerInterface(Protocol):
         event_types: list[EventType] | None = None,
         priority: int | None = None,
         max_retries: int | None = None,
+        *,
+        serialize_by_key: bool = False,
+        key_extractor: Callable[[BaseEvent], str] | None = None,
     ) -> str:
         """Add a new subscription and return subscription ID."""
         ...
@@ -97,6 +101,9 @@ class EventBusInterface(Protocol):
         event_types: list[EventType] | None = None,
         priority: int = 0,
         max_retries: int = 3,
+        *,
+        serialize_by_key: bool = False,
+        key_extractor: Callable[[BaseEvent], str] | None = None,
     ) -> str:
         """Subscribe to events and return subscription ID."""
         ...

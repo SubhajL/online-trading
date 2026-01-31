@@ -106,6 +106,7 @@ async def test_contract_decision_to_place_bracket_includes_provenance() -> None:
 
     now = datetime.now(UTC)
     decision = TradingDecision(
+        venue="USD_M",
         symbol="BTCUSDT",
         timestamp=now,
         action="BUY",

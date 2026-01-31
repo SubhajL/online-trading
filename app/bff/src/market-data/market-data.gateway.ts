@@ -19,46 +19,94 @@ interface SubscriptionData {
   timeframe: string;
 }
 
-interface CandleData {
+type CandlesV1 = {
+  version: string;
+  venue: string;
   symbol: string;
   timeframe: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  closeTime: number;
-}
+  open_time: string;
+  close_time: string;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
+  quote_volume: string;
+  trades: number;
+  taker_buy_volume: string;
+  taker_buy_quote_volume: string;
+  is_closed: boolean;
+};
 
-interface FeatureData {
+type FeaturesV1 = {
+  version: string;
+  venue: string;
   symbol: string;
   timeframe: string;
-  ema20?: number;
-  ema50?: number;
-  rsi?: number;
-  macd?: {
-    macd: number;
-    signal: number;
-    histogram: number;
-  };
-  atr?: number;
-  bb?: {
-    upper: number;
-    middle: number;
-    lower: number;
-  };
-}
+  open_time: string;
+  close_time: string;
+  ema_short: number | null;
+  ema_long: number | null;
+  rsi: number | null;
+  macd: number | null;
+  macd_signal: number | null;
+  macd_histogram: number | null;
+  atr: string | null;
+  bb_upper: number | null;
+  bb_middle: number | null;
+  bb_lower: number | null;
+  volume_ma: number | null;
+};
 
-interface SignalData {
+type SignalsRawV1 = {
+  version: string;
+  venue: string;
   symbol: string;
   timeframe: string;
-  type: 'BUY' | 'SELL';
-  entry: number;
-  stopLoss: number;
-  takeProfit: number;
+  signal_id: string;
+  signal_time: string;
+  signal_type: 'long' | 'short';
+  source: string;
+  entry_price: string;
+  stop_loss: string;
+  take_profit_1: string | null;
+  take_profit_2: string | null;
+  take_profit_3: string | null;
   confidence: number;
-  timestamp?: number;
-}
+  metadata: Record<string, any>;
+};
+
+type SmcEventsV1 = {
+  version: string;
+  venue: string;
+  symbol: string;
+  timeframe: string;
+  event_time: string;
+  event_type: 'choch' | 'bos';
+  direction: 'bullish' | 'bearish';
+  price_level: string;
+  previous_pivot_price: string;
+  previous_pivot_time: string;
+  broken_pivot_price: string;
+  broken_pivot_time: string;
+};
+
+type ZonesV1 = {
+  version: string;
+  venue: string;
+  symbol: string;
+  timeframe: string;
+  zone_id: string;
+  zone_type: 'order_block' | 'fair_value_gap';
+  direction: 'demand' | 'supply';
+  upper_bound: string;
+  lower_bound: string;
+  created_time: string;
+  candle_count: number;
+  strength: number;
+  touches: number;
+  is_active: boolean;
+};
 
 @WebSocketGateway({
   namespace: '/trading',
@@ -82,24 +130,24 @@ export class MarketDataGateway implements OnGatewayInit, OnGatewayConnection, On
     this.logger.log('MarketData WebSocket Gateway initialized');
 
     // Subscribe to engine events
-    this.engineClient.subscribe('candles.v1', (data: CandleData) => {
-      this.handleCandleData(data);
+    this.engineClient.subscribe('candles.v1', (data: CandlesV1) => {
+      this.handleCandlesV1(data);
     });
 
-    this.engineClient.subscribe('features.v1', (data: FeatureData) => {
-      this.handleFeatureData(data);
+    this.engineClient.subscribe('features.v1', (data: FeaturesV1) => {
+      this.handleFeaturesV1(data);
     });
 
-    this.engineClient.subscribe('signals_raw.v1', (data: SignalData) => {
-      this.handleSignalData(data);
+    this.engineClient.subscribe('signals_raw.v1', (data: SignalsRawV1) => {
+      this.handleSignalsRawV1(data);
     });
 
-    this.engineClient.subscribe('smc_events.v1', (data: any) => {
-      this.handleSmcData(data);
+    this.engineClient.subscribe('smc_events.v1', (data: SmcEventsV1) => {
+      this.handleSmcEventsV1(data);
     });
 
-    this.engineClient.subscribe('zones.v1', (data: any) => {
-      this.handleZoneData(data);
+    this.engineClient.subscribe('zones.v1', (data: ZonesV1) => {
+      this.handleZonesV1(data);
     });
   }
 
@@ -184,32 +232,28 @@ export class MarketDataGateway implements OnGatewayInit, OnGatewayConnection, On
     return { subscriptions };
   }
 
-  private handleCandleData(data: CandleData) {
+  private handleCandlesV1(data: CandlesV1) {
     const room = `market:${data.symbol}:${data.timeframe}`;
-    this.server.to(room).emit('candle', data);
+    this.server.to(room).emit('candles.v1', data);
   }
 
-  private handleFeatureData(data: FeatureData) {
+  private handleFeaturesV1(data: FeaturesV1) {
     const room = `market:${data.symbol}:${data.timeframe}`;
-    this.server.to(room).emit('features', data);
+    this.server.to(room).emit('features.v1', data);
   }
 
-  private handleSignalData(data: SignalData) {
+  private handleSignalsRawV1(data: SignalsRawV1) {
     const room = `market:${data.symbol}:${data.timeframe}`;
-    this.server.to(room).emit('signal', data);
+    this.server.to(room).emit('signals_raw.v1', data);
   }
 
-  private handleSmcData(data: any) {
-    if (data.symbol && data.timeframe) {
-      const room = `market:${data.symbol}:${data.timeframe}`;
-      this.server.to(room).emit('smc', data);
-    }
+  private handleSmcEventsV1(data: SmcEventsV1) {
+    const room = `market:${data.symbol}:${data.timeframe}`;
+    this.server.to(room).emit('smc_events.v1', data);
   }
 
-  private handleZoneData(data: any) {
-    if (data.symbol && data.timeframe) {
-      const room = `market:${data.symbol}:${data.timeframe}`;
-      this.server.to(room).emit('zones', data);
-    }
+  private handleZonesV1(data: ZonesV1) {
+    const room = `market:${data.symbol}:${data.timeframe}`;
+    this.server.to(room).emit('zones.v1', data);
   }
 }

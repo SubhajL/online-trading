@@ -412,6 +412,7 @@ def _make_harness_config() -> dict:
 def _make_trading_decision_event() -> TradingDecisionEvent:
     """Create a sample trading decision event."""
     decision = TradingDecision(
+        venue="SPOT",
         symbol="BTCUSDT",
         timestamp=datetime.now(UTC),
         action="BUY",

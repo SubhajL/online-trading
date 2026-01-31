@@ -120,6 +120,8 @@ class EventType(str, Enum):
     CANDLE_UPDATE = "candle_update"
     FEATURES_CALCULATED = "features_calculated"
     SMC_SIGNAL = "smc_signal"
+    SMC_EVENT = "smc_event"
+    ZONE_UPDATE = "zone_update"
     RETEST_SIGNAL = "retest_signal"
     REGIME_UPDATE = "regime_update"
     VOLATILITY_UPDATE = "volatility_update"
@@ -507,14 +509,14 @@ class SignalEvent(BaseEvent):
 class SMCEvent(BaseEvent):
     """Generic SMC event container used in test flows."""
 
-    event_type: EventType = EventType.SMC_SIGNAL
+    event_type: EventType = EventType.SMC_EVENT
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class ZoneEvent(BaseEvent):
     """Zone update event wrapping a supply/demand zone."""
 
-    event_type: EventType = EventType.FEATURES_CALCULATED
+    event_type: EventType = EventType.ZONE_UPDATE
     zone: SupplyDemandZone
 
 
@@ -522,6 +524,7 @@ class RetestSignal(BaseModel):
     """Retest signal for zones and levels"""
 
     signal_id: UUID = Field(default_factory=uuid4)
+    venue: str
     symbol: str
     timeframe: TimeFrame
     timestamp: datetime
@@ -529,6 +532,8 @@ class RetestSignal(BaseModel):
     direction: Literal["BUY", "SELL"]
     stop_loss: Decimal
     take_profit: Decimal
+    take_profit_2: Decimal | None = None
+    take_profit_3: Decimal | None = None
     retest_type: str  # "support_retest", "resistance_retest", "zone_retest"
     success_probability: Decimal = Field(ge=0, le=1)
     volume_confirmation: bool
@@ -540,9 +545,16 @@ class RetestSignal(BaseModel):
             v = v.replace(tzinfo=UTC)
         return v.isoformat()
 
-    @field_serializer("level_price", "stop_loss", "take_profit", "success_probability")
-    def _ser_retest_decimals(self, v: Decimal) -> str:
-        return str(v)
+    @field_serializer(
+        "level_price",
+        "stop_loss",
+        "take_profit",
+        "take_profit_2",
+        "take_profit_3",
+        "success_probability",
+    )
+    def _ser_retest_decimals(self, v: Decimal | None) -> str | None:
+        return None if v is None else str(v)
 
 
 # ============================================================================
@@ -589,6 +601,7 @@ class TradingDecision(BaseModel):
     """Trading decision with full context"""
 
     decision_id: UUID = Field(default_factory=uuid4)
+    venue: str
     symbol: str
     timestamp: datetime
     action: str  # "BUY", "SELL", "HOLD", "CLOSE"
@@ -666,6 +679,7 @@ class Order(BaseModel):
 class OrderUpdate(BaseModel):
     """Order status update originating from the router/exchange."""
 
+    venue: str | None = None
     symbol: str
     order_id: int | None = None
     client_order_id: str

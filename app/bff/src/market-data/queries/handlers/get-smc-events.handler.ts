@@ -16,20 +16,23 @@ export class GetSmcEventsHandler implements IQueryHandler<GetSmcEventsQuery> {
 
     const queryBuilder = this.smcEventRepository
       .createQueryBuilder('smc_event')
-      .where('smc_event.symbol = :symbol AND smc_event.tf = :tf', { symbol, tf });
+      .where('smc_event.symbol = :symbol AND smc_event.timeframe = :timeframe', {
+        symbol,
+        timeframe: tf,
+      });
 
     if (eventTypes && eventTypes.length > 0) {
       queryBuilder.andWhere('smc_event.event_type IN (:...eventTypes)', { eventTypes });
     }
 
     if (startTime) {
-      queryBuilder.andWhere('smc_event.candle_open_time >= :startTime', { startTime });
+      queryBuilder.andWhere('smc_event.timestamp >= :startTime', { startTime });
     }
 
     if (endTime) {
-      queryBuilder.andWhere('smc_event.candle_open_time <= :endTime', { endTime });
+      queryBuilder.andWhere('smc_event.timestamp <= :endTime', { endTime });
     }
 
-    return queryBuilder.orderBy('smc_event.candle_open_time', 'DESC').limit(limit).getMany();
+    return queryBuilder.orderBy('smc_event.timestamp', 'DESC').limit(limit).getMany();
   }
 }

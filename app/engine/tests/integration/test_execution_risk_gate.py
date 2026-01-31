@@ -94,6 +94,7 @@ async def test_execution_blocks_router_call_when_daily_loss_exceeded() -> None:
         )
 
         decision = TradingDecision(
+            venue="USD_M",
             symbol="BTCUSDT",
             timestamp=now,
             action="BUY",

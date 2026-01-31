@@ -62,8 +62,8 @@ describe('GetCandlesHandler', () => {
 
       expect(result).toEqual(mockCandles);
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-        'candle.symbol = :symbol AND candle.tf = :tf',
-        { symbol: 'BTCUSDT', tf: '1h' },
+        'candle.symbol = :symbol AND candle.timeframe = :timeframe',
+        { symbol: 'BTCUSDT', timeframe: '1h' },
       );
       expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('candle.open_time', 'DESC');
       expect(mockQueryBuilder.limit).toHaveBeenCalledWith(10);

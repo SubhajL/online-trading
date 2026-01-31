@@ -53,6 +53,7 @@ class DecisionPublisher:
             handler=self._on_retest_signal,
             event_types=[EventType.RETEST_SIGNAL],
             priority=6,
+            serialize_by_key=True,
         )
         logger.info("DecisionPublisher started")
 
@@ -109,6 +110,7 @@ class DecisionPublisher:
         quantity = risk_amount / stop_distance
 
         decision = TradingDecision(
+            venue=self._venue,
             symbol=signal.symbol,
             timestamp=signal.timestamp,
             action=signal.direction,

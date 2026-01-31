@@ -97,14 +97,16 @@ class Zone(BaseModel):
 
 
 class StructureBreakEvent(BaseEvent):
-    event_type: EventType = EventType.SMC_SIGNAL
+    event_type: EventType = EventType.SMC_EVENT
+    venue: str
     smc_event: SMCEvent
     current_state: StructureState
     key_levels: dict[str, Decimal]  # HL, LH, last_hh, last_ll
 
 
 class ZoneEvent(BaseEvent):
-    event_type: EventType = EventType.SMC_SIGNAL
+    event_type: EventType = EventType.ZONE_UPDATE
+    venue: str
     zone: Zone
     action: str  # "created", "touched", "expired"
 

@@ -41,7 +41,7 @@ from app.engine.models import (
 )
 from app.engine.paper.broker import PaperBroker, PlaceBracketRequest
 from app.engine.retest.engine import RetestEngine
-from app.engine.smc.smc_service import SMCService
+from app.engine.smc.engine import SMCEngine
 
 # Max latency samples to keep in memory
 MAX_LATENCY_SAMPLES = 1000
@@ -137,7 +137,7 @@ class LivePaperTradingHarness:
         )
 
         self.feature_service: FeatureService | None = None
-        self.smc_service: SMCService | None = None
+        self.smc_service: SMCEngine | None = None
         self.retest_engine: RetestEngine | None = None
         self.decision_publisher: DecisionPublisher | None = None
 
@@ -377,7 +377,7 @@ class LivePaperTradingHarness:
         if self.feature_service is None:
             self.feature_service = FeatureService(db_adapter=self.db_adapter)
         if self.smc_service is None:
-            self.smc_service = SMCService()
+            self.smc_service = SMCEngine()
         if self.retest_engine is None:
             self.retest_engine = RetestEngine(config={"retest": {}})
         if self.decision_publisher is None:

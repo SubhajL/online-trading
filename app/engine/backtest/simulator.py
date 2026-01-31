@@ -5,6 +5,7 @@ Reuses exact same math as live trading system with no lookahead.
 
 from datetime import datetime
 from decimal import Decimal
+import asyncio
 import logging
 
 from ..decision.engine import DecisionEngine  # type: ignore[attr-defined]
@@ -97,7 +98,7 @@ class BacktestSimulator:
             return
 
         # 2. Process SMC analysis
-        self.smc_engine.process_candle(candle)  # type: ignore[unused-coroutine]
+        asyncio.run(self.smc_engine.process_candle(candle, emit_events=False))
 
         # 3. Check and execute fills for existing orders
         self._process_order_fills(candle)

@@ -385,6 +385,7 @@ class TestSignalGenerationPerformance:
                 if zone["low"] <= price <= zone["high"]:
                     stop_distance = price * Decimal("0.002")
                     signal = RetestSignal(
+                        venue="SPOT",
                         symbol="BTCUSDT",
                         timeframe=TimeFrame.M15,
                         timestamp=datetime.now(),

@@ -157,14 +157,22 @@ describe('MarketDataGateway', () => {
 
     it('should forward candle events to subscribed clients', () => {
       const candleData = {
+        version: '1.0.0',
+        venue: 'SPOT',
         symbol: 'BTCUSDT',
         timeframe: '1m',
-        open: 45000,
-        high: 45500,
-        low: 44800,
-        close: 45200,
-        volume: 100,
-        closeTime: Date.now(),
+        open_time: '2024-01-01T00:00:00.000Z',
+        close_time: '2024-01-01T00:01:00.000Z',
+        open: '45000',
+        high: '45500',
+        low: '44800',
+        close: '45200',
+        volume: '100',
+        quote_volume: '100',
+        trades: 1000,
+        taker_buy_volume: '50',
+        taker_buy_quote_volume: '50',
+        is_closed: true,
       };
 
       // Simulate engine event
@@ -174,21 +182,28 @@ describe('MarketDataGateway', () => {
       subscribeCallback(candleData);
 
       expect(mockServer.to).toHaveBeenCalledWith('market:BTCUSDT:1m');
-      expect(mockServer.emit).toHaveBeenCalledWith('candle', candleData);
+      expect(mockServer.emit).toHaveBeenCalledWith('candles.v1', candleData);
     });
 
     it('should forward feature events to subscribed clients', () => {
       const featureData = {
+        version: '1.0.0',
+        venue: 'SPOT',
         symbol: 'BTCUSDT',
         timeframe: '1m',
-        ema20: 45100,
-        ema50: 44900,
+        open_time: '2024-01-01T00:00:00.000Z',
+        close_time: '2024-01-01T00:01:00.000Z',
+        ema_short: 45100,
+        ema_long: 44900,
         rsi: 55.5,
-        macd: {
-          macd: 100,
-          signal: 90,
-          histogram: 10,
-        },
+        macd: 100,
+        macd_signal: 90,
+        macd_histogram: 10,
+        atr: '500',
+        bb_upper: 46000,
+        bb_middle: 45000,
+        bb_lower: 44000,
+        volume_ma: 100,
       };
 
       // Simulate engine event
@@ -198,18 +213,26 @@ describe('MarketDataGateway', () => {
       subscribeCallback(featureData);
 
       expect(mockServer.to).toHaveBeenCalledWith('market:BTCUSDT:1m');
-      expect(mockServer.emit).toHaveBeenCalledWith('features', featureData);
+      expect(mockServer.emit).toHaveBeenCalledWith('features.v1', featureData);
     });
 
     it('should forward signal events to subscribed clients', () => {
       const signalData = {
+        version: '1.0.0',
+        venue: 'SPOT',
         symbol: 'BTCUSDT',
         timeframe: '1m',
-        type: 'BUY',
-        entry: 45000,
-        stopLoss: 44500,
-        takeProfit: 46000,
+        signal_id: 'sig-1',
+        signal_time: '2024-01-01T00:00:00.000Z',
+        signal_type: 'long',
+        source: 'retest',
+        entry_price: '45000',
+        stop_loss: '44500',
+        take_profit_1: '46000',
+        take_profit_2: null,
+        take_profit_3: null,
         confidence: 0.85,
+        metadata: {},
       };
 
       // Simulate engine event
@@ -219,7 +242,7 @@ describe('MarketDataGateway', () => {
       subscribeCallback(signalData);
 
       expect(mockServer.to).toHaveBeenCalledWith('market:BTCUSDT:1m');
-      expect(mockServer.emit).toHaveBeenCalledWith('signal', signalData);
+      expect(mockServer.emit).toHaveBeenCalledWith('signals_raw.v1', signalData);
     });
   });
 

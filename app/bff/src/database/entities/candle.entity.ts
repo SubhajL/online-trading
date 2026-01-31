@@ -1,44 +1,53 @@
-import { Entity, PrimaryColumn, Column, Index } from 'typeorm';
+import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
 @Entity('candles')
-@Index('idx_candles_symbol_tf_time', ['symbol', 'tf', 'open_time'])
+@Index('idx_candles_symbol_tf_time', ['symbol', 'timeframe', 'open_time'])
 export class Candle {
-  @PrimaryColumn({ type: 'varchar', length: 20 })
+  @PrimaryColumn({ type: 'text' })
   venue!: string;
 
-  @PrimaryColumn({ type: 'varchar', length: 20 })
+  @PrimaryColumn({ type: 'text' })
   symbol!: string;
 
-  @PrimaryColumn({ type: 'varchar', length: 5 })
-  tf!: string;
+  @PrimaryColumn({ name: 'timeframe', type: 'text' })
+  timeframe!: string;
 
-  @PrimaryColumn({ type: 'timestamptz' })
+  @PrimaryColumn({ name: 'open_time', type: 'timestamp' })
   open_time!: Date;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ name: 'close_time', type: 'timestamp' })
   close_time!: Date;
 
-  @Column({ type: 'decimal', precision: 18, scale: 8 })
-  open!: number;
+  @Column({ name: 'open_price', type: 'numeric' })
+  open_price!: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 8 })
-  high!: number;
+  @Column({ name: 'high_price', type: 'numeric' })
+  high_price!: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 8 })
-  low!: number;
+  @Column({ name: 'low_price', type: 'numeric' })
+  low_price!: string;
 
-  @Column({ type: 'decimal', precision: 18, scale: 8 })
-  close!: number;
+  @Column({ name: 'close_price', type: 'numeric' })
+  close_price!: string;
 
-  @Column({ type: 'decimal', precision: 28, scale: 8 })
-  volume!: number;
+  @Column({ type: 'numeric' })
+  volume!: string;
 
-  @Column({ type: 'bigint' })
+  @Column({ name: 'quote_volume', type: 'numeric' })
+  quote_volume!: string;
+
+  @Column({ type: 'integer' })
   trades!: number;
 
-  @Column({ type: 'boolean', default: false })
-  is_final!: boolean;
+  @Column({ name: 'taker_buy_base_volume', type: 'numeric' })
+  taker_buy_base_volume!: string;
 
-  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ name: 'taker_buy_quote_volume', type: 'numeric' })
+  taker_buy_quote_volume!: string;
+
+  @Column({ name: 'created_at', type: 'timestamptz' })
   created_at!: Date;
+
+  @Column({ name: 'updated_at', type: 'timestamptz' })
+  updated_at!: Date;
 }

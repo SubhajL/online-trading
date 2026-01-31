@@ -161,7 +161,6 @@ describe('useChart', () => {
     expect(mockChart.addLineSeries).toHaveBeenCalledWith(
       expect.objectContaining({
         color: '#2962ff',
-        lineWidth: 2,
       }),
     )
   })

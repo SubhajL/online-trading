@@ -9,6 +9,7 @@ import asyncio
 import contextlib
 from datetime import UTC, datetime
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from .core.error_handling import (
@@ -34,8 +35,8 @@ logger = logging.getLogger(__name__)
 TOPIC_TO_EVENT_TYPE: dict[str, EventType] = {
     "candles.v1": EventType.CANDLE_UPDATE,
     "features.v1": EventType.FEATURES_CALCULATED,
-    "smc_events.v1": EventType.SMC_SIGNAL,
-    "zones.v1": EventType.SMC_SIGNAL,
+    "smc_events.v1": EventType.SMC_EVENT,
+    "zones.v1": EventType.ZONE_UPDATE,
     "signals_raw.v1": EventType.RETEST_SIGNAL,
     "decision.v1": EventType.TRADING_DECISION,
     "order_update.v1": EventType.ORDER_UPDATE,
@@ -191,6 +192,9 @@ class EventBus:
         event_types: list[EventType] | None = None,
         priority: int = 0,
         max_retries: int = 3,
+        *,
+        serialize_by_key: bool = False,
+        key_extractor: Callable[[BaseEvent], str] | None = None,
     ) -> str:
         """
         Subscribe to events.
@@ -211,6 +215,8 @@ class EventBus:
             event_types=event_types,
             priority=priority,
             max_retries=max_retries,
+            serialize_by_key=serialize_by_key,
+            key_extractor=key_extractor,
         )
 
     async def unsubscribe(self, subscription_id: str) -> bool:

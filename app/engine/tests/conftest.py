@@ -1,6 +1,6 @@
 """
 Pytest fixtures to bootstrap the global EventBus and start core services.
-Starts EventBus, FeatureService, and SMCService for integration-style tests
+Starts EventBus, FeatureService, and SMCEngine for integration-style tests
 that depend on real event flow without mocks.
 """
 
@@ -78,7 +78,7 @@ async def event_bus_and_services() -> AsyncIterator[None]:
     from app.engine.bus import set_event_bus
     from app.engine.core.event_bus_factory import EventBusConfig, EventBusFactory
     from app.engine.features.feature_service import FeatureService
-    from app.engine.smc.smc_service import SMCService
+    from app.engine.smc.engine import SMCEngine
 
     # Configure event bus consistent with tests: priority queue on, DLQ off
     cfg = EventBusConfig(
@@ -103,16 +103,16 @@ async def event_bus_and_services() -> AsyncIterator[None]:
         bb_period=10,
         bb_std_dev=2.0,
     )
-    smc_service = SMCService()
+    smc_engine = SMCEngine()
 
     await feature_service.start()
-    await smc_service.start()
+    await smc_engine.start()
 
     yield
 
     # Teardown services and bus
     await feature_service.stop()
-    await smc_service.stop()
+    await smc_engine.stop()
     await bus.stop()
 
 

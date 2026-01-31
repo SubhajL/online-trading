@@ -304,8 +304,13 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	m.mu.Unlock()
 
 	// Emit order update
+	venue := "SPOT"
+	if req.IsFutures {
+		venue = "USD_M"
+	}
 	m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
 		EventType:     "order_update.v1",
+		Venue:         venue,
 		Symbol:        req.Symbol,
 		ClientOrderID: bracket.ClientOrderIDs.Main,
 		Status:        "NEW",
@@ -350,8 +355,13 @@ func (m *Manager) ReconcileOrder(ctx context.Context, clientOrderID string) erro
 	for _, order := range orders {
 		if order.ClientOrderID == clientOrderID {
 			// Emit update if status changed
+			venue := "SPOT"
+			if bracket.Type == OrderTypeFutures {
+				venue = "USD_M"
+			}
 			m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
 				EventType:     "order_update.v1",
+				Venue:         venue,
 				Symbol:        order.Symbol,
 				OrderID:       order.OrderID,
 				ClientOrderID: order.ClientOrderID,
@@ -376,14 +386,26 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 		return fmt.Errorf("symbol is required")
 	}
 
-	// Determine which client to use based on symbol
-	// For simplicity, try spot first, then futures
-	var err error
+	// For simplicity, try spot first, then futures.
+	var (
+		err   error
+		venue string
+	)
 	if req.OrderID > 0 {
-		err = m.spotClient.CancelOrder(ctx, req.Symbol, req.OrderID)
-		if err != nil {
+		if m.spotClient != nil {
+			err = m.spotClient.CancelOrder(ctx, req.Symbol, req.OrderID)
+			if err == nil {
+				venue = "SPOT"
+			}
+		} else {
+			err = fmt.Errorf("spot client not configured")
+		}
+		if err != nil && m.futuresClient != nil {
 			// Try futures
 			err = m.futuresClient.CancelOrder(ctx, req.Symbol, req.OrderID)
+			if err == nil {
+				venue = "USD_M"
+			}
 		}
 	} else {
 		return fmt.Errorf("order ID is required")
@@ -393,6 +415,7 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 		// Emit cancellation event
 		m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
 			EventType:     "order_update.v1",
+			Venue:         venue,
 			Symbol:        req.Symbol,
 			OrderID:       req.OrderID,
 			ClientOrderID: req.ClientOrderID,

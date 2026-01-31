@@ -16,10 +16,8 @@ from app.engine.bus import get_event_bus
 from app.engine.models import (
     Candle, TimeFrame, EventType,
     CandleUpdateEvent, FeaturesCalculatedEvent,
-    SMCSignalEvent, SMCStructure, ZoneType
 )
 from app.engine.features.feature_service import FeatureService
-from app.engine.smc.smc_service import SMCService
 
 pytestmark = pytest.mark.integration
 
@@ -98,7 +96,7 @@ def create_test_candle(symbol="BTCUSDT", price_base=50000, offset=0, timeframe=T
     """Create a test candle with realistic data."""
     base_time = datetime.utcnow() - timedelta(minutes=(10 - offset) * 5)
     return Candle(
-        venue="spot",
+        venue="SPOT",
         symbol=symbol,
         timeframe=timeframe,
         open_time=base_time,
@@ -279,10 +277,10 @@ class TestFeaturesToSMCFlow:
 
     @pytest.mark.asyncio
     async def test_smc_service_processes_candles(self, real_db):
-        """SMC service should process candle events."""
+        """SMC engine should process candle events."""
         bus = get_event_bus()
 
-        # SMCService is started by autouse fixture
+        # SMCEngine is started by autouse fixture
 
         # Send multiple candles
         for i in range(10):
@@ -299,11 +297,11 @@ class TestFeaturesToSMCFlow:
         # Wait for processing
         await asyncio.sleep(0.5)
 
-        # Verify SMC has produced at least one signal event
+        # Verify SMC has not crashed and can emit events
         collector = EventCollector()
-        await collector.subscribe_to_events(bus, [EventType.SMC_SIGNAL])
+        await collector.subscribe_to_events(bus, [EventType.SMC_EVENT])
         await asyncio.sleep(0.1)
-        smc_events = collector.get_events(EventType.SMC_SIGNAL)
+        smc_events = collector.get_events(EventType.SMC_EVENT)
         assert len(smc_events) >= 0
         await collector.unsubscribe_all(bus)
 
@@ -311,7 +309,7 @@ class TestFeaturesToSMCFlow:
 
     @pytest.mark.asyncio
     async def test_smc_service_with_features(self, real_db):
-        """SMC service should work with feature service."""
+        """SMC engine should work with feature service."""
         bus = get_event_bus()
 
         # Services are started by autouse fixture
@@ -332,7 +330,7 @@ class TestFeaturesToSMCFlow:
         collector = EventCollector()
         await collector.subscribe_to_events(bus, [
             EventType.FEATURES_CALCULATED,
-            EventType.SMC_SIGNAL,
+            EventType.SMC_EVENT,
         ])
         features = await await_until_events(collector, EventType.FEATURES_CALCULATED, min_count=1, timeout=2.0)
         assert len(features) > 0
@@ -414,7 +412,7 @@ class TestEndToEndWithPersistence:
         collector = EventCollector()
         await collector.subscribe_to_events(bus, [
             EventType.FEATURES_CALCULATED,
-            EventType.SMC_SIGNAL
+            EventType.SMC_EVENT
         ])
 
         # Services are started by autouse fixture

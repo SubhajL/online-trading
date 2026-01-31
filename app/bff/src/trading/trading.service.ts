@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CONTRACT_TOPICS } from '../contracts/topics';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import {
   RouterClientService,
@@ -76,14 +77,14 @@ export class TradingService {
 
   private subscribeToEngineEvents() {
     // Subscribe to decision events from engine
-    this.engineClient.subscribe('decision.v1', (event: DecisionEvent) => {
-      this.eventEmitter.emit('decision.received', event);
+    this.engineClient.subscribe(CONTRACT_TOPICS.decisionV1, (event: DecisionEvent) => {
+      this.eventEmitter.emit(CONTRACT_TOPICS.decisionV1, event);
       this.handleDecisionEvent(event);
     });
 
     // Subscribe to order update events
-    this.engineClient.subscribe('order_update.v1', (event: OrderUpdateEvent) => {
-      this.eventEmitter.emit('order.updated', event);
+    this.engineClient.subscribe(CONTRACT_TOPICS.orderUpdateV1, (event: OrderUpdateEvent) => {
+      this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, event);
       this.handleOrderUpdate(event);
     });
   }
@@ -117,15 +118,15 @@ export class TradingService {
       // Track the active order in memory
       this.activeOrders.set(response.orderId, response);
 
-      // Emit order placed event (this triggers multi-tab sync via WebSocket)
-      this.eventEmitter.emit('order.placed', response);
+      // Emit order update event (multi-tab sync via WebSocket)
+      this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, response);
 
       return response;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to place order: ${errorMessage}`);
 
-      this.eventEmitter.emit('order.failed', {
+      this.eventEmitter.emit(CONTRACT_TOPICS.orderFailedV1, {
         request,
         error: errorMessage,
       });
@@ -148,8 +149,8 @@ export class TradingService {
     // Remove from active orders
     this.activeOrders.delete(orderId);
 
-    // Emit order canceled event
-    this.eventEmitter.emit('order.canceled', response);
+    // Emit order update event
+    this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, response);
 
     return response;
   }
@@ -165,7 +166,7 @@ export class TradingService {
   async setAutoTrading(enabled: boolean): Promise<void> {
     this.autoTrading = enabled;
     this.logger.log(`Auto trading ${enabled ? 'enabled' : 'disabled'}`);
-    this.eventEmitter.emit('autoTrading.changed', { enabled });
+    this.eventEmitter.emit(CONTRACT_TOPICS.autoTradingV1, { enabled });
   }
 
   isAutoTradingEnabled(): boolean {
@@ -247,7 +248,7 @@ export class TradingService {
   async handleDecisionEvent(decision: DecisionEvent): Promise<void> {
     if (!this.autoTrading) {
       this.logger.log(`Skipping decision - auto trading disabled`);
-      this.eventEmitter.emit('decision.skipped', {
+      this.eventEmitter.emit(CONTRACT_TOPICS.decisionSkippedV1, {
         reason: 'Auto trading disabled',
         decision,
       });
@@ -268,7 +269,7 @@ export class TradingService {
       await this.placeOrder(orderRequest);
     } catch (error) {
       this.logger.error(`Failed to execute decision: ${error}`);
-      this.eventEmitter.emit('decision.failed', {
+      this.eventEmitter.emit(CONTRACT_TOPICS.decisionFailedV1, {
         decision,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -337,6 +338,6 @@ export class TradingService {
       }
     }
 
-    this.eventEmitter.emit('position.updated', this.positions.get(key));
+    this.eventEmitter.emit(CONTRACT_TOPICS.positionUpdateV1, this.positions.get(key));
   }
 }

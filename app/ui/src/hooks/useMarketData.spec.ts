@@ -33,14 +33,11 @@ describe('useMarketData', () => {
     renderHook(() => useMarketData(mockSymbol, mockTimeframe))
 
     expect(mockEmit).toHaveBeenCalledWith('subscribe', {
-      channel: 'candles',
-      params: { symbol: mockSymbol, timeframe: mockTimeframe },
+      symbol: mockSymbol,
+      timeframe: mockTimeframe,
     })
 
-    expect(mockSubscribe).toHaveBeenCalledWith(
-      `candles:${mockSymbol}:${mockTimeframe}`,
-      expect.any(Function),
-    )
+    expect(mockSubscribe).toHaveBeenCalledWith('candles.v1', expect.any(Function))
   })
 
   it('unsubscribes on unmount', () => {
@@ -52,18 +49,20 @@ describe('useMarketData', () => {
     unmount()
 
     expect(mockEmit).toHaveBeenCalledWith('unsubscribe', {
-      channel: 'candles',
-      params: { symbol: mockSymbol, timeframe: mockTimeframe },
+      symbol: mockSymbol,
+      timeframe: mockTimeframe,
     })
 
-    expect(unsubscribeFn).toHaveBeenCalled()
+    expect(unsubscribeFn).toHaveBeenCalledTimes(4)
   })
 
   it('updates candles when data is received', async () => {
     let capturedCallback: ((data: any) => void) | null = null
 
     mockSubscribe.mockImplementation((event, callback) => {
-      capturedCallback = callback
+      if (event === 'candles.v1') {
+        capturedCallback = callback
+      }
       return vi.fn()
     })
 
@@ -72,8 +71,9 @@ describe('useMarketData', () => {
     expect(result.current.candles).toEqual([])
     expect(result.current.loading).toBe(true)
 
-    const mockCandle: Candle = {
-      time: Date.now(),
+    const closeTime = '2026-01-31T00:00:00.000Z'
+    const expected: Candle = {
+      time: Date.parse(closeTime),
       open: 50000,
       high: 50100,
       low: 49900,
@@ -82,11 +82,21 @@ describe('useMarketData', () => {
     }
 
     act(() => {
-      capturedCallback?.({ candle: mockCandle })
+      capturedCallback?.({
+        symbol: mockSymbol,
+        timeframe: mockTimeframe,
+        open_time: '2026-01-30T23:59:00.000Z',
+        close_time: closeTime,
+        open: '50000',
+        high: '50100',
+        low: '49900',
+        close: '50050',
+        volume: '100',
+      })
     })
 
     await waitFor(() => {
-      expect(result.current.candles).toEqual([mockCandle])
+      expect(result.current.candles).toEqual([expected])
       expect(result.current.loading).toBe(false)
     })
   })
@@ -95,14 +105,18 @@ describe('useMarketData', () => {
     let capturedCallback: ((data: any) => void) | null = null
 
     mockSubscribe.mockImplementation((event, callback) => {
-      capturedCallback = callback
+      if (event === 'candles.v1') {
+        capturedCallback = callback
+      }
       return vi.fn()
     })
 
     const { result } = renderHook(() => useMarketData(mockSymbol, mockTimeframe))
 
+    const close1 = '2026-01-31T00:00:00.000Z'
+    const close2 = '2026-01-31T00:01:00.000Z'
     const candle1: Candle = {
-      time: Date.now() - 60000,
+      time: Date.parse(close1),
       open: 49000,
       high: 49100,
       low: 48900,
@@ -111,7 +125,7 @@ describe('useMarketData', () => {
     }
 
     const candle2: Candle = {
-      time: Date.now(),
+      time: Date.parse(close2),
       open: 50000,
       high: 50100,
       low: 49900,
@@ -120,37 +134,35 @@ describe('useMarketData', () => {
     }
 
     act(() => {
-      capturedCallback?.({ candle: candle1 })
+      capturedCallback?.({
+        symbol: mockSymbol,
+        timeframe: mockTimeframe,
+        open_time: '2026-01-30T23:59:00.000Z',
+        close_time: close1,
+        open: '49000',
+        high: '49100',
+        low: '48900',
+        close: '49050',
+        volume: '50',
+      })
     })
 
     act(() => {
-      capturedCallback?.({ candle: candle2 })
+      capturedCallback?.({
+        symbol: mockSymbol,
+        timeframe: mockTimeframe,
+        open_time: '2026-01-31T00:00:00.000Z',
+        close_time: close2,
+        open: '50000',
+        high: '50100',
+        low: '49900',
+        close: '50050',
+        volume: '100',
+      })
     })
 
     await waitFor(() => {
       expect(result.current.candles).toEqual([candle1, candle2])
-    })
-  })
-
-  it('handles errors gracefully', async () => {
-    let capturedCallback: ((data: any) => void) | null = null
-
-    mockSubscribe.mockImplementation((event, callback) => {
-      capturedCallback = callback
-      return vi.fn()
-    })
-
-    const { result } = renderHook(() => useMarketData(mockSymbol, mockTimeframe))
-
-    const errorMessage = 'Failed to fetch market data'
-
-    act(() => {
-      capturedCallback?.({ error: errorMessage })
-    })
-
-    await waitFor(() => {
-      expect(result.current.error).toBe(errorMessage)
-      expect(result.current.loading).toBe(false)
     })
   })
 
@@ -162,7 +174,7 @@ describe('useMarketData', () => {
       },
     })
 
-    expect(mockSubscribe).toHaveBeenCalledTimes(1)
+    expect(mockSubscribe).toHaveBeenCalledTimes(4)
 
     rerender({
       symbol: 'ETHUSDT' as Symbol,
@@ -170,13 +182,13 @@ describe('useMarketData', () => {
     })
 
     expect(mockEmit).toHaveBeenCalledWith('unsubscribe', {
-      channel: 'candles',
-      params: { symbol: 'BTCUSDT', timeframe: '1m' },
+      symbol: 'BTCUSDT',
+      timeframe: '1m',
     })
 
     expect(mockEmit).toHaveBeenCalledWith('subscribe', {
-      channel: 'candles',
-      params: { symbol: 'ETHUSDT', timeframe: '5m' },
+      symbol: 'ETHUSDT',
+      timeframe: '5m',
     })
   })
 

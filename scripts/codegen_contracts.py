@@ -434,11 +434,10 @@ def generate_typescript_types(schemas: Dict[str, Dict[str, Any]]) -> str:
         fields = []
         for prop_name, prop_schema in properties.items():
             ts_type = get_typescript_type(prop_schema)
-            camel_name = snake_to_camel(prop_name)
             optional = "" if prop_name in required else "?"
 
             comment = f"  /** {prop_schema.get('description', '')} */"
-            field_def = f"  {camel_name}{optional}: {ts_type};"
+            field_def = f"  {prop_name}{optional}: {ts_type};"
 
             fields.append(comment)
             fields.append(field_def)

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppModule } from './app.module';
-import { ConfigModule } from './config/config.module';
+import { ConfigService } from '@nestjs/config';
 import { HealthModule } from './health/health.module';
 import { EngineClientModule } from './engine-client/engine-client.module';
 import { RouterClientModule } from './router-client/router-client.module';
@@ -24,15 +24,8 @@ describe('AppModule', () => {
   });
 
   it('should import ConfigModule', () => {
-    const imports = Reflect.getMetadata('imports', AppModule) || [];
-    const hasConfigModule = imports.some((importedModule: any) => {
-      return (
-        importedModule === ConfigModule ||
-        importedModule.module === ConfigModule ||
-        importedModule.name === 'ConfigModule'
-      );
-    });
-    expect(hasConfigModule).toBe(true);
+    const configService = module.get<ConfigService>(ConfigService);
+    expect(configService).toBeDefined();
   });
 
   it('should import EventEmitterModule', () => {

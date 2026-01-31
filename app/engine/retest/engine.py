@@ -23,10 +23,11 @@ from app.engine.models import (
     FeaturesCalculatedEvent,
     RetestSignal,
     RetestSignalEvent,
-    SMCSignalEvent,
     TechnicalIndicators,
     TimeFrame,
+    is_realtime_candle_event,
 )
+from app.engine.smc_types import StructureBreakEvent, ZoneEvent
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ SignalId = NewType("SignalId", str)
 
 
 async def analyze_retest(  # noqa: PLR0913
+    venue: str,
     symbol: str,
     timeframe: str,
     candles: list[Any],
@@ -76,10 +78,11 @@ async def analyze_retest(  # noqa: PLR0913
 
         # Check zones for retest
         for zone in zones:
-            # Skip if zone type doesn't match BOS direction
-            if bos["type"] == "BULLISH_BOS" and zone["zone_type"] != "DEMAND":
+            # Skip zones that don't match BOS direction (demand vs supply)
+            zone_side = zone.get("side")
+            if bos["type"] == "BULLISH_BOS" and zone_side != "LOW":
                 continue
-            if bos["type"] == "BEARISH_BOS" and zone["zone_type"] != "SUPPLY":
+            if bos["type"] == "BEARISH_BOS" and zone_side != "HIGH":
                 continue
 
             # Check if price is within zone
@@ -106,11 +109,13 @@ async def analyze_retest(  # noqa: PLR0913
             levels = generate_entry_levels(zone, features["atr"], direction)
 
             return {
+                "venue": venue,
                 "symbol": symbol,
                 "timeframe": timeframe,
                 "timestamp": candle_time,
                 "direction": direction,
                 "zone_id": zone.get("zone_id"),
+                "zone_type": zone.get("zone_type"),
                 "bos_level": bos["level"],
                 **levels,
             }
@@ -257,6 +262,7 @@ class RetestEngine:
             handler=self._process_candle_event,
             event_types=[EventType.CANDLE_UPDATE],
             priority=5,
+            serialize_by_key=True,
         )
         self._subscription_ids.append(sub_id)
 
@@ -265,14 +271,25 @@ class RetestEngine:
             handler=self._process_features_event,
             event_types=[EventType.FEATURES_CALCULATED],
             priority=5,
+            serialize_by_key=True,
         )
         self._subscription_ids.append(sub_id)
 
         sub_id = await self.event_bus.subscribe(
             subscriber_id="retest_engine_smc",
             handler=self._process_smc_event,
-            event_types=[EventType.SMC_SIGNAL],
+            event_types=[EventType.SMC_EVENT],
             priority=5,
+            serialize_by_key=True,
+        )
+        self._subscription_ids.append(sub_id)
+
+        sub_id = await self.event_bus.subscribe(
+            subscriber_id="retest_engine_zones",
+            handler=self._process_zone_event,
+            event_types=[EventType.ZONE_UPDATE],
+            priority=5,
+            serialize_by_key=True,
         )
         self._subscription_ids.append(sub_id)
 
@@ -303,8 +320,9 @@ class RetestEngine:
                 self._recent_candles[key] = deque(maxlen=100)
             self._recent_candles[key].append(candle)
 
-            # Check for retests
-            await self._check_for_retests(candle)
+            # Only emit signals for REALTIME candles; backfill is warm-up only
+            if is_realtime_candle_event(event.origin):
+                await self._check_for_retests(candle)
 
         except Exception:
             logger.exception("Error processing candle event")
@@ -319,44 +337,64 @@ class RetestEngine:
         except Exception:
             logger.exception("Error processing features event")
 
-    async def _process_smc_event(self, event: SMCSignalEvent) -> None:
-        """Process incoming SMC events (BOS/CHOCH)."""
+    async def _process_smc_event(self, event: StructureBreakEvent) -> None:
+        """Process incoming SMC structure break events (BOS/CHOCH)."""
         try:
-            signal = event.signal
+            smc_event = event.smc_event
             key = f"{event.symbol}:{event.timeframe.value}"
 
             # Store BOS events
-            if "BOS" in signal.signal_type or "CHOCH" in signal.signal_type:
+            if smc_event.kind.value in {"BOS", "CHOCH"}:
                 if key not in self._bos_events:
                     self._bos_events[key] = deque(maxlen=50)
 
+                is_bullish = event.current_state.value == "BULLISH"
                 self._bos_events[key].append(
                     {
-                        "timestamp": signal.timestamp,
-                        "type": ("BULLISH_BOS" if signal.direction == "BUY" else "BEARISH_BOS"),
-                        "level": signal.entry_price,
-                        "strength": signal.confidence * 10,  # Convert to 1-10 scale
-                    },
-                )
-
-            # Store zones
-            if signal.zone:
-                if key not in self._zones:
-                    self._zones[key] = []
-
-                self._zones[key].append(
-                    {
-                        "zone_id": str(signal.zone.zone_id),
-                        "zone_type": signal.zone.zone_type.value,
-                        "top_price": signal.zone.top_price,
-                        "bottom_price": signal.zone.bottom_price,
-                        "created_at": signal.zone.created_at,
-                        "strength": signal.zone.strength,
+                        "timestamp": smc_event.timestamp,
+                        "type": ("BULLISH_BOS" if is_bullish else "BEARISH_BOS")
+                        if smc_event.kind.value == "BOS"
+                        else ("BULLISH_CHOCH" if is_bullish else "BEARISH_CHOCH"),
+                        "level": smc_event.price,
+                        "strength": smc_event.strength,
                     },
                 )
 
         except Exception:
             logger.exception("Error processing SMC event")
+
+    async def _process_zone_event(self, event: ZoneEvent) -> None:
+        """Process incoming zone updates (created/touched/expired)."""
+        try:
+            key = f"{event.symbol}:{event.timeframe.value}"
+            zone = event.zone
+
+            if key not in self._zones:
+                self._zones[key] = []
+
+            # Normalize zone record for retest analyzer
+            record = {
+                "zone_id": str(zone.zone_id),
+                "zone_type": zone.zone_type,
+                "side": zone.side.value,
+                "top_price": zone.top_price,
+                "bottom_price": zone.bottom_price,
+                "created_at": zone.created_at,
+                "strength": zone.strength,
+            }
+
+            if event.action == "expired":
+                self._zones[key] = [z for z in self._zones[key] if z["zone_id"] != record["zone_id"]]
+                return
+
+            # Upsert by zone_id
+            existing = next((z for z in self._zones[key] if z["zone_id"] == record["zone_id"]), None)
+            if existing is None:
+                self._zones[key].append(record)
+            else:
+                existing.update(record)
+        except Exception:
+            logger.exception("Error processing zone event")
 
     async def _check_for_retests(self, candle: Candle) -> None:
         """Check if current candle represents a valid retest."""
@@ -373,6 +411,7 @@ class RetestEngine:
 
         # Analyze retest
         signal_data = await analyze_retest(
+            venue=candle.venue,
             symbol=candle.symbol,
             timeframe=candle.timeframe.value,
             candles=[self._candle_to_dict(c) for c in candles],
@@ -407,6 +446,7 @@ class RetestEngine:
                 "BUY" if signal_data["direction"] == "LONG" else "SELL"
             )
             signal = RetestSignal(
+                venue=signal_data.get("venue") or "SPOT",
                 symbol=signal_data["symbol"],
                 timeframe=TimeFrame(signal_data["timeframe"]),
                 timestamp=signal_data["timestamp"],
@@ -414,6 +454,8 @@ class RetestEngine:
                 direction=direction,
                 stop_loss=signal_data["stop_loss"],
                 take_profit=signal_data["tp1"],
+                take_profit_2=signal_data.get("tp2"),
+                take_profit_3=signal_data.get("tp3"),
                 retest_type="zone_retest",
                 success_probability=Decimal("0.7"),  # Would calculate properly
                 volume_confirmation=True,

@@ -56,7 +56,7 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
     setErrors(prev => ({ ...prev, quantity: '' }))
     setSubmitError(null)
     const numValue = parseFloat(strValue)
-    if (!isNaN(numValue) && numValue >= 0) {
+    if (!isNaN(numValue)) {
       setValues(prev => ({ ...prev, quantity: numValue }))
     } else if (strValue === '') {
       setValues(prev => ({ ...prev, quantity: 0 }))
@@ -68,7 +68,7 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
     setErrors(prev => ({ ...prev, price: '' }))
     setSubmitError(null)
     const numValue = parseFloat(strValue)
-    if (!isNaN(numValue) && numValue >= 0) {
+    if (!isNaN(numValue)) {
       setValues(prev => ({ ...prev, price: numValue }))
     } else if (strValue === '') {
       setValues(prev => ({ ...prev, price: undefined }))
@@ -105,7 +105,7 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
   }
 
   return (
-    <form className={`order-form ${className}`} onSubmit={handleSubmit}>
+    <form className={`order-form ${className}`} noValidate onSubmit={handleSubmit}>
       <div className="form-group">
         <label htmlFor="symbol">Symbol</label>
         <input

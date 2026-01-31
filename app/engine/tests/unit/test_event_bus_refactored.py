@@ -121,6 +121,8 @@ class TestRefactoredEventBus:
             event_types=[EventType.CANDLE_UPDATE],
             priority=5,
             max_retries=3,
+            serialize_by_key=False,
+            key_extractor=None,
         )
 
     @pytest.mark.asyncio

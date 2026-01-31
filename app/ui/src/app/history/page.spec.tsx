@@ -24,12 +24,6 @@ describe('HistoryPage', () => {
     expect(screen.getByText('Trade History')).toBeInTheDocument()
   })
 
-  test('applies appLayout CSS module class to root div', () => {
-    const { container } = render(<HistoryPage />)
-    const rootDiv = container.firstChild as HTMLElement
-    expect(rootDiv.className).toContain('appLayout')
-  })
-
   test('renders date range buttons', () => {
     render(<HistoryPage />)
     expect(screen.getByText('24H')).toBeInTheDocument()

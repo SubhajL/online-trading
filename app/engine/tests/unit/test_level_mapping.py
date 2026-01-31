@@ -63,12 +63,12 @@ async def test_database_operations(real_db):
         mock_read.return_value = '''
 from app.engine.bus import EventBus
 from app.engine.features import FeatureService
-from app.engine.smc import SMCService
+from app.engine.smc import SMCEngine
 
 async def test_full_pipeline():
     bus = EventBus()
     feature_svc = FeatureService()
-    smc_svc = SMCService()
+    smc_svc = SMCEngine()
     # Test complete flow
 '''
         level = get_test_level("test_integration.py")

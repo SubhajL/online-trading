@@ -39,8 +39,10 @@ class _InProcBus:
         event_types: list[EventType] | None = None,
         priority: int = 0,
         max_retries: int = 0,
+        serialize_by_key: bool = False,
+        key_extractor: object | None = None,
     ) -> str:
-        _ = subscriber_id, priority, max_retries
+        _ = subscriber_id, priority, max_retries, serialize_by_key, key_extractor
         if not callable(handler):
             raise TypeError("handler must be callable")
         sub_id = f"sub-{self._next_id}"
@@ -119,6 +121,7 @@ async def test_flow_retest_signal_to_router_order() -> None:
 
         now = datetime.now(UTC)
         signal = RetestSignal(
+            venue="USD_M",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             timestamp=now,

@@ -1,44 +1,45 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
+import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
-export type SmcEventType = 'HH' | 'HL' | 'LH' | 'LL' | 'CHOCH' | 'BOS';
-export type SmcDirection = 'bullish' | 'bearish' | 'neutral';
+export type SmcStructureType = 'HH' | 'HL' | 'LH' | 'LL' | 'EH' | 'EL';
+export type SmcTrendDirection = 'bullish' | 'bearish' | 'neutral';
+export type SmcEventType = 'CHOCH' | 'BOS' | 'STRUCTURE';
 
 @Entity('smc_events')
-@Index('idx_smc_events_symbol_tf_time', ['symbol', 'tf', 'candle_open_time'])
+@Index('idx_smc_events_symbol_tf_time', ['symbol', 'timeframe', 'timestamp'])
 export class SmcEvent {
-  @PrimaryGeneratedColumn()
-  id!: number;
-
-  @Column({ type: 'varchar', length: 20 })
+  @PrimaryColumn({ type: 'text' })
   venue!: string;
 
-  @Column({ type: 'varchar', length: 20 })
+  @PrimaryColumn({ type: 'text' })
   symbol!: string;
 
-  @Column({ type: 'varchar', length: 5 })
-  tf!: string;
+  @PrimaryColumn({ name: 'timeframe', type: 'text' })
+  timeframe!: string;
 
-  @Column({ type: 'timestamptz' })
-  candle_open_time!: Date;
+  @PrimaryColumn({ type: 'timestamptz' })
+  timestamp!: Date;
 
-  @Column({ type: 'varchar', length: 10 })
+  @PrimaryColumn({ name: 'structure_type', type: 'text' })
+  structure_type!: SmcStructureType;
+
+  @Column({ name: 'price', type: 'numeric' })
+  price!: string;
+
+  @Column({ name: 'previous_structure', type: 'text', nullable: true })
+  previous_structure!: SmcStructureType | null;
+
+  @Column({ name: 'trend_direction', type: 'text', nullable: true })
+  trend_direction!: SmcTrendDirection | null;
+
+  @Column({ name: 'event_type', type: 'text' })
   event_type!: SmcEventType;
 
-  @Column({ type: 'varchar', length: 10 })
-  direction!: SmcDirection;
+  @Column({ name: 'break_price', type: 'numeric', nullable: true })
+  break_price!: string | null;
 
-  @Column({ type: 'decimal', precision: 18, scale: 8 })
-  price!: number;
+  @Column({ name: 'volume_at_break', type: 'numeric', nullable: true })
+  volume_at_break!: string | null;
 
-  @Column({ type: 'integer', nullable: true })
-  pivot_index?: number;
-
-  @Column({ type: 'decimal', precision: 18, scale: 8, nullable: true })
-  prev_pivot_price?: number;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  prev_pivot_time?: Date;
-
-  @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ name: 'created_at', type: 'timestamptz' })
   created_at!: Date;
 }

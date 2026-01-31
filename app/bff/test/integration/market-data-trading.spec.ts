@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../../src/app.module';
+import { EngineClientService } from '../../src/engine-client/engine-client.service';
+import { CONTRACT_TOPICS } from '../../src/contracts/topics';
 
 // No mocks - using real services
 
@@ -10,7 +11,7 @@ describe('Market Data to Trading Integration', () => {
   let app: INestApplication;
   let marketDataClient: Socket;
   let tradingClient: Socket;
-  let eventEmitter: EventEmitter2;
+  let engineClient: EngineClientService;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -20,7 +21,7 @@ describe('Market Data to Trading Integration', () => {
     app = moduleFixture.createNestApplication();
     await app.listen(3001);
 
-    eventEmitter = moduleFixture.get<EventEmitter2>(EventEmitter2);
+    engineClient = moduleFixture.get<EngineClientService>(EngineClientService);
 
     // Connect WebSocket clients
     marketDataClient = io('http://localhost:3001/market-data', {
@@ -78,7 +79,7 @@ describe('Market Data to Trading Integration', () => {
 
     // Listen for order placed event
     const orderPlacedPromise = new Promise((resolve) => {
-      tradingClient.on('order.placed', resolve);
+      tradingClient.on(CONTRACT_TOPICS.orderUpdateV1, resolve);
     });
 
     // Simulate candle event from engine
@@ -94,7 +95,7 @@ describe('Market Data to Trading Integration', () => {
     };
 
     // Emit candle event
-    eventEmitter.emit('candle.v1', candleEvent);
+    engineClient.emit(CONTRACT_TOPICS.candlesV1, candleEvent);
 
     // Simulate decision event from engine
     const decisionEvent = {
@@ -107,7 +108,7 @@ describe('Market Data to Trading Integration', () => {
       timestamp: Date.now(),
     };
 
-    eventEmitter.emit('decision.v1', decisionEvent);
+    engineClient.emit(CONTRACT_TOPICS.decisionV1, decisionEvent);
 
     // Wait for order to be placed
     const orderPlaced = await orderPlacedPromise;
@@ -134,7 +135,7 @@ describe('Market Data to Trading Integration', () => {
 
     // Listen for position update
     const positionUpdatePromise = new Promise((resolve) => {
-      tradingClient.on('position.updated', resolve);
+      tradingClient.on(CONTRACT_TOPICS.positionUpdateV1, resolve);
     });
 
     // Emit decision event
@@ -149,7 +150,7 @@ describe('Market Data to Trading Integration', () => {
       timestamp: Date.now(),
     };
 
-    eventEmitter.emit('decision.v1', decisionEvent);
+    engineClient.emit(CONTRACT_TOPICS.decisionV1, decisionEvent);
 
     // Wait for order to be placed
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -164,7 +165,7 @@ describe('Market Data to Trading Integration', () => {
       timestamp: Date.now(),
     };
 
-    eventEmitter.emit('order_update.v1', orderUpdateEvent);
+    engineClient.emit(CONTRACT_TOPICS.orderUpdateV1, orderUpdateEvent);
 
     // Wait for position update
     const positionUpdate = await positionUpdatePromise;
@@ -184,7 +185,7 @@ describe('Market Data to Trading Integration', () => {
   it('should skip trading when auto trading is disabled', async () => {
     // Listen for decision skipped event
     const decisionSkippedPromise = new Promise((resolve) => {
-      tradingClient.on('decision.skipped', resolve);
+      tradingClient.on(CONTRACT_TOPICS.decisionSkippedV1, resolve);
     });
 
     // Emit decision event with auto trading disabled
@@ -198,7 +199,7 @@ describe('Market Data to Trading Integration', () => {
       timestamp: Date.now(),
     };
 
-    eventEmitter.emit('decision.v1', decisionEvent);
+    engineClient.emit(CONTRACT_TOPICS.decisionV1, decisionEvent);
 
     // Wait for decision skipped event
     const skippedEvent = await decisionSkippedPromise;
@@ -231,7 +232,7 @@ describe('Market Data to Trading Integration', () => {
 
     // Track received candles
     const receivedCandles = new Map<string, any>();
-    marketDataClient.on('candle', (data: any) => {
+    marketDataClient.on(CONTRACT_TOPICS.candlesV1, (data: any) => {
       const key = `${data.symbol}:${data.timeframe}`;
       receivedCandles.set(key, data);
     });
@@ -249,7 +250,7 @@ describe('Market Data to Trading Integration', () => {
           close: 105,
           volume: 1000,
         };
-        eventEmitter.emit('candle.v1', candleEvent);
+        engineClient.emit(CONTRACT_TOPICS.candlesV1, candleEvent);
       }
     }
 

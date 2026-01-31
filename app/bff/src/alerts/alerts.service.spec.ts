@@ -11,6 +11,7 @@ describe('AlertsService', () => {
   let repository: Repository<Alert>;
 
   const mockRepository = {
+    create: jest.fn((value) => value),
     findAndCount: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn(),
@@ -44,8 +45,8 @@ describe('AlertsService', () => {
     message: 'Your order has been filled',
     data: { orderId: 'order-456' },
     read: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: new Date('2026-01-30T14:03:50.985Z'),
+    updatedAt: new Date('2026-01-30T14:03:50.985Z'),
   };
 
   describe('findAll', () => {
@@ -55,7 +56,19 @@ describe('AlertsService', () => {
       const result = await service.findAll(1, 20, {});
 
       expect(result).toEqual({
-        data: [mockAlert],
+        data: [
+          {
+            id: mockAlert.id,
+            type: mockAlert.type,
+            priority: mockAlert.priority,
+            title: mockAlert.title,
+            message: mockAlert.message,
+            data: mockAlert.data,
+            read: mockAlert.read,
+            createdAt: mockAlert.createdAt.toISOString(),
+            updatedAt: mockAlert.updatedAt.toISOString(),
+          },
+        ],
         total: 1,
         page: 1,
         limit: 20,
@@ -97,7 +110,17 @@ describe('AlertsService', () => {
 
       const result = await service.findOne('alert-123');
 
-      expect(result).toEqual(mockAlert);
+      expect(result).toEqual({
+        id: mockAlert.id,
+        type: mockAlert.type,
+        priority: mockAlert.priority,
+        title: mockAlert.title,
+        message: mockAlert.message,
+        data: mockAlert.data,
+        read: mockAlert.read,
+        createdAt: mockAlert.createdAt.toISOString(),
+        updatedAt: mockAlert.updatedAt.toISOString(),
+      });
       expect(repository.findOne).toHaveBeenCalledWith({ where: { id: 'alert-123' } });
     });
 
@@ -203,7 +226,19 @@ describe('AlertsService', () => {
       const result = await service.search('BTC', 50);
 
       expect(result).toEqual({
-        data: [mockAlert],
+        data: [
+          {
+            id: mockAlert.id,
+            type: mockAlert.type,
+            priority: mockAlert.priority,
+            title: mockAlert.title,
+            message: mockAlert.message,
+            data: mockAlert.data,
+            read: mockAlert.read,
+            createdAt: mockAlert.createdAt.toISOString(),
+            updatedAt: mockAlert.updatedAt.toISOString(),
+          },
+        ],
         total: 1,
       });
       expect(repository.createQueryBuilder).toHaveBeenCalled();
@@ -247,12 +282,14 @@ describe('AlertsService', () => {
         ...newAlert,
         id: 'new-alert',
         read: false,
-        createdAt: new Date(),
+        createdAt: new Date('2026-01-30T14:03:50.985Z'),
+        updatedAt: new Date('2026-01-30T14:03:50.985Z'),
       });
 
       const result = await service.create(newAlert);
 
       expect(result).toHaveProperty('id');
+      expect(repository.create).toHaveBeenCalledWith(expect.objectContaining(newAlert));
       expect(repository.save).toHaveBeenCalledWith(expect.objectContaining(newAlert));
     });
   });

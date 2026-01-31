@@ -9,6 +9,7 @@ import {
 import { Logger, UseGuards } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CONTRACT_TOPICS } from '../contracts/topics';
 import { AlertsService } from './alerts.service';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
@@ -45,11 +46,11 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     });
 
     // Subscribe to trading events to create alerts
-    this.eventEmitter.on('decision.received', async (decision: any) => {
+    this.eventEmitter.on(CONTRACT_TOPICS.decisionV1, async (decision: any) => {
       await this.createDecisionAlert(decision);
     });
 
-    this.eventEmitter.on('order.updated', async (orderUpdate: any) => {
+    this.eventEmitter.on(CONTRACT_TOPICS.orderUpdateV1, async (orderUpdate: any) => {
       await this.createOrderAlert(orderUpdate);
     });
   }

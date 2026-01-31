@@ -17,7 +17,6 @@ from ..models import (
     TradingDecision,
     TradingMetrics,
 )
-from ..smc.smc_service import SMCService
 
 
 class BacktestEngine:
@@ -37,7 +36,6 @@ class BacktestEngine:
 
         # Components
         self.indicator_calculator = IndicatorCalculator()
-        self.smc_service = SMCService()
         self.decision_engine = DecisionEngine()
 
         # Results storage
@@ -79,7 +77,12 @@ class BacktestEngine:
                 signal = smc_signals[i]
 
                 # Get current indicators
-                current_indicators = self._get_indicators_at(indicators_df, i)
+                current_indicators = self._get_indicators_at(
+                    indicators_df,
+                    i,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
 
                 # Make trading decision
                 decision = await self._make_decision(
@@ -87,6 +90,8 @@ class BacktestEngine:
                     signal,
                     current_indicators,
                     balance,
+                    venue="BACKTEST",
+                    symbol=symbol,
                 )
 
                 if decision:
@@ -260,14 +265,21 @@ class BacktestEngine:
             return Decimal(str(candle["close"])) - (atr * 2)
         return Decimal(str(candle["close"])) + (atr * 2)
 
-    def _get_indicators_at(self, df: pd.DataFrame, index: int) -> TechnicalIndicators:
+    def _get_indicators_at(
+        self,
+        df: pd.DataFrame,
+        index: int,
+        *,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> TechnicalIndicators:
         """
         Get technical indicators at a specific index.
         """
         row = df.iloc[index]
         return TechnicalIndicators(
-            symbol="",
-            timeframe=TimeFrame.M15,
+            symbol=symbol,
+            timeframe=timeframe,
             timestamp=datetime.now(),
             ema_9=Decimal(str(row.get("ema_9", 0))),
             ema_21=Decimal(str(row.get("ema_21", 0))),
@@ -289,6 +301,9 @@ class BacktestEngine:
         signal: dict[Any, Any],
         indicators: TechnicalIndicators,
         balance: Decimal,
+        *,
+        venue: str,
+        symbol: str,
     ) -> TradingDecision | None:
         """
         Make trading decision based on signals and indicators.
@@ -309,7 +324,8 @@ class BacktestEngine:
 
         # Create decision
         return TradingDecision(
-            symbol="",
+            venue=venue,
+            symbol=symbol,
             timestamp=datetime.now(),
             action="BUY" if signal["direction"] == "bullish" else "SELL",
             entry_price=Decimal(str(signal["entry_price"])),

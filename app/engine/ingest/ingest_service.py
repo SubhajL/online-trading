@@ -471,7 +471,7 @@ class IngestService:
             return []
 
         try:
-            candles = await self._db_adapter.get_candles(  # type: ignore[union-attr]
+            candles = await self._db_adapter.get_candles(
                 symbol=symbol,
                 timeframe=timeframe,
                 limit=1000,

@@ -1,5 +1,5 @@
 """
-Tests for pipeline gating in FeatureService and SMCService.
+Tests for pipeline gating in FeatureService and SMCEngine.
 
 These tests verify that only REALTIME events trigger the trading pipeline,
 while BACKFILL and GAP_FILL events only add to buffers without generating
@@ -38,7 +38,7 @@ def make_test_candle(
     """Create a test candle with valid data."""
     base_time = datetime.now(UTC) - timedelta(hours=100)
     return Candle(
-        venue="spot",
+        venue="SPOT",
         symbol=symbol,
         timeframe=timeframe,
         open_time=base_time + timedelta(minutes=idx * 15),
@@ -155,17 +155,17 @@ class TestFeatureServiceGating:
         assert mock_event_bus_global.publish.call_count == 0
 
 
-class TestSMCServiceGating:
-    """Tests for SMCService pipeline gating."""
+class TestSMCEngineGating:
+    """Tests for SMCEngine pipeline gating."""
 
     @pytest.mark.asyncio
     async def test_backfill_event_stores_but_does_not_process(
         self, mock_event_bus_global: AsyncMock
     ) -> None:
-        """BACKFILL events should store candles but not generate signals."""
-        from app.engine.smc.smc_service import SMCService
+        """BACKFILL events should store candles but not emit events."""
+        from app.engine.smc.engine import SMCEngine
 
-        service = SMCService()
+        service = SMCEngine()
 
         # Reset mock
         mock_event_bus_global.publish.reset_mock()
@@ -180,17 +180,16 @@ class TestSMCServiceGating:
         assert mock_event_bus_global.publish.call_count == 0
 
         # But candle history should have data
-        recent = service._get_recent_candles("BTCUSDT", TimeFrame.M15, 100)
-        assert len(recent) == 50
+        assert len(service._candle_history[("BTCUSDT", TimeFrame.M15)]) == 50
 
     @pytest.mark.asyncio
     async def test_gap_fill_event_stores_but_does_not_process(
         self, mock_event_bus_global: AsyncMock
     ) -> None:
-        """GAP_FILL events should store candles but not generate signals."""
-        from app.engine.smc.smc_service import SMCService
+        """GAP_FILL events should store candles but not emit events."""
+        from app.engine.smc.engine import SMCEngine
 
-        service = SMCService()
+        service = SMCEngine()
 
         # Seed with backfill
         for i in range(30):
@@ -214,30 +213,21 @@ class TestSMCServiceGating:
     async def test_realtime_event_triggers_processing(
         self, mock_event_bus_global: AsyncMock
     ) -> None:
-        """REALTIME events should trigger full SMC processing."""
-        from app.engine.smc.smc_service import SMCService
+        """REALTIME events should be processed with emit_events enabled."""
+        from app.engine.smc.engine import SMCEngine
 
-        service = SMCService()
+        service = SMCEngine()
+        process_candle = AsyncMock()
 
-        # Seed with backfill to build up history
-        for i in range(50):
-            candle = make_test_candle(idx=i)
-            event = make_candle_event(candle, CandleOrigin.BACKFILL)
-            await service._handle_candle_update(event)
+        with patch.object(service, "process_candle", process_candle):
+            # Send REALTIME event
+            realtime_candle = make_test_candle(idx=50)
+            realtime_event = make_candle_event(realtime_candle, CandleOrigin.REALTIME)
+            await service._handle_candle_update(realtime_event)
 
-        initial_pivots = service._pivots_detected
-        initial_zones = service._zones_identified
-
-        # Send REALTIME event
-        realtime_candle = make_test_candle(idx=50)
-        realtime_event = make_candle_event(realtime_candle, CandleOrigin.REALTIME)
-        await service._handle_candle_update(realtime_event)
-
-        # Statistics should have updated (at least attempt processing)
-        # Note: actual pivots/zones depend on price action patterns
-        # The key test is that processing was attempted, not skipped
-        assert service._pivots_detected >= initial_pivots
-        assert service._zones_identified >= initial_zones
+        process_candle.assert_awaited_once()
+        _args, kwargs = process_candle.call_args
+        assert kwargs["emit_events"] is True
 
 
 class TestIsRealtimeCandleEvent:

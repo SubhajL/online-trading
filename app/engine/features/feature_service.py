@@ -98,6 +98,7 @@ class FeatureService:
             handler=self._handle_candle_update,
             event_types=[EventType.CANDLE_UPDATE],
             priority=5,  # High priority for real-time processing
+            serialize_by_key=True,
         )
 
         logger.info("FeatureService started and subscribed to candle updates")
@@ -172,6 +173,7 @@ class FeatureService:
         try:
             # Get candles from buffer
             candles = list(self._candle_buffers[symbol][timeframe])
+            latest_candle = candles[-1]
 
             # Calculate indicators
             indicators = TechnicalIndicatorsCalculator.calculate_all_indicators(
@@ -196,6 +198,11 @@ class FeatureService:
                 symbol=symbol,
                 timeframe=timeframe,
                 features=indicators,
+                metadata={
+                    "venue": venue,
+                    "open_time": latest_candle.open_time,
+                    "close_time": latest_candle.close_time,
+                },
             )
 
             await self._event_bus.publish(event, priority=5)
@@ -321,8 +328,11 @@ class FeatureService:
             )
 
             if len(buffer) >= min_required:
+                inferred_venue = buffer[-1].venue if buffer else "SPOT"
                 await self._calculate_and_publish_indicators(
-                    venue="spot", symbol=symbol, timeframe=timeframe
+                    venue=inferred_venue,
+                    symbol=symbol,
+                    timeframe=timeframe,
                 )
 
             logger.info(f"Added {len(candles)} candles for {symbol} {timeframe.value}")
@@ -353,8 +363,11 @@ class FeatureService:
         """Force recalculation of indicators for a symbol and timeframe"""
         try:
             if len(self._candle_buffers[symbol][timeframe]) > 0:
+                inferred_venue = self._candle_buffers[symbol][timeframe][-1].venue
                 await self._calculate_and_publish_indicators(
-                    venue="spot", symbol=symbol, timeframe=timeframe
+                    venue=inferred_venue,
+                    symbol=symbol,
+                    timeframe=timeframe,
                 )
                 logger.info(f"Recalculated indicators for {symbol} {timeframe.value}")
             else:

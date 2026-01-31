@@ -67,7 +67,7 @@ class TestDeadLetterQueue:
 
         for i in range(3):
             event = BaseEvent(
-                event_type=EventType.SMC_SIGNAL,
+                event_type=EventType.SMC_EVENT,
                 timestamp=datetime.now(UTC),
                 symbol=f"SYM{i}",
             )

@@ -113,6 +113,7 @@ class TestBuildOrderPayload:
     @pytest.fixture
     def sample_decision(self) -> TradingDecision:
         return TradingDecision(
+            venue="SPOT",
             symbol="BTCUSDT",
             action="BUY",
             timestamp=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
@@ -200,6 +201,7 @@ class TestBuildOrderPayload:
         sample_decision: TradingDecision,
     ) -> None:
         sample_decision = TradingDecision(
+            venue="SPOT",
             symbol="BTCUSDT",
             action="BUY",
             timestamp=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),

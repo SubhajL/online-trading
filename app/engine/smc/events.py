@@ -4,72 +4,46 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ..bus import get_event_bus
-from ..models import BaseEvent, EventType, TimeFrame
-from ..smc_types import SMCEvent, StructureState, Zone
+from ..models import TimeFrame
+from ..smc_types import SMCEvent, StructureBreakEvent, StructureState, Zone, ZoneEvent
 
 
 def create_smc_event(
+    venue: str,
     symbol: str,
     timeframe: TimeFrame | str,
     smc_event: SMCEvent,
     current_state: StructureState,
     key_levels: dict[str, Any],
-) -> BaseEvent:
+) -> StructureBreakEvent:
     tf = TimeFrame(timeframe) if isinstance(timeframe, str) else timeframe
-    return BaseEvent(
-        event_type=EventType.SMC_SIGNAL,
-        timestamp=datetime.now(UTC),
+    return StructureBreakEvent(
+        timestamp=smc_event.timestamp if smc_event.timestamp.tzinfo else smc_event.timestamp.replace(tzinfo=UTC),
+        venue=venue,
         symbol=symbol,
         timeframe=tf,
-        metadata={
-            "kind": smc_event.kind.value,
-            "price": str(smc_event.price),
-            "from_state": smc_event.from_state,
-            "to_state": smc_event.to_state,
-            "current_state": current_state.value,
-            "key_levels": {
-                k: str(v) if isinstance(v, (int, float)) else v for k, v in key_levels.items()
-            },
-            "strength": str(smc_event.strength),
-            "reference_pivot": {
-                "price": str(smc_event.reference_pivot.price),
-                "is_high": smc_event.reference_pivot.is_high,
-                "bar_index": smc_event.reference_pivot.bar_index,
-            }
-            if smc_event.reference_pivot
-            else None,
-        },
+        smc_event=smc_event,
+        current_state=current_state,
+        key_levels=key_levels,
     )
 
 
 def create_zone_event(
+    venue: str,
     zone: Zone,
     action: str,
-) -> BaseEvent:
-    return BaseEvent(
-        event_type=EventType.SMC_SIGNAL,
+) -> ZoneEvent:
+    return ZoneEvent(
         timestamp=datetime.now(UTC),
+        venue=venue,
         symbol=zone.symbol,
         timeframe=zone.timeframe,
-        metadata={
-            "event_type": "zone",
-            "action": action,
-            "zone": {
-                "zone_id": str(zone.zone_id),
-                "zone_type": zone.zone_type,
-                "side": zone.side.value,
-                "top_price": str(zone.top_price),
-                "bottom_price": str(zone.bottom_price),
-                "created_bar_index": zone.created_bar_index,
-                "expiry_bars": zone.expiry_bars,
-                "touches": zone.touches,
-                "strength": str(zone.strength),
-            },
-        },
+        zone=zone,
+        action=action,
     )
 
 
-async def publish_events(events: list[BaseEvent], priority: int = 5) -> None:
+async def publish_events(events: list[Any], priority: int = 5) -> None:
     event_bus = get_event_bus()
     for event in events:
         await event_bus.publish(event, priority=priority)

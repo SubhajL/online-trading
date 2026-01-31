@@ -22,6 +22,7 @@ import uvicorn
 from .adapters import RedisAdapter, RouterHTTPClient, TimescaleDBAdapter
 from .bus import set_event_bus
 from .core.health import build_system_health
+from .contracts.contract_publisher import ContractPublisher
 from .decision.decision_publisher import DecisionPublisher
 from .decision.service import RiskManager
 from .features.feature_service import FeatureService
@@ -34,7 +35,7 @@ from .models import (
     RiskParameters,
 )
 from .retest.engine import RetestEngine
-from .smc.smc_service import SMCService
+from .smc.engine import SMCEngine
 
 # Configure logging
 logging.basicConfig(
@@ -271,6 +272,9 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         await redis_adapter.initialize()
         services["redis"] = redis_adapter
 
+        # Publish contract-topic events for BFF/UI via Redis
+        services["contract_publisher"] = ContractPublisher(bus=event_bus, redis=redis_adapter)
+
         # Initialize router client
         from .core.breaker_config import router_breaker_config_from_env
 
@@ -395,9 +399,8 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         feature_service = FeatureService(db_adapter=db_adapter)
         services["features"] = feature_service
 
-        # Initialize SMC service
-        smc_service = SMCService()
-        services["smc"] = smc_service
+        # Initialize SMC engine (single source of truth for SMC)
+        services["smc"] = SMCEngine()
 
         # Wire conservative pipeline: retest -> decision publisher
         services["retest_engine"] = RetestEngine(config={"retest": {}})
@@ -501,6 +504,9 @@ async def start_services() -> None:
     try:
         # Start services in dependency order
         await services["event_bus"].start()
+        if "contract_publisher" in services:
+            await services["contract_publisher"].start()
+            logger.info("Started contract_publisher")
         await services["ingest"].start()
         await services["features"].start()
         await services["smc"].start()
@@ -597,6 +603,7 @@ async def shutdown_services() -> None:  # noqa: C901, PLR0912, PLR0915
             "smc",
             "features",
             "ingest",
+            "contract_publisher",
             "event_bus",
         ]:
             if service_name in services:

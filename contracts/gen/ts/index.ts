@@ -14,9 +14,9 @@ export interface CandlesV1 {
   /** Candle timeframe */
   timeframe: string;
   /** Candle open time in ISO8601 format */
-  openTime: string;
+  open_time: string;
   /** Candle close time in ISO8601 format */
-  closeTime: string;
+  close_time: string;
   /** Opening price */
   open: string;
   /** Highest price */
@@ -28,15 +28,15 @@ export interface CandlesV1 {
   /** Base asset volume */
   volume: string;
   /** Quote asset volume */
-  quoteVolume: string;
+  quote_volume: string;
   /** Number of trades */
   trades: number;
   /** Taker buy base asset volume */
-  takerBuyVolume: string;
+  taker_buy_volume: string;
   /** Taker buy quote asset volume */
-  takerBuyQuoteVolume: string;
+  taker_buy_quote_volume: string;
   /** Whether the candle is closed */
-  isClosed: boolean;
+  is_closed: boolean;
 }
 
 /**
@@ -50,25 +50,25 @@ export interface DecisionV1 {
   /** Trading pair symbol */
   symbol: string;
   /** Unique identifier for the decision */
-  decisionId: string;
+  decision_id: string;
   /** Time when the decision was made */
-  decisionTime: string;
+  decision_time: string;
   /** Trading action to take */
   action: "open_long" | "open_short" | "close_position" | "no_action";
   /** IDs of signals that contributed to this decision */
-  signalIds: string[];
+  signal_ids: string[];
   /** Entry price for new positions */
-  entryPrice: string | null;
+  entry_price: string | null;
   /** Stop loss price */
-  stopLoss: string | null;
+  stop_loss: string | null;
   /** Take profit price */
-  takeProfit: string | null;
+  take_profit: string | null;
   /** Position size in base currency */
-  positionSize: string | null;
+  position_size: string | null;
   /** Risk amount in quote currency */
-  riskAmount: string | null;
+  risk_amount: string | null;
   /** Risk as percentage of capital (0-1) */
-  riskPercentage: number | null;
+  risk_percentage: number | null;
   /** Leverage to use (1 for spot) */
   leverage: string | null;
   /** Decision confidence score (0-1) */
@@ -90,31 +90,31 @@ export interface FeaturesV1 {
   /** Candle timeframe */
   timeframe: string;
   /** Candle open time in ISO8601 format */
-  openTime: string;
+  open_time: string;
   /** Candle close time in ISO8601 format */
-  closeTime: string;
+  close_time: string;
   /** Short-term exponential moving average */
-  emaShort: number | null;
+  ema_short: number | null;
   /** Long-term exponential moving average */
-  emaLong: number | null;
+  ema_long: number | null;
   /** Relative Strength Index (0-100) */
   rsi: number | null;
   /** MACD line value */
   macd: number | null;
   /** MACD signal line value */
-  macdSignal: number | null;
+  macd_signal: number | null;
   /** MACD histogram value */
-  macdHistogram: number | null;
+  macd_histogram: number | null;
   /** Average True Range */
   atr: string | null;
   /** Bollinger Band upper band */
-  bbUpper: number | null;
+  bb_upper: number | null;
   /** Bollinger Band middle band (SMA) */
-  bbMiddle: number | null;
+  bb_middle: number | null;
   /** Bollinger Band lower band */
-  bbLower: number | null;
+  bb_lower: number | null;
   /** Volume moving average */
-  volumeMa: number | null;
+  volume_ma: number | null;
 }
 
 /**
@@ -128,19 +128,19 @@ export interface FundingWindowV1 {
   /** Trading pair symbol */
   symbol: string;
   /** Time of the funding rate event */
-  fundingTime: string;
+  funding_time: string;
   /** Current funding rate percentage */
-  currentRate: number;
+  current_rate: number;
   /** Predicted next funding rate percentage */
-  predictedRate: number | null;
+  predicted_rate: number | null;
   /** Start of the risk window (typically 30min before funding) */
-  windowStart: string;
+  window_start: string;
   /** End of the risk window (typically 15min after funding) */
-  windowEnd: string;
+  window_end: string;
   /** Whether the risk window is currently active */
-  isActive: boolean;
+  is_active: boolean;
   /** Risk level based on funding rate magnitude */
-  riskLevel: "low" | "medium" | "high";
+  risk_level: "low" | "medium" | "high";
 }
 
 /**
@@ -154,17 +154,17 @@ export interface NewsWindowV1 {
   /** Trading pair symbol */
   symbol: string;
   /** Unique identifier for the news event */
-  eventId: string;
+  event_id: string;
   /** Name of the news event */
-  eventName: string;
+  event_name: string;
   /** Expected market impact level */
   impact: "low" | "medium" | "high";
   /** Start of the risk window */
-  windowStart: string;
+  window_start: string;
   /** End of the risk window */
-  windowEnd: string;
+  window_end: string;
   /** Whether the risk window is currently active */
-  isActive: boolean;
+  is_active: boolean;
 }
 
 /**
@@ -178,37 +178,37 @@ export interface OrderUpdateV1 {
   /** Trading pair symbol */
   symbol: string;
   /** Exchange order ID */
-  orderId: string;
+  order_id: string;
   /** Our unique order identifier */
-  clientOrderId: string;
+  client_order_id: string;
   /** ID of the decision that triggered this order */
-  decisionId: string;
+  decision_id: string;
   /** Time of the status update */
-  updateTime: string;
+  update_time: string;
   /** Current order status */
   status: "pending" | "new" | "partially_filled" | "filled" | "cancelled" | "rejected" | "expired";
   /** Order side */
   side: "buy" | "sell";
   /** Order type */
-  orderType: "market" | "limit" | "stop_market" | "stop_limit";
+  order_type: "market" | "limit" | "stop_market" | "stop_limit";
   /** Order price (null for market orders) */
   price: string | null;
   /** Stop price (for stop orders) */
-  stopPrice: string | null;
+  stop_price: string | null;
   /** Order quantity */
   quantity: string;
   /** Filled quantity */
-  filledQuantity: string;
+  filled_quantity: string;
   /** Average fill price */
-  averageFillPrice: string | null;
+  average_fill_price: string | null;
   /** Commission paid */
   commission: number | null;
   /** Commission asset */
-  commissionAsset: string | null;
+  commission_asset: string | null;
   /** Error message if order failed */
-  errorMessage: string | null;
+  error_message: string | null;
   /** Whether this is a reduce-only order (futures) */
-  isReduceOnly: boolean;
+  is_reduce_only: boolean;
 }
 
 /**
@@ -224,17 +224,17 @@ export interface RegimeV1 {
   /** Candle timeframe */
   timeframe: string;
   /** Time when the regime analysis was performed */
-  analysisTime: string;
+  analysis_time: string;
   /** Current market regime classification */
-  regimeType: "trending_up" | "trending_down" | "ranging" | "volatile";
+  regime_type: "trending_up" | "trending_down" | "ranging" | "volatile";
   /** Regime strength/confidence (0-1) */
   strength: number;
   /** Current volatility level */
   volatility: number;
   /** Trend direction score (-1 to 1, null if ranging) */
-  trendDirection: number | null;
+  trend_direction: number | null;
   /** Number of periods analyzed */
-  lookbackPeriods: number;
+  lookback_periods: number;
 }
 
 /**
@@ -250,23 +250,23 @@ export interface SignalsRawV1 {
   /** Candle timeframe */
   timeframe: string;
   /** Unique identifier for the signal */
-  signalId: string;
+  signal_id: string;
   /** Time when the signal was generated */
-  signalTime: string;
+  signal_time: string;
   /** Direction of the signal */
-  signalType: "long" | "short";
+  signal_type: "long" | "short";
   /** Source strategy that generated the signal */
   source: string;
   /** Suggested entry price */
-  entryPrice: string;
+  entry_price: string;
   /** Suggested stop loss price */
-  stopLoss: string;
+  stop_loss: string;
   /** First take profit target */
-  takeProfit1: string | null;
+  take_profit_1: string | null;
   /** Second take profit target */
-  takeProfit2: string | null;
+  take_profit_2: string | null;
   /** Third take profit target */
-  takeProfit3: string | null;
+  take_profit_3: string | null;
   /** Signal confidence score (0-1) */
   confidence: number;
   /** Additional signal metadata */
@@ -286,21 +286,21 @@ export interface SmcEventsV1 {
   /** Candle timeframe */
   timeframe: string;
   /** Time when the event occurred */
-  eventTime: string;
+  event_time: string;
   /** Type of SMC event */
-  eventType: "choch" | "bos";
+  event_type: "choch" | "bos";
   /** Direction of the structure break */
   direction: "bullish" | "bearish";
   /** Price at which the event occurred */
-  priceLevel: string;
+  price_level: string;
   /** Price of the previous pivot point */
-  previousPivotPrice: string;
+  previous_pivot_price: string;
   /** Time of the previous pivot point */
-  previousPivotTime: string;
+  previous_pivot_time: string;
   /** Price of the broken pivot point */
-  brokenPivotPrice: string;
+  broken_pivot_price: string;
   /** Time of the broken pivot point */
-  brokenPivotTime: string;
+  broken_pivot_time: string;
 }
 
 /**
@@ -316,23 +316,23 @@ export interface ZonesV1 {
   /** Candle timeframe */
   timeframe: string;
   /** Unique identifier for the zone */
-  zoneId: string;
+  zone_id: string;
   /** Type of SMC zone */
-  zoneType: "order_block" | "fair_value_gap";
+  zone_type: "order_block" | "fair_value_gap";
   /** Zone direction - demand (bullish) or supply (bearish) */
   direction: "demand" | "supply";
   /** Upper price boundary of the zone */
-  upperBound: string;
+  upper_bound: string;
   /** Lower price boundary of the zone */
-  lowerBound: string;
+  lower_bound: string;
   /** Time when the zone was created */
-  createdTime: string;
+  created_time: string;
   /** Number of candles forming the zone */
-  candleCount: number;
+  candle_count: number;
   /** Zone strength score (0-1) */
   strength: number;
   /** Number of times price has retested the zone */
   touches: number;
   /** Whether the zone is still active */
-  isActive: boolean;
+  is_active: boolean;
 }

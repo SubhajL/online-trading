@@ -29,6 +29,7 @@ export type Venue = 'SPOT' | 'USD_M';
 @Entity('orders')
 @Index(['venue', 'symbol', 'createdAt'])
 @Index(['symbol', 'createdAt'])
+@Index(['venue', 'clientOrderId'], { unique: true })
 @Index(['clientOrderId'])
 @Index(['exchangeOrderId'])
 @Index(['decisionId'])
@@ -36,7 +37,7 @@ export class OrderEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'order_id' })
   orderId: string;
 
-  @Column({ name: 'client_order_id', unique: true })
+  @Column({ name: 'client_order_id' })
   clientOrderId: string;
 
   @Column({ name: 'venue' })

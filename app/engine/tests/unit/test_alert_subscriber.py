@@ -58,6 +58,7 @@ class _FakeBus:
 
 def _make_trading_decision_event(*, timestamp: datetime) -> TradingDecisionEvent:
     decision = TradingDecision(
+        venue="SPOT",
         symbol="BTCUSDT",
         timestamp=timestamp,
         action="BUY",
@@ -250,6 +251,7 @@ class TestAlertSubscriberHandleEvent:
         ts = datetime.now(UTC)
 
         decision = TradingDecision(
+            venue="SPOT",
             symbol="ETHUSDT",
             timestamp=ts,
             action="SELL",
@@ -504,6 +506,7 @@ class TestAlertSubscriberCooldown:
 
         ts = datetime.now(UTC)
         decision = TradingDecision(
+            venue="SPOT",
             symbol="BTCUSDT",
             timestamp=ts,
             action="BUY",
@@ -568,6 +571,7 @@ class TestAlertSubscriberCooldown:
                 "zone": {"zone_id": "zone-1", "zone_type": "DEMAND"},
             },
             decision=TradingDecision(
+                venue="SPOT",
                 symbol="BTCUSDT",
                 timestamp=ts,
                 action="BUY",
@@ -591,6 +595,7 @@ class TestAlertSubscriberCooldown:
                 "zone": {"zone_id": "zone-2", "zone_type": "SUPPLY"},
             },
             decision=TradingDecision(
+                venue="SPOT",
                 symbol="BTCUSDT",
                 timestamp=ts,
                 action="SELL",
@@ -640,6 +645,7 @@ class TestAlertSubscriberCooldown:
                 "decision_source": "retest_decision_publisher",
             },  # No zone
             decision=TradingDecision(
+                venue="SPOT",
                 symbol="BTCUSDT",
                 timestamp=ts,
                 action="BUY",

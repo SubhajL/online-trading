@@ -177,6 +177,7 @@ class RetestAnalyzer:
 
                 stop_distance = level_price * Decimal("0.002")
                 return RetestSignal(
+                    venue=current_candle.venue,
                     symbol=current_candle.symbol,
                     timeframe=current_candle.timeframe,
                     timestamp=current_candle.close_time,
@@ -213,6 +214,7 @@ class RetestAnalyzer:
 
                 stop_distance = level_price * Decimal("0.002")
                 return RetestSignal(
+                    venue=current_candle.venue,
                     symbol=current_candle.symbol,
                     timeframe=current_candle.timeframe,
                     timestamp=current_candle.close_time,

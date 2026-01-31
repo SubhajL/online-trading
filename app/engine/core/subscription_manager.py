@@ -12,7 +12,6 @@ from typing import Any
 from uuid import uuid4
 
 from app.engine.models import BaseEvent, EventType
-
 from .error_handling import (
     ErrorCategory,
     ErrorSeverity,
@@ -41,6 +40,8 @@ class EventSubscription:
     event_types: set[EventType] | None
     priority: int
     max_retries: int
+    serialize_by_key: bool = False
+    key_extractor: Callable[[BaseEvent], str] | None = None
     retry_count: int = 0
     last_error: str | None = None
     is_active: bool = True
@@ -80,6 +81,14 @@ class SubscriptionManager:
         # Thread safety
         self._lock = asyncio.Lock()
 
+    @staticmethod
+    def default_key_extractor(event: BaseEvent) -> str:
+        """Default keying strategy for stateful handlers."""
+        tf = getattr(event, "timeframe", None)
+        if tf is None:
+            return str(getattr(event, "symbol", ""))
+        return f"{event.symbol}:{tf.value}"
+
     async def add_subscription(
         self,
         subscriber_id: str,
@@ -87,6 +96,9 @@ class SubscriptionManager:
         event_types: list[EventType] | None = None,
         priority: int | None = None,
         max_retries: int | None = None,
+        *,
+        serialize_by_key: bool = False,
+        key_extractor: Callable[[BaseEvent], str] | None = None,
     ) -> str:
         """
         Add a new subscription.
@@ -138,6 +150,8 @@ class SubscriptionManager:
                 max_retries=(
                     max_retries if max_retries is not None else self._config.default_max_retries
                 ),
+                serialize_by_key=serialize_by_key,
+                key_extractor=key_extractor,
             )
 
             # Store subscription
