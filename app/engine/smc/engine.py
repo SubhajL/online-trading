@@ -4,10 +4,12 @@ from decimal import Decimal
 import logging
 from typing import Any
 
+from app.engine.ingest.bar_index import bar_index_from_open_time
+
 from ..bus import get_event_bus
+from ..contracts.mappers import SMCEventMapper
 from ..models import Candle, CandleUpdateEvent, EventType, TimeFrame, is_realtime_candle_event
 from ..smc_types import StructureState, StructureTracker, Zone
-from app.engine.ingest.bar_index import bar_index_from_open_time
 from .atr import atr
 from .events import create_smc_event, create_zone_event, publish_events
 from .numutils import to_float_ohlc_arrays
@@ -27,6 +29,7 @@ class SMCEngine:
         zone_expiry_bars: int = 100,
         max_zones_per_symbol: int = 50,
         max_candle_history: int = 200,
+        db_adapter: Any | None = None,
     ):
         self.pivot_method = pivot_method
         self.pivot_n = pivot_n
@@ -34,6 +37,7 @@ class SMCEngine:
         self.zone_expiry_bars = zone_expiry_bars
         self.max_zones_per_symbol = max_zones_per_symbol
         self.max_candle_history = max_candle_history
+        self._db_adapter = db_adapter
 
         # State tracking per symbol/timeframe
         self._trackers: dict[tuple[str, TimeFrame], StructureTracker] = {}
@@ -117,8 +121,11 @@ class SMCEngine:
         choch_event = detect_choch(tracker, close_price, close_bar_index, timestamp)
         if choch_event:
             tracker.state = choch_event.to_state  # Update state on CHOCH
-            key_levels = get_key_levels(tracker)
             if emit_events:
+                await self._persist_smc_event(
+                    choch_event, candle.venue, candle.symbol, candle.timeframe,
+                )
+                key_levels = get_key_levels(tracker)
                 event = create_smc_event(
                     candle.venue,
                     candle.symbol,
@@ -169,12 +176,14 @@ class SMCEngine:
                                 )
                                 events_to_publish.append(zone_event)
                             break
-                        break
 
         bos_event = detect_bos(tracker, close_price, close_bar_index, timestamp)
         if bos_event:
-            key_levels = get_key_levels(tracker)
             if emit_events:
+                await self._persist_smc_event(
+                    bos_event, candle.venue, candle.symbol, candle.timeframe,
+                )
+                key_levels = get_key_levels(tracker)
                 event = create_smc_event(
                     candle.venue,
                     candle.symbol,
@@ -230,6 +239,23 @@ class SMCEngine:
         # 7. Publish all events
         if emit_events and events_to_publish:
             await publish_events(events_to_publish)
+
+    async def _persist_smc_event(
+        self,
+        smc_event: Any,
+        venue: str,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> None:
+        if self._db_adapter is None:
+            return
+        try:
+            payload = SMCEventMapper.to_schema(
+                smc_event, venue, symbol, timeframe.value,
+            )
+            await self._db_adapter.insert_smc_event_v1(payload)
+        except Exception:
+            logger.exception("Failed to persist SMC event to DB (non-fatal)")
 
     async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
         try:

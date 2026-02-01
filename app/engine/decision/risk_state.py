@@ -3,8 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import logging
 
+from app.engine.core.interfaces import RiskSnapshotDBAdapter
 from app.engine.models import RiskParameters
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -26,38 +30,12 @@ class RiskSnapshotError:
 
 async def build_risk_snapshot(
     *,
-    db_adapter: object,
+    db_adapter: RiskSnapshotDBAdapter,
     venue: str,
     now: datetime,
     risk: RiskParameters,
 ) -> tuple[RiskSnapshot | None, list[RiskSnapshotError]]:
-    get_latest_equity_sample = getattr(db_adapter, "get_latest_equity_sample", None)
-    get_equity_sample_at_or_after = getattr(
-        db_adapter,
-        "get_equity_sample_at_or_after",
-        None,
-    )
-    get_peak_equity_since = getattr(db_adapter, "get_peak_equity_since", None)
-    get_active_positions = getattr(db_adapter, "get_active_positions", None)
-
-    missing = []
-    if not callable(get_latest_equity_sample):
-        missing.append("get_latest_equity_sample")
-    if not callable(get_equity_sample_at_or_after):
-        missing.append("get_equity_sample_at_or_after")
-    if not callable(get_peak_equity_since):
-        missing.append("get_peak_equity_since")
-    if not callable(get_active_positions):
-        missing.append("get_active_positions")
-    if missing:
-        return None, [
-            RiskSnapshotError(
-                error_type="missing_db_adapter_methods",
-                message=f"DB adapter missing methods: {', '.join(missing)}",
-            ),
-        ]
-
-    latest = await get_latest_equity_sample()
+    latest = await db_adapter.get_latest_equity_sample()
     if latest is None:
         return None, [
             RiskSnapshotError(
@@ -85,7 +63,7 @@ async def build_risk_snapshot(
         ]
 
     day_start = datetime(now.year, now.month, now.day, tzinfo=UTC)
-    start_of_day_equity = await get_equity_sample_at_or_after(day_start)
+    start_of_day_equity = await db_adapter.get_equity_sample_at_or_after(day_start)
     if start_of_day_equity is None:
         return None, [
             RiskSnapshotError(
@@ -95,11 +73,11 @@ async def build_risk_snapshot(
         ]
 
     lookback_start = now - timedelta(days=risk.drawdown_lookback_days)
-    peak_equity = await get_peak_equity_since(lookback_start)
+    peak_equity = await db_adapter.get_peak_equity_since(lookback_start)
     if peak_equity is None:
         peak_equity = equity
 
-    rows = await get_active_positions(venue)
+    rows = await db_adapter.get_active_positions(venue)
     symbol_exposure: dict[str, Decimal] = {}
     total_exposure = Decimal(0)
     open_positions_count = 0
@@ -115,6 +93,7 @@ async def build_risk_snapshot(
         try:
             notional = abs(Decimal(str(size)) * Decimal(str(current_price)))
         except Exception:
+            logger.exception("Failed to compute notional for row %s", row)
             continue
         if notional <= 0:
             continue

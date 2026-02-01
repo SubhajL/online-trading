@@ -21,7 +21,8 @@
     "strictPropertyInitialization": false,
     "esModuleInterop": true,
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@contracts/*": ["../../contracts/gen/ts/*"]
     }
   }
 }

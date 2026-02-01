@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_serializer
@@ -101,7 +102,7 @@ class StructureBreakEvent(BaseEvent):
     venue: str
     smc_event: SMCEvent
     current_state: StructureState
-    key_levels: dict[str, Decimal]  # HL, LH, last_hh, last_ll
+    key_levels: dict[str, Any]  # state, HL, LH, last_hh, last_ll
 
 
 class ZoneEvent(BaseEvent):

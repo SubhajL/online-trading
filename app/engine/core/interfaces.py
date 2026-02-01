@@ -4,6 +4,8 @@ Defines contracts for all major components.
 """
 
 from collections.abc import Callable
+from datetime import datetime
+from decimal import Decimal
 from typing import Any, Protocol
 
 from app.engine.core.event_processor import (
@@ -155,6 +157,15 @@ class ClockInterface(Protocol):
     async def sleep(self, seconds: float) -> None:
         """Sleep for given seconds."""
         ...
+
+
+class RiskSnapshotDBAdapter(Protocol):
+    """Protocol for DB adapter used by build_risk_snapshot."""
+
+    async def get_latest_equity_sample(self) -> tuple[Decimal, datetime] | None: ...
+    async def get_equity_sample_at_or_after(self, dt: datetime) -> Decimal | None: ...
+    async def get_peak_equity_since(self, dt: datetime) -> Decimal | None: ...
+    async def get_active_positions(self, venue: str) -> list[dict[str, Any]]: ...
 
 
 class CircuitBreakerInterface(Protocol):

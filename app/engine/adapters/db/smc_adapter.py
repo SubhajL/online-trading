@@ -1,3 +1,4 @@
+# DEPRECATED: use TimescaleDBAdapter.insert_smc_event_v1 instead
 from __future__ import annotations
 
 from datetime import UTC, datetime

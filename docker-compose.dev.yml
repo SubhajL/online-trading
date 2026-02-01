@@ -106,6 +106,7 @@ services:
       - BINANCE_DATA_SOURCE=${BINANCE_DATA_SOURCE:-mainnet}
       - PIPELINE_HEALTH_ALERTS_ENABLED=${PIPELINE_HEALTH_ALERTS_ENABLED:-1}
       - LIVE_REST_FALLBACK_ENABLED=${LIVE_REST_FALLBACK_ENABLED:-1}
+      - TRACING_DISABLED=true
     ports:
       - "${ENGINE_PORT:-8000}:8000"
     working_dir: /workspace/app/engine

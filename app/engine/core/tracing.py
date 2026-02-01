@@ -506,7 +506,7 @@ def configure_tracing_from_env() -> None:
     """
     import os
 
-    disabled = os.getenv("TRACING_DISABLED", "false").lower() == "true"
+    disabled = os.getenv("TRACING_DISABLED", "true").lower() == "true"
     provider: TracerProvider
     if disabled:
         provider = NoopTracerProvider()

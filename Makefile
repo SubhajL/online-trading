@@ -17,7 +17,7 @@ SHELL := /bin/bash
 
 # Project configuration
 PROJECT_NAME := online-trading-platform
-PYTHON_VERSION := 3.13
+PYTHON_VERSION := 3.11
 NODE_VERSION := 18
 GO_VERSION := 1.21
 

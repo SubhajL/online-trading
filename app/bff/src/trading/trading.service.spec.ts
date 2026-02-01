@@ -32,6 +32,7 @@ describe('TradingService', () => {
     save: jest.fn(),
     findOne: jest.fn(),
     find: jest.fn(),
+    findActiveOrders: jest.fn().mockResolvedValue([]),
   };
 
   beforeEach(async () => {

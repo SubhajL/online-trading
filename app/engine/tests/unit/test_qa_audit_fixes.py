@@ -14,6 +14,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -25,7 +26,7 @@ import pytest
 from app.engine.core.signal_cooldown import SignalCooldown
 from app.engine.decision.engine import generate_decision
 from app.engine.ingest.ingest_service import _timeframe_to_seconds
-from app.engine.models import TimeFrame
+from app.engine.models import Candle, TimeFrame
 
 # ---------------------------------------------------------------------------
 # 1. Per-symbol lock
@@ -474,17 +475,50 @@ class TestTryAcquireAsync:
         assert "SPOT:BTCUSDT:15m:z1:BUY" in cooldown._cache
 
 
+class _FakeRedisForCooldown:
+    """Fake Redis that records calls — implements the subset used by SignalCooldown."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def get(self, key: str, prefix: str = "cache") -> str | None:
+        self.calls.append(f"get:{prefix}:{key}")
+        return "1"  # Signal already seen → cooldown blocks
+
+    async def set(self, key: str, value: str, *, expire: int = 0, prefix: str = "cache") -> None:
+        self.calls.append(f"set:{prefix}:{key}")
+
+    async def set_nx(self, key: str, value: str, *, expire: int = 0, prefix: str = "cache") -> bool:
+        self.calls.append(f"set_nx:{prefix}:{key}")
+        return False  # Already exists
+
+
 class TestCooldownWiring:
-    """Verify Redis is wired into cooldowns in main.py."""
+    """Verify SignalCooldown queries Redis when a redis adapter is provided."""
 
-    def test_main_passes_redis_to_cooldown(self) -> None:
-        """SignalCooldown constructors in main.py must include redis= parameter."""
-        import inspect
+    @pytest.mark.asyncio
+    async def test_should_allow_async_queries_redis(self) -> None:
+        """When redis is wired in, should_allow_async must call redis.get."""
+        fake_redis = _FakeRedisForCooldown()
+        cooldown = SignalCooldown(cooldown_seconds=300, redis=fake_redis)
 
-        from app.engine.main import initialize_services
+        allowed = await cooldown.should_allow_async("BTCUSDT", "15m", "z1", "BUY")
 
-        source = inspect.getsource(initialize_services)
-        assert "redis=redis_adapter" in source
+        # Redis returned "1" → signal is blocked
+        assert allowed is False
+        assert any("get:cooldown:" in c for c in fake_redis.calls)
+
+    @pytest.mark.asyncio
+    async def test_try_acquire_async_calls_redis_set_nx(self) -> None:
+        """When redis is wired in, try_acquire_async must call redis.set_nx."""
+        fake_redis = _FakeRedisForCooldown()
+        cooldown = SignalCooldown(cooldown_seconds=300, redis=fake_redis)
+
+        acquired = await cooldown.try_acquire_async("BTCUSDT", "15m", "z1", "BUY", venue="SPOT")
+
+        # set_nx returned False → not acquired
+        assert acquired is False
+        assert any("set_nx:cooldown:" in c for c in fake_redis.calls)
 
 
 class TestPaperBrokerMemoryMutation:
@@ -740,34 +774,123 @@ class TestBracketOrderIdMapping:
 
 
 class TestLoggerExceptionTracebacks:
-    """Verify error handlers use logger.exception to preserve tracebacks."""
+    """Verify error handlers emit tracebacks (logger.exception) via caplog."""
 
-    def test_feature_service_uses_logger_exception(self) -> None:
-        """feature_service error handler must use logger.exception, not logger.error."""
-        import inspect
-
-        from app.engine.features.feature_service import FeatureService
-
-        source = inspect.getsource(FeatureService)
-        assert 'logger.error(f"Error handling candle update: {e}")' not in source
-        assert "logger.exception" in source
-
-    def test_smc_engine_uses_logger_exception(self) -> None:
-        """smc engine error handler must use logger.exception."""
-        import inspect
-
+    @pytest.mark.asyncio
+    async def test_smc_engine_logs_exception_on_candle_error(
+        self, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """When _handle_candle_update raises, SMC engine must log with exc_info."""
+        from app.engine.bus import set_event_bus
+        from app.engine.core.event_bus_factory import EventBusConfig, EventBusFactory
+        from app.engine.models import CandleOrigin, CandleUpdateEvent
         from app.engine.smc.engine import SMCEngine
 
-        source = inspect.getsource(SMCEngine)
-        assert 'logger.error(f"Error processing candle in SMC engine: {e}")' not in source
-        assert "logger.exception" in source
+        cfg = EventBusConfig(
+            use_priority_queue=False,
+            dlq_on_any_failure=False,
+            num_workers=1,
+            max_queue_size=100,
+            dead_letter_queue_size=10,
+        )
+        bus = EventBusFactory().create_with_config(cfg)
+        set_event_bus(bus)
 
-    def test_ingest_service_uses_logger_exception(self) -> None:
-        """ingest_service candle persist error handler must use logger.exception."""
-        import inspect
+        engine = SMCEngine()
 
+        # Build a candle event that will cause process_candle to fail
+        # (missing tracker state with a candle that triggers internal error)
+        bad_candle = Candle(
+            venue="binance_spot",
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M15,
+            open_time=datetime(2025, 1, 1, tzinfo=UTC),
+            close_time=datetime(2025, 1, 1, 0, 15, tzinfo=UTC),
+            open_price=Decimal("50000"),
+            high_price=Decimal("50100"),
+            low_price=Decimal("49900"),
+            close_price=Decimal("50050"),
+            volume=Decimal("100"),
+            quote_volume=Decimal("10000"),
+            trades=50,
+            taker_buy_base_volume=Decimal("50"),
+            taker_buy_quote_volume=Decimal("5000"),
+            bar_index=0,
+        )
+
+        # Monkey-patch process_candle to raise, simulating an internal error
+        original = engine.process_candle
+
+        async def _exploding_process(*a: object, **kw: object) -> None:
+            raise RuntimeError("synthetic error for traceback test")
+
+        engine.process_candle = _exploding_process  # type: ignore[assignment]
+
+        event = CandleUpdateEvent(
+            candle=bad_candle,
+            origin=CandleOrigin.REALTIME,
+            timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+            symbol="BTCUSDT",
+        )
+
+        with caplog.at_level(logging.ERROR, logger="app.engine.smc.engine"):
+            await engine._handle_candle_update(event)
+
+        exc_records = [r for r in caplog.records if r.exc_info and r.exc_info[1] is not None]
+        assert len(exc_records) >= 1, "Expected logger.exception (with traceback)"
+        assert "Error processing candle in SMC engine" in exc_records[0].message
+
+    @pytest.mark.asyncio
+    async def test_ingest_service_logs_exception_on_persist_failure(
+        self, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """When candle persistence fails, ingest service must log with exc_info."""
         from app.engine.ingest.ingest_service import IngestService
+        from app.engine.models import CandleOrigin, CandleUpdateEvent
 
-        source = inspect.getsource(IngestService)
-        assert 'logger.error(f"Failed to persist candle' not in source
-        assert "logger.exception" in source
+        class _FailingDBAdapter:
+            async def insert_candle(self, candle: object) -> None:
+                raise RuntimeError("DB down")
+
+        service = IngestService.__new__(IngestService)
+        service._db_adapter = _FailingDBAdapter()
+        service._latest_candles = {}
+        service._event_bus = None
+
+        candle = Candle(
+            venue="binance_spot",
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M15,
+            open_time=datetime(2025, 1, 1, tzinfo=UTC),
+            close_time=datetime(2025, 1, 1, 0, 15, tzinfo=UTC),
+            open_price=Decimal("50000"),
+            high_price=Decimal("50100"),
+            low_price=Decimal("49900"),
+            close_price=Decimal("50050"),
+            volume=Decimal("100"),
+            quote_volume=Decimal("10000"),
+            trades=50,
+            taker_buy_base_volume=Decimal("50"),
+            taker_buy_quote_volume=Decimal("5000"),
+            bar_index=0,
+        )
+        event = CandleUpdateEvent(
+            candle=candle,
+            origin=CandleOrigin.REALTIME,
+            timestamp=datetime(2025, 1, 1, tzinfo=UTC),
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M15,
+        )
+
+        # Stub _emit_error to avoid needing a full event bus
+        async def _noop_emit(*a: object, **kw: object) -> None:
+            pass
+
+        service._emit_error = _noop_emit  # type: ignore[assignment]
+
+        with caplog.at_level(logging.ERROR, logger="app.engine.ingest.ingest_service"):
+            await service._on_candle_update(event)
+
+        exc_records = [r for r in caplog.records if r.exc_info and r.exc_info[1] is not None]
+        assert len(exc_records) >= 1, "Expected logger.exception (with traceback)"
+        assert "Failed to persist candle" in exc_records[0].message

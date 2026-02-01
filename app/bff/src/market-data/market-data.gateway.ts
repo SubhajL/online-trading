@@ -13,100 +13,12 @@ import { EngineClientService } from '../engine-client/engine-client.service';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+import type { CandlesV1, FeaturesV1, SignalsRawV1, SmcEventsV1, ZonesV1 } from '@contracts/index';
 
 interface SubscriptionData {
   symbol: string;
   timeframe: string;
 }
-
-type CandlesV1 = {
-  version: string;
-  venue: string;
-  symbol: string;
-  timeframe: string;
-  open_time: string;
-  close_time: string;
-  open: string;
-  high: string;
-  low: string;
-  close: string;
-  volume: string;
-  quote_volume: string;
-  trades: number;
-  taker_buy_volume: string;
-  taker_buy_quote_volume: string;
-  is_closed: boolean;
-};
-
-type FeaturesV1 = {
-  version: string;
-  venue: string;
-  symbol: string;
-  timeframe: string;
-  open_time: string;
-  close_time: string;
-  ema_short: number | null;
-  ema_long: number | null;
-  rsi: number | null;
-  macd: number | null;
-  macd_signal: number | null;
-  macd_histogram: number | null;
-  atr: string | null;
-  bb_upper: number | null;
-  bb_middle: number | null;
-  bb_lower: number | null;
-  volume_ma: number | null;
-};
-
-type SignalsRawV1 = {
-  version: string;
-  venue: string;
-  symbol: string;
-  timeframe: string;
-  signal_id: string;
-  signal_time: string;
-  signal_type: 'long' | 'short';
-  source: string;
-  entry_price: string;
-  stop_loss: string;
-  take_profit_1: string | null;
-  take_profit_2: string | null;
-  take_profit_3: string | null;
-  confidence: number;
-  metadata: Record<string, any>;
-};
-
-type SmcEventsV1 = {
-  version: string;
-  venue: string;
-  symbol: string;
-  timeframe: string;
-  event_time: string;
-  event_type: 'choch' | 'bos';
-  direction: 'bullish' | 'bearish';
-  price_level: string;
-  previous_pivot_price: string;
-  previous_pivot_time: string;
-  broken_pivot_price: string;
-  broken_pivot_time: string;
-};
-
-type ZonesV1 = {
-  version: string;
-  venue: string;
-  symbol: string;
-  timeframe: string;
-  zone_id: string;
-  zone_type: 'order_block' | 'fair_value_gap';
-  direction: 'demand' | 'supply';
-  upper_bound: string;
-  lower_bound: string;
-  created_time: string;
-  candle_count: number;
-  strength: number;
-  touches: number;
-  is_active: boolean;
-};
 
 @WebSocketGateway({
   namespace: '/trading',

@@ -130,6 +130,11 @@ jobs:
           cd app/router
           go mod download
 
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.62.2
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
       - name: Run Go linting
         run: |
           cd app/router
@@ -290,6 +295,16 @@ jobs:
           cd app/router
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           gosec ./...
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
 
       - name: Run npm audit
         run: |

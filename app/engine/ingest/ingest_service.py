@@ -106,18 +106,6 @@ class IngestService:
 
     @rest_client.setter
     def rest_client(self, client: Any) -> None:
-        """Set REST client; wrap get_historical_data with AsyncMock if needed for assertions."""
-        from unittest.mock import AsyncMock
-
-        # If client has a coroutine function but not an AsyncMock, wrap it so tests can assert calls
-        if hasattr(client, "get_historical_data") and not isinstance(
-            client.get_historical_data,
-            AsyncMock,
-        ):
-            fn = client.get_historical_data
-            # Only wrap callables
-            if callable(fn):
-                client.get_historical_data = AsyncMock(side_effect=fn)
         self._rest_client = client
 
     def _select_binance_credentials(self, config: dict[Any, Any]) -> dict[str, Any]:

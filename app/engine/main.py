@@ -400,7 +400,7 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         services["features"] = feature_service
 
         # Initialize SMC engine (single source of truth for SMC)
-        services["smc"] = SMCEngine()
+        services["smc"] = SMCEngine(db_adapter=db_adapter)
 
         # Wire conservative pipeline: retest -> decision publisher
         services["retest_engine"] = RetestEngine(config={"retest": {}})

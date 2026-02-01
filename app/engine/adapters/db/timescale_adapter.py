@@ -1130,6 +1130,52 @@ class TimescaleDBAdapter:
             return []
 
     # ============================================================================
+    # SMC Events (smc_events.v1 contract)
+    # ============================================================================
+
+    async def insert_smc_event_v1(self, payload: dict[str, Any]) -> None:
+        """Insert an SMC event using the smc_events.v1 contract schema shape."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO smc_events (
+                    venue, symbol, timeframe, timestamp,
+                    event_type, event_time, direction, price_level,
+                    previous_pivot_price, previous_pivot_time,
+                    broken_pivot_price, broken_pivot_time,
+                    version, structure_type, price, trend_direction
+                ) VALUES (
+                    $1, $2, $3, $4,
+                    $5, $6, $7, $8,
+                    $9, $10,
+                    $11, $12,
+                    $13, $14, $15, $16
+                )
+                ON CONFLICT DO NOTHING
+                """,
+                payload["venue"],
+                payload["symbol"],
+                payload["timeframe"],
+                datetime.fromisoformat(payload["event_time"].replace("Z", "+00:00")),
+                payload["event_type"].upper(),
+                datetime.fromisoformat(payload["event_time"].replace("Z", "+00:00")),
+                payload["direction"],
+                Decimal(payload["price_level"]),
+                Decimal(payload["previous_pivot_price"]),
+                datetime.fromisoformat(
+                    payload["previous_pivot_time"].replace("Z", "+00:00"),
+                ),
+                Decimal(payload["broken_pivot_price"]),
+                datetime.fromisoformat(
+                    payload["broken_pivot_time"].replace("Z", "+00:00"),
+                ),
+                payload.get("version", "1.0.0"),
+                "HH",  # placeholder for legacy NOT NULL structure_type column
+                Decimal(payload["price_level"]),
+                payload["direction"],
+            )
+
+    # ============================================================================
     # Health and Maintenance
     # ============================================================================
 

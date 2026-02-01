@@ -13,10 +13,10 @@ from app.engine.models import (
     CandleUpdateEvent,
     EventType,
     FeaturesCalculatedEvent,
+    OrderUpdateEvent,
     RetestSignalEvent,
     TradingDecisionEvent,
 )
-from app.engine.models import OrderUpdateEvent
 from app.engine.smc_types import StructureBreakEvent, ZoneEvent
 
 logger = logging.getLogger(__name__)
@@ -168,6 +168,9 @@ class ContractPublisher:
         else:
             close_time = _format_datetime_iso_z(features.timestamp)
 
+        # NOTE: EMA/RSI/MACD/BB are published as float per features.v1 schema.
+        # ATR is published as string for higher precision (used in position sizing).
+        # See contracts/jsonschema/features.v1.schema.json for canonical types.
         payload: dict[str, Any] = {
             "version": "1.0.0",
             "venue": venue,
@@ -232,6 +235,7 @@ class ContractPublisher:
             try:
                 signal_ids.append(str(sig.signal_id))
             except Exception:
+                logger.exception("Failed to extract signal_id from signal %s", sig)
                 continue
 
         payload: dict[str, Any] = {

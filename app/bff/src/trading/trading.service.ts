@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CONTRACT_TOPICS } from '../contracts/topics';
 import { EngineClientService } from '../engine-client/engine-client.service';
@@ -31,6 +31,9 @@ export interface DecisionEvent {
   venue: 'SPOT' | 'USD_M';
   type: 'MARKET' | 'LIMIT';
   price?: number;
+  entry?: number;
+  stopLoss?: number;
+  takeProfit?: number;
   confidence: number;
   timestamp?: number;
 }
@@ -60,7 +63,7 @@ function mapOrderType(requestType: string): EntityOrderType {
 }
 
 @Injectable()
-export class TradingService {
+export class TradingService implements OnModuleInit {
   private readonly logger = new Logger(TradingService.name);
   private readonly positions = new Map<string, Position>();
   private readonly activeOrders = new Map<string, OrderResponse>();
@@ -73,6 +76,24 @@ export class TradingService {
     private readonly orderRepository: OrderRepository,
   ) {
     this.subscribeToEngineEvents();
+  }
+
+  async onModuleInit(): Promise<void> {
+    const activeOrders = await this.orderRepository.findActiveOrders();
+    for (const order of activeOrders) {
+      this.activeOrders.set(order.orderId, {
+        orderId: order.orderId,
+        status: order.status,
+        symbol: order.symbol,
+        side: order.side,
+        type: order.type,
+        quantity: order.quantity,
+        price: order.price ?? undefined,
+        executedQty: order.filledQuantity,
+        venue: order.venue,
+      });
+    }
+    this.logger.log(`Recovered ${activeOrders.length} active orders from database`);
   }
 
   private subscribeToEngineEvents() {
@@ -314,7 +335,7 @@ export class TradingService {
         currentPrice: executedPrice,
         pnl: 0,
         pnlPercent: 0,
-        venue: (order as any).venue || 'SPOT',
+        venue: order.venue || 'SPOT',
         timestamp: Date.now(),
       };
       this.positions.set(key, position);

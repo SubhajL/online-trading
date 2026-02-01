@@ -14,6 +14,7 @@ import { AlertsService } from './alerts.service';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import type { Alert } from './dto/alert.dto';
+import type { DecisionEvent, OrderUpdateEvent } from '../trading/trading.service';
 
 @WebSocketGateway({
   namespace: '/alerts',
@@ -46,11 +47,11 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     });
 
     // Subscribe to trading events to create alerts
-    this.eventEmitter.on(CONTRACT_TOPICS.decisionV1, async (decision: any) => {
+    this.eventEmitter.on(CONTRACT_TOPICS.decisionV1, async (decision: DecisionEvent) => {
       await this.createDecisionAlert(decision);
     });
 
-    this.eventEmitter.on(CONTRACT_TOPICS.orderUpdateV1, async (orderUpdate: any) => {
+    this.eventEmitter.on(CONTRACT_TOPICS.orderUpdateV1, async (orderUpdate: OrderUpdateEvent) => {
       await this.createOrderAlert(orderUpdate);
     });
   }
@@ -93,7 +94,7 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     return this.alertsService.getUnreadCount();
   }
 
-  private async createDecisionAlert(decision: any) {
+  private async createDecisionAlert(decision: DecisionEvent) {
     const priority = decision.confidence >= 0.8 ? 'high' : 'medium';
 
     const alert = await this.alertsService.create({
@@ -114,7 +115,7 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     this.eventEmitter.emit('alert.new', alert);
   }
 
-  private async createOrderAlert(orderUpdate: any) {
+  private async createOrderAlert(orderUpdate: OrderUpdateEvent) {
     const priority =
       orderUpdate.status === 'FILLED'
         ? 'medium'

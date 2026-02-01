@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as net from 'net';
@@ -6,7 +6,7 @@ import { createClient, RedisClientType } from 'redis';
 
 export interface EngineEvent {
   type: string;
-  data: any;
+  data: unknown;
   timestamp?: string;
 }
 
@@ -22,7 +22,7 @@ export interface HealthCheckResult {
 }
 
 @Injectable()
-export class EngineClientService extends EventEmitter2 {
+export class EngineClientService extends EventEmitter2 implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EngineClientService.name);
   private readonly engineType: 'redis' | 'tcp';
   private readonly host: string;
@@ -38,6 +38,14 @@ export class EngineClientService extends EventEmitter2 {
     this.engineType = this.configService.get<'redis' | 'tcp'>('engine.type')!;
     this.host = this.configService.get<string>('engine.host')!;
     this.port = this.configService.get<number>('engine.port')!;
+  }
+
+  async onModuleInit(): Promise<void> {
+    await this.connect();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.disconnect();
   }
 
   async connect(): Promise<void> {
@@ -64,11 +72,11 @@ export class EngineClientService extends EventEmitter2 {
     this.isConnected = false;
   }
 
-  subscribe(eventType: string, callback: (data: any) => void): void {
+  subscribe<T = unknown>(eventType: string, callback: (data: T) => void): void {
     this.on(eventType, callback);
   }
 
-  async publish(eventType: string, data: any): Promise<void> {
+  async publish(eventType: string, data: unknown): Promise<void> {
     const event: EngineEvent = {
       type: eventType,
       data,
@@ -135,6 +143,18 @@ export class EngineClientService extends EventEmitter2 {
     this.redisSubscriber.on('error', (err) => {
       this.logger.error('Redis subscriber error:', err);
       this.emit('error', err);
+    });
+
+    this.redisClient.on('ready', () => {
+      this.logger.log('Redis client ready');
+      this.emit('connected');
+    });
+    this.redisClient.on('reconnecting', () => {
+      this.logger.warn('Redis client reconnecting');
+    });
+    this.redisClient.on('end', () => {
+      this.logger.warn('Redis client connection ended');
+      this.emit('disconnected');
     });
 
     await this.redisClient.connect();

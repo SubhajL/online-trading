@@ -103,7 +103,7 @@ class TestMainExecutionWiring:
 
         monkeypatch.setattr(main_mod, "IngestService", lambda **_: _StubAsyncService())
         monkeypatch.setattr(main_mod, "FeatureService", lambda **_: _StubAsyncService())
-        monkeypatch.setattr(main_mod, "SMCEngine", lambda: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "SMCEngine", lambda **_: _StubAsyncService())
         monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
         monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
         monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
@@ -163,7 +163,7 @@ class TestMainExecutionWiring:
         publisher = _StubAsyncService()
         monkeypatch.setattr(main_mod, "IngestService", lambda **_: ingest)
         monkeypatch.setattr(main_mod, "FeatureService", lambda **_: features)
-        monkeypatch.setattr(main_mod, "SMCEngine", lambda: smc)
+        monkeypatch.setattr(main_mod, "SMCEngine", lambda **_: smc)
         monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: retest)
         monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: publisher)
         monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
