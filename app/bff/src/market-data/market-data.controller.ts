@@ -7,7 +7,7 @@ import { GetIndicatorsQuery } from './queries/get-indicators.query';
 import { GetSmcEventsQuery } from './queries/get-smc-events.query';
 import { Candle } from '../database/entities/candle.entity';
 import { Indicators } from '../database/entities/indicators.entity';
-import { SmcEventV1 } from '../database/entities/smc-events-v1.entity';
+import type { SmcEventsV1 } from '@/contracts/gen/index';
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/market-data')
@@ -43,7 +43,7 @@ export class MarketDataController {
   @Get('smc-events')
   async getSmcEvents(
     @Query() dto: GetCandlesDto & { eventTypes?: string[] },
-  ): Promise<SmcEventV1[]> {
+  ): Promise<SmcEventsV1[]> {
     const query = new GetSmcEventsQuery(
       dto.symbol,
       dto.tf,

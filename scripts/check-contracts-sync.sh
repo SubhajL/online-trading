@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE="contracts/gen/ts/index.ts"
-VENDORED="app/bff/src/contracts/gen/index.ts"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+SOURCE="$REPO_ROOT/contracts/gen/ts/index.ts"
+VENDORED="$REPO_ROOT/app/bff/src/contracts/gen/index.ts"
 
 if ! diff -q "$SOURCE" "$VENDORED" > /dev/null 2>&1; then
   echo "ERROR: Vendored contracts out of sync."

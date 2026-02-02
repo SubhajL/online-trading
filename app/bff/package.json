@@ -5,6 +5,8 @@
   "private": true,
   "license": "MIT",
   "scripts": {
+    "contracts:sync": "cp ../../contracts/gen/ts/index.ts src/contracts/gen/index.ts",
+    "contracts:check": "bash ../../scripts/check-contracts-sync.sh",
     "prebuild": "rimraf dist",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

@@ -176,6 +176,11 @@ jobs:
         run: |
           pnpm install
 
+      - name: Verify BFF contracts scripts
+        run: |
+          cd app/bff
+          pnpm contracts:check
+
       - name: Run TypeScript linting
         run: |
           pnpm lint
