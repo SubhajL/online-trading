@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from app.engine.core.subscription_manager import EventSubscription
 from app.engine.core.keyed_executor import KeyedExecutor
+from app.engine.core.subscription_manager import EventSubscription
 from app.engine.models import BaseEvent
 from app.engine.resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,

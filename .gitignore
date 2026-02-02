@@ -536,3 +536,7 @@ tests/UX/
 
 # Runtime report artifacts
 reports/*.json
+
+# Go compiled binaries
+app/router/main
+app/router/server

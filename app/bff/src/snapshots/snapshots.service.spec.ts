@@ -144,6 +144,8 @@ describe('SnapshotsService', () => {
       const existingSnapshot = {
         id: 'existing-id',
         signalId,
+        symbol: 'BTCUSDT',
+        timeframe: '15m',
         imagePath: '/var/app/snapshots/existing.png',
         meta: metadata,
         createdAt: new Date(),
@@ -172,6 +174,8 @@ describe('SnapshotsService', () => {
       const snapshot = {
         id: 'test-id',
         signalId: 'signal-123',
+        symbol: 'BTCUSDT',
+        timeframe: '15m',
         imagePath: '/var/app/snapshots/test.png',
         meta: { symbol: 'BTCUSDT' },
         createdAt: new Date(),

@@ -6,10 +6,10 @@ Uses dependency injection for subscription management and event processing.
 """
 
 import asyncio
+from collections.abc import Callable
 import contextlib
 from datetime import UTC, datetime
 import logging
-from collections.abc import Callable
 from typing import Any
 
 from .core.error_handling import (

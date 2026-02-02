@@ -17,6 +17,7 @@ import { CommandBus } from '@nestjs/cqrs';
 import { TradingService } from './trading.service';
 import { OrderRequest, OrderResponse } from '../router-client/router-client.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { PlaceOrderCommand } from './commands/place-order.command';
 import { CancelOrderCommand } from './commands/cancel-order.command';
 import { SetAutoTradingCommand } from './commands/set-auto-trading.command';
@@ -50,7 +51,7 @@ export class TradingController {
 
   @Post('orders')
   async placeOrder(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() orderRequest: OrderRequest,
   ): Promise<OrderResponse> {
     const command = new PlaceOrderCommand(req.user.sub, orderRequest);
@@ -67,7 +68,7 @@ export class TradingController {
 
   @Delete('orders/:orderId')
   async cancelOrder(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Param('orderId') orderId: string,
     @Body() cancelRequest: CancelOrderRequest,
   ): Promise<OrderResponse> {
@@ -93,7 +94,7 @@ export class TradingController {
   @Post('auto-trading')
   @HttpCode(HttpStatus.OK)
   async setAutoTrading(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() request: AutoTradingRequest,
   ): Promise<AutoTradingResponse> {
     const command = new SetAutoTradingCommand(req.user.sub, request.enabled);

@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.engine.models import BaseEvent, EventType
+
 from .error_handling import (
     ErrorCategory,
     ErrorSeverity,

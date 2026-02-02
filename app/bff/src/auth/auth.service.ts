@@ -116,9 +116,12 @@ export class AuthService {
     }
   }
 
-  async getProfile(
-    userId: string,
-  ): Promise<{ id: string; username: string; roles: string[]; preferences: any }> {
+  async getProfile(userId: string): Promise<{
+    id: string;
+    username: string;
+    roles: string[];
+    preferences: Record<string, unknown>;
+  }> {
     const user = this.users.find((u) => u.id === userId);
     if (!user) {
       throw new UnauthorizedException('User not found');

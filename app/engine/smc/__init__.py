@@ -24,7 +24,6 @@ from ..smc_types import (
 )
 from .engine import SMCEngine
 from .events import create_smc_event, create_zone_event, publish_events
-
 from .pivots import (
     classify_pivot_relationship,
     detect_n_bar_pivots,

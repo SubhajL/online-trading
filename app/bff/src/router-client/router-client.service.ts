@@ -36,7 +36,7 @@ export interface HealthCheckResult {
   status: 'up' | 'down';
   details: {
     url: string;
-    response?: any;
+    response?: unknown;
     error?: string;
   };
 }

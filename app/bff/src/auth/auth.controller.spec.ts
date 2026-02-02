@@ -108,7 +108,7 @@ describe('AuthController', () => {
   describe('getProfile', () => {
     it('should return user profile', async () => {
       const user = {
-        id: 'user-123',
+        sub: 'user-123',
         username: 'testuser',
         roles: ['operator'],
       };
@@ -122,10 +122,10 @@ describe('AuthController', () => {
 
       mockAuthService.getProfile.mockResolvedValue(expectedProfile);
 
-      const result = await controller.getProfile({ user });
+      const result = await controller.getProfile({ user } as never);
 
       expect(result).toEqual(expectedProfile);
-      expect(authService.getProfile).toHaveBeenCalledWith(user.id);
+      expect(authService.getProfile).toHaveBeenCalledWith(user.sub);
     });
   });
 

@@ -26,12 +26,12 @@ except ImportError:
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
-from .bar_index import bar_index_from_open_time
 from ..resilience.backoff import BackoffConfig, ExponentialBackoff
 from ..resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
 )
+from .bar_index import bar_index_from_open_time
 
 if TYPE_CHECKING:
     from collections.abc import Callable

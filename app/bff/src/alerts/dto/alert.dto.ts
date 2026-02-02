@@ -9,7 +9,7 @@ export class Alert {
   priority: AlertPriority;
   title: string;
   message: string;
-  data?: any;
+  data?: Record<string, unknown>;
   read: boolean;
   createdAt: string;
   updatedAt?: string;

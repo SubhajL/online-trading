@@ -4,6 +4,7 @@ import { TradingService } from './trading.service';
 import { OrderRequest } from '../router-client/router-client.service';
 import { CommandBus } from '@nestjs/cqrs';
 import { EmergencyCloseService } from './emergency-close.service';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 describe('TradingController', () => {
   let controller: TradingController;
@@ -80,7 +81,7 @@ describe('TradingController', () => {
 
       mockCommandBus.execute.mockResolvedValue(orderResponse);
 
-      const mockRequest = { user: { sub: 'user-123' } };
+      const mockRequest = { user: { sub: 'user-123' } } as unknown as AuthenticatedRequest;
       const result = await controller.placeOrder(mockRequest, orderRequest);
 
       expect(result).toEqual(orderResponse);
@@ -124,7 +125,7 @@ describe('TradingController', () => {
 
       mockCommandBus.execute.mockResolvedValue(cancelResponse);
 
-      const mockRequest = { user: { sub: 'user-123' } };
+      const mockRequest = { user: { sub: 'user-123' } } as unknown as AuthenticatedRequest;
       const result = await controller.cancelOrder(mockRequest, orderId, cancelRequest);
 
       expect(result).toEqual(cancelResponse);
@@ -182,7 +183,7 @@ describe('TradingController', () => {
     it('should enable auto trading', async () => {
       mockCommandBus.execute.mockResolvedValue(undefined);
 
-      const mockRequest = { user: { sub: 'user-123' } };
+      const mockRequest = { user: { sub: 'user-123' } } as unknown as AuthenticatedRequest;
       const result = await controller.setAutoTrading(mockRequest, { enabled: true });
 
       expect(result).toEqual({ enabled: true, message: 'Auto trading enabled' });
@@ -192,7 +193,7 @@ describe('TradingController', () => {
     it('should disable auto trading', async () => {
       mockCommandBus.execute.mockResolvedValue(undefined);
 
-      const mockRequest = { user: { sub: 'user-123' } };
+      const mockRequest = { user: { sub: 'user-123' } } as unknown as AuthenticatedRequest;
       const result = await controller.setAutoTrading(mockRequest, { enabled: false });
 
       expect(result).toEqual({ enabled: false, message: 'Auto trading disabled' });

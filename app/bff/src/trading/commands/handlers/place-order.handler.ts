@@ -2,7 +2,7 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { BadRequestException, Logger } from '@nestjs/common';
 import { PlaceOrderCommand } from '../place-order.command';
 import { TradingService } from '../../trading.service';
-import type { OrderResponse } from '../../../router-client/router-client.service';
+import type { OrderRequest, OrderResponse } from '../../../router-client/router-client.service';
 
 @CommandHandler(PlaceOrderCommand)
 export class PlaceOrderHandler implements ICommandHandler<PlaceOrderCommand> {
@@ -24,7 +24,7 @@ export class PlaceOrderHandler implements ICommandHandler<PlaceOrderCommand> {
     }
   }
 
-  private validateOrder(order: any): void {
+  private validateOrder(order: OrderRequest): void {
     if (!order.symbol || !order.side || !order.type || !order.quantity || !order.venue) {
       throw new BadRequestException('Missing required order fields');
     }
@@ -50,7 +50,7 @@ export class PlaceOrderHandler implements ICommandHandler<PlaceOrderCommand> {
     }
   }
 
-  private logUserAction(userId: string, action: string, data: any): void {
+  private logUserAction(userId: string, action: string, data: OrderRequest): void {
     this.logger.log(`User ${userId} action: ${action}`, data);
   }
 }

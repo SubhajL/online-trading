@@ -24,11 +24,11 @@ from ..models import (
     OrderType,
     TimeFrame,
 )
-from .bar_index import bar_index_from_open_time
 from ..resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
 )
+from .bar_index import bar_index_from_open_time
 
 logger = logging.getLogger(__name__)
 

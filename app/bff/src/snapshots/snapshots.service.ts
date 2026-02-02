@@ -19,7 +19,7 @@ export class SnapshotsService {
   async saveSnapshot(
     signalId: string,
     imageBuffer: Buffer,
-    metadata: any,
+    metadata: Record<string, unknown>,
   ): Promise<AlertSnapshotDto> {
     // Check if snapshot already exists
     const existing = await this.snapshotRepository.findOne({
@@ -45,8 +45,8 @@ export class SnapshotsService {
     // Save to database
     const snapshot = this.snapshotRepository.create({
       signalId,
-      symbol: metadata.symbol,
-      timeframe: metadata.timeframe,
+      symbol: String(metadata.symbol ?? ''),
+      timeframe: String(metadata.timeframe ?? ''),
       imagePath,
       meta: metadata,
     });

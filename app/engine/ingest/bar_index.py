@@ -10,7 +10,6 @@ from datetime import datetime
 
 from app.engine.models import TimeFrame
 
-
 _TF_SECONDS: dict[str, int] = {"m": 60, "h": 3600, "d": 86400, "w": 604800}
 
 

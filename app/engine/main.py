@@ -21,8 +21,8 @@ import uvicorn
 
 from .adapters import RedisAdapter, RouterHTTPClient, TimescaleDBAdapter
 from .bus import set_event_bus
-from .core.health import build_system_health
 from .contracts.contract_publisher import ContractPublisher
+from .core.health import build_system_health
 from .decision.decision_publisher import DecisionPublisher
 from .decision.service import RiskManager
 from .features.feature_service import FeatureService

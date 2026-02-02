@@ -13,7 +13,7 @@ import { WebSocketHealthIndicator } from './indicators/websocket.health';
 import { DiskHealthIndicator } from './indicators/disk.health';
 
 interface CachedHealth {
-  status: any;
+  status: HealthIndicatorResult;
   timestamp: Date;
 }
 
@@ -265,7 +265,7 @@ export class EnhancedHealthController {
     }
 
     try {
-      const timeoutPromise = new Promise((_, reject) =>
+      const timeoutPromise = new Promise<HealthIndicatorResult>((_, reject) =>
         setTimeout(() => reject(new Error('Health check timeout')), this.HEALTH_CHECK_TIMEOUT_MS),
       );
 

@@ -5,13 +5,6 @@ export class AlertSnapshotDto {
   timeframe: string;
   imagePath: string;
   imageUrl?: string;
-  meta: {
-    entry: number;
-    stopLoss: number;
-    takeProfit: number;
-    signalTime: string;
-    reasons?: string[];
-    side: 'BUY' | 'SELL';
-  };
+  meta: Record<string, unknown>;
   createdAt: Date;
 }

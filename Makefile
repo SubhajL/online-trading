@@ -61,6 +61,12 @@ setup: setup-python setup-node setup-go setup-git-hooks ## Complete development 
 .PHONY: setup-python
 setup-python: ## Setup Python environment for engine
 	@echo "$(BLUE)🐍 Setting up Python environment...$(RESET)"
+	@ACTUAL_PY=$$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"); \
+	if [ "$$ACTUAL_PY" != "$(PYTHON_VERSION)" ]; then \
+		echo "$(RED)ERROR: Python $(PYTHON_VERSION) required, found $$ACTUAL_PY$(RESET)"; \
+		echo "Install Python $(PYTHON_VERSION) via pyenv: pyenv install $(PYTHON_VERSION) && pyenv local $(PYTHON_VERSION)"; \
+		exit 1; \
+	fi
 	@cd $(ENGINE_DIR) && \
 		python3 -m venv .venv && \
 		source .venv/bin/activate && \

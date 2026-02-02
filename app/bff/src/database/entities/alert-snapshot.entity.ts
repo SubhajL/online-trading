@@ -20,7 +20,7 @@ export class AlertSnapshot {
   imagePath: string;
 
   @Column({ type: 'jsonb', default: {} })
-  meta: any;
+  meta: Record<string, unknown>;
 
   @CreateDateColumn({ name: 'created_at' })
   @Index()

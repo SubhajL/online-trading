@@ -3,9 +3,9 @@ Event-driven backtesting simulator.
 Reuses exact same math as live trading system with no lookahead.
 """
 
+import asyncio
 from datetime import datetime
 from decimal import Decimal
-import asyncio
 import logging
 
 from ..decision.engine import DecisionEngine  # type: ignore[attr-defined]

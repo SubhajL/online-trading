@@ -20,7 +20,7 @@ import { PlaceOrderCommand } from './commands/place-order.command';
 import { CancelOrderCommand } from './commands/cancel-order.command';
 import { SetAutoTradingCommand } from './commands/set-auto-trading.command';
 
-interface WebSocketResponse<T = any> {
+interface WebSocketResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

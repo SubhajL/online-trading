@@ -13,7 +13,13 @@ import { EngineClientService } from '../engine-client/engine-client.service';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
-import type { CandlesV1, FeaturesV1, SignalsRawV1, SmcEventsV1, ZonesV1 } from '@contracts/index';
+import type {
+  CandlesV1,
+  FeaturesV1,
+  SignalsRawV1,
+  SmcEventsV1,
+  ZonesV1,
+} from '@/contracts/gen/index';
 
 interface SubscriptionData {
   symbol: string;

@@ -31,7 +31,7 @@ export class Alert {
   message: string;
 
   @Column('jsonb', { nullable: true })
-  data?: any;
+  data?: Record<string, unknown>;
 
   @Column({ default: false })
   read: boolean;
