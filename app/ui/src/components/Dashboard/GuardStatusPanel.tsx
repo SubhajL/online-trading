@@ -44,11 +44,11 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
   if (loading || (!status && !error)) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-slate-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"
         data-testid="guard-panel-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-slate-400" />
             Guard Status
           </CardTitle>
@@ -67,11 +67,11 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
   if (error) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-red-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-red-100 shadow-sm"
         data-testid="guard-panel-error"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-destructive" />
             Guard Status
           </CardTitle>
@@ -95,7 +95,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
 
   return (
     <Card
-      className="bg-white rounded-2xl border-l-4 border-l-indigo-500 border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200 relative overflow-hidden group"
+      className="bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-l-indigo-500 border border-slate-100 dark:border-slate-700 shadow-soft hover:shadow-md transition-all duration-200 relative overflow-hidden group"
       data-testid="guard-panel"
     >
       <div className="absolute top-0 right-0 p-4 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
@@ -176,7 +176,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
         </div>
 
         <p
-          className="text-xs text-slate-400 pt-1 border-t border-slate-100"
+          className="text-xs text-slate-400 dark:text-slate-500 pt-1 border-t border-slate-100"
           data-testid="last-checked"
         >
           Last checked: {formatTimestamp(status.lastChecked)}

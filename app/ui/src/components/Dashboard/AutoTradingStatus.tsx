@@ -66,11 +66,11 @@ export function AutoTradingStatus({
   if (loading) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-slate-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"
         data-testid="auto-trading-status-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Bot className="h-4 w-4 text-slate-400" />
             Auto Trading
           </CardTitle>
@@ -89,11 +89,11 @@ export function AutoTradingStatus({
   if (error) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-red-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-red-100 shadow-sm"
         data-testid="auto-trading-status-error"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Bot className="h-4 w-4 text-destructive" />
             Auto Trading
           </CardTitle>
@@ -117,7 +117,7 @@ export function AutoTradingStatus({
 
   return (
     <Card
-      className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
+      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-soft hover:shadow-md transition-all duration-200"
       data-testid="auto-trading-status"
     >
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -142,7 +142,7 @@ export function AutoTradingStatus({
                 aria-label={status.autoTrading ? 'Turn off auto trading' : 'Turn on auto trading'}
                 data-testid="toggle-button"
               />
-              <div className="w-14 h-8 bg-slate-200 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-indigo-500 disabled:opacity-50" />
+              <div className="w-14 h-8 bg-slate-200 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-slate-800 after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-indigo-500 disabled:opacity-50" />
             </label>
           ) : (
             <Badge
@@ -150,7 +150,7 @@ export function AutoTradingStatus({
               className={
                 status.autoTrading
                   ? 'bg-emerald-100 text-emerald-700 border-emerald-200 font-bold'
-                  : 'bg-slate-100 text-slate-500 border-slate-200'
+                  : 'bg-slate-100 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-slate-200'
               }
               data-testid="auto-trading-toggle"
             >
@@ -161,7 +161,7 @@ export function AutoTradingStatus({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between text-sm px-3 py-2 rounded-md bg-slate-50">
-          <span className="text-slate-500 text-xs">Engine State:</span>
+          <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">Engine State:</span>
           <Badge variant="outline" className={getStateBadgeClass(status.state)}>
             <span
               className={`inline-block w-2 h-2 rounded-full mr-1.5 ${getStateDotColor(status.state)} ${status.state === 'ACTIVE' ? 'animate-pulse' : ''}`}
@@ -173,7 +173,7 @@ export function AutoTradingStatus({
 
         {activeSignals !== undefined && (
           <div className="flex items-center justify-between text-sm px-3 py-2 rounded-md bg-slate-50">
-            <span className="text-slate-500 text-xs">Active Signals:</span>
+            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">Active Signals:</span>
             <span
               className="font-mono font-bold tabular-nums text-slate-900"
               data-testid="active-signals"
@@ -184,13 +184,13 @@ export function AutoTradingStatus({
         )}
 
         <div className="pt-3 border-t border-slate-100">
-          <h4 className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-2">
+          <h4 className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-medium mb-2">
             Last Decision
           </h4>
           {status.lastDecisionAt ? (
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500 text-xs">Time:</span>
+                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">Time:</span>
                 <span
                   className="font-mono text-slate-600 text-xs tabular-nums"
                   data-testid="last-decision-time"
@@ -200,7 +200,7 @@ export function AutoTradingStatus({
               </div>
               {status.lastDecisionReason && (
                 <div className="flex justify-between gap-4">
-                  <span className="text-slate-500 text-xs shrink-0">Reason:</span>
+                  <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs shrink-0">Reason:</span>
                   <span
                     className="text-slate-600 text-xs text-right"
                     data-testid="last-decision-reason"

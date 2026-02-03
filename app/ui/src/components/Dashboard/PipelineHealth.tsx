@@ -69,11 +69,11 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
   if (loading || (!data && !error)) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-slate-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"
         data-testid="pipeline-health-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Workflow className="h-4 w-4 text-slate-400" />
             Pipeline Health
           </CardTitle>
@@ -90,11 +90,11 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
   if (error) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-red-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-red-100 shadow-sm"
         data-testid="pipeline-health-error"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Workflow className="h-4 w-4 text-destructive" />
             Pipeline Health
           </CardTitle>
@@ -118,7 +118,7 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
 
   return (
     <Card
-      className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200 flex-1"
+      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-soft hover:shadow-md transition-all duration-200 flex-1"
       data-testid="pipeline-health"
     >
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -152,16 +152,16 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-semibold text-slate-400 uppercase pb-3">
+                <TableHead className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase pb-3">
                   Symbol
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-400 uppercase pb-3">
+                <TableHead className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase pb-3">
                   TF
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-400 uppercase pb-3">
+                <TableHead className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase pb-3">
                   Last Candle
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-400 uppercase pb-3 text-right">
+                <TableHead className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase pb-3 text-right">
                   Lag
                 </TableHead>
               </TableRow>
@@ -196,7 +196,7 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
         )}
 
         <div className="pt-3 border-t border-slate-100">
-          <h4 className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-2">
+          <h4 className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-medium mb-2">
             Last Decision
           </h4>
           {data.lastDecision ? (
@@ -217,7 +217,7 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
                 </span>
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-slate-500 shrink-0">Reason:</span>
+                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 shrink-0">Reason:</span>
                 <span className="text-slate-600 text-right" data-testid="last-decision-reason">
                   {data.lastDecision.reason}
                 </span>

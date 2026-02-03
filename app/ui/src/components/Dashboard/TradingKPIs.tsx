@@ -129,11 +129,11 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
   if (loading) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-slate-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"
         data-testid="trading-kpis-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Activity className="h-4 w-4 text-slate-400" />
             Trading Performance
           </CardTitle>
@@ -155,11 +155,11 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
   if (error) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-red-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-red-100 shadow-sm"
         data-testid="trading-kpis-error"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Activity className="h-4 w-4 text-destructive" />
             Trading Performance
           </CardTitle>
@@ -177,11 +177,11 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
   if (!kpis) {
     return (
       <Card
-        className="bg-white rounded-2xl border border-slate-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"
         data-testid="trading-kpis-empty"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Activity className="h-4 w-4 text-slate-400" />
             Trading Performance
           </CardTitle>
@@ -197,7 +197,7 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
 
   return (
     <Card
-      className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
+      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-soft hover:shadow-md transition-all duration-200"
       data-testid="trading-kpis"
     >
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -207,7 +207,7 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
           </div>
           <span className="text-lg font-bold text-slate-900">Trading Performance</span>
         </CardTitle>
-        <span className="text-xs text-slate-400 font-mono tabular-nums" data-testid="trade-count">
+        <span className="text-xs text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="trade-count">
           {kpis.tradeCount} trades · {kpis.tradingDays} days
         </span>
       </CardHeader>
@@ -226,7 +226,7 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
                 className={`p-4 rounded-xl border ${bgClass} flex flex-col gap-1`}
                 data-testid={`kpi-${key}`}
               >
-                <p className="text-xs text-slate-500 font-medium uppercase">{getKPILabel(key)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium uppercase">{getKPILabel(key)}</p>
                 <p
                   className={`text-xl font-bold font-mono tabular-nums ${colorClass}`}
                   data-testid={`kpi-value-${key}`}
@@ -242,7 +242,7 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
                   </span>
                 )}
                 {!showValue && (
-                  <p className="text-[10px] text-slate-400 mt-1">
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
                     {getInsufficientDataMessage(kpis, key)}
                   </p>
                 )}

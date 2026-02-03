@@ -206,7 +206,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
     const stepsByName = new Map(result?.steps?.map(s => [s.name, s]))
     return (
       <div className="space-y-2 mt-3" data-testid="emergency-steps">
-        <h5 className="text-xs text-slate-500 uppercase tracking-wide">Steps</h5>
+        <h5 className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">Steps</h5>
         <ol className="space-y-1">
           {STEP_ORDER.map(name => {
             const step = stepsByName.get(name)
@@ -249,7 +249,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
                 className={`flex-1 p-3 rounded-md border text-sm font-medium transition-all duration-fast ${
                   selectedScope === 'SPOT'
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border-subtle bg-white text-slate-600 hover:border-border-strong'
+                    : 'border-border-subtle bg-white dark:bg-slate-800 text-slate-600 hover:border-border-strong'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                 onClick={() => handleScopeSelect('SPOT')}
                 data-testid="scope-spot"
@@ -265,7 +265,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
                 className={`flex-1 p-3 rounded-md border text-sm font-medium transition-all duration-fast ${
                   selectedScope === 'FUTURES'
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border-subtle bg-white text-slate-600 hover:border-border-strong'
+                    : 'border-border-subtle bg-white dark:bg-slate-800 text-slate-600 hover:border-border-strong'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                 onClick={() => handleScopeSelect('FUTURES')}
                 data-testid="scope-futures"
@@ -322,7 +322,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
               Also stop auto-trading after close
             </label>
             <div className="mt-3">
-              <label htmlFor="confirm-input" className="block text-sm text-slate-500 mb-1">
+              <label htmlFor="confirm-input" className="block text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">
                 Type &quot;CLOSE ALL&quot; to confirm:
               </label>
               <input
@@ -335,7 +335,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
                 data-testid="confirmation-input"
                 autoComplete="off"
                 disabled={executionState === 'EXECUTING'}
-                className="w-full px-3 py-2 text-sm rounded-md border border-border-subtle bg-surface-input text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+                className="w-full px-3 py-2 text-sm rounded-md border border-border-subtle bg-surface-input text-slate-900 dark:text-white placeholder:text-slate-400 dark:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
               />
             </div>
             <div className="flex justify-end gap-3 mt-4">
@@ -462,7 +462,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
   }
 
   return (
-    <Card className="bg-white rounded-2xl border border-slate-100 border-t-4 border-t-red-500 shadow-soft hover:shadow-md transition-all duration-200">
+    <Card className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 border-t-4 border-t-red-500 shadow-soft hover:shadow-md transition-all duration-200">
       <CardContent className="pt-6 flex flex-col items-center text-center gap-3">
         <div className="bg-red-50 text-red-500 p-3 rounded-full">
           <AlertTriangle className="h-7 w-7" />
@@ -499,7 +499,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
           <button
             ref={closeSpecificBtnRef}
             type="button"
-            className="w-full px-4 py-2.5 min-h-[44px] text-sm font-semibold rounded-xl border border-red-200 text-red-600 bg-white hover:bg-red-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+            className="w-full px-4 py-2.5 min-h-[44px] text-sm font-semibold rounded-xl border border-red-200 text-red-600 bg-white dark:bg-slate-800 hover:bg-red-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
             onClick={handleCloseSpecificClick}
             disabled={!hasPositions || executionState === 'EXECUTING'}
           >
@@ -511,7 +511,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div
               ref={modalRef}
-              className={`w-full max-w-md p-6 rounded-lg shadow-lg bg-white border ${
+              className={`w-full max-w-md p-6 rounded-lg shadow-lg bg-white dark:bg-slate-800 border ${
                 executionState === 'FAILED'
                   ? 'border-destructive/30'
                   : executionState === 'COMPLETED'

@@ -81,7 +81,7 @@ export function PositionsList({
 
   return (
     <Card
-      className={`bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200 ${className}`}
+      className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-soft hover:shadow-md transition-all duration-200 ${className}`}
       data-testid="positions-list"
     >
       <CardHeader className="pb-3 flex flex-row items-center justify-between">

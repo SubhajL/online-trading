@@ -175,11 +175,11 @@ export function EquityCurve({
   if (loading) {
     return (
       <Card
-        className="bg-white rounded-2xl border-slate-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border-slate-100 dark:border-slate-700 shadow-sm"
         data-testid="equity-curve-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+          <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
             Equity Curve
           </CardTitle>
         </CardHeader>
@@ -194,9 +194,9 @@ export function EquityCurve({
 
   if (error) {
     return (
-      <Card className="bg-white border-destructive/30 shadow-sm" data-testid="equity-curve-error">
+      <Card className="bg-white dark:bg-slate-800 border-destructive/30 shadow-sm" data-testid="equity-curve-error">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+          <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
             Equity Curve
           </CardTitle>
         </CardHeader>
@@ -213,11 +213,11 @@ export function EquityCurve({
   if (data.length === 0) {
     return (
       <Card
-        className="bg-white rounded-2xl border-slate-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border-slate-100 dark:border-slate-700 shadow-sm"
         data-testid="equity-curve-empty"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+          <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
             Equity Curve
           </CardTitle>
         </CardHeader>
@@ -231,11 +231,11 @@ export function EquityCurve({
   if (filteredData.length < 2) {
     return (
       <Card
-        className="bg-white rounded-2xl border-slate-100 shadow-sm"
+        className="bg-white dark:bg-slate-800 rounded-2xl border-slate-100 dark:border-slate-700 shadow-sm"
         data-testid="equity-curve-empty"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+          <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
             Equity Curve
           </CardTitle>
         </CardHeader>
@@ -254,13 +254,13 @@ export function EquityCurve({
 
   return (
     <Card
-      className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
+      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-soft hover:shadow-md transition-all duration-200"
       data-testid="equity-curve"
     >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
               Equity Curve
             </CardTitle>
             <div className="flex items-center gap-2 mt-1">
@@ -289,8 +289,8 @@ export function EquityCurve({
                 type="button"
                 className={`px-3 py-1 text-xs rounded font-semibold transition-all duration-150 ${
                   timeRange === value
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700'
                 }`}
                 onClick={() => handleTimeRangeChange(value)}
                 aria-pressed={timeRange === value}
