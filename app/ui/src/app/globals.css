@@ -32,7 +32,7 @@
     --radius: 0.75rem;
 
     /* Semantic color utilities for components */
-    --success: 142 76% 36%; /* Emerald green #22c55e - design spec */
+    --success: 142 71% 45%; /* Emerald green #22c55e - design spec */
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
@@ -58,9 +58,7 @@ html {
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
-    'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  /* Font family is set via Tailwind font-sans class in layout.tsx (uses Inter from next/font) */
   background-color: var(--color-surface-base);
   color: var(--color-text-primary);
   line-height: var(--line-height-normal);

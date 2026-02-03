@@ -100,8 +100,8 @@
   --color-text-disabled: hsl(215, 16%, 65%); /* #B0BEC5 - slate-300 */
   --color-text-inverse: hsl(0, 0%, 100%); /* For dark backgrounds */
 
-  /* Semantic text colors */
-  --color-text-success: var(--color-success-400);
+  /* Semantic text colors - use darker shades for WCAG AA contrast on white */
+  --color-text-success: var(--color-success-700); /* #15803d - 5:1 contrast */
   --color-text-danger: var(--color-error-400);
   --color-text-warning: var(--color-warning-400);
   --color-text-info: var(--color-info-400);
