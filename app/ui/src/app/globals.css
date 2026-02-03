@@ -1,6 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Import design tokens and shared layouts */
 @import '../styles/tokens.css';
 @import '../styles/layouts.css';
+
+/* shadcn/ui CSS variables */
+@layer base {
+  :root {
+    /* Modern light theme — Stitch "Modern Crypto Monitor" */
+    --background: 210 20% 98%;
+    --foreground: 215 28% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 28% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 28% 17%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 215 28% 17%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 239 84% 67%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 239 84% 67%;
+    --radius: 0.75rem;
+
+    /* Semantic color utilities for components */
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --danger: 0 84% 60%;
+  }
+}
 
 /* CSS Reset and Base Styles */
 *,
@@ -85,122 +123,113 @@ button {
   cursor: pointer;
 }
 
-/* Utility Classes */
-.container {
-  width: 100%;
-  max-width: 1920px;
-  margin: 0 auto;
-  padding: 0 var(--space-6);
+/* Legacy utility classes — scoped to base layer so Tailwind utilities win */
+@layer base {
+  .legacy-container {
+    width: 100%;
+    max-width: 1920px;
+    margin: 0 auto;
+    padding: 0 var(--space-6);
+  }
+
+  .text-muted {
+    color: var(--color-text-muted);
+  }
+
+  .text-success {
+    color: var(--color-success-500);
+  }
+
+  .text-danger {
+    color: var(--color-error-400);
+  }
+
+  .text-warning {
+    color: var(--color-warning-500);
+  }
 }
 
-.text-center {
-  text-align: center;
-}
+/* Legacy layout utilities — scoped to base layer so Tailwind utilities win */
+@layer base {
+  .d-flex {
+    display: flex;
+  }
 
-.text-left {
-  text-align: left;
-}
+  .flex-column {
+    flex-direction: column;
+  }
 
-.text-right {
-  text-align: right;
-}
+  .flex-wrap {
+    flex-wrap: wrap;
+  }
 
-.text-muted {
-  color: var(--color-text-muted);
-}
+  .justify-content-center {
+    justify-content: center;
+  }
 
-.text-success {
-  color: var(--color-success-500);
-}
+  .justify-content-between {
+    justify-content: space-between;
+  }
 
-.text-danger {
-  color: var(--color-error-400);
-}
+  .align-items-center {
+    align-items: center;
+  }
 
-.text-warning {
-  color: var(--color-warning-500);
-}
+  .legacy-gap-1 {
+    gap: var(--space-2);
+  }
 
-/* Layout Utilities */
-.d-flex {
-  display: flex;
-}
+  .legacy-gap-2 {
+    gap: var(--space-4);
+  }
 
-.flex-column {
-  flex-direction: column;
-}
+  .legacy-gap-3 {
+    gap: var(--space-5);
+  }
 
-.flex-wrap {
-  flex-wrap: wrap;
-}
+  .legacy-gap-4 {
+    gap: var(--space-6);
+  }
 
-.justify-content-center {
-  justify-content: center;
-}
+  .legacy-m-0 {
+    margin: 0;
+  }
 
-.justify-content-between {
-  justify-content: space-between;
-}
+  .legacy-m-1 {
+    margin: var(--space-2);
+  }
 
-.align-items-center {
-  align-items: center;
-}
+  .legacy-m-2 {
+    margin: var(--space-4);
+  }
 
-.gap-1 {
-  gap: var(--space-2);
-}
+  .legacy-m-3 {
+    margin: var(--space-5);
+  }
 
-.gap-2 {
-  gap: var(--space-4);
-}
+  .legacy-m-4 {
+    margin: var(--space-6);
+  }
 
-.gap-3 {
-  gap: var(--space-5);
-}
+  .legacy-p-0 {
+    padding: 0;
+  }
 
-.gap-4 {
-  gap: var(--space-6);
-}
+  .legacy-p-1 {
+    padding: var(--space-2);
+  }
 
-/* Spacing Utilities */
-.m-0 {
-  margin: 0;
-}
+  .legacy-p-2 {
+    padding: var(--space-4);
+  }
 
-.m-1 {
-  margin: var(--space-2);
-}
+  .legacy-p-3 {
+    padding: var(--space-5);
+  }
 
-.m-2 {
-  margin: var(--space-4);
-}
-
-.m-3 {
-  margin: var(--space-5);
-}
-
-.m-4 {
-  margin: var(--space-6);
-}
-
-.p-0 {
-  padding: 0;
-}
-
-.p-1 {
-  padding: var(--space-2);
-}
-
-.p-2 {
-  padding: var(--space-4);
-}
-
-.p-3 {
-  padding: var(--space-5);
-}
-
-.p-4 {
-  padding: var(--space-6);
+  .legacy-p-4 {
+    padding: var(--space-6);
+  }
 }
 
 /* Scrollbar Styling */
@@ -238,43 +267,41 @@ button {
   animation: spin 1s linear infinite;
 }
 
-/* Responsive Grid */
-.grid {
-  display: grid;
-  gap: var(--space-5);
-}
+/* Legacy responsive grid — scoped to base layer so Tailwind utilities win */
+@layer base {
+  .legacy-grid {
+    display: grid;
+    gap: var(--space-5);
+  }
 
-.grid-cols-1 {
-  grid-template-columns: 1fr;
-}
+  .legacy-grid-cols-1 {
+    grid-template-columns: 1fr;
+  }
 
-.grid-cols-2 {
-  grid-template-columns: repeat(2, 1fr);
-}
+  .legacy-grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
 
-.grid-cols-3 {
-  grid-template-columns: repeat(3, 1fr);
-}
+  .legacy-grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
 
-.grid-cols-4 {
-  grid-template-columns: repeat(4, 1fr);
+  .legacy-grid-cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 @media (max-width: 768px) {
-  .container {
-    padding: 0 var(--space-4);
-  }
-
-  .grid-cols-2,
-  .grid-cols-3,
-  .grid-cols-4 {
+  .legacy-grid-cols-2,
+  .legacy-grid-cols-3,
+  .legacy-grid-cols-4 {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 1024px) {
-  .grid-cols-3,
-  .grid-cols-4 {
+  .legacy-grid-cols-3,
+  .legacy-grid-cols-4 {
     grid-template-columns: repeat(2, 1fr);
   }
 }

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { loadConfiguration } from './config/configuration';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { HealthModule } from './health/health.module';
 import { EngineClientModule } from './engine-client/engine-client.module';
@@ -21,6 +22,7 @@ import { SignalsModule } from './signals/signals.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [loadConfiguration],
     }),
     EventEmitterModule.forRoot(),
     BullModule.forRootAsync({

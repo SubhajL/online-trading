@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { SkipLink } from '@/components/common/SkipLink'
+import { ToastStack } from '@/components/shell'
 import { Providers } from './providers'
 import './globals.css'
 import '../styles/tokens.css'
@@ -17,7 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={inter.className}>
         <SkipLink />
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <ToastStack />
+        </Providers>
       </body>
     </html>
   )

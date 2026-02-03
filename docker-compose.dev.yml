@@ -107,6 +107,8 @@ services:
       - PIPELINE_HEALTH_ALERTS_ENABLED=${PIPELINE_HEALTH_ALERTS_ENABLED:-1}
       - LIVE_REST_FALLBACK_ENABLED=${LIVE_REST_FALLBACK_ENABLED:-1}
       - TRACING_DISABLED=true
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     ports:
       - "${ENGINE_PORT:-8000}:8000"
     working_dir: /workspace/app/engine
@@ -190,6 +192,9 @@ services:
       - BFF_PORT=${BFF_PORT:-8002}
       - NODE_ENV=development
       - ENGINE_PUBSUB_URL=redis://redis:6379
+      - ENGINE_HOST=redis
+      - ENGINE_PORT=6379
+      - ENGINE_TYPE=redis
       - ROUTER_URL=http://router:8001
       - ROUTER_API_KEY=${ROUTER_API_KEY}
       - REDIS_HOST=redis

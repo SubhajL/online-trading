@@ -10,17 +10,17 @@
 
 :root {
   /* ===== PRIMARY PALETTE ===== */
-  /* Based on HSL(220, 70%, [lightness]) for consistency */
-  --color-primary-50: hsl(220, 70%, 95%);
-  --color-primary-100: hsl(220, 70%, 90%);
-  --color-primary-200: hsl(220, 70%, 80%);
-  --color-primary-300: hsl(220, 70%, 70%);
-  --color-primary-400: hsl(220, 70%, 60%);
-  --color-primary-500: hsl(220, 70%, 50%); /* Main brand color */
-  --color-primary-600: hsl(220, 70%, 45%);
-  --color-primary-700: hsl(220, 70%, 40%);
-  --color-primary-800: hsl(220, 70%, 30%);
-  --color-primary-900: hsl(220, 70%, 20%);
+  /* Indigo brand (matches globals.css --primary: 239 84% 67%) */
+  --color-primary-50: hsl(239 84% 97%);
+  --color-primary-100: hsl(239 84% 93%);
+  --color-primary-200: hsl(239 84% 87%);
+  --color-primary-300: hsl(239 84% 80%);
+  --color-primary-400: hsl(239 84% 73%);
+  --color-primary-500: hsl(239 84% 67%); /* #6366F1 — Main brand color */
+  --color-primary-600: hsl(239 84% 60%);
+  --color-primary-700: hsl(239 84% 52%);
+  --color-primary-800: hsl(239 84% 44%);
+  --color-primary-900: hsl(239 84% 35%);
 
   /* ===== SEMANTIC COLORS ===== */
   /* Success - Green spectrum */
@@ -85,20 +85,20 @@
   --color-gray-900: hsl(220, 13%, 13%); /* #1a1d2a */
 
   /* ===== SURFACE COLORS ===== */
-  /* Dark theme backgrounds */
-  --color-surface-base: hsl(220, 20%, 7%); /* #131722 - main background */
-  --color-surface-raised: hsl(220, 16%, 13%); /* #1e222d - cards, modals */
-  --color-surface-overlay: hsl(220, 15%, 16%); /* #2a2e39 - borders, dividers */
-  --color-surface-hover: hsl(220, 14%, 19%); /* #3a3e49 - hover states */
-  --color-surface-input: hsl(220, 18%, 9%); /* #161a1e - input backgrounds */
+  /* Modern light theme surfaces */
+  --color-surface-base: hsl(210, 20%, 98%); /* #FAFBFC - main background */
+  --color-surface-raised: hsl(0, 0%, 100%); /* #FFFFFF - cards, modals */
+  --color-surface-overlay: hsl(214, 32%, 91%); /* #E2E8F0 - borders, dividers */
+  --color-surface-hover: hsl(210, 20%, 96%); /* #F1F5F9 - hover states */
+  --color-surface-input: hsl(210, 20%, 98%); /* #FAFBFC - input backgrounds */
 
   /* ===== TEXT COLORS ===== */
-  /* Contrast ratios against --color-surface-base (#131722) */
-  --color-text-primary: hsl(220, 13%, 85%); /* #d1d4dc - 11.2:1 ratio ✓ */
-  --color-text-secondary: hsl(220, 13%, 72%); /* #b4b8c1 - 8.1:1 ratio ✓ */
-  --color-text-muted: hsl(220, 13%, 58%); /* #91959e - 5.2:1 ratio ✓ */
-  --color-text-disabled: hsl(220, 13%, 42%); /* #63676f - 3.0:1 ratio (UI component minimum) */
-  --color-text-inverse: hsl(220, 13%, 13%); /* For light backgrounds */
+  /* Contrast ratios against --color-surface-base (#FAFBFC) */
+  --color-text-primary: hsl(215, 28%, 17%); /* #1E293B - slate-900 */
+  --color-text-secondary: hsl(215, 16%, 47%); /* #64748B - slate-500 */
+  --color-text-muted: hsl(215, 16%, 57%); /* #94A3B8 - slate-400 */
+  --color-text-disabled: hsl(215, 16%, 65%); /* #B0BEC5 - slate-300 */
+  --color-text-inverse: hsl(0, 0%, 100%); /* For dark backgrounds */
 
   /* Semantic text colors */
   --color-text-success: var(--color-success-400);
@@ -113,10 +113,21 @@
   --color-text-on-danger: white;
 
   /* ===== BORDER COLORS ===== */
-  --color-border-subtle: hsl(220, 15%, 16%); /* #2a2e39 - subtle dividers */
-  --color-border-default: hsl(220, 14%, 19%); /* #3a3e49 - default borders */
-  --color-border-strong: hsl(220, 13%, 28%); /* #494d59 - emphasized borders */
+  --color-border-subtle: hsl(214, 32%, 91%); /* #E2E8F0 - subtle dividers */
+  --color-border-default: hsl(214, 20%, 85%); /* #CBD5E1 - default borders */
+  --color-border-strong: hsl(215, 16%, 75%); /* #94A3B8 - emphasized borders */
   --color-border-focus: var(--color-primary-500); /* Focus indicator */
+
+  /* ===== LEGACY / COMPATIBILITY ALIASES ===== */
+  /* Older dashboard CSS uses these names. Keep them as aliases to avoid drift. */
+  --color-primary: var(--color-primary-500);
+  --color-success: var(--color-success-500);
+  --color-warning: var(--color-warning-500);
+  --color-error: var(--color-error-500);
+  --color-surface: var(--color-surface-raised);
+  --color-border: var(--color-border-default);
+  --color-border-light: var(--color-border-subtle);
+  --color-text: var(--color-text-primary);
 
   /* ===== SPACING SYSTEM ===== */
   /* Base unit: 4px (following 8px grid with half-steps) */
@@ -140,11 +151,11 @@
   --radius-full: 9999px; /* Pills, avatars, badges */
 
   /* ===== SHADOWS ===== */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
-  --shadow-focus: 0 0 0 3px rgba(59, 130, 246, 0.1); /* Focus ring */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.06), 0 4px 10px rgba(0, 0, 0, 0.03);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.2); /* Indigo focus ring */
 
   /* ===== TYPOGRAPHY ===== */
   /* Modular scale with 1.250 ratio (Major Third) */
@@ -197,10 +208,10 @@
   --z-index-tooltip: 60;
 
   /* ===== CHART-SPECIFIC TOKENS ===== */
-  /* TradingView-style chart colors */
-  --color-chart-bg: var(--color-surface-input);
-  --color-chart-text: var(--color-text-primary);
-  --color-chart-grid: var(--color-surface-overlay);
+  /* Chart colors for light theme */
+  --color-chart-bg: var(--color-surface-raised);
+  --color-chart-text: var(--color-text-secondary);
+  --color-chart-grid: var(--color-border-subtle);
   --color-chart-candle-up: var(--color-success-500);
   --color-chart-candle-down: var(--color-error-400);
   --color-chart-volume-up: hsla(142, 71%, 45%, 0.5);
@@ -213,6 +224,7 @@
   --button-primary-bg: var(--color-primary-500);
   --button-primary-bg-hover: var(--color-primary-600);
   --button-primary-text: white;
+  --button-primary-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
 
   --button-secondary-bg: transparent;
   --button-secondary-border: var(--color-border-default);
@@ -237,14 +249,16 @@
   /* Cards */
   --card-bg: var(--color-surface-raised);
   --card-border: var(--color-border-subtle);
+  --card-shadow: var(--shadow-sm);
+  --card-shadow-hover: var(--shadow-md);
 
   /* Navigation */
   --nav-text: var(--color-text-muted);
   --nav-text-hover: var(--color-text-primary);
-  --nav-text-active: var(--color-text-primary);
-  --nav-indicator: var(--color-success-500);
-  --nav-active-bg: hsla(142, 71%, 45%, 0.1);
-  --nav-active-shadow: hsla(142, 71%, 45%, 0.2);
+  --nav-text-active: var(--color-primary-600);
+  --nav-indicator: var(--color-primary-500);
+  --nav-active-bg: hsla(239, 84%, 67%, 0.08);
+  --nav-active-shadow: hsla(239, 84%, 67%, 0.15);
 
   /* Status indicators */
   --status-new-bg: hsla(220, 70%, 50%, 0.15);

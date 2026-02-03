@@ -5,7 +5,9 @@ import type { IChartApi, ISeriesApi, AreaData, UTCTimestamp } from 'lightweight-
 import { createChart, ColorType } from 'lightweight-charts'
 import type { EquityPoint, EquityTimeRange } from '@/types/dashboard'
 import { formatCurrency } from '@/utils/formatters'
-import './EquityCurve.css'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { AlertCircle } from 'lucide-react'
 
 type EquityCurveProps = {
   data: EquityPoint[]
@@ -29,18 +31,13 @@ function filterDataByRange(
   now: number = Date.now(),
 ): EquityPoint[] {
   const rangeConfig = TIME_RANGES.find(r => r.value === range)
-  if (!rangeConfig || rangeConfig.days === Infinity) {
-    return data
-  }
-
+  if (!rangeConfig || rangeConfig.days === Infinity) return data
   const msPerDay = 24 * 60 * 60 * 1000
   const cutoffMs = now - rangeConfig.days * msPerDay
-
   return data.filter(point => new Date(point.timestamp).getTime() >= cutoffMs)
 }
 
 function sortDataByTimestamp(data: EquityPoint[]): EquityPoint[] {
-  // Decorate-sort-undecorate pattern to avoid repeated date parsing
   return data
     .map(point => ({ point, time: new Date(point.timestamp).getTime() }))
     .sort((a, b) => a.time - b.time)
@@ -65,12 +62,7 @@ function calculateChange(
   const amount = end - start
   const isPositive = amount > 0
   const isNeutral = amount === 0
-
-  // Handle zero start (can't calculate percent)
-  if (start === 0) {
-    return { amount, percent: null, isPositive, isNeutral }
-  }
-
+  if (start === 0) return { amount, percent: null, isPositive, isNeutral }
   const percent = (amount / Math.abs(start)) * 100
   return { amount, percent, isPositive, isNeutral }
 }
@@ -99,14 +91,12 @@ export function EquityCurve({
   const seriesRef = useRef<ISeriesApi<'Area'> | null>(null)
   const [timeRange, setTimeRange] = useState<EquityTimeRange>(initialTimeRange)
 
-  // Sort and process data
   const sortedData = useMemo(() => sortDataByTimestamp(data), [data])
   const filteredData = useMemo(
     () => filterDataByRange(sortedData, timeRange),
     [sortedData, timeRange],
   )
 
-  // Calculate summary statistics
   const summary = useMemo(() => {
     if (filteredData.length === 0) {
       return {
@@ -114,12 +104,10 @@ export function EquityCurve({
         change: { amount: 0, percent: null, isPositive: false, isNeutral: true },
       }
     }
-
     const first = filteredData[0]!
     const last = filteredData[filteredData.length - 1]!
     const currentEquity = last.equity
     const change = calculateChange(first.equity, currentEquity)
-
     return { currentEquity, change }
   }, [filteredData])
 
@@ -131,10 +119,8 @@ export function EquityCurve({
     [onTimeRangeChange],
   )
 
-  // Effect 1: Initialize chart ONCE - only recreate on height change
   useEffect(() => {
     if (!containerRef.current) return
-
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
       height,
@@ -146,45 +132,25 @@ export function EquityCurve({
         vertLines: { color: 'var(--color-border)' },
         horzLines: { color: 'var(--color-border)' },
       },
-      rightPriceScale: {
-        borderColor: 'var(--color-border)',
-      },
-      timeScale: {
-        borderColor: 'var(--color-border)',
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      crosshair: {
-        mode: 0,
-      },
+      rightPriceScale: { borderColor: 'var(--color-border)' },
+      timeScale: { borderColor: 'var(--color-border)', timeVisible: true, secondsVisible: false },
+      crosshair: { mode: 0 },
     })
-
     chartRef.current = chart
-
-    // Create series with default colors (will be updated in data effect)
     const series = chart.addAreaSeries({
       lineColor: 'var(--color-success)',
       topColor: 'rgba(16, 185, 129, 0.3)',
       bottomColor: 'rgba(16, 185, 129, 0.05)',
       lineWidth: 2,
-      priceFormat: {
-        type: 'price',
-        precision: 2,
-        minMove: 0.01,
-      },
+      priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
     })
-
     seriesRef.current = series
-
-    // Handle resize
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
         chartRef.current.resize(containerRef.current.clientWidth, height)
       }
     }
-
     window.addEventListener('resize', handleResize)
-
     return () => {
       window.removeEventListener('resize', handleResize)
       chart.remove()
@@ -193,125 +159,162 @@ export function EquityCurve({
     }
   }, [height])
 
-  // Effect 2: Update chart data and colors when data or colors change
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return
     if (loading || error || filteredData.length < 2) return
-
     const isPositive = summary.change.isPositive || summary.change.isNeutral
-
-    // Update series colors
     seriesRef.current.applyOptions({
       lineColor: isPositive ? 'var(--color-success)' : 'var(--color-error)',
       topColor: isPositive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
       bottomColor: isPositive ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
     })
-
-    // Update data
     seriesRef.current.setData(convertToChartData(filteredData))
     chartRef.current.timeScale().fitContent()
   }, [filteredData, loading, error, summary.change.isPositive, summary.change.isNeutral])
 
   if (loading) {
     return (
-      <div className="equity-curve" data-testid="equity-curve-loading">
-        <div className="equity-curve-header">
-          <h3>Equity Curve</h3>
-        </div>
-        <div className="equity-curve-skeleton" style={{ height }}>
-          <div className="skeleton-line" />
-          <div className="skeleton-line" />
-          <div className="skeleton-line" />
-        </div>
-      </div>
+      <Card
+        className="bg-white rounded-2xl border-slate-100 shadow-sm"
+        data-testid="equity-curve-loading"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+            Equity Curve
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3" style={{ height }}>
+            <Skeleton className="h-full w-full rounded-md" />
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   if (error) {
     return (
-      <div className="equity-curve" data-testid="equity-curve-error">
-        <div className="equity-curve-header">
-          <h3>Equity Curve</h3>
-        </div>
-        <div className="equity-curve-error" role="alert">
-          {error}
-        </div>
-      </div>
+      <Card
+        className="bg-white border-destructive/30 shadow-sm"
+        data-testid="equity-curve-error"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+            Equity Curve
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-sm text-destructive" role="alert">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   if (data.length === 0) {
     return (
-      <div className="equity-curve" data-testid="equity-curve-empty">
-        <div className="equity-curve-header">
-          <h3>Equity Curve</h3>
-        </div>
-        <div className="equity-curve-empty">No equity data available</div>
-      </div>
+      <Card
+        className="bg-white rounded-2xl border-slate-100 shadow-sm"
+        data-testid="equity-curve-empty"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+            Equity Curve
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-slate-500">No equity data available</p>
+        </CardContent>
+      </Card>
     )
   }
 
   if (filteredData.length < 2) {
     return (
-      <div className="equity-curve" data-testid="equity-curve-empty">
-        <div className="equity-curve-header">
-          <h3>Equity Curve</h3>
-        </div>
-        <div className="equity-curve-empty">Insufficient data for chart</div>
-      </div>
+      <Card
+        className="bg-white rounded-2xl border-slate-100 shadow-sm"
+        data-testid="equity-curve-empty"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+            Equity Curve
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-slate-500">Insufficient data for chart</p>
+        </CardContent>
+      </Card>
     )
   }
 
-  const changeClass = summary.change.isNeutral
-    ? 'neutral'
+  const changeColor = summary.change.isNeutral
+    ? 'text-slate-500'
     : summary.change.isPositive
-      ? 'positive'
-      : 'negative'
+      ? 'text-success'
+      : 'text-danger'
 
   return (
-    <div className="equity-curve" data-testid="equity-curve">
-      <div className="equity-curve-header">
-        <div className="equity-curve-title-section">
-          <h3>Equity Curve</h3>
-          <div className="equity-curve-summary">
-            <span className="current-equity" data-testid="current-equity">
-              {formatCurrency(summary.currentEquity)}
-            </span>
-            <span className={`equity-change ${changeClass}`} data-testid="equity-change">
-              {formatChange(summary.change.amount)}
-            </span>
-            <span
-              className={`equity-change-percent ${changeClass}`}
-              data-testid="equity-change-percent"
-            >
-              {formatPercentChange(summary.change.percent)}
-            </span>
+    <Card
+      className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200"
+      data-testid="equity-curve"
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+              Equity Curve
+            </CardTitle>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xl font-bold font-mono" data-testid="current-equity">
+                {formatCurrency(summary.currentEquity)}
+              </span>
+              <span
+                className={`text-sm font-mono font-bold ${changeColor}`}
+                data-testid="equity-change"
+              >
+                {formatChange(summary.change.amount)}
+              </span>
+              <span
+                className={`text-xs font-mono ${changeColor}`}
+                data-testid="equity-change-percent"
+              >
+                {formatPercentChange(summary.change.percent)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex bg-slate-100 p-1 rounded-lg" role="group" aria-label="Time range">
+            {TIME_RANGES.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                className={`px-3 py-1 text-xs rounded font-semibold transition-all duration-150 ${
+                  timeRange === value
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => handleTimeRangeChange(value)}
+                aria-pressed={timeRange === value}
+                aria-label={label}
+                data-testid={`time-range-${value}`}
+              >
+                {value}
+              </button>
+            ))}
           </div>
         </div>
+      </CardHeader>
 
-        <div className="time-range-selector" role="group" aria-label="Time range">
-          {TIME_RANGES.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`time-range-btn ${timeRange === value ? 'active' : ''}`}
-              onClick={() => handleTimeRangeChange(value)}
-              aria-pressed={timeRange === value}
-              aria-label={label}
-              data-testid={`time-range-${value}`}
-            >
-              {value}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div
-        ref={containerRef}
-        className="equity-chart-container"
-        data-testid="equity-chart-container"
-        style={{ height }}
-      />
-    </div>
+      <CardContent className="pt-0">
+        <div
+          ref={containerRef}
+          className="rounded-xl overflow-hidden bg-slate-50 border border-slate-100"
+          data-testid="equity-chart-container"
+          style={{ height }}
+        />
+      </CardContent>
+    </Card>
   )
 }

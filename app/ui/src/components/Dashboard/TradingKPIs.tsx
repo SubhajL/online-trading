@@ -1,5 +1,7 @@
 import type { TradingKPIs as TradingKPIsType } from '@/types/dashboard'
-import './TradingKPIs.css'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { AlertCircle, TrendingUp, TrendingDown, Minus, Activity } from 'lucide-react'
 
 type TradingKPIsProps = {
   kpis: TradingKPIsType | null
@@ -23,7 +25,9 @@ const KPI_THRESHOLDS: Record<string, KPIThreshold> = {
   maxDrawdown: { good: 5, warning: 10, direction: 'lower' },
 }
 
-function getKPIStatus(key: string, value: number): 'good' | 'warning' | 'danger' {
+type KPILevel = 'good' | 'warning' | 'danger'
+
+function getKPILevel(key: string, value: number): KPILevel {
   const threshold = KPI_THRESHOLDS[key]
   if (!threshold) return 'good'
 
@@ -38,16 +42,46 @@ function getKPIStatus(key: string, value: number): 'good' | 'warning' | 'danger'
   }
 }
 
+function getKPIColor(level: KPILevel): string {
+  switch (level) {
+    case 'good':
+      return 'text-success'
+    case 'warning':
+      return 'text-warning'
+    case 'danger':
+      return 'text-danger'
+  }
+}
+
+const KPI_TILE_COLORS: Record<string, string> = {
+  winRate: 'bg-blue-50 border-blue-100',
+  profitFactor: 'bg-purple-50 border-purple-100',
+  sharpeRatio: 'bg-orange-50 border-orange-100',
+  maxDrawdown: 'bg-emerald-50 border-emerald-100',
+}
+
+function getKPIBgColor(key: string): string {
+  return KPI_TILE_COLORS[key] ?? 'bg-slate-50 border-slate-100'
+}
+
+function KPITrendIcon({ level }: { level: KPILevel }) {
+  switch (level) {
+    case 'good':
+      return <TrendingUp className="h-3.5 w-3.5 text-success" aria-label="Good" />
+    case 'warning':
+      return <Minus className="h-3.5 w-3.5 text-warning" aria-label="Warning" />
+    case 'danger':
+      return <TrendingDown className="h-3.5 w-3.5 text-danger" aria-label="Poor" />
+  }
+}
+
 function formatKPIValue(key: string, value: number | null): string {
   if (value === null) return '—'
-
-  // Handle non-finite numbers to prevent runtime crashes
   if (!Number.isFinite(value)) {
     if (value === Infinity) return '∞'
     if (value === -Infinity) return '-∞'
     return '—'
   }
-
   switch (key) {
     case 'winRate':
     case 'maxDrawdown':
@@ -75,32 +109,9 @@ function getKPILabel(key: string): string {
   }
 }
 
-function getKPIDescription(key: string): string {
-  switch (key) {
-    case 'winRate':
-      return 'Percentage of winning trades'
-    case 'profitFactor':
-      return 'Gross profits divided by gross losses'
-    case 'sharpeRatio':
-      return 'Risk-adjusted return (annualized)'
-    case 'maxDrawdown':
-      return 'Maximum peak-to-trough decline'
-    default:
-      return ''
-  }
-}
-
 function shouldShowKPI(kpis: TradingKPIsType, key: string): boolean {
-  // Check if we have enough trades for this KPI
-  if (kpis.tradeCount < MIN_TRADES_FOR_DISPLAY) {
-    return false
-  }
-
-  // Sharpe ratio requires minimum days
-  if (key === 'sharpeRatio' && kpis.tradingDays < MIN_DAYS_FOR_SHARPE) {
-    return false
-  }
-
+  if (kpis.tradeCount < MIN_TRADES_FOR_DISPLAY) return false
+  if (key === 'sharpeRatio' && kpis.tradingDays < MIN_DAYS_FOR_SHARPE) return false
   return true
 }
 
@@ -108,101 +119,138 @@ function getInsufficientDataMessage(kpis: TradingKPIsType, key: string): string 
   if (kpis.tradeCount < MIN_TRADES_FOR_DISPLAY) {
     return `Requires ${MIN_TRADES_FOR_DISPLAY} trades (${kpis.tradeCount} completed)`
   }
-
   if (key === 'sharpeRatio' && kpis.tradingDays < MIN_DAYS_FOR_SHARPE) {
     return `Requires ${MIN_DAYS_FOR_SHARPE} trading days (${kpis.tradingDays} days)`
   }
-
   return ''
 }
 
 export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) {
   if (loading) {
     return (
-      <div className="trading-kpis" data-testid="trading-kpis-loading">
-        <div className="kpis-header">
-          <h3>Trading Performance</h3>
-        </div>
-        <div className="kpis-skeleton">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="kpi-card skeleton" aria-hidden="true">
-              <div className="skeleton-label" />
-              <div className="skeleton-value" />
-            </div>
-          ))}
-        </div>
-      </div>
+      <Card
+        className="bg-white rounded-2xl border border-slate-100 shadow-sm"
+        data-testid="trading-kpis-loading"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+            <Activity className="h-4 w-4 text-slate-400" />
+            Trading Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-slate-50 rounded-md p-3 space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-7 w-14" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   if (error) {
     return (
-      <div className="trading-kpis" data-testid="trading-kpis-error">
-        <div className="kpis-header">
-          <h3>Trading Performance</h3>
-        </div>
-        <div className="kpis-error" role="alert">
-          {error}
-        </div>
-      </div>
+      <Card
+        className="bg-white rounded-2xl border border-red-100 shadow-sm"
+        data-testid="trading-kpis-error"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+            <Activity className="h-4 w-4 text-destructive" />
+            Trading Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-sm text-destructive" role="alert">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   if (!kpis) {
     return (
-      <div className="trading-kpis" data-testid="trading-kpis-empty">
-        <div className="kpis-header">
-          <h3>Trading Performance</h3>
-        </div>
-        <div className="kpis-empty">No trading data available</div>
-      </div>
+      <Card
+        className="bg-white rounded-2xl border border-slate-100 shadow-sm"
+        data-testid="trading-kpis-empty"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+            <Activity className="h-4 w-4 text-slate-400" />
+            Trading Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-slate-500">No trading data available</p>
+        </CardContent>
+      </Card>
     )
   }
 
   const kpiKeys = ['winRate', 'profitFactor', 'sharpeRatio', 'maxDrawdown'] as const
 
   return (
-    <div className="trading-kpis" data-testid="trading-kpis">
-      <div className="kpis-header">
-        <h3>Trading Performance</h3>
-        <span className="trade-count" data-testid="trade-count">
+    <Card
+      className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200"
+      data-testid="trading-kpis"
+    >
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-50 rounded-lg text-indigo-500">
+            <Activity className="h-5 w-5" />
+          </div>
+          <span className="text-lg font-bold text-slate-900">Trading Performance</span>
+        </CardTitle>
+        <span className="text-[11px] text-slate-400 font-mono tabular-nums" data-testid="trade-count">
           {kpis.tradeCount} trades · {kpis.tradingDays} days
         </span>
-      </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {kpiKeys.map(key => {
+            const value = kpis[key]
+            const showValue = shouldShowKPI(kpis, key)
+            const level = value !== null && showValue ? getKPILevel(key, value) : null
+            const colorClass = level ? getKPIColor(level) : ''
+            const bgClass = getKPIBgColor(key)
 
-      <div className="kpis-grid">
-        {kpiKeys.map(key => {
-          const value = kpis[key]
-          const showValue = shouldShowKPI(kpis, key)
-          const status = value !== null ? getKPIStatus(key, value) : 'neutral'
-
-          return (
-            <div
-              key={key}
-              className={`kpi-card ${showValue ? status : 'insufficient'}`}
-              data-testid={`kpi-${key}`}
-            >
-              <div className="kpi-label">{getKPILabel(key)}</div>
+            return (
               <div
-                className="kpi-value"
-                data-testid={`kpi-value-${key}`}
-                aria-label={showValue ? undefined : 'Not available'}
+                key={key}
+                className={`p-4 rounded-xl border ${bgClass} flex flex-col gap-1`}
+                data-testid={`kpi-${key}`}
               >
-                {showValue ? formatKPIValue(key, value) : '—'}
-              </div>
-              <div className="kpi-description">
-                {showValue ? (
-                  getKPIDescription(key)
-                ) : (
-                  <span className="insufficient-message">
-                    {getInsufficientDataMessage(kpis, key)}
+                <p className="text-xs text-slate-500 font-medium uppercase">
+                  {getKPILabel(key)}
+                </p>
+                <p
+                  className={`text-xl font-bold font-mono tabular-nums ${colorClass}`}
+                  data-testid={`kpi-value-${key}`}
+                  aria-label={showValue ? undefined : 'Not available'}
+                >
+                  {showValue ? formatKPIValue(key, value) : '—'}
+                </p>
+                {level && (
+                  <span className={`text-xs font-medium flex items-center gap-0.5 ${getKPIColor(level)}`}>
+                    <KPITrendIcon level={level} />
                   </span>
                 )}
+                {!showValue && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {getInsufficientDataMessage(kpis, key)}
+                  </p>
+                )}
               </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

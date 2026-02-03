@@ -20,57 +20,46 @@ import { AutoTradingStatus } from './AutoTradingStatus'
 import { EmergencyControls } from './EmergencyControls'
 import { PositionsList } from '../trading/PositionsList'
 import { AccountBalance } from '../trading/AccountBalance'
-import './MonitoringDashboard.css'
 
 type MonitoringDashboardProps = {
-  // Safety data
   guardStatus: GuardStatusResponse | null
   guardStatusLoading?: boolean
   guardStatusError?: string
-
-  // Exposure data
   exposure: ExposureSummary | null
   exposureLoading?: boolean
   exposureError?: string
-
-  // KPIs
   kpis: TradingKPIsType | null
   kpisLoading?: boolean
   kpisError?: string
-
-  // Equity curve
   equityCurve: EquityPoint[]
   equityCurveLoading?: boolean
   equityCurveError?: string
-
-  // Pipeline health
   pipelineHealth: PipelineHealthResponse | null
   pipelineHealthLoading?: boolean
   pipelineHealthError?: string
-
-  // Engine status
   engineStatus: EngineStatus | null
   engineStatusLoading?: boolean
   engineStatusError?: string
   activeSignals?: number
   onToggleAutoTrading?: (enabled: boolean) => void
-
-  // Emergency controls
   onEmergencyClose: (
     scope: EmergencyCloseScope,
     stopEngine: boolean,
     idempotencyKey: string,
   ) => Promise<EmergencyCloseResult>
-
-  // Positions
   positions: Position[]
   positionsLoading?: boolean
-
-  // Balances
   balances: Balance[]
   balancesLoading?: boolean
-
   className?: string
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.15em] mb-4 pl-1">
+      {children}
+    </h3>
+  )
 }
 
 export function MonitoringDashboard({
@@ -102,10 +91,11 @@ export function MonitoringDashboard({
   className = '',
 }: MonitoringDashboardProps) {
   return (
-    <div className={`monitoring-dashboard ${className}`} data-testid="monitoring-dashboard">
-      {/* Top Section: Safety First */}
-      <section className="safety-section" aria-label="Safety and Guards">
-        <div className="safety-grid">
+    <div className={`flex flex-col gap-8 ${className}`} data-testid="monitoring-dashboard">
+      {/* Section A — Safety & Guards */}
+      <section aria-label="Safety and Guards">
+        <SectionLabel>Safety &amp; Guards</SectionLabel>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <GuardStatusPanel
             status={guardStatus}
             loading={guardStatusLoading}
@@ -116,16 +106,16 @@ export function MonitoringDashboard({
         </div>
       </section>
 
-      {/* Main Content Grid */}
-      <div className="main-grid">
-        {/* Left Column: KPIs + Equity Curve */}
-        <section className="kpis-section" aria-label="Performance Metrics">
+      {/* Section B — Performance + System */}
+      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-8">
+        <section className="flex flex-col gap-5" aria-label="Performance Metrics">
+          <SectionLabel>Performance</SectionLabel>
           <TradingKPIs kpis={kpis} loading={kpisLoading} error={kpisError} />
           <EquityCurve data={equityCurve} loading={equityCurveLoading} error={equityCurveError} />
         </section>
 
-        {/* Right Column: Status + Pipeline Health */}
-        <aside className="status-section" aria-label="System Status">
+        <aside className="flex flex-col gap-5" aria-label="System Status">
+          <SectionLabel>System Status</SectionLabel>
           <AutoTradingStatus
             status={engineStatus}
             loading={engineStatusLoading}
@@ -141,15 +131,12 @@ export function MonitoringDashboard({
         </aside>
       </div>
 
-      {/* Bottom Section: Positions + Balances */}
-      <section className="positions-section" aria-label="Positions and Balances">
-        <div className="positions-grid">
-          <div className="positions-panel">
-            <PositionsList positions={positions} loading={positionsLoading} />
-          </div>
-          <div className="balances-panel">
-            <AccountBalance balances={balances} loading={balancesLoading} />
-          </div>
+      {/* Section C — Positions & Balances */}
+      <section aria-label="Positions and Balances">
+        <SectionLabel>Positions &amp; Balances</SectionLabel>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <PositionsList positions={positions} loading={positionsLoading} />
+          <AccountBalance balances={balances} loading={balancesLoading} />
         </div>
       </section>
     </div>

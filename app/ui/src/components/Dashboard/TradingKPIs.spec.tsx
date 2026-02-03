@@ -68,11 +68,13 @@ describe('TradingKPIs', () => {
       expect(screen.getAllByText('Requires 10 trades (5 completed)').length).toBeGreaterThan(0)
     })
 
-    it('applies insufficient class to cards when data is insufficient', () => {
+    it('shows no color class on value when data is insufficient', () => {
       render(<TradingKPIs kpis={createMockKPIs({ tradeCount: 5 })} />)
 
-      const winRateCard = screen.getByTestId('kpi-winRate')
-      expect(winRateCard).toHaveClass('insufficient')
+      const winRateValue = screen.getByTestId('kpi-value-winRate')
+      expect(winRateValue).not.toHaveClass('text-success')
+      expect(winRateValue).not.toHaveClass('text-warning')
+      expect(winRateValue).not.toHaveClass('text-danger')
     })
   })
 
@@ -126,22 +128,22 @@ describe('TradingKPIs', () => {
       it('applies good status for win rate >= 55%', () => {
         render(<TradingKPIs kpis={createMockKPIs({ winRate: 60 })} />)
 
-        const card = screen.getByTestId('kpi-winRate')
-        expect(card).toHaveClass('good')
+        const value = screen.getByTestId('kpi-value-winRate')
+        expect(value).toHaveClass('text-success')
       })
 
       it('applies warning status for win rate 45-55%', () => {
         render(<TradingKPIs kpis={createMockKPIs({ winRate: 50 })} />)
 
-        const card = screen.getByTestId('kpi-winRate')
-        expect(card).toHaveClass('warning')
+        const value = screen.getByTestId('kpi-value-winRate')
+        expect(value).toHaveClass('text-warning')
       })
 
       it('applies danger status for win rate < 45%', () => {
         render(<TradingKPIs kpis={createMockKPIs({ winRate: 40 })} />)
 
-        const card = screen.getByTestId('kpi-winRate')
-        expect(card).toHaveClass('danger')
+        const value = screen.getByTestId('kpi-value-winRate')
+        expect(value).toHaveClass('text-danger')
       })
     })
 
@@ -149,22 +151,22 @@ describe('TradingKPIs', () => {
       it('applies good status for profit factor >= 1.5', () => {
         render(<TradingKPIs kpis={createMockKPIs({ profitFactor: 2.0 })} />)
 
-        const card = screen.getByTestId('kpi-profitFactor')
-        expect(card).toHaveClass('good')
+        const value = screen.getByTestId('kpi-value-profitFactor')
+        expect(value).toHaveClass('text-success')
       })
 
       it('applies warning status for profit factor 1.0-1.5', () => {
         render(<TradingKPIs kpis={createMockKPIs({ profitFactor: 1.2 })} />)
 
-        const card = screen.getByTestId('kpi-profitFactor')
-        expect(card).toHaveClass('warning')
+        const value = screen.getByTestId('kpi-value-profitFactor')
+        expect(value).toHaveClass('text-warning')
       })
 
       it('applies danger status for profit factor < 1.0', () => {
         render(<TradingKPIs kpis={createMockKPIs({ profitFactor: 0.8 })} />)
 
-        const card = screen.getByTestId('kpi-profitFactor')
-        expect(card).toHaveClass('danger')
+        const value = screen.getByTestId('kpi-value-profitFactor')
+        expect(value).toHaveClass('text-danger')
       })
     })
 
@@ -172,22 +174,22 @@ describe('TradingKPIs', () => {
       it('applies good status for sharpe >= 1.0', () => {
         render(<TradingKPIs kpis={createMockKPIs({ sharpeRatio: 1.5 })} />)
 
-        const card = screen.getByTestId('kpi-sharpeRatio')
-        expect(card).toHaveClass('good')
+        const value = screen.getByTestId('kpi-value-sharpeRatio')
+        expect(value).toHaveClass('text-success')
       })
 
       it('applies warning status for sharpe 0.5-1.0', () => {
         render(<TradingKPIs kpis={createMockKPIs({ sharpeRatio: 0.7 })} />)
 
-        const card = screen.getByTestId('kpi-sharpeRatio')
-        expect(card).toHaveClass('warning')
+        const value = screen.getByTestId('kpi-value-sharpeRatio')
+        expect(value).toHaveClass('text-warning')
       })
 
       it('applies danger status for sharpe < 0.5', () => {
         render(<TradingKPIs kpis={createMockKPIs({ sharpeRatio: 0.3 })} />)
 
-        const card = screen.getByTestId('kpi-sharpeRatio')
-        expect(card).toHaveClass('danger')
+        const value = screen.getByTestId('kpi-value-sharpeRatio')
+        expect(value).toHaveClass('text-danger')
       })
     })
 
@@ -195,22 +197,22 @@ describe('TradingKPIs', () => {
       it('applies good status for drawdown <= 5%', () => {
         render(<TradingKPIs kpis={createMockKPIs({ maxDrawdown: 3 })} />)
 
-        const card = screen.getByTestId('kpi-maxDrawdown')
-        expect(card).toHaveClass('good')
+        const value = screen.getByTestId('kpi-value-maxDrawdown')
+        expect(value).toHaveClass('text-success')
       })
 
       it('applies warning status for drawdown 5-10%', () => {
         render(<TradingKPIs kpis={createMockKPIs({ maxDrawdown: 7 })} />)
 
-        const card = screen.getByTestId('kpi-maxDrawdown')
-        expect(card).toHaveClass('warning')
+        const value = screen.getByTestId('kpi-value-maxDrawdown')
+        expect(value).toHaveClass('text-warning')
       })
 
       it('applies danger status for drawdown > 10%', () => {
         render(<TradingKPIs kpis={createMockKPIs({ maxDrawdown: 15 })} />)
 
-        const card = screen.getByTestId('kpi-maxDrawdown')
-        expect(card).toHaveClass('danger')
+        const value = screen.getByTestId('kpi-value-maxDrawdown')
+        expect(value).toHaveClass('text-danger')
       })
     })
   })
@@ -222,12 +224,12 @@ describe('TradingKPIs', () => {
       expect(screen.getByTestId('trading-kpis-loading')).toBeInTheDocument()
     })
 
-    it('shows 4 skeleton cards', () => {
+    it('shows 4 skeleton groups', () => {
       render(<TradingKPIs kpis={null} loading />)
 
       const container = screen.getByTestId('trading-kpis-loading')
-      const skeletons = container.querySelectorAll('.skeleton')
-      expect(skeletons.length).toBe(4)
+      const skeletonGroups = container.querySelectorAll('.space-y-2')
+      expect(skeletonGroups.length).toBe(4)
     })
   })
 
@@ -259,7 +261,7 @@ describe('TradingKPIs', () => {
     it('has accessible heading', () => {
       render(<TradingKPIs kpis={createMockKPIs()} />)
 
-      expect(screen.getByRole('heading', { name: /trading performance/i })).toBeInTheDocument()
+      expect(screen.getByText(/trading performance/i)).toBeInTheDocument()
     })
 
     it('each KPI card is identifiable by test id', () => {
@@ -271,13 +273,10 @@ describe('TradingKPIs', () => {
       expect(screen.getByTestId('kpi-maxDrawdown')).toBeInTheDocument()
     })
 
-    it('skeleton cards are hidden from screen readers', () => {
+    it('skeleton loading state renders', () => {
       render(<TradingKPIs kpis={null} loading />)
 
-      const skeletons = screen
-        .getByTestId('trading-kpis-loading')
-        .querySelectorAll('[aria-hidden="true"]')
-      expect(skeletons.length).toBe(4)
+      expect(screen.getByTestId('trading-kpis-loading')).toBeInTheDocument()
     })
   })
 

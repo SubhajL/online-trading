@@ -26,7 +26,7 @@ describe('GuardStatusPanel', () => {
       render(<GuardStatusPanel status={status} />)
 
       expect(screen.getByText('ACTIVE')).toBeInTheDocument()
-      expect(screen.getByTestId('engine-status-indicator')).toHaveClass('status-active')
+      expect(screen.getByTestId('engine-status-indicator')).toHaveClass('bg-success')
     })
 
     it('displays PAUSED state with yellow indicator', () => {
@@ -34,7 +34,7 @@ describe('GuardStatusPanel', () => {
       render(<GuardStatusPanel status={status} />)
 
       expect(screen.getByText('PAUSED')).toBeInTheDocument()
-      expect(screen.getByTestId('engine-status-indicator')).toHaveClass('status-paused')
+      expect(screen.getByTestId('engine-status-indicator')).toHaveClass('bg-warning')
     })
 
     it('displays STOPPED state with red indicator', () => {
@@ -42,20 +42,21 @@ describe('GuardStatusPanel', () => {
       render(<GuardStatusPanel status={status} />)
 
       expect(screen.getByText('STOPPED')).toBeInTheDocument()
-      expect(screen.getByTestId('engine-status-indicator')).toHaveClass('status-stopped')
+      expect(screen.getByTestId('engine-status-indicator')).toHaveClass('bg-destructive')
     })
   })
 
   describe('overall guard status', () => {
-    it('shows OK status with checkmark when all guards pass', () => {
+    it('shows OK status when all guards pass', () => {
       const status = createMockGuardStatus({ overallStatus: 'OK' })
       render(<GuardStatusPanel status={status} />)
 
       expect(screen.getByTestId('overall-status')).toHaveTextContent('OK')
-      expect(screen.getByTestId('overall-status-icon')).toHaveTextContent('✓')
+      // Icon is now a lucide SVG, just check it exists
+      expect(screen.getByTestId('overall-status-icon')).toBeInTheDocument()
     })
 
-    it('shows BLOCKED status with warning when any guard fails', () => {
+    it('shows BLOCKED status when any guard fails', () => {
       const status = createMockGuardStatus({
         overallStatus: 'BLOCKED',
         guards: {
@@ -69,7 +70,7 @@ describe('GuardStatusPanel', () => {
       render(<GuardStatusPanel status={status} />)
 
       expect(screen.getByTestId('overall-status')).toHaveTextContent('BLOCKED')
-      expect(screen.getByTestId('overall-status-icon')).toHaveTextContent('⚠')
+      expect(screen.getByTestId('overall-status-icon')).toBeInTheDocument()
     })
   })
 

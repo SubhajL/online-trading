@@ -396,20 +396,217 @@ pnpm build
 
 ---
 
-## Styling
+## Authoritative Design References
 
-- **Framework**: Tailwind CSS
-- **Design Tokens**: Use tokens from `src/styles/tokens.ts`
-- **Dark Mode**: Supported via `dark:` prefix
+- **MUST** follow [guidelines/COMPREHENSIVE_UX_UI_GUIDELINES.md](../../guidelines/COMPREHENSIVE_UX_UI_GUIDELINES.md) — Nielsen heuristics, Gestalt principles, IA, interaction design
+- **MUST** follow [guidelines/COMPREHENSIVE_STYLE_GUIDELINES.md](../../guidelines/COMPREHENSIVE_STYLE_GUIDELINES.md) — tokens, component standards, responsive grid, motion
+- **MUST** follow [guidelines/FRONTEND_REBUILD_WIREFRAMES_AND_V0_PROMPTS.md](../../guidelines/FRONTEND_REBUILD_WIREFRAMES_AND_V0_PROMPTS.md) — wireframes (G0-G4, P0-P6), v0.dev prompts
+
+---
+
+## Component Library & Accessibility
+
+### shadcn/ui + Radix (MUST)
+
+- **MUST** use shadcn/ui primitives for all generic UI components (`components/ui/`)
+- **MUST NOT** hand-build primitives that shadcn provides: Button, Dialog, Popover, DropdownMenu, Select, Command, Tabs, Toast (Sonner), Tooltip, ScrollArea, Table, Badge, Skeleton, Switch, Input, Resizable
+- **MUST** keep trading-domain components custom: chart panels, order forms, position displays, SMC overlays, equity curves, emergency controls
+- **MUST** override shadcn defaults with project design tokens — never use shadcn's default colors
+
+### Accessibility (MUST)
+
+- **MUST** include `eslint-plugin-jsx-a11y` in the ESLint config — violations are lint errors, not warnings
+- **MUST** add an axe-core assertion in every Playwright route test:
+  ```ts
+  import AxeBuilder from '@axe-core/playwright';
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+  ```
+- **MUST** meet WCAG 2.1 AA contrast ratios: 4.5:1 for text, 3:1 for UI elements (Style Guide §7)
+- **MUST** ensure keyboard navigation works end-to-end on every route (Tab, Escape, Enter, Arrow keys)
+- **MUST** never use color as the only indicator — add icons or text labels (Style Guide §7)
+- **MUST** support `prefers-reduced-motion` media query for all animations (Style Guide §8)
+- **SHOULD** use semantic HTML elements (`<nav>`, `<main>`, `<section>`, `<form>`) over generic `<div>`
+
+### Interactive Component States (MUST — Style Guide §6, UX Guide Component Checklist)
+
+Every interactive component **MUST** handle these 7 states:
+
+| # | State | Description |
+|---|-------|-------------|
+| 1 | **Default** | Rest state |
+| 2 | **Hover** | Mouse over — subtle color/shadow change (Style Guide §8) |
+| 3 | **Active** | Being clicked — scale or opacity feedback |
+| 4 | **Focus** | Keyboard navigation — `2px solid primary-500, 2px offset` (UX Guide) |
+| 5 | **Disabled** | Not available — reduced opacity, no shadow |
+| 6 | **Loading** | Processing — skeleton or spinner |
+| 7 | **Error** | Invalid state — error color border + message |
+
+### Data Component States (MUST)
+
+Every data-displaying component **MUST** handle all applicable states:
+
+| # | State | Description |
+|---|-------|-------------|
+| 1 | **Empty** | No data yet (first load, empty portfolio) |
+| 2 | **Loading** | Data is being fetched (skeleton/spinner) |
+| 3 | **Partial** | Some data loaded, more coming (streaming) |
+| 4 | **Full** | Normal state with complete data |
+| 5 | **Error** | Fetch failed, WS disconnected, invalid input |
+| 6 | **Offline** | Network unavailable, stale data displayed |
+| 7 | **Overflow** | Unexpectedly large data (100+ positions, long text) |
+
+### Error Messages (MUST — UX Guide, Nielsen #9)
+
+All error messages **MUST** follow the 3-part formula:
+1. **What happened** (plain language, not technical)
+2. **Why it happened** (if relevant to the user)
+3. **How to fix it** (actionable next step)
 
 ```tsx
-// ✅ DO: Use Tailwind classes
-<button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark">
+// ❌ DON'T: "Error: ECONNRESET"
+// ✅ DO: "Connection lost. The server is not responding. Reconnecting automatically..."
+```
+
+### Storybook (MUST for new components)
+
+- **MUST** create a Storybook story for every new component in `components/ui/` and `components/trading/`
+- **MUST** include story variants for all applicable states
+- **SHOULD** use Storybook for visual verification before wiring into pages
+
+### Lighthouse CI (MUST)
+
+- **MUST** maintain Lighthouse CI performance budgets in CI pipeline
+- **MUST** fail CI if any route exceeds: LCP > 2.5s, CLS > 0.1, FID > 100ms
+
+---
+
+## Styling & Design Tokens
+
+- **Framework**: Tailwind CSS
+- **Design Tokens**: Single source of truth in `src/styles/tokens.css` mapped via `tailwind.config.ts`
+- **Dark Mode**: Supported via `dark:` prefix
+- **Authoritative token reference**: [guidelines/COMPREHENSIVE_STYLE_GUIDELINES.md §5](../../guidelines/COMPREHENSIVE_STYLE_GUIDELINES.md)
+
+### Token Architecture
+
+```
+src/styles/tokens.css          → CSS custom properties (colors, spacing, typography, motion, shadows, radii)
+tailwind.config.ts             → Maps CSS tokens to Tailwind utility classes
+components/ui/                 → shadcn components consume Tailwind tokens
+components/trading/            → Domain components consume Tailwind tokens
+```
+
+### Color Tokens (Style Guide §4.1, §5 — 60-30-10 Rule)
+
+```css
+--color-primary: #6C5CE7;       /* Primary buttons, active states, key highlights */
+--color-primary-dark: #5936E0;   /* Hover/pressed state */
+--color-secondary: #4B5563;      /* Secondary actions, text on dark surfaces */
+--color-accent: #14B8A6;         /* Links, subtle highlights, data viz accents */
+--color-surface: #111827;        /* Primary text / dark bg (neutral-900) */
+--color-surface-raised: #1F2937; /* Cards, panels */
+--color-neutral-100: #F9FAFB;   /* Backgrounds, panels */
+--color-neutral-300: #D1D5DB;   /* Borders, dividers */
+--color-neutral-500: #9CA3AF;   /* Disabled text, secondary labels */
+--color-success: #22C55E;        /* PnL positive, success states */
+--color-error: #EF4444;          /* PnL negative, errors */
+--color-warning: #F59E0B;        /* Risk alerts, warnings */
+```
+
+### Spacing (8px grid — Style Guide §5, §9)
+
+```css
+--space-xs: 4px;   --space-sm: 8px;   --space-md: 16px;
+--space-lg: 24px;  --space-xl: 32px;  --space-2xl: 48px;
+```
+
+Spacing hierarchy: Macro (64px+) → Section (32-48px) → Element (16-24px) → Micro (4-12px)
+
+### Typography (Inter, Major Third 1.250 — Style Guide §4.2)
+
+```css
+--font-size-xs: 12.8px;  --font-size-sm: 14px;  --font-size-base: 16px;
+--font-size-lg: 20px;    --font-size-xl: 25px;   --font-size-2xl: 31.25px;
+```
+
+### Border Radius, Shadows, Motion (Style Guide §5, §8)
+
+```css
+/* Radius */
+--radius-sm: 4px;  --radius-md: 8px;  --radius-lg: 16px;  --radius-pill: 999px;
+
+/* Shadows */
+--shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
+--shadow-md: 0 4px 8px rgba(0,0,0,0.10);
+--shadow-lg: 0 8px 16px rgba(0,0,0,0.10);
+
+/* Motion — MUST use tokens, never hardcode durations */
+--anim-fast: 150ms ease;    /* Hover effects, color transitions */
+--anim-medium: 250ms ease;  /* Modal enter/exit, panel transitions */
+--anim-slow: 400ms ease;    /* Page transitions, complex animations */
+```
+
+- **MUST** support `prefers-reduced-motion` (disable transforms/transitions)
+
+### Usage Rules
+
+```tsx
+// ✅ DO: Use Tailwind classes mapped to tokens
+<button className="bg-primary text-white px-4 py-2 rounded-sm hover:bg-primary-dark transition-colors duration-150">
   Buy
 </button>
 
-// ❌ DON'T: Hardcode colors
-<button className="bg-blue-500">
+// ❌ DON'T: Hardcode colors or durations
+<button className="bg-blue-500" style={{ transition: '200ms' }}>
   Buy
 </button>
+```
+
+---
+
+## Responsive Grid System (Style Guide §9)
+
+| Breakpoint | Width | Grid | Layout |
+|---|---|---|---|
+| `sm` (mobile) | ≤767px | 4-column | Single column, full-width, hamburger menu |
+| `md` (tablet) | 768-1023px | 8-column | Stack complex layouts |
+| `lg` (desktop) | 1024-1279px | 12-column | Two-column layouts |
+| `xl` (wide) | ≥1280px | 12-column | Max content width 1200px centered |
+
+- **MUST** use Tailwind responsive prefixes (`sm:`, `md:`, `lg:`, `xl:`)
+- **MUST** maintain consistent gutters (16-24px) across breakpoints
+- **MUST** ensure touch targets ≥44px on touch devices (Style Guide §6.1)
+
+---
+
+## Alerts & Toasts (Style Guide §6.4)
+
+- Icon (20px) + message, 12px/16px padding, 4px radius, colored `border-left`
+- Auto-dismiss 5-7s for low/medium; persist for high/critical
+- Stack vertically with 8px gap; desktop top-right, mobile bottom
+
+## Modals (Style Guide §6.3)
+
+- Backdrop `rgba(0,0,0,0.5)`, lock scroll, 16px radius, `--shadow-lg`, 24px padding
+- Animation: fade + 4% scale using `--anim-medium`
+- Max-width ~600px desktop, 90vw mobile
+
+## Power User (UX Guide, Nielsen #7)
+
+- **MUST** implement Command Palette (shadcn Command, `Ctrl+K`)
+
+---
+
+## Component Folder Structure (Target)
+
+```
+src/components/
+├── ui/                  # shadcn primitives (Button, Dialog, Select, etc.)
+├── trading/             # Domain: order form, positions, balances
+├── charts/              # Domain: candlestick, indicators, overlays
+├── dashboard/           # Domain: KPIs, guards, equity curve
+├── layout/              # Shell: sidebar, header, panels, resizable
+├── alerts/              # Alert components
+└── common/              # ErrorBoundary, SkipLink, LoadingSpinner
 ```

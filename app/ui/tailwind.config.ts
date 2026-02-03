@@ -9,16 +9,48 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Map Tailwind colors to CSS custom properties from tokens.css
+        // shadcn/ui semantic colors (from globals.css)
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+          500: 'hsl(168 76% 40%)',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+
+        // Semantic color tokens
         'chart-bg': 'var(--color-chart-bg)',
         'chart-text': 'var(--color-chart-text)',
         'chart-grid': 'var(--color-chart-grid)',
         success: 'var(--color-success-500)',
         danger: 'var(--color-error-400)',
-        primary: 'var(--color-primary-500)',
-        secondary: 'var(--color-warning-500)',
-
-        // Semantic color tokens
+        warning: 'var(--color-warning-500)',
         surface: {
           base: 'var(--color-surface-base)',
           raised: 'var(--color-surface-raised)',
@@ -35,7 +67,7 @@ const config: Config = {
         },
         border: {
           subtle: 'var(--color-border-subtle)',
-          DEFAULT: 'var(--color-border-default)',
+          DEFAULT: 'hsl(var(--border))',
           strong: 'var(--color-border-strong)',
           focus: 'var(--color-border-focus)',
         },
@@ -112,7 +144,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')],
 }
 
 export default config

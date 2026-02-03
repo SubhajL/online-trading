@@ -19,7 +19,7 @@ from .binance_ws import BinanceWebSocketClient
 logger = logging.getLogger(__name__)
 
 # Number of recent candles to publish for pipeline warm-up during backfill
-WARMUP_CANDLE_COUNT = 10
+WARMUP_CANDLE_COUNT = 250
 
 # Mapping of timeframe suffix to seconds multiplier
 _TF_SECONDS: dict[str, int] = {"m": 60, "h": 3600, "d": 86400, "w": 604800}

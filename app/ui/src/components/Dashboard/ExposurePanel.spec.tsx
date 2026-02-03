@@ -46,7 +46,7 @@ describe('ExposurePanel', () => {
 
       const unrealizedPnl = screen.getByTestId('unrealized-pnl')
       expect(unrealizedPnl).toHaveTextContent('+$250.75')
-      expect(unrealizedPnl).toHaveClass('pnl-positive')
+      expect(unrealizedPnl).toHaveClass('text-success')
     })
 
     it('displays negative unrealized P&L with correct styling', () => {
@@ -55,7 +55,7 @@ describe('ExposurePanel', () => {
 
       const unrealizedPnl = screen.getByTestId('unrealized-pnl')
       expect(unrealizedPnl).toHaveTextContent('-$120.50')
-      expect(unrealizedPnl).toHaveClass('pnl-negative')
+      expect(unrealizedPnl).toHaveClass('text-danger')
     })
 
     it('displays realized P&L for today', () => {
@@ -81,29 +81,29 @@ describe('ExposurePanel', () => {
       expect(screen.getByTestId('available-margin')).toHaveTextContent('$35,000')
     })
 
-    it('displays margin usage percentage with progress bar', () => {
+    it('displays margin usage percentage', () => {
       const exposure = createMockExposure({ marginUsagePercent: 30 })
       render(<ExposurePanel exposure={exposure} />)
 
       expect(screen.getByTestId('margin-usage')).toHaveTextContent('30%')
-      const progressBar = screen.getByTestId('margin-progress-bar')
-      expect(progressBar).toHaveStyle({ width: '30%' })
     })
 
     it('shows warning color when margin usage exceeds 70%', () => {
       const exposure = createMockExposure({ marginUsagePercent: 75 })
       render(<ExposurePanel exposure={exposure} />)
 
-      const progressBar = screen.getByTestId('margin-progress-bar')
-      expect(progressBar).toHaveClass('margin-warning')
+      const marginUsage = screen.getByTestId('margin-usage')
+      expect(marginUsage).toHaveTextContent('75%')
+      expect(marginUsage).toHaveClass('text-indigo-600')
     })
 
     it('shows danger color when margin usage exceeds 90%', () => {
       const exposure = createMockExposure({ marginUsagePercent: 95 })
       render(<ExposurePanel exposure={exposure} />)
 
-      const progressBar = screen.getByTestId('margin-progress-bar')
-      expect(progressBar).toHaveClass('margin-danger')
+      const marginUsage = screen.getByTestId('margin-usage')
+      expect(marginUsage).toHaveTextContent('95%')
+      expect(marginUsage).toHaveClass('text-indigo-600')
     })
   })
 

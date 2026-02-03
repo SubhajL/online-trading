@@ -1,7 +1,18 @@
 import type { Position } from '@/types'
 import { formatNumber } from '@/utils/formatters'
 import { formatPositionDelta } from '@/utils/tradingHelpers'
-import './PositionsList.css'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { AlertCircle } from 'lucide-react'
 
 type PositionsListProps = {
   positions: Position[]
@@ -22,83 +33,188 @@ export function PositionsList({
 
   if (loading) {
     return (
-      <div className={`positions-list ${className}`} data-testid="positions-list">
-        <h3 className="positions-title">Open Positions</h3>
-        <div className="positions-loading" data-testid="positions-loading">
-          Loading positions...
-        </div>
-      </div>
+      <Card
+        className={`bg-surface-raised border-border-subtle shadow-sm ${className}`}
+        data-testid="positions-list"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
+            Open Positions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3" data-testid="positions-loading">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-3/4" />
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   if (error) {
     return (
-      <div className={`positions-list ${className}`} data-testid="positions-list">
-        <h3 className="positions-title">Open Positions</h3>
-        <div className="positions-error" data-testid="positions-error">
-          {error}
-        </div>
-      </div>
+      <Card
+        className={`bg-surface-raised border-destructive/30 shadow-sm ${className}`}
+        data-testid="positions-list"
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
+            Open Positions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div
+            className="flex items-center gap-2 text-sm text-destructive"
+            data-testid="positions-error"
+          >
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   const totalDelta = formatPositionDelta(totalPnl, 0)
 
   return (
-    <div className={`positions-list ${className}`} data-testid="positions-list">
-      <div className="positions-header">
-        <h3 className="positions-title">Open Positions</h3>
+    <Card
+      className={`bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200 ${className}`}
+      data-testid="positions-list"
+    >
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
+          Open Positions
+        </CardTitle>
         {positions.length > 0 && (
-          <div className="total-pnl">
-            <span>Total P&L:</span>
-            <span className={`pnl-value ${totalDelta.deltaClass}`}>{totalDelta.formattedPnl}</span>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-text-muted">Total P&L:</span>
+            <span
+              className={`font-bold font-mono ${
+                totalPnl > 0 ? 'text-success' : totalPnl < 0 ? 'text-danger' : 'text-text-muted'
+              }`}
+            >
+              {totalDelta.formattedPnl}
+            </span>
           </div>
         )}
-      </div>
-
-      {positions.length === 0 ? (
-        <div className="empty-state">No open positions</div>
-      ) : (
-        <div className="positions-table">
-          <div className="table-header">
-            <span>Symbol</span>
-            <span>Side</span>
-            <span>Quantity</span>
-            <span>Entry</span>
-            <span>Mark</span>
-            <span>P&L</span>
-            <span>P&L %</span>
-            <span>Venue</span>
-            {onClose && <span>Action</span>}
-          </div>
-
-          {positions.map((position, index) => {
-            const delta = formatPositionDelta(position.pnl, position.pnlPercent)
-            return (
-              <div key={`${position.symbol}-${index}`} className="position-row">
-                <span className="symbol">{position.symbol}</span>
-                <span className={`side-badge ${position.side.toLowerCase()}`}>{position.side}</span>
-                <span>{position.quantity}</span>
-                <span>{formatNumber(position.entryPrice)}</span>
-                <span>{formatNumber(position.markPrice)}</span>
-                <span className={`pnl-value ${delta.deltaClass}`}>{delta.formattedPnl}</span>
-                <span className={`pnl-value ${delta.deltaClass}`}>{delta.formattedPnlPercent}</span>
-                <span className="venue-badge">{position.venue}</span>
+      </CardHeader>
+      <CardContent>
+        {positions.length === 0 ? (
+          <p className="text-sm text-text-muted py-4 text-center">No open positions</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-surface-overlay/50 hover:bg-surface-overlay/50">
+                <TableHead className="text-xs text-text-muted uppercase tracking-wide">
+                  Symbol
+                </TableHead>
+                <TableHead className="text-xs text-text-muted uppercase tracking-wide">
+                  Side
+                </TableHead>
+                <TableHead className="text-xs text-text-muted uppercase tracking-wide text-right">
+                  Quantity
+                </TableHead>
+                <TableHead className="text-xs text-text-muted uppercase tracking-wide text-right">
+                  Entry
+                </TableHead>
+                <TableHead className="text-xs text-text-muted uppercase tracking-wide text-right">
+                  Mark
+                </TableHead>
+                <TableHead className="text-xs text-text-muted uppercase tracking-wide text-right">
+                  P&L
+                </TableHead>
+                <TableHead className="text-xs text-text-muted uppercase tracking-wide text-right">
+                  P&L %
+                </TableHead>
+                <TableHead className="text-xs text-text-muted uppercase tracking-wide">
+                  Venue
+                </TableHead>
                 {onClose && (
-                  <button
-                    className="close-button"
-                    onClick={() => onClose(position)}
-                    type="button"
-                    aria-label="Close position"
-                  >
-                    Close
-                  </button>
+                  <TableHead className="text-xs text-text-muted uppercase tracking-wide">
+                    Action
+                  </TableHead>
                 )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {positions.map((position, index) => {
+                const delta = formatPositionDelta(position.pnl, position.pnlPercent)
+                return (
+                  <TableRow
+                    key={`${position.symbol}-${index}`}
+                    className="hover:bg-surface-hover/50 transition-colors duration-fast"
+                  >
+                    <TableCell className="text-sm font-medium">{position.symbol}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          position.side === 'BUY'
+                            ? 'bg-success/15 text-success border-success/30'
+                            : 'bg-destructive/15 text-destructive border-destructive/30'
+                        }
+                      >
+                        {position.side}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {position.quantity}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {formatNumber(position.entryPrice)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {formatNumber(position.markPrice)}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-mono text-sm font-bold ${
+                        position.pnl > 0
+                          ? 'text-success'
+                          : position.pnl < 0
+                            ? 'text-danger'
+                            : 'text-text-muted'
+                      }`}
+                    >
+                      {delta.formattedPnl}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-mono text-sm ${
+                        position.pnl > 0
+                          ? 'text-success'
+                          : position.pnl < 0
+                            ? 'text-danger'
+                            : 'text-text-muted'
+                      }`}
+                    >
+                      {delta.formattedPnlPercent}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {position.venue}
+                      </Badge>
+                    </TableCell>
+                    {onClose && (
+                      <TableCell>
+                        <button
+                          className="px-2 py-1 text-xs rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors duration-fast"
+                          onClick={() => onClose(position)}
+                          type="button"
+                          aria-label="Close position"
+                        >
+                          Close
+                        </button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   )
 }

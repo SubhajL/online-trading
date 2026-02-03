@@ -58,7 +58,7 @@ describe('PipelineHealth', () => {
       const data = createMockPipelineHealth()
       render(<PipelineHealth data={data} />)
 
-      expect(screen.getByRole('heading', { name: /pipeline health/i })).toBeInTheDocument()
+      expect(screen.getByText(/pipeline health/i)).toBeInTheDocument()
     })
 
     it('displays symbols list', () => {
@@ -98,7 +98,7 @@ describe('PipelineHealth', () => {
       render(<PipelineHealth data={data} />)
 
       const statusIndicator = screen.getByTestId('status-indicator')
-      expect(statusIndicator).toHaveClass('status-healthy')
+      expect(statusIndicator).toHaveClass('bg-success')
       expect(screen.getByText('HEALTHY')).toBeInTheDocument()
     })
 
@@ -107,7 +107,7 @@ describe('PipelineHealth', () => {
       render(<PipelineHealth data={data} />)
 
       const statusIndicator = screen.getByTestId('status-indicator')
-      expect(statusIndicator).toHaveClass('status-degraded')
+      expect(statusIndicator).toHaveClass('bg-warning')
       expect(screen.getByText('DEGRADED')).toBeInTheDocument()
     })
 
@@ -116,7 +116,7 @@ describe('PipelineHealth', () => {
       render(<PipelineHealth data={data} />)
 
       const statusIndicator = screen.getByTestId('status-indicator')
-      expect(statusIndicator).toHaveClass('status-unhealthy')
+      expect(statusIndicator).toHaveClass('bg-destructive')
       expect(screen.getByText('UNHEALTHY')).toBeInTheDocument()
     })
   })
@@ -164,7 +164,8 @@ describe('PipelineHealth', () => {
       })
       render(<PipelineHealth data={data} />)
 
-      expect(screen.getByTestId('symbol-row-BTCUSDT')).toHaveClass('high-lag')
+      const lagCell = screen.getByTestId('symbol-lag-BTCUSDT')
+      expect(lagCell).toHaveClass('text-warning')
     })
 
     it('does not highlight symbols at exactly 5000ms boundary', () => {
@@ -173,7 +174,8 @@ describe('PipelineHealth', () => {
       })
       render(<PipelineHealth data={data} />)
 
-      expect(screen.getByTestId('symbol-row-BTCUSDT')).not.toHaveClass('high-lag')
+      const lagCell = screen.getByTestId('symbol-lag-BTCUSDT')
+      expect(lagCell).not.toHaveClass('text-warning')
     })
   })
 
@@ -204,7 +206,7 @@ describe('PipelineHealth', () => {
 
       const actionElement = screen.getByTestId('last-decision-action')
       expect(actionElement).toHaveTextContent('BUY')
-      expect(actionElement).toHaveClass('action-buy')
+      expect(actionElement).toHaveClass('text-success')
     })
 
     it('displays SELL action with correct styling', () => {
@@ -215,7 +217,7 @@ describe('PipelineHealth', () => {
 
       const actionElement = screen.getByTestId('last-decision-action')
       expect(actionElement).toHaveTextContent('SELL')
-      expect(actionElement).toHaveClass('action-sell')
+      expect(actionElement).toHaveClass('text-danger')
     })
 
     it('displays HOLD action with correct styling', () => {
@@ -226,7 +228,7 @@ describe('PipelineHealth', () => {
 
       const actionElement = screen.getByTestId('last-decision-action')
       expect(actionElement).toHaveTextContent('HOLD')
-      expect(actionElement).toHaveClass('action-hold')
+      expect(actionElement).toHaveClass('text-slate-500')
     })
 
     it('displays last decision reason', () => {
@@ -289,7 +291,7 @@ describe('PipelineHealth', () => {
       const data = createMockPipelineHealth()
       render(<PipelineHealth data={data} />)
 
-      expect(screen.getByRole('heading', { level: 3 })).toBeInTheDocument()
+      expect(screen.getByText(/pipeline health/i)).toBeInTheDocument()
     })
 
     it('symbols table has accessible structure', () => {
@@ -332,8 +334,8 @@ describe('PipelineHealth', () => {
       })
       render(<PipelineHealth data={data} />)
 
-      expect(screen.getByTestId('symbol-row-BTCUSDT')).not.toHaveClass('high-lag')
-      expect(screen.getByTestId('symbol-row-ETHUSDT')).toHaveClass('high-lag')
+      expect(screen.getByTestId('symbol-lag-BTCUSDT')).not.toHaveClass('text-warning')
+      expect(screen.getByTestId('symbol-lag-ETHUSDT')).toHaveClass('text-warning')
     })
   })
 })

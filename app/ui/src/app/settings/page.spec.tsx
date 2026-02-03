@@ -8,10 +8,9 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
   })
 
-  test('applies pageShell CSS module class to root div', () => {
-    const { container } = render(<SettingsPage />)
-    const rootDiv = container.firstChild as HTMLElement
-    expect(rootDiv.className).toContain('pageShell')
+  test('renders inside AppShell', () => {
+    render(<SettingsPage />)
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
   })
 
   test('renders settings tabs', () => {
@@ -25,6 +24,6 @@ describe('SettingsPage', () => {
   test('renders action buttons', () => {
     render(<SettingsPage />)
     expect(screen.getByText('Save Changes')).toBeInTheDocument()
-    expect(screen.getByText('Cancel')).toBeInTheDocument()
+    expect(screen.getByText('Reset to Defaults')).toBeInTheDocument()
   })
 })
