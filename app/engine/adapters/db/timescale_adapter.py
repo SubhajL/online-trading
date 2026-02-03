@@ -7,7 +7,7 @@ for trading data including candles, indicators, signals, and trading events.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import logging
@@ -26,6 +26,29 @@ from ...models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _to_naive_utc(dt: datetime) -> datetime:
+    """Convert datetime to naive UTC for asyncpg TIMESTAMP columns.
+
+    asyncpg requires naive datetimes for TIMESTAMP WITHOUT TIME ZONE columns
+    (which is what the candles table uses for open_time and close_time).
+
+    This helper ensures tz-aware datetimes are converted to UTC then stripped,
+    while naive datetimes pass through unchanged (assumed to already be UTC).
+
+    Args:
+        dt: datetime that may or may not have tzinfo. Naive datetimes are
+            assumed to already be in UTC.
+
+    Returns:
+        Naive datetime in UTC
+    """
+    if dt.tzinfo is None:
+        return dt
+    # Convert to UTC then strip timezone
+    utc_dt = dt.astimezone(timezone.utc)
+    return utc_dt.replace(tzinfo=None)
 
 
 class TimescaleDBAdapter:
@@ -198,8 +221,8 @@ class TimescaleDBAdapter:
                     candle.venue,
                     candle.symbol,
                     candle.timeframe.value,
-                    candle.open_time,
-                    candle.close_time,
+                    _to_naive_utc(candle.open_time),
+                    _to_naive_utc(candle.close_time),
                     candle.open_price,
                     candle.high_price,
                     candle.low_price,
@@ -235,8 +258,8 @@ class TimescaleDBAdapter:
                         c.venue,
                         c.symbol,
                         c.timeframe.value,
-                        c.open_time,
-                        c.close_time,
+                        _to_naive_utc(c.open_time),
+                        _to_naive_utc(c.close_time),
                         c.open_price,
                         c.high_price,
                         c.low_price,
@@ -534,8 +557,8 @@ class TimescaleDBAdapter:
                         c.venue,
                         c.symbol,
                         c.timeframe.value,
-                        c.open_time,
-                        c.close_time,
+                        _to_naive_utc(c.open_time),
+                        _to_naive_utc(c.close_time),
                         c.open_price,
                         c.high_price,
                         c.low_price,

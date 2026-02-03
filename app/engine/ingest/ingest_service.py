@@ -243,10 +243,15 @@ class IngestService:
         # Persist REALTIME and GAP_FILL candles to DB
         if self._db_adapter is not None:
             try:
-                await self._db_adapter.insert_candle(event.candle)
-                logger.info(
-                    f"Persisted {event.origin.value} candle to DB: {symbol} {timeframe.value}",
-                )
+                success = await self._db_adapter.insert_candle(event.candle)
+                if success:
+                    logger.info(
+                        f"Persisted {event.origin.value} candle to DB: {symbol} {timeframe.value}",
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to persist {event.origin.value} candle: {symbol} {timeframe.value}",
+                    )
             except Exception as e:
                 logger.exception("Failed to persist candle %s %s", symbol, timeframe.value)
                 await self._emit_error(

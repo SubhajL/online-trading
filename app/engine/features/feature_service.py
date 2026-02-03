@@ -211,7 +211,8 @@ class FeatureService:
             self._calculations_performed += 1
             self._last_calculation_time = datetime.now(UTC)
 
-            logger.debug(f"Published features for {symbol} {timeframe.value}")
+            buffer = self._candle_buffers[symbol][timeframe]
+            logger.info(f"Published features for {symbol} {timeframe.value} (buffer={len(buffer)})")
 
         except Exception as e:
             logger.error(

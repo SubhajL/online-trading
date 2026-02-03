@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
@@ -77,3 +78,40 @@ async def test_realtime_event_persists_indicators_with_candle_venue(
     assert called_venue == venue
     assert indicators.symbol == "BTCUSDT"
     assert indicators.timeframe == TimeFrame.M15
+
+
+@pytest.mark.asyncio
+async def test_feature_publish_logs_info_with_buffer_size(
+    mock_event_bus_global: AsyncMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """INFO log is emitted after features are published, including buffer size."""
+    from app.engine.features.feature_service import FeatureService
+
+    venue = "binance_spot"
+    db_adapter = AsyncMock()
+    db_adapter.insert_technical_indicators = AsyncMock(return_value=True)
+
+    service = FeatureService(buffer_size=300, db_adapter=db_adapter)
+
+    # Warm-up with enough candles (EMA200 requires >= 200).
+    for i in range(250):
+        candle = make_test_candle(venue=venue, idx=i)
+        await service._handle_candle_update(make_candle_event(candle, CandleOrigin.BACKFILL))
+
+    # Clear logs from warm-up
+    caplog.clear()
+
+    with caplog.at_level(logging.INFO):
+        realtime_candle = make_test_candle(venue=venue, idx=251)
+        await service._handle_candle_update(make_candle_event(realtime_candle, CandleOrigin.REALTIME))
+
+    # Verify INFO log with "Published features" is present
+    published_logs = [
+        r for r in caplog.records
+        if "Published features" in r.message and r.levelno == logging.INFO
+    ]
+    assert len(published_logs) == 1
+    assert "BTCUSDT" in published_logs[0].message
+    assert "15m" in published_logs[0].message
+    assert "buffer=" in published_logs[0].message
