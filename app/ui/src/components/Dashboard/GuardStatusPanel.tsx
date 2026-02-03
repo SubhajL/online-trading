@@ -48,7 +48,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
         data-testid="guard-panel-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-slate-400" />
             Guard Status
           </CardTitle>
@@ -71,7 +71,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
         data-testid="guard-panel-error"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-destructive" />
             Guard Status
           </CardTitle>
@@ -95,7 +95,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
 
   return (
     <Card
-      className="bg-white rounded-2xl border-l-4 border-l-indigo-500 border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200 relative overflow-hidden group"
+      className="bg-white rounded-2xl border-l-4 border-l-indigo-500 border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200 relative overflow-hidden group"
       data-testid="guard-panel"
     >
       <div className="absolute top-0 right-0 p-4 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
@@ -111,7 +111,10 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
             <p className="text-[10px] text-slate-400">Risk Management</p>
           </div>
         </CardTitle>
-        <Badge variant="outline" className={`text-xs font-medium ${getEngineStateBadge(status.engineState)}`}>
+        <Badge
+          variant="outline"
+          className={`text-xs font-medium ${getEngineStateBadge(status.engineState)}`}
+        >
           <span
             className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
               status.engineState === 'ACTIVE'
@@ -156,9 +159,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
             >
               <span
                 className={`w-2 h-2 rounded-full shrink-0 ${
-                  guard.status === 'OK'
-                    ? 'bg-success '
-                    : 'bg-destructive '
+                  guard.status === 'OK' ? 'bg-success ' : 'bg-destructive '
                 }`}
                 data-testid={guard.status === 'OK' ? 'guard-status-ok' : 'guard-status-blocked'}
               />
@@ -166,7 +167,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
                 {GUARD_DISPLAY_NAMES[guardKey] || guardKey}
               </span>
               {guard.blockedReason && (
-                <span className="text-[11px] text-destructive/80 font-medium bg-destructive/5 px-1.5 py-0.5 rounded">
+                <span className="text-xs text-destructive/80 font-medium bg-destructive/5 px-1.5 py-0.5 rounded">
                   {guard.blockedReason}
                 </span>
               )}
@@ -174,7 +175,10 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
           ))}
         </div>
 
-        <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-100" data-testid="last-checked">
+        <p
+          className="text-xs text-slate-400 pt-1 border-t border-slate-100"
+          data-testid="last-checked"
+        >
           Last checked: {formatTimestamp(status.lastChecked)}
         </p>
       </CardContent>

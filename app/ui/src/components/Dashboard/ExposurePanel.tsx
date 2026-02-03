@@ -2,7 +2,6 @@ import type { ExposureSummary } from '@/types/dashboard'
 import { formatCurrency } from '@/utils/formatters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BarChart3, AlertCircle } from 'lucide-react'
 
@@ -31,7 +30,7 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
         data-testid="exposure-panel-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-slate-400" />
             Exposure
           </CardTitle>
@@ -52,7 +51,7 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
         data-testid="exposure-panel-error"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-destructive" />
             Exposure
           </CardTitle>
@@ -72,19 +71,22 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
 
   if (!exposure) return null
 
-  const marginDanger = exposure.marginUsagePercent >= 90
-  const marginWarn = exposure.marginUsagePercent >= 70
-
   return (
-    <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200">
+    <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">
           Total Exposure
         </CardTitle>
         <div className="flex items-center gap-2">
-          <span className="sr-only" data-testid="position-count">{exposure.positionCount}</span>
-          <Badge className="bg-blue-50 text-blue-600 border border-blue-100 text-xs font-bold">SPOT</Badge>
-          <Badge className="bg-purple-50 text-purple-600 border border-purple-100 text-xs font-bold">FUTURES</Badge>
+          <span className="sr-only" data-testid="position-count">
+            {exposure.positionCount}
+          </span>
+          <Badge className="bg-blue-50 text-blue-600 border border-blue-100 text-xs font-bold">
+            SPOT
+          </Badge>
+          <Badge className="bg-purple-50 text-purple-600 border border-purple-100 text-xs font-bold">
+            FUTURES
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -94,7 +96,8 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
             className="text-3xl font-bold font-mono tabular-nums text-slate-900 tracking-tight"
             data-testid="total-notional"
           >
-            {formatCurrency(exposure.totalNotional)}<span className="text-lg text-slate-400 font-normal">.00</span>
+            {formatCurrency(exposure.totalNotional)}
+            <span className="text-lg text-slate-400 font-normal">.00</span>
           </p>
         </div>
 
@@ -108,7 +111,10 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
           </div>
           <div className="border-l-2 border-purple-500 pl-4 py-1">
             <p className="text-xs text-slate-400 mb-1">Futures Margin</p>
-            <p className="text-lg font-bold text-slate-800 font-mono" data-testid="futures-notional">
+            <p
+              className="text-lg font-bold text-slate-800 font-mono"
+              data-testid="futures-notional"
+            >
               {formatCurrency(exposure.futuresNotional)}
             </p>
           </div>
@@ -142,7 +148,10 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
             <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">
               Total Equity
             </p>
-            <p className="text-sm font-bold font-mono tabular-nums mt-0.5 text-slate-800" data-testid="total-equity">
+            <p
+              className="text-sm font-bold font-mono tabular-nums mt-0.5 text-slate-800"
+              data-testid="total-equity"
+            >
               {formatCurrency(exposure.totalEquity)}
             </p>
           </div>
@@ -150,7 +159,10 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
             <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">
               Available Margin
             </p>
-            <p className="text-sm font-bold font-mono tabular-nums mt-0.5 text-slate-800" data-testid="available-margin">
+            <p
+              className="text-sm font-bold font-mono tabular-nums mt-0.5 text-slate-800"
+              data-testid="available-margin"
+            >
               {formatCurrency(exposure.availableMargin)}
             </p>
           </div>
@@ -167,7 +179,10 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
               {exposure.marginUsagePercent.toFixed(0)}%
             </span>
           </div>
-          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden" data-testid="margin-progress-bar">
+          <div
+            className="w-full bg-slate-100 rounded-full h-3 overflow-hidden"
+            data-testid="margin-progress-bar"
+          >
             <div
               className="bg-gradient-to-r from-indigo-500 to-purple-500 h-3 rounded-full transition-all duration-300"
               style={{ width: `${Math.min(exposure.marginUsagePercent, 100)}%` }}
@@ -176,7 +191,7 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
         </div>
 
         {/* Bottom stats */}
-        <div className="flex gap-4 text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+        <div className="flex gap-4 text-xs text-slate-400 pt-1 border-t border-slate-100">
           <span>
             Spot:{' '}
             <span className="text-slate-500 font-mono" data-testid="spot-position-count">

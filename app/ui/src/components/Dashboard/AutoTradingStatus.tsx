@@ -70,7 +70,7 @@ export function AutoTradingStatus({
         data-testid="auto-trading-status-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Bot className="h-4 w-4 text-slate-400" />
             Auto Trading
           </CardTitle>
@@ -93,7 +93,7 @@ export function AutoTradingStatus({
         data-testid="auto-trading-status-error"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Bot className="h-4 w-4 text-destructive" />
             Auto Trading
           </CardTitle>
@@ -117,7 +117,7 @@ export function AutoTradingStatus({
 
   return (
     <Card
-      className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200"
+      className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
       data-testid="auto-trading-status"
     >
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -174,7 +174,10 @@ export function AutoTradingStatus({
         {activeSignals !== undefined && (
           <div className="flex items-center justify-between text-sm px-3 py-2 rounded-md bg-slate-50">
             <span className="text-slate-500 text-xs">Active Signals:</span>
-            <span className="font-mono font-bold tabular-nums text-slate-900" data-testid="active-signals">
+            <span
+              className="font-mono font-bold tabular-nums text-slate-900"
+              data-testid="active-signals"
+            >
               {activeSignals}
             </span>
           </div>
@@ -188,14 +191,20 @@ export function AutoTradingStatus({
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500 text-xs">Time:</span>
-                <span className="font-mono text-slate-600 text-xs tabular-nums" data-testid="last-decision-time">
+                <span
+                  className="font-mono text-slate-600 text-xs tabular-nums"
+                  data-testid="last-decision-time"
+                >
                   {formatRelativeTime(status.lastDecisionAt)}
                 </span>
               </div>
               {status.lastDecisionReason && (
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500 text-xs shrink-0">Reason:</span>
-                  <span className="text-slate-600 text-xs text-right" data-testid="last-decision-reason">
+                  <span
+                    className="text-slate-600 text-xs text-right"
+                    data-testid="last-decision-reason"
+                  >
                     {status.lastDecisionReason}
                   </span>
                 </div>

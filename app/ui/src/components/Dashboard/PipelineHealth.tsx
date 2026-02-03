@@ -73,7 +73,7 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
         data-testid="pipeline-health-loading"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Workflow className="h-4 w-4 text-slate-400" />
             Pipeline Health
           </CardTitle>
@@ -94,7 +94,7 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
         data-testid="pipeline-health-error"
       >
         <CardHeader className="pb-3">
-          <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
+          <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
             <Workflow className="h-4 w-4 text-destructive" />
             Pipeline Health
           </CardTitle>
@@ -118,13 +118,11 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
 
   return (
     <Card
-      className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200 flex-1"
+      className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200 flex-1"
       data-testid="pipeline-health"
     >
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
-        <CardTitle className="font-bold text-slate-900">
-          Pipeline Health
-        </CardTitle>
+        <CardTitle className="font-bold text-slate-900">Pipeline Health</CardTitle>
         <Badge variant="outline" className={getStatusBadgeClass(data.status)}>
           <span
             className={`inline-block w-2 h-2 rounded-full mr-1.5 ${data.status === 'HEALTHY' ? 'bg-success animate-pulse' : data.status === 'DEGRADED' ? 'bg-warning' : 'bg-destructive'}`}
@@ -180,9 +178,7 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
                     <TableCell className="text-xs font-medium text-slate-900">
                       {symbol.symbol}
                     </TableCell>
-                    <TableCell className="text-xs text-slate-600">
-                      {symbol.timeframe}
-                    </TableCell>
+                    <TableCell className="text-xs text-slate-600">{symbol.timeframe}</TableCell>
                     <TableCell className="text-xs text-slate-600 font-mono tabular-nums">
                       {formatTimestamp(symbol.lastCandleTime)}
                     </TableCell>

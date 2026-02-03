@@ -89,7 +89,7 @@ export default function HistoryPage() {
               ].map(stat => (
                 <Card
                   key={stat.label}
-                  className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200"
+                  className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
                 >
                   <CardContent className="p-5">
                     <p className="text-xs text-slate-400 uppercase tracking-wide">{stat.label}</p>
@@ -125,7 +125,7 @@ export default function HistoryPage() {
         </Card>
 
         {/* History Table */}
-        <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+        <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
           <CardContent className="p-0">
             {loading ? (
               <div className="p-5 space-y-3">
@@ -136,9 +136,7 @@ export default function HistoryPage() {
             ) : filteredOrders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Search className="h-12 w-12 text-slate-300" />
-                <p className="text-lg font-medium text-slate-600">
-                  No trades match these filters
-                </p>
+                <p className="text-lg font-medium text-slate-600">No trades match these filters</p>
                 <p className="text-sm text-slate-400">
                   Try widening your search or selecting a different time range.
                 </p>

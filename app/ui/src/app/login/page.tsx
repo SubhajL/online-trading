@@ -117,9 +117,8 @@ export default function LoginPage() {
           </div>
 
           <div className="text-xs text-slate-400">
-            Tip: Press{' '}
-            <kbd className="rounded border border-slate-200 bg-slate-100 px-1">Ctrl</kbd> +{' '}
-            <kbd className="rounded border border-slate-200 bg-slate-100 px-1">K</kbd> for the
+            Tip: Press <kbd className="rounded border border-slate-200 bg-slate-100 px-1">Ctrl</kbd>{' '}
+            + <kbd className="rounded border border-slate-200 bg-slate-100 px-1">K</kbd> for the
             command palette once signed in.
           </div>
         </div>

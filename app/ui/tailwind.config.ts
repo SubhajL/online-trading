@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -8,6 +9,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+      },
       colors: {
         // shadcn/ui semantic colors (from globals.css)
         background: 'hsl(var(--background))',
@@ -85,6 +90,8 @@ const config: Config = {
         'space-8': 'var(--space-8)',
         'space-9': 'var(--space-9)',
         'space-10': 'var(--space-10)',
+        // Additional spacing for header height (72px = 4.5rem)
+        '18': '4.5rem',
       },
       borderRadius: {
         none: 'var(--radius-none)',
@@ -95,6 +102,7 @@ const config: Config = {
       },
       boxShadow: {
         sm: 'var(--shadow-sm)',
+        soft: 'var(--shadow-soft)',
         md: 'var(--shadow-md)',
         lg: 'var(--shadow-lg)',
         xl: 'var(--shadow-xl)',

@@ -7,7 +7,7 @@ import type {
   EmergencyCloseState,
   EmergencyCloseResult,
 } from '@/types/dashboard'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AlertTriangle } from 'lucide-react'
 
@@ -462,7 +462,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
   }
 
   return (
-    <Card className="bg-white rounded-2xl border border-slate-100 border-t-4 border-t-red-500 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200">
+    <Card className="bg-white rounded-2xl border border-slate-100 border-t-4 border-t-red-500 shadow-soft hover:shadow-md transition-all duration-200">
       <CardContent className="pt-6 flex flex-col items-center text-center gap-3">
         <div className="bg-red-50 text-red-500 p-3 rounded-full">
           <AlertTriangle className="h-7 w-7" />

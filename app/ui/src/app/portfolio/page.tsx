@@ -70,7 +70,7 @@ export default function PortfolioPage() {
             ))
           ) : (
             <>
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200">
+              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200">
                 <CardContent className="p-5">
                   <p className="text-xs text-slate-400 uppercase tracking-wide">
                     Total Portfolio Value
@@ -84,7 +84,7 @@ export default function PortfolioPage() {
                   </p>
                 </CardContent>
               </Card>
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200">
+              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200">
                 <CardContent className="p-5">
                   <p className="text-xs text-slate-400 uppercase tracking-wide">Total P&L</p>
                   <p
@@ -98,7 +98,7 @@ export default function PortfolioPage() {
                   </p>
                 </CardContent>
               </Card>
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200">
+              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200">
                 <CardContent className="p-5">
                   <p className="text-xs text-slate-400 uppercase tracking-wide">Open Positions</p>
                   <p className="text-2xl font-bold font-mono mt-1">{positions.length}</p>
@@ -111,7 +111,7 @@ export default function PortfolioPage() {
         {/* Tables */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Positions Table */}
-          <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+          <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
             <CardHeader className="pb-0">
               <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                 <Briefcase className="h-4 w-4" />
@@ -208,7 +208,7 @@ export default function PortfolioPage() {
           </Card>
 
           {/* Balances Table */}
-          <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+          <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
             <CardHeader className="pb-0">
               <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                 <Wallet className="h-4 w-4" />

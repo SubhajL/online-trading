@@ -176,12 +176,12 @@ export function AlertsDrawer({ open, onOpenChange, alerts, onMarkAllRead }: Aler
                             <Badge variant={badgeVariant} className="h-5 px-2 text-[10px]">
                               {alert.priority.toUpperCase()}
                             </Badge>
-                            <span className="text-[11px] text-slate-400">
+                            <span className="text-xs text-slate-400">
                               {formatAlertType(alert.type)}
                             </span>
                           </div>
                         </div>
-                        <time className="shrink-0 text-[11px] text-slate-400">
+                        <time className="shrink-0 text-xs text-slate-400">
                           {Number.isNaN(createdAt.getTime()) ? '' : formatRelativeTime(createdAt)}
                         </time>
                       </div>

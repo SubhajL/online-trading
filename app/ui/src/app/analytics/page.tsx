@@ -127,7 +127,7 @@ export default function AnalyticsPage() {
               ].map(kpi => (
                 <Card
                   key={kpi.label}
-                  className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200"
+                  className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
                 >
                   <CardContent className="p-5">
                     <p className="text-xs text-slate-400 uppercase tracking-wide">{kpi.label}</p>
@@ -142,7 +142,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Trading Statistics */}
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
@@ -184,7 +184,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* Weekly PnL Chart */}
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
@@ -216,7 +216,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* Performance by Symbol */}
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Performance by Symbol

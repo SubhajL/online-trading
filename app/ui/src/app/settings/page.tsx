@@ -72,7 +72,7 @@ export default function SettingsPage() {
 
           {/* General Tab */}
           <TabsContent value="general">
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   General Settings
@@ -138,7 +138,7 @@ export default function SettingsPage() {
 
           {/* Trading Tab */}
           <TabsContent value="trading">
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Trading Settings
@@ -248,7 +248,7 @@ export default function SettingsPage() {
 
           {/* Notifications Tab */}
           <TabsContent value="notifications">
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Notification Settings
@@ -307,7 +307,7 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-5">
               {/* Connection Status */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+                <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
                   <CardContent className="flex items-center justify-between p-5">
                     <div className="flex items-center gap-3">
                       <Shield className="h-5 w-5 text-slate-400" />
@@ -328,7 +328,7 @@ export default function SettingsPage() {
                     </Badge>
                   </CardContent>
                 </Card>
-                <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+                <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
                   <CardContent className="flex items-center justify-between p-5">
                     <div className="flex items-center gap-3">
                       <Shield className="h-5 w-5 text-slate-400" />
@@ -352,7 +352,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Testnet Toggle */}
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
                 <CardContent className="flex items-center justify-between p-5">
                   <div>
                     <Label htmlFor="testnet">Testnet Mode</Label>
@@ -369,7 +369,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* API Keys */}
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                     <Key className="h-4 w-4" />

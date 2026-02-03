@@ -193,7 +193,7 @@ export function AppShell({
           className={cn(
             'flex-1 overflow-auto',
             'p-4 md:p-6 lg:p-8',
-            'w-full min-w-0 max-w-[1600px] mx-auto',
+            'w-full min-w-0 max-w-[1400px] mx-auto',
           )}
         >
           {children}

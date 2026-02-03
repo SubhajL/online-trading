@@ -194,10 +194,7 @@ export function EquityCurve({
 
   if (error) {
     return (
-      <Card
-        className="bg-white border-destructive/30 shadow-sm"
-        data-testid="equity-curve-error"
-      >
+      <Card className="bg-white border-destructive/30 shadow-sm" data-testid="equity-curve-error">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wide">
             Equity Curve
@@ -257,7 +254,7 @@ export function EquityCurve({
 
   return (
     <Card
-      className="bg-white rounded-2xl border border-slate-100 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] transition-all duration-200"
+      className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
       data-testid="equity-curve"
     >
       <CardHeader className="pb-3">

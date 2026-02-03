@@ -23,17 +23,17 @@
   --color-primary-900: hsl(239 84% 35%);
 
   /* ===== SEMANTIC COLORS ===== */
-  /* Success - Green spectrum */
-  --color-success-50: hsl(142, 71%, 95%);
-  --color-success-100: hsl(142, 71%, 85%);
-  --color-success-200: hsl(142, 71%, 75%);
-  --color-success-300: hsl(142, 71%, 65%);
-  --color-success-400: hsl(142, 71%, 55%);
-  --color-success-500: hsl(142, 71%, 45%); /* #26a69a equivalent */
-  --color-success-600: hsl(142, 71%, 38%);
-  --color-success-700: hsl(142, 71%, 32%);
-  --color-success-800: hsl(142, 71%, 25%);
-  --color-success-900: hsl(142, 71%, 18%);
+  /* Success - Emerald Green spectrum (centered on #22c55e) */
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-300: #86efac;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e; /* Emerald green - design spec */
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-800: #166534;
+  --color-success-900: #14532d;
 
   /* Warning - Orange/Yellow spectrum */
   --color-warning-50: hsl(38, 92%, 95%);
@@ -94,9 +94,9 @@
 
   /* ===== TEXT COLORS ===== */
   /* Contrast ratios against --color-surface-base (#FAFBFC) */
-  --color-text-primary: hsl(215, 28%, 17%); /* #1E293B - slate-900 */
-  --color-text-secondary: hsl(215, 16%, 47%); /* #64748B - slate-500 */
-  --color-text-muted: hsl(215, 16%, 57%); /* #94A3B8 - slate-400 */
+  --color-text-primary: #0f172a; /* slate-900 - design spec */
+  --color-text-secondary: #475569; /* slate-600 - design spec */
+  --color-text-muted: #64748b; /* slate-500 - design spec */
   --color-text-disabled: hsl(215, 16%, 65%); /* #B0BEC5 - slate-300 */
   --color-text-inverse: hsl(0, 0%, 100%); /* For dark backgrounds */
 
@@ -152,6 +152,7 @@
 
   /* ===== SHADOWS ===== */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05); /* Cards, panels - design spec */
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.06), 0 4px 10px rgba(0, 0, 0, 0.03);
   --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.04);

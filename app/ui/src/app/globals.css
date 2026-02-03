@@ -32,7 +32,7 @@
     --radius: 0.75rem;
 
     /* Semantic color utilities for components */
-    --success: 160 84% 39%;
+    --success: 142 76% 36%; /* Emerald green #22c55e - design spec */
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;

@@ -56,7 +56,7 @@ type MonitoringDashboardProps = {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.15em] mb-4 pl-1">
+    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 pl-1">
       {children}
     </h3>
   )
@@ -91,11 +91,11 @@ export function MonitoringDashboard({
   className = '',
 }: MonitoringDashboardProps) {
   return (
-    <div className={`flex flex-col gap-8 ${className}`} data-testid="monitoring-dashboard">
+    <div className={`flex flex-col gap-6 ${className}`} data-testid="monitoring-dashboard">
       {/* Section A — Safety & Guards */}
       <section aria-label="Safety and Guards">
         <SectionLabel>Safety &amp; Guards</SectionLabel>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <GuardStatusPanel
             status={guardStatus}
             loading={guardStatusLoading}
@@ -107,14 +107,14 @@ export function MonitoringDashboard({
       </section>
 
       {/* Section B — Performance + System */}
-      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-8">
-        <section className="flex flex-col gap-5" aria-label="Performance Metrics">
+      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
+        <section className="flex flex-col gap-6" aria-label="Performance Metrics">
           <SectionLabel>Performance</SectionLabel>
           <TradingKPIs kpis={kpis} loading={kpisLoading} error={kpisError} />
           <EquityCurve data={equityCurve} loading={equityCurveLoading} error={equityCurveError} />
         </section>
 
-        <aside className="flex flex-col gap-5" aria-label="System Status">
+        <aside className="flex flex-col gap-6" aria-label="System Status">
           <SectionLabel>System Status</SectionLabel>
           <AutoTradingStatus
             status={engineStatus}
@@ -134,7 +134,7 @@ export function MonitoringDashboard({
       {/* Section C — Positions & Balances */}
       <section aria-label="Positions and Balances">
         <SectionLabel>Positions &amp; Balances</SectionLabel>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <PositionsList positions={positions} loading={positionsLoading} />
           <AccountBalance balances={balances} loading={balancesLoading} />
         </div>
