@@ -9,18 +9,26 @@
  */
 
 :root {
+  /* ===== SPEC DARK MODE VARIABLES (for Tailwind aliases) ===== */
+  /* These allow spec patterns like dark:bg-surface-dark to work */
+  --bg-page-dark: #101022;
+  --bg-surface-dark: #1a1a2e;
+  --bg-surface-secondary-dark: #232340;
+  --bg-surface-hover-dark: #2a2a4a;
+  --border-dark-mode: #334155;
+
   /* ===== PRIMARY PALETTE ===== */
-  /* Indigo brand (matches globals.css --primary: 239 84% 67%) */
-  --color-primary-50: hsl(239 84% 97%);
-  --color-primary-100: hsl(239 84% 93%);
-  --color-primary-200: hsl(239 84% 87%);
-  --color-primary-300: hsl(239 84% 80%);
-  --color-primary-400: hsl(239 84% 73%);
-  --color-primary-500: hsl(239 84% 67%); /* #6366F1 — Main brand color */
-  --color-primary-600: hsl(239 84% 60%);
-  --color-primary-700: hsl(239 84% 52%);
-  --color-primary-800: hsl(239 84% 44%);
-  --color-primary-900: hsl(239 84% 35%);
+  /* Indigo brand (matches Visualization Design Spec --color-primary: #6464f2) */
+  --color-primary-50: hsl(240 85% 97%);
+  --color-primary-100: hsl(240 85% 93%);
+  --color-primary-200: hsl(240 85% 87%);
+  --color-primary-300: hsl(240 85% 80%);
+  --color-primary-400: hsl(240 85% 73%);
+  --color-primary-500: hsl(240 85% 67%); /* #6464f2 — Spec brand primary */
+  --color-primary-600: hsl(240 85% 60%);
+  --color-primary-700: hsl(240 85% 52%);
+  --color-primary-800: hsl(240 85% 44%);
+  --color-primary-900: hsl(240 85% 35%);
 
   /* ===== SEMANTIC COLORS ===== */
   /* Success - Emerald Green spectrum (centered on #22c55e) */
@@ -299,6 +307,77 @@
   /* Reusable constraint values for consistent UX */
   --constraint-max-scroll-height: 300px; /* Max height for scrollable code blocks */
   --constraint-min-touch-target: 44px; /* Minimum touch target size (iOS HIG / WCAG) */
+}
+
+/**
+ * ===== DARK MODE OVERRIDES =====
+ * Aligned to Visualization Design Specifications.md
+ * These tokens switch when .dark class is applied to <html>
+ */
+.dark {
+  /* ===== SURFACE COLORS ===== */
+  --color-surface-base: #101022; /* Spec: --bg-page-dark */
+  --color-surface-raised: #1a1a2e; /* Spec: --bg-surface-dark */
+  --color-surface-overlay: #232340; /* Spec: --bg-surface-secondary-dark */
+  --color-surface-hover: #2a2a4a; /* Spec: --bg-surface-hover-dark */
+  --color-surface-input: #1a1a2e;
+
+  /* ===== TEXT COLORS ===== */
+  --color-text-primary: #ffffff; /* Spec: --text-primary-dark */
+  --color-text-secondary: #e2e8f0; /* Spec: --text-secondary-dark */
+  --color-text-muted: #94a3b8; /* Spec: --text-muted-dark */
+  --color-text-disabled: #64748b; /* Spec: --text-disabled-dark */
+  --color-text-inverse: #0f172a;
+
+  /* ===== BORDER COLORS ===== */
+  --color-border-subtle: #334155; /* Spec: --border-dark-mode */
+  --color-border-default: #475569;
+  --color-border-strong: #64748b;
+  --color-border-focus: #6464f2;
+
+  /* ===== GRAY PALETTE (dark adapted) ===== */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+
+  /* ===== CHART COLORS (dark adapted) ===== */
+  --color-chart-bg: #1a1a2e;
+  --color-chart-text: #94a3b8;
+  --color-chart-grid: #334155;
+  --color-chart-candle-up: #22c55e;
+  --color-chart-candle-down: #ef4444;
+  --color-chart-volume-up: hsla(142, 71%, 45%, 0.4);
+  --color-chart-volume-down: hsla(0, 84%, 60%, 0.4);
+
+  /* ===== COMPONENT TOKENS (dark adapted) ===== */
+  --card-bg: #1a1a2e;
+  --card-border: #334155;
+  --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+
+  --input-bg: #1a1a2e;
+  --input-border: #334155;
+  --input-text: #ffffff;
+  --input-placeholder: #64748b;
+
+  --nav-text: #94a3b8;
+  --nav-text-hover: #ffffff;
+  --nav-text-active: #6464f2;
+  --nav-active-bg: hsla(240, 85%, 67%, 0.12);
+  --nav-active-shadow: hsla(240, 85%, 67%, 0.2);
+
+  /* ===== SHADOWS (dark adapted - higher opacity) ===== */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.2), 0 4px 10px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.25), 0 8px 16px rgba(0, 0, 0, 0.15);
 }
 
 /**

@@ -194,13 +194,19 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
         <div className="flex gap-4 text-xs text-slate-400 dark:text-slate-500 pt-1 border-t border-slate-100">
           <span>
             Spot:{' '}
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono" data-testid="spot-position-count">
+            <span
+              className="text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono"
+              data-testid="spot-position-count"
+            >
               {exposure.spotPositionCount}
             </span>
           </span>
           <span>
             Futures:{' '}
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono" data-testid="futures-position-count">
+            <span
+              className="text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono"
+              data-testid="futures-position-count"
+            >
               {exposure.futuresPositionCount}
             </span>
           </span>

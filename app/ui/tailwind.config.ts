@@ -76,6 +76,14 @@ const config: Config = {
           strong: 'var(--color-border-strong)',
           focus: 'var(--color-border-focus)',
         },
+
+        // Spec-compatible aliases (Visualization Design Specifications.md)
+        // These enable patterns like dark:bg-surface-dark from the spec
+        'page-dark': 'var(--bg-page-dark)',
+        'surface-dark': 'var(--bg-surface-dark)',
+        'surface-secondary-dark': 'var(--bg-surface-secondary-dark)',
+        'surface-hover-dark': 'var(--bg-surface-hover-dark)',
+        'border-dark-mode': 'var(--border-dark-mode)',
       },
       spacing: {
         // Custom token-based spacing (prefixed to avoid collision with default Tailwind scale)

@@ -217,7 +217,9 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
                 </span>
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 shrink-0">Reason:</span>
+                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 shrink-0">
+                  Reason:
+                </span>
                 <span className="text-slate-600 text-right" data-testid="last-decision-reason">
                   {data.lastDecision.reason}
                 </span>

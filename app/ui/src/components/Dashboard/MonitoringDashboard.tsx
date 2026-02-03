@@ -56,7 +56,7 @@ type MonitoringDashboardProps = {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 pl-1">
+    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 pl-1">
       {children}
     </h3>
   )

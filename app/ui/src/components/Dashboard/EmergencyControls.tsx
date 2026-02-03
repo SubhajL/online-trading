@@ -206,7 +206,9 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
     const stepsByName = new Map(result?.steps?.map(s => [s.name, s]))
     return (
       <div className="space-y-2 mt-3" data-testid="emergency-steps">
-        <h5 className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">Steps</h5>
+        <h5 className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+          Steps
+        </h5>
         <ol className="space-y-1">
           {STEP_ORDER.map(name => {
             const step = stepsByName.get(name)
@@ -322,7 +324,10 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
               Also stop auto-trading after close
             </label>
             <div className="mt-3">
-              <label htmlFor="confirm-input" className="block text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">
+              <label
+                htmlFor="confirm-input"
+                className="block text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1"
+              >
                 Type &quot;CLOSE ALL&quot; to confirm:
               </label>
               <input

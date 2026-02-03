@@ -207,7 +207,10 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
           </div>
           <span className="text-lg font-bold text-slate-900">Trading Performance</span>
         </CardTitle>
-        <span className="text-xs text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="trade-count">
+        <span
+          className="text-xs text-slate-400 dark:text-slate-500 font-mono tabular-nums"
+          data-testid="trade-count"
+        >
           {kpis.tradeCount} trades · {kpis.tradingDays} days
         </span>
       </CardHeader>
@@ -226,7 +229,9 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
                 className={`p-4 rounded-xl border ${bgClass} flex flex-col gap-1`}
                 data-testid={`kpi-${key}`}
               >
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium uppercase">{getKPILabel(key)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium uppercase">
+                  {getKPILabel(key)}
+                </p>
                 <p
                   className={`text-xl font-bold font-mono tabular-nums ${colorClass}`}
                   data-testid={`kpi-value-${key}`}

@@ -9,34 +9,63 @@
 /* shadcn/ui CSS variables */
 @layer base {
   :root {
-    /* Modern light theme — Stitch "Modern Crypto Monitor" */
-    --background: 210 20% 98%;
-    --foreground: 215 28% 17%;
-    --card: 0 0% 100%;
-    --card-foreground: 215 28% 17%;
+    /* Light theme — aligned to Visualization Design Specifications.md */
+    --background: 210 20% 98%; /* #FAFBFC */
+    --foreground: 222 47% 11%; /* #0f172a - slate-900 */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 215 28% 17%;
-    --primary: 239 84% 67%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 240 85% 67%; /* #6464f2 - spec brand primary */
     --primary-foreground: 0 0% 100%;
-    --secondary: 214 32% 91%;
-    --secondary-foreground: 215 28% 17%;
-    --muted: 210 20% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 239 84% 67%;
+    --secondary: 214 32% 91%; /* #E2E8F0 */
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 20% 96%; /* #F1F5F9 */
+    --muted-foreground: 215 16% 47%; /* #64748b - slate-500 */
+    --accent: 240 85% 67%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 60%; /* #ef4444 */
     --destructive-foreground: 0 0% 100%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 239 84% 67%;
+    --ring: 240 85% 67%;
     --radius: 0.75rem;
 
-    /* Semantic color utilities for components */
-    --success: 142 71% 45%; /* Emerald green #22c55e - design spec */
+    /* Semantic color utilities — spec values */
+    --success: 142 71% 45%; /* #22c55e - emerald green */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%; /* #f59e0b */
+    --warning-foreground: 0 0% 100%;
+    --danger: 0 84% 60%; /* #ef4444 */
+  }
+
+  .dark {
+    /* Dark theme — aligned to Visualization Design Specifications.md */
+    --background: 240 38% 10%; /* #101022 - spec dark page */
+    --foreground: 0 0% 100%; /* #ffffff */
+    --card: 240 31% 14%; /* #1a1a2e - spec dark surface */
+    --card-foreground: 0 0% 100%;
+    --popover: 240 31% 14%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 240 85% 67%; /* #6464f2 - same as light */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 30% 19%; /* #232340 - spec secondary dark */
+    --secondary-foreground: 214 32% 91%; /* #e2e8f0 */
+    --muted: 240 30% 19%; /* #232340 */
+    --muted-foreground: 215 16% 65%; /* #94a3b8 - spec muted dark */
+    --accent: 240 85% 67%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 19% 27%; /* #334155 - spec dark border */
+    --input: 217 19% 27%;
+    --ring: 240 85% 67%;
+
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --danger: 0 84% 60%;
+    --danger: 0 70% 50%;
   }
 }
 
@@ -59,8 +88,8 @@ body {
   margin: 0;
   padding: 0;
   /* Font family is set via Tailwind font-sans class in layout.tsx (uses Inter from next/font) */
-  background-color: var(--color-surface-base);
-  color: var(--color-text-primary);
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
   line-height: var(--line-height-normal);
 }
 

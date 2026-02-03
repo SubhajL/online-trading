@@ -161,7 +161,9 @@ export function AutoTradingStatus({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between text-sm px-3 py-2 rounded-md bg-slate-50">
-          <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">Engine State:</span>
+          <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">
+            Engine State:
+          </span>
           <Badge variant="outline" className={getStateBadgeClass(status.state)}>
             <span
               className={`inline-block w-2 h-2 rounded-full mr-1.5 ${getStateDotColor(status.state)} ${status.state === 'ACTIVE' ? 'animate-pulse' : ''}`}
@@ -173,7 +175,9 @@ export function AutoTradingStatus({
 
         {activeSignals !== undefined && (
           <div className="flex items-center justify-between text-sm px-3 py-2 rounded-md bg-slate-50">
-            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">Active Signals:</span>
+            <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">
+              Active Signals:
+            </span>
             <span
               className="font-mono font-bold tabular-nums text-slate-900"
               data-testid="active-signals"
@@ -190,7 +194,9 @@ export function AutoTradingStatus({
           {status.lastDecisionAt ? (
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">Time:</span>
+                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">
+                  Time:
+                </span>
                 <span
                   className="font-mono text-slate-600 text-xs tabular-nums"
                   data-testid="last-decision-time"
@@ -200,7 +206,9 @@ export function AutoTradingStatus({
               </div>
               {status.lastDecisionReason && (
                 <div className="flex justify-between gap-4">
-                  <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs shrink-0">Reason:</span>
+                  <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs shrink-0">
+                    Reason:
+                  </span>
                   <span
                     className="text-slate-600 text-xs text-right"
                     data-testid="last-decision-reason"

@@ -41,10 +41,10 @@ export default function Home() {
 
   if (authState.isLoading || !authState.isAuthenticated) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#FAFBFC]">
+      <div className="flex items-center justify-center h-screen bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 border-3 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-sm text-slate-400">Loading...</p>
+          <div className="h-8 w-8 border-3 border-border border-t-primary rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     )
