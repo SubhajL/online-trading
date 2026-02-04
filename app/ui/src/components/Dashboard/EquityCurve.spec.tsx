@@ -3,11 +3,13 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { EquityCurve } from './EquityCurve'
 import type { EquityPoint } from '@/types/dashboard'
 
+const areaSetDataMock = vi.fn()
+
 // Mock lightweight-charts since it requires DOM
 vi.mock('lightweight-charts', () => ({
   createChart: vi.fn(() => ({
     addAreaSeries: vi.fn(() => ({
-      setData: vi.fn(),
+      setData: areaSetDataMock,
       update: vi.fn(),
       applyOptions: vi.fn(),
     })),
@@ -59,6 +61,7 @@ describe('EquityCurve', () => {
     // Set a fixed date close to test data for consistent filtering
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2025-01-15T12:00:00Z'))
+    areaSetDataMock.mockReset()
   })
 
   afterEach(() => {
@@ -118,6 +121,27 @@ describe('EquityCurve', () => {
 
       expect(screen.getByTestId('equity-change')).toHaveTextContent('+$500.00')
       expect(screen.getByTestId('equity-change-percent')).toHaveTextContent('+5.00%')
+    })
+
+    it('dedupes points that fall within the same second for chart data', async () => {
+      const data: EquityPoint[] = [
+        { timestamp: '2025-01-01T00:00:00.100Z', equity: 100 },
+        { timestamp: '2025-01-01T00:00:00.900Z', equity: 101 },
+        { timestamp: '2025-01-01T00:00:01.000Z', equity: 102 },
+      ]
+
+      render(<EquityCurve data={data} initialTimeRange="ALL" />)
+
+      await vi.runAllTimersAsync()
+      expect(areaSetDataMock).toHaveBeenCalled()
+
+      const latestCall = areaSetDataMock.mock.calls[areaSetDataMock.mock.calls.length - 1]
+      const chartData = latestCall?.[0] as Array<{ time: number; value: number }>
+      const times = chartData.map(point => point.time)
+
+      expect(new Set(times).size).toBe(times.length)
+      expect(times).toEqual([...times].sort((a, b) => a - b))
+      expect(chartData[0]?.value).toBe(101)
     })
   })
 

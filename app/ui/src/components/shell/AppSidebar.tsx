@@ -51,7 +51,7 @@ function ConnectionIndicator({ state, compact }: { state: ConnectionState; compa
         role="status"
         aria-label={label}
       />
-      {!compact && <span className="text-xs text-slate-400">{label}</span>}
+      {!compact && <span className="text-xs text-slate-400 dark:text-slate-300">{label}</span>}
     </div>
   )
 }
@@ -74,10 +74,10 @@ function SidebarNav({ compact, onNavigate }: { compact: boolean; onNavigate?: ()
               aria-current={active ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-                'min-h-touch hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus',
+                'min-h-touch hover:bg-slate-50 dark:hover:bg-surface-hover-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus',
                 active
-                  ? 'bg-indigo-50 text-indigo-600 border-l-2 border-indigo-500'
-                  : 'text-slate-500 hover:text-slate-700',
+                  ? 'bg-indigo-50 dark:bg-primary/10 text-indigo-600 dark:text-primary border-l-2 border-indigo-500 dark:border-primary'
+                  : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white',
                 compact && 'justify-center px-2',
               )}
             >
@@ -111,7 +111,7 @@ export function AppSidebar({ isOpen, onToggle, connectionState = 'connected' }: 
       <aside
         data-testid="app-sidebar"
         className={cn(
-          'hidden md:flex flex-col border-r border-slate-100 bg-white shadow-[1px_0_8px_rgba(0,0,0,0.03)] transition-all duration-normal',
+          'hidden md:flex flex-col border-r border-slate-100 dark:border-border-dark-mode bg-white dark:bg-surface-dark shadow-[1px_0_8px_rgba(0,0,0,0.03)] transition-all duration-normal',
           'h-[calc(100vh-3.5rem)] sticky top-14',
           isOpen ? 'w-[220px]' : 'w-[60px]',
         )}
@@ -151,7 +151,10 @@ export function MobileSidebar({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-[260px] bg-[#FAFBFC] p-0">
+      <SheetContent
+        side="left"
+        className="w-[260px] bg-background-light dark:bg-background-dark p-0"
+      >
         <div className="flex flex-col h-full pt-4">
           <SidebarNav compact={false} />
           <div className="mt-auto">

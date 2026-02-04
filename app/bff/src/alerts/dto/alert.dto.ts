@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsBoolean, IsString, IsDateString } from 'class-validator';
+import { IsEnum, IsOptional, IsBoolean, IsString, IsDateString, IsInt, Min } from 'class-validator';
 
 export type AlertType = 'order' | 'position' | 'decision' | 'smc' | 'error' | 'info';
 export type AlertPriority = 'low' | 'medium' | 'high' | 'critical';
@@ -16,6 +16,16 @@ export class Alert {
 }
 
 export class AlertFilters {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit?: number;
+
   @IsOptional()
   @IsEnum(['order', 'position', 'decision', 'smc', 'error', 'info'])
   type?: AlertType;

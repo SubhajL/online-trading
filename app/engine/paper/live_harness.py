@@ -40,6 +40,10 @@ from app.engine.models import (
     TradingDecisionEvent,
 )
 from app.engine.paper.broker import PaperBroker, PlaceBracketRequest
+from app.engine.paper.equity_sampler_service import (
+    EquitySamplerConfig,
+    EquitySamplerService,
+)
 from app.engine.retest.engine import RetestEngine
 from app.engine.smc.engine import SMCEngine
 
@@ -140,6 +144,7 @@ class LivePaperTradingHarness:
         self.smc_service: SMCEngine | None = None
         self.retest_engine: RetestEngine | None = None
         self.decision_publisher: DecisionPublisher | None = None
+        self.equity_sampler_service: EquitySamplerService | None = None
 
         logger.info(
             "LivePaperTradingHarness initialized with session %s",
@@ -337,6 +342,11 @@ class LivePaperTradingHarness:
             name="feature_service",
             stop_fn=self.feature_service.stop if self.feature_service else None,
         )
+        await self._stop_component(
+            errors,
+            name="equity_sampler_service",
+            stop_fn=self.equity_sampler_service.stop if self.equity_sampler_service else None,
+        )
 
         await self._stop_component(
             errors,
@@ -380,12 +390,20 @@ class LivePaperTradingHarness:
             self.smc_service = SMCEngine()
         if self.retest_engine is None:
             self.retest_engine = RetestEngine(config={"retest": {}})
-        if self.decision_publisher is None:
-            now = datetime.now(UTC)
-            await self.db_adapter.insert_equity_sample(
-                equity=self._config.paper_account_balance,
-                timestamp=now,
+
+        # Start equity sampler BEFORE decision publisher to ensure fresh samples
+        if self.equity_sampler_service is None:
+            sampler_config = EquitySamplerConfig(
+                starting_balance=self._config.paper_account_balance,
+                poll_interval_seconds=60,
             )
+            self.equity_sampler_service = EquitySamplerService(
+                db_adapter=self.db_adapter,
+                config=sampler_config,
+            )
+        await self.equity_sampler_service.start()
+
+        if self.decision_publisher is None:
             risk = RiskParameters(
                 max_position_size=Decimal("999999"),
                 max_daily_loss=Decimal("1"),
@@ -396,7 +414,7 @@ class LivePaperTradingHarness:
                 max_total_exposure_leverage=Decimal("100"),
                 max_symbol_exposure_pct=Decimal("1"),
                 max_position_notional_pct=Decimal("1"),
-                risk_data_max_age_seconds=86400,
+                risk_data_max_age_seconds=120,  # 2 minutes freshness requirement
                 drawdown_lookback_days=30,
             )
             self.decision_publisher = DecisionPublisher(

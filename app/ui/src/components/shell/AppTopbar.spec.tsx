@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
 import { AppTopbar } from './AppTopbar'
 
+vi.mock('next-themes', () => ({
+  useTheme: () => ({ theme: 'dark', setTheme: vi.fn() }),
+}))
+
 describe('AppTopbar', () => {
   it('renders topbar with app title', () => {
     render(<AppTopbar />)

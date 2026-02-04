@@ -49,10 +49,17 @@ function toUTCTimestamp(isoString: string): UTCTimestamp {
 }
 
 function convertToChartData(data: EquityPoint[]): AreaData<UTCTimestamp>[] {
-  return data.map(point => ({
-    time: toUTCTimestamp(point.timestamp),
-    value: point.equity,
-  }))
+  const result: AreaData<UTCTimestamp>[] = []
+  for (const point of data) {
+    const time = toUTCTimestamp(point.timestamp)
+    const last = result[result.length - 1]
+    if (last && last.time === time) {
+      result[result.length - 1] = { time, value: point.equity }
+      continue
+    }
+    result.push({ time, value: point.equity })
+  }
+  return result
 }
 
 function calculateChange(
@@ -162,13 +169,15 @@ export function EquityCurve({
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return
     if (loading || error || filteredData.length < 2) return
+    const chartData = convertToChartData(filteredData)
+    if (chartData.length < 2) return
     const isPositive = summary.change.isPositive || summary.change.isNeutral
     seriesRef.current.applyOptions({
       lineColor: isPositive ? 'var(--color-success)' : 'var(--color-error)',
       topColor: isPositive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
       bottomColor: isPositive ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
     })
-    seriesRef.current.setData(convertToChartData(filteredData))
+    seriesRef.current.setData(chartData)
     chartRef.current.timeScale().fitContent()
   }, [filteredData, loading, error, summary.change.isPositive, summary.change.isNeutral])
 

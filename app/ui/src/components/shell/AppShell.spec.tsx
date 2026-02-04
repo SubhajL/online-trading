@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
 import { AppShell } from './AppShell'
 
+vi.mock('next-themes', () => ({
+  useTheme: () => ({ theme: 'dark', setTheme: vi.fn() }),
+}))
+
 vi.mock('@/services/alerts.service', () => ({
   alertsService: {
     getAlerts: vi.fn().mockResolvedValue({ alerts: [], total: 0, page: 1, limit: 50 }),

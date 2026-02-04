@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { ThemeToggle } from './ThemeToggle'
 
 type ConnectionState = 'connected' | 'reconnecting' | 'offline'
 
@@ -77,7 +78,12 @@ export function AppTopbar({
   return (
     <header
       data-testid="app-topbar"
-      className="sticky top-0 z-20 flex h-18 items-center gap-2 border-b border-slate-100 bg-white px-4 shadow-sm"
+      className={cn(
+        'sticky top-0 z-20 flex h-18 items-center gap-2 px-4 shadow-sm',
+        'border-b border-slate-100 dark:border-border-dark-mode',
+        'bg-white dark:bg-surface-dark',
+        'text-slate-900 dark:text-white',
+      )}
     >
       {/* Left cluster */}
       <div className="flex items-center gap-2">
@@ -93,7 +99,7 @@ export function AppTopbar({
           </Button>
         )}
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-500">
+          <div className="h-8 w-8 bg-indigo-50 dark:bg-primary/10 rounded-lg flex items-center justify-center text-indigo-500 dark:text-primary">
             <svg
               className="h-4 w-4"
               viewBox="0 0 24 24"
@@ -106,7 +112,7 @@ export function AppTopbar({
               <path d="M9 5v14l11 -7z" />
             </svg>
           </div>
-          <span className="text-lg font-bold text-slate-900 tracking-tight">Online Trader</span>
+          <span className="text-lg font-bold tracking-tight">Online Trader</span>
         </div>
       </div>
 
@@ -114,6 +120,7 @@ export function AppTopbar({
       <div className="ml-auto flex items-center gap-1">
         <TooltipProvider delayDuration={300}>
           <ConnectionPill state={connectionState} />
+          <ThemeToggle />
 
           {/* Alerts bell */}
           <Tooltip>

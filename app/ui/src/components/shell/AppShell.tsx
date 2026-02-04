@@ -133,7 +133,10 @@ export function AppShell({
   }, [])
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#FAFBFC]" data-testid="app-shell">
+    <div
+      className="flex min-h-screen flex-col bg-background-light dark:bg-background-dark text-slate-900 dark:text-white"
+      data-testid="app-shell"
+    >
       <AppTopbar
         connectionState={connectionState}
         unreadAlerts={effectiveUnreadAlerts}

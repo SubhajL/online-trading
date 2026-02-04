@@ -13,7 +13,7 @@ import json
 import logging
 import os
 from types import TracebackType
-from typing import Any
+from typing import Any, NamedTuple
 
 import asyncpg
 from asyncpg import Pool
@@ -26,6 +26,15 @@ from ...models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class PaperEquityComponents(NamedTuple):
+    """Aggregated equity components from paper_positions."""
+
+    total_fees: Decimal
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal
+    total_funding: Decimal
 
 
 def _to_naive_utc(dt: datetime) -> datetime:
@@ -1269,6 +1278,43 @@ class TimescaleDBAdapter:
         except Exception:
             logger.exception("Error retrieving peak equity since %s", timestamp)
             return None
+
+    async def get_paper_equity_components(self) -> PaperEquityComponents:
+        """Return aggregated equity components from paper_positions.
+
+        Returns:
+            PaperEquityComponents with total_fees, realized_pnl, unrealized_pnl, total_funding.
+            All values are Decimal, with COALESCE to zero for NULL/empty rows.
+        """
+        zero = PaperEquityComponents(
+            total_fees=Decimal("0"),
+            realized_pnl=Decimal("0"),
+            unrealized_pnl=Decimal("0"),
+            total_funding=Decimal("0"),
+        )
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        COALESCE(SUM(total_fees), 0) AS total_fees,
+                        COALESCE(SUM(realized_pnl), 0) AS realized_pnl,
+                        COALESCE(SUM(unrealized_pnl), 0) AS unrealized_pnl,
+                        COALESCE(SUM(total_funding), 0) AS total_funding
+                    FROM paper_positions
+                    """,
+                )
+                if row is None:
+                    return zero
+                return PaperEquityComponents(
+                    total_fees=Decimal(str(row["total_fees"])),
+                    realized_pnl=Decimal(str(row["realized_pnl"])),
+                    unrealized_pnl=Decimal(str(row["unrealized_pnl"])),
+                    total_funding=Decimal(str(row["total_funding"])),
+                )
+        except Exception:
+            logger.exception("Error retrieving paper equity components")
+            return zero
 
     async def get_active_positions(self, venue: str) -> list[dict[str, Any]]:
         """Return active positions for venue.
