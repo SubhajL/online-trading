@@ -44,6 +44,7 @@ class PipelineHealthThresholds:
     candle_lag_grace_seconds: int = 60
     min_alert_interval_seconds: int = 300
     poll_interval_seconds: int = 30
+    startup_grace_seconds: int = 120  # Suppress alerts during startup/backfill
 
 
 @dataclass(frozen=True)
@@ -150,11 +151,13 @@ class PipelineHealthService:
         self._task: asyncio.Task[None] | None = None
         self._last_sent_at: dict[str, datetime] = {}
         self._active_keys: set[str] = set()
+        self._started_at: datetime | None = None
 
     async def start(self) -> None:
         if self._running:
             return
         self._running = True
+        self._started_at = self._now_fn()
         self._task = asyncio.create_task(self._run())
         logger.info("PipelineHealthService started")
 
@@ -171,8 +174,20 @@ class PipelineHealthService:
             await self._check_once()
             await asyncio.sleep(self._thresholds.poll_interval_seconds)
 
+    def _is_within_startup_grace_period(self, now: datetime) -> bool:
+        """Check if we're still within the startup grace period."""
+        if self._started_at is None:
+            return False
+        elapsed = max(0.0, (now - self._started_at).total_seconds())
+        return elapsed < self._thresholds.startup_grace_seconds
+
     async def _check_once(self) -> None:
         now = self._now_fn()
+
+        # Skip health checks during startup grace period to allow backfill
+        if self._is_within_startup_grace_period(now):
+            return
+
         try:
             ingest_health = await self._ingest_service.health_check()
         except Exception:

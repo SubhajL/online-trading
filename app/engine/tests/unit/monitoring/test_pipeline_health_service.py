@@ -96,3 +96,99 @@ class TestPipelineHealthService:
         await service._check_once()
 
         bus.publish.assert_not_called()
+
+
+class TestPipelineHealthServiceStartupGrace:
+    """Tests for startup grace period to avoid alerts during backfill."""
+
+    @pytest.mark.asyncio
+    async def test_skips_health_check_during_startup_grace_period(self) -> None:
+        """Health checks should be skipped during startup grace period to allow backfill."""
+        bus = AsyncMock()
+        ingest = AsyncMock()
+        ingest.health_check.return_value = _ingest_health(
+            ws_stale=True,
+            ws_last_message_ago_seconds=500.0,
+        )
+
+        start_time = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        # 30 seconds after start - still within 120s grace period
+        check_time = datetime(2026, 1, 5, 12, 0, 30, tzinfo=UTC)
+
+        service = PipelineHealthService(
+            bus=bus,
+            ingest_service=ingest,
+            thresholds=PipelineHealthThresholds(
+                min_alert_interval_seconds=0,
+                startup_grace_seconds=120,
+            ),
+            now_fn=lambda: check_time,
+        )
+
+        # Manually set _started_at without calling start() to avoid background task
+        service._started_at = start_time
+
+        # Check should be skipped during grace period
+        await service._check_once()
+
+        # Both health check AND publish should be skipped
+        ingest.health_check.assert_not_called()
+        bus.publish.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_runs_health_check_after_startup_grace_period(self) -> None:
+        """Health checks should run after startup grace period expires."""
+        bus = AsyncMock()
+        ingest = AsyncMock()
+        ingest.health_check.return_value = _ingest_health(
+            ws_stale=True,
+            ws_last_message_ago_seconds=500.0,
+        )
+
+        start_time = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        # 180 seconds after start - past 120s grace period
+        check_time = datetime(2026, 1, 5, 12, 3, tzinfo=UTC)
+
+        service = PipelineHealthService(
+            bus=bus,
+            ingest_service=ingest,
+            thresholds=PipelineHealthThresholds(
+                min_alert_interval_seconds=0,
+                startup_grace_seconds=120,
+            ),
+            now_fn=lambda: check_time,
+        )
+
+        # Manually set _started_at without calling start() to avoid background task
+        service._started_at = start_time
+
+        # Check should run and emit alert after grace period
+        await service._check_once()
+
+        ingest.health_check.assert_awaited_once()
+        assert bus.publish.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_grace_period_boundary_at_exact_threshold(self) -> None:
+        """At exactly startup_grace_seconds, health check should run (< not <=)."""
+        bus = AsyncMock()
+        ingest = AsyncMock()
+        ingest.health_check.return_value = _ingest_health(ws_stale=False)
+
+        start_time = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        # Exactly 120 seconds after start - at boundary
+        check_time = datetime(2026, 1, 5, 12, 2, tzinfo=UTC)
+
+        service = PipelineHealthService(
+            bus=bus,
+            ingest_service=ingest,
+            thresholds=PipelineHealthThresholds(startup_grace_seconds=120),
+            now_fn=lambda: check_time,
+        )
+
+        service._started_at = start_time
+
+        await service._check_once()
+
+        # At exactly 120s, grace period has expired (< 120 is False for 120)
+        ingest.health_check.assert_awaited_once()
