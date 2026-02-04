@@ -10,7 +10,7 @@ import { Indicators } from '../database/entities/indicators.entity';
 import type { SmcEventsV1 } from '@/contracts/gen/index';
 
 @UseGuards(JwtAuthGuard)
-@Controller('api/market-data')
+@Controller('market-data')
 export class MarketDataController {
   constructor(private readonly queryBus: QueryBus) {}
 
