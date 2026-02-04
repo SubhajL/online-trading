@@ -50,7 +50,7 @@ describe('alertsService', () => {
 
       const result = await alertsService.getAlerts()
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts', {
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts', {
         params: { page: 1, limit: 20 },
       })
       expect(result).toEqual(mockResponse)
@@ -67,7 +67,7 @@ describe('alertsService', () => {
 
       await alertsService.getAlerts(1, 20, filters)
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts', {
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts', {
         params: {
           page: 1,
           limit: 20,
@@ -85,7 +85,7 @@ describe('alertsService', () => {
 
       const result = await alertsService.getAlert('alert-123' as any)
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts/alert-123')
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts/alert-123')
       expect(result).toEqual(mockAlert)
     })
   })
@@ -97,7 +97,7 @@ describe('alertsService', () => {
 
       const result = await alertsService.markAsRead('alert-123' as any)
 
-      expect(apiClient.put).toHaveBeenCalledWith('/api/alerts/alert-123/read')
+      expect(apiClient.put).toHaveBeenCalledWith('/alerts/alert-123/read')
       expect(result.read).toBe(true)
     })
   })
@@ -108,7 +108,7 @@ describe('alertsService', () => {
 
       const result = await alertsService.markAllAsRead()
 
-      expect(apiClient.put).toHaveBeenCalledWith('/api/alerts/read-all')
+      expect(apiClient.put).toHaveBeenCalledWith('/alerts/read-all')
       expect(result).toEqual({ updated: 5 })
     })
   })
@@ -119,7 +119,7 @@ describe('alertsService', () => {
 
       await alertsService.deleteAlert('alert-123' as any)
 
-      expect(apiClient.delete).toHaveBeenCalledWith('/api/alerts/alert-123')
+      expect(apiClient.delete).toHaveBeenCalledWith('/alerts/alert-123')
     })
   })
 
@@ -135,7 +135,7 @@ describe('alertsService', () => {
 
       const result = await alertsService.getStats()
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts/stats')
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts/stats')
       expect(result).toEqual(mockStats)
     })
   })
@@ -146,7 +146,7 @@ describe('alertsService', () => {
 
       const result = await alertsService.getUnreadCount()
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts/unread-count')
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts/unread-count')
       expect(result).toBe(5)
     })
   })
@@ -180,7 +180,7 @@ describe('alertsService', () => {
 
       const result = await alertsService.searchAlerts('BTC')
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts/search', {
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts/search', {
         params: { q: 'BTC', limit: 50 },
       })
       expect(result).toEqual(mockResults)
@@ -192,7 +192,7 @@ describe('alertsService', () => {
 
       await alertsService.searchAlerts('ETH', 10)
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts/search', {
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts/search', {
         params: { q: 'ETH', limit: 10 },
       })
     })
@@ -205,7 +205,7 @@ describe('alertsService', () => {
 
       const result = await alertsService.exportAlerts('csv')
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts/export', {
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts/export', {
         params: { format: 'csv' },
       })
       expect(result).toEqual(mockBlob)
@@ -218,7 +218,7 @@ describe('alertsService', () => {
 
       await alertsService.exportAlerts('json', filters)
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/alerts/export', {
+      expect(apiClient.get).toHaveBeenCalledWith('/alerts/export', {
         params: { format: 'json', type: 'order', priority: 'high' },
       })
     })
