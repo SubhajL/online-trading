@@ -92,29 +92,35 @@ export function MonitoringDashboard({
 }: MonitoringDashboardProps) {
   return (
     <div className={`flex flex-col gap-6 ${className}`} data-testid="monitoring-dashboard">
-      {/* Section A — Safety & Guards */}
+      {/* Row 1 — Safety & Guards (Spec §6.1: 3-6-3 columns) */}
       <section aria-label="Safety and Guards">
         <SectionLabel>Safety &amp; Guards</SectionLabel>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <GuardStatusPanel
-            status={guardStatus}
-            loading={guardStatusLoading}
-            error={guardStatusError}
-          />
-          <ExposurePanel exposure={exposure} loading={exposureLoading} error={exposureError} />
-          <EmergencyControls exposure={exposure} onEmergencyClose={onEmergencyClose} />
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="md:col-span-3">
+            <GuardStatusPanel
+              status={guardStatus}
+              loading={guardStatusLoading}
+              error={guardStatusError}
+            />
+          </div>
+          <div className="md:col-span-6">
+            <ExposurePanel exposure={exposure} loading={exposureLoading} error={exposureError} />
+          </div>
+          <div className="md:col-span-3">
+            <EmergencyControls exposure={exposure} onEmergencyClose={onEmergencyClose} />
+          </div>
         </div>
       </section>
 
-      {/* Section B — Performance + System */}
-      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
-        <section className="flex flex-col gap-6" aria-label="Performance Metrics">
+      {/* Row 2 — Performance + System (Spec §6.1: 8-4 columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section className="lg:col-span-8 flex flex-col gap-6" aria-label="Performance Metrics">
           <SectionLabel>Performance</SectionLabel>
           <TradingKPIs kpis={kpis} loading={kpisLoading} error={kpisError} />
           <EquityCurve data={equityCurve} loading={equityCurveLoading} error={equityCurveError} />
         </section>
 
-        <aside className="flex flex-col gap-6" aria-label="System Status">
+        <aside className="lg:col-span-4 flex flex-col gap-6" aria-label="System Status">
           <SectionLabel>System Status</SectionLabel>
           <AutoTradingStatus
             status={engineStatus}
@@ -131,12 +137,16 @@ export function MonitoringDashboard({
         </aside>
       </div>
 
-      {/* Section C — Positions & Balances */}
+      {/* Row 3 — Positions & Balances (Spec §6.1: 8-4 columns) */}
       <section aria-label="Positions and Balances">
         <SectionLabel>Positions &amp; Balances</SectionLabel>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <PositionsList positions={positions} loading={positionsLoading} />
-          <AccountBalance balances={balances} loading={balancesLoading} />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-8">
+            <PositionsList positions={positions} loading={positionsLoading} />
+          </div>
+          <div className="lg:col-span-4">
+            <AccountBalance balances={balances} loading={balancesLoading} />
+          </div>
         </div>
       </section>
     </div>

@@ -184,7 +184,7 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
             data-testid="margin-progress-bar"
           >
             <div
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 h-3 rounded-full transition-all duration-300"
+              className="bg-gradient-to-r from-primary to-purple-500 h-3 rounded-full transition-all duration-300"
               style={{ width: `${Math.min(exposure.marginUsagePercent, 100)}%` }}
             />
           </div>

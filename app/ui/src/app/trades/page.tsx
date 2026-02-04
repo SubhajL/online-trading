@@ -104,7 +104,10 @@ export default function TradesPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <Card
+                key={i}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm"
+              >
                 <CardContent className="p-5">
                   <Skeleton className="h-3 w-20 mb-2" />
                   <Skeleton className="h-7 w-16" />
@@ -155,7 +158,9 @@ export default function TradesPage() {
             ) : filteredOrders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <MaterialIcon name="list" size="xl" className="text-slate-300" />
-                <p className="text-lg font-medium text-slate-600 dark:text-slate-400">No trades found</p>
+                <p className="text-lg font-medium text-slate-600 dark:text-slate-400">
+                  No trades found
+                </p>
                 <p className="text-sm text-slate-400">
                   {filter !== 'all'
                     ? 'Try changing the filter to see more trades.'
@@ -205,7 +210,9 @@ export default function TradesPage() {
                         {formatDate(order.createdAt)}
                       </TableCell>
                       <TableCell className="text-sm font-medium">{order.symbol}</TableCell>
-                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">{order.type}</TableCell>
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
+                        {order.type}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant={order.side === 'BUY' ? 'default' : 'destructive'}

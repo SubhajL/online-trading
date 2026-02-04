@@ -108,8 +108,13 @@ export default function LoginPage() {
                 { title: 'Keyboard accelerators', desc: 'Command palette and quick actions.' },
                 { title: 'Clear states', desc: 'Loading, error, and offline are explicit.' },
               ].map(item => (
-                <div key={item.title} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-card/60 p-4">
-                  <div className="text-sm font-semibold text-slate-900 dark:text-white">{item.title}</div>
+                <div
+                  key={item.title}
+                  className="rounded-lg border border-slate-200 dark:border-slate-800 bg-card/60 p-4"
+                >
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {item.title}
+                  </div>
                   <div className="mt-1 text-sm text-slate-400">{item.desc}</div>
                 </div>
               ))}
@@ -117,9 +122,15 @@ export default function LoginPage() {
           </div>
 
           <div className="text-xs text-slate-400">
-            Tip: Press <kbd className="rounded border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-1">Ctrl</kbd>{' '}
-            + <kbd className="rounded border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-1">K</kbd> for the
-            command palette once signed in.
+            Tip: Press{' '}
+            <kbd className="rounded border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-1">
+              Ctrl
+            </kbd>{' '}
+            +{' '}
+            <kbd className="rounded border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-1">
+              K
+            </kbd>{' '}
+            for the command palette once signed in.
           </div>
         </div>
 
@@ -164,7 +175,10 @@ export default function LoginPage() {
               )}
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="email" className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                <label
+                  htmlFor="email"
+                  className="text-sm font-medium text-slate-600 dark:text-slate-400"
+                >
                   Email
                 </label>
                 <input
@@ -191,7 +205,10 @@ export default function LoginPage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="password" className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-medium text-slate-600 dark:text-slate-400"
+                >
                   Password
                 </label>
                 <input

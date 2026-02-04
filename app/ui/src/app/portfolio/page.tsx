@@ -62,7 +62,10 @@ export default function PortfolioPage() {
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
           {loading ? (
             Array.from({ length: 3 }).map((_, i) => (
-              <Card key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <Card
+                key={i}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm"
+              >
                 <CardContent className="p-5">
                   <Skeleton className="h-3 w-24 mb-2" />
                   <Skeleton className="h-8 w-32" />
@@ -129,7 +132,9 @@ export default function PortfolioPage() {
               ) : positions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <MaterialIcon name="work" size="xl" className="text-slate-300" />
-                  <p className="text-lg font-medium text-slate-600 dark:text-slate-400">No open positions</p>
+                  <p className="text-lg font-medium text-slate-600 dark:text-slate-400">
+                    No open positions
+                  </p>
                   <p className="text-sm text-slate-400">
                     Positions will appear here when you open trades.
                   </p>
@@ -230,7 +235,9 @@ export default function PortfolioPage() {
                     size="xl"
                     className="text-slate-300"
                   />
-                  <p className="text-lg font-medium text-slate-600 dark:text-slate-400">No assets</p>
+                  <p className="text-lg font-medium text-slate-600 dark:text-slate-400">
+                    No assets
+                  </p>
                   <p className="text-sm text-slate-400">
                     Balances will appear once your account is funded.
                   </p>

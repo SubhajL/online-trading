@@ -13,12 +13,16 @@ describe('SettingsPage', () => {
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
   })
 
-  test('renders settings tabs', () => {
+  test('renders settings sidebar navigation', () => {
     render(<SettingsPage />)
-    expect(screen.getByText('General')).toBeInTheDocument()
-    expect(screen.getByText('Trading')).toBeInTheDocument()
-    expect(screen.getByText('Notifications')).toBeInTheDocument()
+    // Sidebar navigation sections per Spec §6.6
+    expect(screen.getByText('Profile')).toBeInTheDocument()
+    expect(screen.getByText('Security')).toBeInTheDocument()
     expect(screen.getByText('API Keys')).toBeInTheDocument()
+    expect(screen.getByText('Notifications')).toBeInTheDocument()
+    expect(screen.getByText('Trading Preferences')).toBeInTheDocument()
+    expect(screen.getByText('Appearance')).toBeInTheDocument()
+    expect(screen.getByText('Danger Zone')).toBeInTheDocument()
   })
 
   test('renders action buttons', () => {
