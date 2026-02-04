@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MaterialIcon } from '@/components/common/MaterialIcon'
+import { PageHeader } from '@/components/common/PageHeader'
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
@@ -51,7 +52,7 @@ export default function HistoryPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Trade History</h1>
+        <PageHeader title="Trade History" />
 
         {error && (
           <Card className="border-red-200 bg-red-50">

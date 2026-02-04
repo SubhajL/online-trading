@@ -16,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MaterialIcon } from '@/components/common/MaterialIcon'
+import { PageHeader } from '@/components/common/PageHeader'
 
 export default function PortfolioPage() {
   const {
@@ -41,7 +42,7 @@ export default function PortfolioPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Portfolio Overview</h1>
+        <PageHeader title="Portfolio Overview" />
 
         {error && (
           <Card className="border-red-200 bg-red-50">

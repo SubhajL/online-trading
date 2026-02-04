@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MaterialIcon } from '@/components/common/MaterialIcon'
+import { PageHeader } from '@/components/common/PageHeader'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -60,7 +61,7 @@ export default function SettingsPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Settings</h1>
+        <PageHeader title="Settings" />
 
         <Tabs defaultValue="general">
           <TabsList className="border-b border-slate-100 mb-6">

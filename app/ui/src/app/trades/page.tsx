@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MaterialIcon } from '@/components/common/MaterialIcon'
+import { PageHeader } from '@/components/common/PageHeader'
 
 type FilterValue = 'all' | 'open' | 'filled' | 'canceled'
 
@@ -85,7 +86,7 @@ export default function TradesPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Active Trades</h1>
+        <PageHeader title="Active Trades" />
 
         {error && (
           <Card className="border-red-200 bg-red-50">

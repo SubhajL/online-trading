@@ -16,6 +16,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MaterialIcon } from '@/components/common/MaterialIcon'
+import { PageHeader } from '@/components/common/PageHeader'
 
 type TimeFrame = '24h' | '7d' | '30d' | '90d' | '1y' | 'all'
 
@@ -35,19 +36,20 @@ export default function AnalyticsPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
-        {/* Header + Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Trading Analytics</h1>
-          <Tabs value={timeframe} onValueChange={v => setTimeframe(v as TimeFrame)}>
-            <TabsList>
-              {TIMEFRAMES.map(tf => (
-                <TabsTrigger key={tf.value} value={tf.value}>
-                  {tf.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
+        <PageHeader
+          title="Trading Analytics"
+          actions={
+            <Tabs value={timeframe} onValueChange={v => setTimeframe(v as TimeFrame)}>
+              <TabsList>
+                {TIMEFRAMES.map(tf => (
+                  <TabsTrigger key={tf.value} value={tf.value}>
+                    {tf.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          }
+        />
 
         {error && (
           <Card className="border-red-200 bg-red-50">
