@@ -1,7 +1,7 @@
 import type { TradingKPIs as TradingKPIsType } from '@/types/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, TrendingUp, TrendingDown, Minus, Activity } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 type TradingKPIsProps = {
   kpis: TradingKPIsType | null
@@ -67,11 +67,13 @@ function getKPIBgColor(key: string): string {
 function KPITrendIcon({ level }: { level: KPILevel }) {
   switch (level) {
     case 'good':
-      return <TrendingUp className="h-3.5 w-3.5 text-success" aria-label="Good" />
+      return <MaterialIcon name="trending_up" size="sm" className="text-success" ariaLabel="Good" />
     case 'warning':
-      return <Minus className="h-3.5 w-3.5 text-warning" aria-label="Warning" />
+      return <MaterialIcon name="remove" size="sm" className="text-warning" ariaLabel="Warning" />
     case 'danger':
-      return <TrendingDown className="h-3.5 w-3.5 text-danger" aria-label="Poor" />
+      return (
+        <MaterialIcon name="trending_down" size="sm" className="text-danger" ariaLabel="Poor" />
+      )
   }
 }
 
@@ -134,7 +136,7 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <Activity className="h-4 w-4 text-slate-400" />
+            <MaterialIcon name="monitoring" size="sm" className="text-slate-400" />
             Trading Performance
           </CardTitle>
         </CardHeader>
@@ -160,13 +162,13 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <Activity className="h-4 w-4 text-destructive" />
+            <MaterialIcon name="monitoring" size="sm" className="text-destructive" />
             Trading Performance
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2 text-sm text-destructive" role="alert">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+            <MaterialIcon name="error" size="sm" className="shrink-0" />
             {error}
           </div>
         </CardContent>
@@ -182,7 +184,7 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <Activity className="h-4 w-4 text-slate-400" />
+            <MaterialIcon name="monitoring" size="sm" className="text-slate-400" />
             Trading Performance
           </CardTitle>
         </CardHeader>
@@ -203,7 +205,7 @@ export function TradingKPIs({ kpis, loading = false, error }: TradingKPIsProps) 
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-3">
           <div className="p-2 bg-indigo-50 rounded-lg text-indigo-500">
-            <Activity className="h-5 w-5" />
+            <MaterialIcon name="monitoring" size="md" />
           </div>
           <span className="text-lg font-bold text-slate-900">Trading Performance</span>
         </CardTitle>

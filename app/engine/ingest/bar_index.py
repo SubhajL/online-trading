@@ -28,4 +28,3 @@ def bar_index_from_open_time(open_time: datetime, timeframe: TimeFrame) -> int |
         return None
     seconds = quantity * _TF_SECONDS[suffix]
     return int(open_time.timestamp()) // seconds
-

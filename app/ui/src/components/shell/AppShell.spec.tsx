@@ -38,7 +38,7 @@ vi.mock('next/link', () => ({
 }))
 
 describe('AppShell', () => {
-  it('renders shell with topbar, sidebar, and content area', () => {
+  it('renders shell with topbar and content area (nav links in header)', () => {
     render(
       <AppShell userEmail="test@example.com">
         <div data-testid="page-content">Hello</div>
@@ -47,7 +47,8 @@ describe('AppShell', () => {
 
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
     expect(screen.getByTestId('app-topbar')).toBeInTheDocument()
-    expect(screen.getByTestId('app-sidebar')).toBeInTheDocument()
+    // Navigation is now in header, not sidebar
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument()
     expect(screen.getByTestId('page-content')).toBeInTheDocument()
   })
 

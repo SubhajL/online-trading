@@ -18,7 +18,9 @@ def create_smc_event(
 ) -> StructureBreakEvent:
     tf = TimeFrame(timeframe) if isinstance(timeframe, str) else timeframe
     return StructureBreakEvent(
-        timestamp=smc_event.timestamp if smc_event.timestamp.tzinfo else smc_event.timestamp.replace(tzinfo=UTC),
+        timestamp=smc_event.timestamp
+        if smc_event.timestamp.tzinfo
+        else smc_event.timestamp.replace(tzinfo=UTC),
         venue=venue,
         symbol=symbol,
         timeframe=tf,

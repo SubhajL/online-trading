@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
@@ -29,7 +29,7 @@ export function ThemeToggle() {
       aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
       className="h-9 w-9"
     >
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      <MaterialIcon name={isDark ? 'light_mode' : 'dark_mode'} size="md" />
     </Button>
   )
 }

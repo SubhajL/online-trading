@@ -23,7 +23,44 @@ function getFilesInDir(dir: string, extension: string): string[] {
     .map(f => path.join(dir, f))
 }
 
+const SRC_DIR = path.resolve(__dirname, '..')
+
+function getAllTsxFiles(dir: string): string[] {
+  const results: string[] = []
+  if (!fs.existsSync(dir)) return results
+
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      results.push(...getAllTsxFiles(fullPath))
+    } else if (entry.name.endsWith('.tsx') && !entry.name.includes('.spec.')) {
+      results.push(fullPath)
+    }
+  }
+  return results
+}
+
 describe('Design System Hygiene', () => {
+  describe('Icon Library', () => {
+    it('should not import from lucide-react anywhere in src/', () => {
+      const allTsxFiles = getAllTsxFiles(SRC_DIR)
+      const violations: string[] = []
+
+      for (const file of allTsxFiles) {
+        const content = readFileContent(file)
+        if (content.includes("from 'lucide-react'")) {
+          violations.push(path.relative(SRC_DIR, file))
+        }
+      }
+
+      expect(
+        violations,
+        `Files still importing lucide-react (must use MaterialIcon): ${violations.join(', ')}`,
+      ).toEqual([])
+    })
+  })
+
   describe('Label Typography', () => {
     it('dashboard components should use text-xs not text-[11px]', () => {
       const dashboardFiles = getFilesInDir(DASHBOARD_DIR, '.tsx')
@@ -89,6 +126,42 @@ describe('Design System Hygiene', () => {
     })
   })
 
+  describe('Primitive Sizing', () => {
+    const UI_DIR = path.resolve(__dirname, '../components/ui')
+
+    it('Input should use h-10 rounded-xl and dark background', () => {
+      const file = path.join(UI_DIR, 'input.tsx')
+      if (!fs.existsSync(file)) return
+
+      const content = readFileContent(file)
+
+      expect(content).toContain('h-10')
+      expect(content).toContain('rounded-xl')
+      expect(content).toContain('dark:bg-slate-800')
+      expect(content).toContain('dark:border-slate-700')
+    })
+
+    it('SelectTrigger should use h-10 rounded-xl and dark background', () => {
+      const file = path.join(UI_DIR, 'select.tsx')
+      if (!fs.existsSync(file)) return
+
+      const content = readFileContent(file)
+
+      expect(content).toContain('h-10')
+      expect(content).toContain('rounded-xl')
+      expect(content).toContain('dark:bg-slate-800')
+    })
+
+    it('TableHeader should have dark background token', () => {
+      const file = path.join(UI_DIR, 'table.tsx')
+      if (!fs.existsSync(file)) return
+
+      const content = readFileContent(file)
+
+      expect(content).toMatch(/dark:bg-slate-800/)
+    })
+  })
+
   describe('Layout Constraints', () => {
     it('AppShell should use max-w-[1400px] not max-w-[1600px]', () => {
       const file = path.join(SHELL_DIR, 'AppShell.tsx')
@@ -98,6 +171,18 @@ describe('Design System Hygiene', () => {
 
       expect(content).toContain('max-w-[1400px]')
       expect(content).not.toContain('max-w-[1600px]')
+    })
+
+    it('AppShell should not render desktop AppSidebar (only MobileSidebar)', () => {
+      const file = path.join(SHELL_DIR, 'AppShell.tsx')
+      if (!fs.existsSync(file)) return
+
+      const content = readFileContent(file)
+
+      // Should import MobileSidebar only, not AppSidebar directly
+      expect(content).toContain("import { MobileSidebar } from './AppSidebar'")
+      // Should not have <AppSidebar in render output
+      expect(content).not.toMatch(/<AppSidebar\s/)
     })
 
     it('AppTopbar should use h-18 (72px) not h-14 (56px)', () => {

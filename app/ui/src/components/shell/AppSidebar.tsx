@@ -2,30 +2,21 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  LayoutDashboard,
-  Briefcase,
-  TrendingUp,
-  History,
-  BarChart3,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react'
 import { isPathActive } from '@/utils/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Separator } from '@/components/ui/separator'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/trades', label: 'Trades', icon: TrendingUp },
-  { path: '/portfolio', label: 'Portfolio', icon: Briefcase },
-  { path: '/history', label: 'History', icon: History },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { path: '/settings', label: 'Settings', icon: Settings },
+  { path: '/', label: 'Dashboard', icon: 'dashboard' },
+  { path: '/trades', label: 'Trades', icon: 'candlestick_chart' },
+  { path: '/portfolio', label: 'Portfolio', icon: 'work' },
+  { path: '/history', label: 'History', icon: 'history' },
+  { path: '/analytics', label: 'Analytics', icon: 'bar_chart' },
+  { path: '/settings', label: 'Settings', icon: 'settings' },
 ] as const
 
 type ConnectionState = 'connected' | 'reconnecting' | 'offline'
@@ -63,7 +54,6 @@ function SidebarNav({ compact, onNavigate }: { compact: boolean; onNavigate?: ()
     <TooltipProvider delayDuration={0}>
       <nav className="flex flex-col gap-1 px-2 py-2" aria-label="Main navigation">
         {NAV_ITEMS.map(item => {
-          const Icon = item.icon
           const active = isPathActive(pathname, item.path)
 
           const link = (
@@ -81,7 +71,7 @@ function SidebarNav({ compact, onNavigate }: { compact: boolean; onNavigate?: ()
                 compact && 'justify-center px-2',
               )}
             >
-              <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <MaterialIcon name={item.icon} size="md" />
               {!compact && <span>{item.label}</span>}
             </Link>
           )
@@ -124,7 +114,7 @@ export function AppSidebar({ isOpen, onToggle, connectionState = 'connected' }: 
             aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             className="h-8 w-8"
           >
-            {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <MaterialIcon name={isOpen ? 'chevron_left' : 'chevron_right'} size="md" />
           </Button>
         </div>
 

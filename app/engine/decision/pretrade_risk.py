@@ -27,12 +27,18 @@ def evaluate_pretrade_risk(
     if entry_price is None or quantity is None:
         return False, ["missing_price_or_quantity"]
 
+    # Check equity FIRST - this is the root cause when position sizing
+    # produces quantity=0 (because equity=0 → risk_amount=0 → quantity=0)
+    equity = snapshot.equity
+    if equity <= 0:
+        return False, ["invalid_equity"]
+
     new_notional = abs(entry_price * quantity)
     if new_notional <= 0:
         return False, ["invalid_notional"]
 
-    equity = snapshot.equity
     eq_ratio = _safe_div(new_notional, equity)
+    # Note: eq_ratio should never be None here since we already checked equity > 0
     if eq_ratio is None:
         return False, ["invalid_equity"]
 

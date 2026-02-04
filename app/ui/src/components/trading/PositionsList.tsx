@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { AlertCircle } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 type PositionsListProps = {
   positions: Position[]
@@ -69,7 +69,7 @@ export function PositionsList({
             className="flex items-center gap-2 text-sm text-destructive"
             data-testid="positions-error"
           >
-            <AlertCircle className="h-4 w-4 shrink-0" />
+            <MaterialIcon name="error" size="sm" className="shrink-0" />
             {error}
           </div>
         </CardContent>

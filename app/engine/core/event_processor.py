@@ -274,6 +274,7 @@ class EventProcessor:
         Returns:
             Handler result
         """
+
         async def _invoke() -> Any:
             if asyncio.iscoroutinefunction(subscription.handler):
                 return await subscription.handler(event)

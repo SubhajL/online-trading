@@ -226,7 +226,10 @@ class RedisAdapter:
 
             assert self._redis is not None
             result = await self._redis.set(
-                redis_key, serialized_value, ex=expire, nx=True,
+                redis_key,
+                serialized_value,
+                ex=expire,
+                nx=True,
             )
             return result is not None and bool(result)
 

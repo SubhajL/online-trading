@@ -333,14 +333,14 @@ func TestRateLimiter_ConcurrentAccess(t *testing.T) {
 			go func() {
 				defer wg.Done()
 
-					start := time.Now()
-					for time.Since(start) < duration {
-						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-						_ = limiter.Wait(ctx)
-						cancel()
-					}
-				}()
-			}
+				start := time.Now()
+				for time.Since(start) < duration {
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+					_ = limiter.Wait(ctx)
+					cancel()
+				}
+			}()
+		}
 
 		wg.Wait()
 		// Test passes if no race conditions detected

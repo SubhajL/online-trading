@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, Briefcase, Wallet } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 export default function PortfolioPage() {
   const {
@@ -46,7 +46,7 @@ export default function PortfolioPage() {
         {error && (
           <Card className="border-red-200 bg-red-50">
             <CardContent className="flex items-center gap-3 p-4">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+              <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
               <div>
                 <p className="text-sm font-medium text-destructive">
                   Failed to load portfolio data
@@ -114,7 +114,7 @@ export default function PortfolioPage() {
           <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
             <CardHeader className="pb-0">
               <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
-                <Briefcase className="h-4 w-4" />
+                <MaterialIcon name="work" size="md" />
                 Open Positions
               </CardTitle>
             </CardHeader>
@@ -127,7 +127,7 @@ export default function PortfolioPage() {
                 </div>
               ) : positions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <Briefcase className="h-12 w-12 text-slate-300" />
+                  <MaterialIcon name="work" size="xl" className="text-slate-300" />
                   <p className="text-lg font-medium text-slate-600">No open positions</p>
                   <p className="text-sm text-slate-400">
                     Positions will appear here when you open trades.
@@ -211,7 +211,7 @@ export default function PortfolioPage() {
           <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
             <CardHeader className="pb-0">
               <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
-                <Wallet className="h-4 w-4" />
+                <MaterialIcon name="account_balance_wallet" size="md" />
                 Asset Balances
               </CardTitle>
             </CardHeader>
@@ -224,7 +224,11 @@ export default function PortfolioPage() {
                 </div>
               ) : balances.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <Wallet className="h-12 w-12 text-slate-300" />
+                  <MaterialIcon
+                    name="account_balance_wallet"
+                    size="xl"
+                    className="text-slate-300"
+                  />
                   <p className="text-lg font-medium text-slate-600">No assets</p>
                   <p className="text-sm text-slate-400">
                     Balances will appear once your account is funded.

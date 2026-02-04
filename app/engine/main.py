@@ -72,6 +72,17 @@ class ServiceControlRequest(BaseModel):
     service: str | None = None  # None for all services
 
 
+class EquityHealthResponse(BaseModel):
+    """Response model for /health/equity endpoint."""
+
+    status: str  # "healthy" | "stale" | "missing" | "zero"
+    equity: Decimal | None
+    timestamp: str | None
+    age_seconds: float | None
+    paper_components: dict[str, str] | None
+    message: str
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> Any:
     """Application lifespan management"""
@@ -675,6 +686,89 @@ async def health_check() -> HealthResponse:
 async def simple_health_check() -> dict[str, Any]:
     """Simple health check for load balancers"""
     return {"status": "ok", "timestamp": datetime.now(UTC).isoformat()}
+
+
+@app.get("/health/equity", response_model=EquityHealthResponse)
+async def equity_health_check() -> EquityHealthResponse:
+    """Check equity state for debugging invalid_notional errors.
+
+    Returns current equity from equity_samples table plus paper trading
+    components breakdown. Useful for diagnosing why trades are rejected
+    with invalid_notional (usually because equity is 0).
+    """
+    if "database" not in services:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service not initialized",
+        )
+
+    db_adapter = services["database"]
+    stale_threshold_seconds = 120.0
+
+    try:
+        # Get latest equity sample
+        equity, timestamp = await db_adapter.get_latest_equity_sample()
+
+        # Get paper equity components for breakdown
+        components = await db_adapter.get_paper_equity_components()
+
+        # Handle missing samples
+        if equity is None or timestamp is None:
+            return EquityHealthResponse(
+                status="missing",
+                equity=None,
+                timestamp=None,
+                age_seconds=None,
+                paper_components=None,
+                message="No equity samples found in database",
+            )
+
+        # Normalize naive timestamp to UTC
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
+
+        # Calculate age
+        now = datetime.now(UTC)
+        age_seconds = (now - timestamp).total_seconds()
+
+        # Build paper components dict if available
+        paper_components_dict: dict[str, str] | None = None
+        if components is not None:
+            paper_components_dict = {
+                "total_fees": str(components.total_fees),
+                "realized_pnl": str(components.realized_pnl),
+                "unrealized_pnl": str(components.unrealized_pnl),
+                "total_funding": str(components.total_funding),
+            }
+
+        # Determine status
+        if equity == Decimal("0"):
+            status = "zero"
+            message = "Equity is zero - trades will fail with invalid_notional"
+        elif age_seconds > stale_threshold_seconds:
+            status = "stale"
+            message = (
+                f"Equity sample is {age_seconds:.0f}s old (threshold: {stale_threshold_seconds}s)"
+            )
+        else:
+            status = "healthy"
+            message = "Equity is healthy and fresh"
+
+        return EquityHealthResponse(
+            status=status,
+            equity=equity,
+            timestamp=timestamp.isoformat(),
+            age_seconds=age_seconds,
+            paper_components=paper_components_dict,
+            message=message,
+        )
+
+    except Exception as e:
+        logger.error(f"Error checking equity health: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error checking equity health: {e!s}",
+        ) from e
 
 
 @app.get("/metrics", response_model=MetricsResponse)

@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, Search } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
@@ -56,7 +56,7 @@ export default function HistoryPage() {
         {error && (
           <Card className="border-red-200 bg-red-50">
             <CardContent className="flex items-center gap-3 p-4">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+              <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
               <div>
                 <p className="text-sm font-medium text-destructive">Failed to load trade history</p>
                 <p className="text-xs text-slate-400 mt-1">{error}. Try refreshing the page.</p>
@@ -135,7 +135,7 @@ export default function HistoryPage() {
               </div>
             ) : filteredOrders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <Search className="h-12 w-12 text-slate-300" />
+                <MaterialIcon name="search" size="xl" className="text-slate-300" />
                 <p className="text-lg font-medium text-slate-600">No trades match these filters</p>
                 <p className="text-sm text-slate-400">
                   Try widening your search or selecting a different time range.

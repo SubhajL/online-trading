@@ -15,7 +15,7 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AlertCircle, BarChart3, TrendingUp } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 type TimeFrame = '24h' | '7d' | '30d' | '90d' | '1y' | 'all'
 
@@ -52,7 +52,7 @@ export default function AnalyticsPage() {
         {error && (
           <Card className="border-red-200 bg-red-50">
             <CardContent className="flex items-center gap-3 p-4">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+              <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
               <div>
                 <p className="text-sm font-medium text-destructive">Failed to load analytics</p>
                 <p className="text-xs text-slate-400 mt-1">{error}. Try refreshing the page.</p>
@@ -145,7 +145,7 @@ export default function AnalyticsPage() {
             <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
+                  <MaterialIcon name="trending_up" size="md" />
                   Trading Statistics
                 </CardTitle>
               </CardHeader>
@@ -187,7 +187,7 @@ export default function AnalyticsPage() {
             <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
+                  <MaterialIcon name="bar_chart" size="md" />
                   Weekly P&L
                 </CardTitle>
               </CardHeader>

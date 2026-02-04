@@ -384,11 +384,15 @@ class RetestEngine:
             }
 
             if event.action == "expired":
-                self._zones[key] = [z for z in self._zones[key] if z["zone_id"] != record["zone_id"]]
+                self._zones[key] = [
+                    z for z in self._zones[key] if z["zone_id"] != record["zone_id"]
+                ]
                 return
 
             # Upsert by zone_id
-            existing = next((z for z in self._zones[key] if z["zone_id"] == record["zone_id"]), None)
+            existing = next(
+                (z for z in self._zones[key] if z["zone_id"] == record["zone_id"]), None
+            )
             if existing is None:
                 self._zones[key].append(record)
             else:

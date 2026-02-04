@@ -3,7 +3,7 @@ import { formatCurrency } from '@/utils/formatters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { BarChart3, AlertCircle } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 type ExposurePanelProps = {
   exposure: ExposureSummary | null
@@ -31,7 +31,7 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-slate-400" />
+            <MaterialIcon name="bar_chart" size="sm" className="text-slate-400" />
             Exposure
           </CardTitle>
         </CardHeader>
@@ -52,13 +52,13 @@ export function ExposurePanel({ exposure, loading, error }: ExposurePanelProps) 
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-destructive" />
+            <MaterialIcon name="bar_chart" size="sm" className="text-destructive" />
             Exposure
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-start gap-2 text-sm text-destructive" role="alert">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <MaterialIcon name="error" size="sm" className="shrink-0 mt-0.5" />
             <div>
               <p className="font-medium">Failed to load exposure</p>
               <p className="text-xs text-destructive/70 mt-0.5">{error}</p>

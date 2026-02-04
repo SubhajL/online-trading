@@ -2,17 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 import {
-  LayoutDashboard,
-  Briefcase,
-  TrendingUp,
-  History,
-  BarChart3,
-  Settings,
-  Plus,
-  RefreshCw,
-  Moon,
-} from 'lucide-react'
-import {
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -21,22 +10,25 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { label: 'Portfolio', path: '/portfolio', icon: Briefcase },
-  { label: 'Trading', path: '/trades', icon: TrendingUp },
-  { label: 'History', path: '/history', icon: History },
-  { label: 'Analytics', path: '/analytics', icon: BarChart3 },
-  { label: 'Settings', path: '/settings', icon: Settings },
+  { label: 'Dashboard', path: '/', icon: 'dashboard' },
+  { label: 'Portfolio', path: '/portfolio', icon: 'work' },
+  { label: 'Trading', path: '/trades', icon: 'candlestick_chart' },
+  { label: 'History', path: '/history', icon: 'history' },
+  { label: 'Analytics', path: '/analytics', icon: 'bar_chart' },
+  { label: 'Settings', path: '/settings', icon: 'settings' },
 ] as const
 
 const ACTION_ITEMS = [
-  { label: 'New Order', id: 'new-order', icon: Plus },
-  { label: 'Refresh Data', id: 'refresh-data', icon: RefreshCw },
+  { label: 'New Order', id: 'new-order', icon: 'add' },
+  { label: 'Refresh Data', id: 'refresh-data', icon: 'refresh' },
 ] as const
 
-const THEME_ITEMS = [{ label: 'Toggle Dark Mode', id: 'toggle-dark-mode', icon: Moon }] as const
+const THEME_ITEMS = [
+  { label: 'Toggle Dark Mode', id: 'toggle-dark-mode', icon: 'dark_mode' },
+] as const
 
 type CommandPaletteProps = {
   open: boolean
@@ -67,7 +59,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <CommandGroup heading="Navigation">
           {NAV_ITEMS.map(item => (
             <CommandItem key={item.path} onSelect={() => handleNavSelect(item.path)}>
-              <item.icon className="mr-2 h-4 w-4" />
+              <MaterialIcon name={item.icon} size="md" className="mr-2" />
               {item.label}
             </CommandItem>
           ))}
@@ -75,7 +67,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <CommandGroup heading="Actions">
           {ACTION_ITEMS.map(item => (
             <CommandItem key={item.id} onSelect={() => handleActionSelect(item.id)}>
-              <item.icon className="mr-2 h-4 w-4" />
+              <MaterialIcon name={item.icon} size="md" className="mr-2" />
               {item.label}
             </CommandItem>
           ))}
@@ -83,7 +75,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <CommandGroup heading="Theme">
           {THEME_ITEMS.map(item => (
             <CommandItem key={item.id} onSelect={() => handleActionSelect(item.id)}>
-              <item.icon className="mr-2 h-4 w-4" />
+              <MaterialIcon name={item.icon} size="md" className="mr-2" />
               {item.label}
             </CommandItem>
           ))}

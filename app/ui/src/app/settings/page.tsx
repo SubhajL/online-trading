@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, Key, Shield } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -203,8 +203,8 @@ export default function SettingsPage() {
                   />
                   {settings.trading.maxPositionSize > 10000 && (
                     <p className="text-xs text-warning flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" /> High position size — ensure you understand
-                      the risk.
+                      <MaterialIcon name="error" size="sm" /> High position size — ensure you
+                      understand the risk.
                     </p>
                   )}
                 </div>
@@ -310,7 +310,7 @@ export default function SettingsPage() {
                 <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
                   <CardContent className="flex items-center justify-between p-5">
                     <div className="flex items-center gap-3">
-                      <Shield className="h-5 w-5 text-slate-400" />
+                      <MaterialIcon name="shield" size="lg" className="text-slate-400" />
                       <div>
                         <p className="text-sm font-medium">Spot Trading</p>
                         <p className="text-xs text-slate-300">Last verified: 2 min ago</p>
@@ -331,7 +331,7 @@ export default function SettingsPage() {
                 <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
                   <CardContent className="flex items-center justify-between p-5">
                     <div className="flex items-center gap-3">
-                      <Shield className="h-5 w-5 text-slate-400" />
+                      <MaterialIcon name="shield" size="lg" className="text-slate-400" />
                       <div>
                         <p className="text-sm font-medium">Futures Trading</p>
                         <p className="text-xs text-slate-300">Last verified: 2 min ago</p>
@@ -372,11 +372,11 @@ export default function SettingsPage() {
               <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
-                    <Key className="h-4 w-4" />
+                    <MaterialIcon name="key" size="md" />
                     API Keys
                   </CardTitle>
                   <p className="text-xs text-warning flex items-center gap-1 mt-1">
-                    <AlertCircle className="h-3 w-3" /> Never share your API keys with anyone
+                    <MaterialIcon name="error" size="sm" /> Never share your API keys with anyone
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-5">

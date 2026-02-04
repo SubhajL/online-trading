@@ -1,6 +1,5 @@
 'use client'
 
-import { Bell, Info, AlertTriangle, XCircle } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -12,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 import type { Alert, AlertPriority, AlertType } from '@/types/alerts'
 
 type AlertsDrawerProps = {
@@ -39,7 +39,7 @@ function resolveTone(alert: Alert): AlertTone {
 const toneConfig: Record<
   AlertTone,
   {
-    icon: typeof Info
+    icon: string
     iconClassName: string
     borderClassName: string
     bgClassName: string
@@ -47,21 +47,21 @@ const toneConfig: Record<
   }
 > = {
   info: {
-    icon: Info,
+    icon: 'info',
     iconClassName: 'text-blue-400',
     borderClassName: 'border-l-blue-500/60',
     bgClassName: 'bg-blue-500/10',
     badgeVariant: 'outline',
   },
   warning: {
-    icon: AlertTriangle,
+    icon: 'warning',
     iconClassName: 'text-yellow-400',
     borderClassName: 'border-l-yellow-500/60',
     bgClassName: 'bg-yellow-500/10',
     badgeVariant: 'secondary',
   },
   error: {
-    icon: XCircle,
+    icon: 'cancel',
     iconClassName: 'text-red-400',
     borderClassName: 'border-l-red-500/60',
     bgClassName: 'bg-red-500/10',
@@ -138,20 +138,15 @@ export function AlertsDrawer({ open, onOpenChange, alerts, onMarkAllRead }: Aler
               className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400"
               data-testid="alerts-empty-state"
             >
-              <Bell className="h-10 w-10 opacity-40" />
+              <MaterialIcon name="notifications" size="xl" className="opacity-40" />
               <p className="text-sm">No alerts</p>
             </div>
           ) : (
             <ul className="p-3 space-y-2" role="list" aria-label="Alerts list">
               {alerts.map(alert => {
                 const tone = resolveTone(alert)
-                const {
-                  icon: Icon,
-                  iconClassName,
-                  borderClassName,
-                  bgClassName,
-                  badgeVariant,
-                } = toneConfig[tone]
+                const { icon, iconClassName, borderClassName, bgClassName, badgeVariant } =
+                  toneConfig[tone]
                 const createdAt = new Date(alert.createdAt)
                 return (
                   <li
@@ -164,10 +159,7 @@ export function AlertsDrawer({ open, onOpenChange, alerts, onMarkAllRead }: Aler
                       !alert.read && 'ring-1 ring-primary/30',
                     )}
                   >
-                    <Icon
-                      className={cn('mt-0.5 h-5 w-5 shrink-0', iconClassName)}
-                      aria-hidden="true"
-                    />
+                    <MaterialIcon name={icon} size="md" className={cn('mt-0.5', iconClassName)} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">

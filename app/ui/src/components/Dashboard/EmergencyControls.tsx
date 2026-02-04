@@ -9,7 +9,7 @@ import type {
 } from '@/types/dashboard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 const STEP_ORDER = ['CANCEL_OPEN_ORDERS', 'CLOSE_POSITIONS', 'STOP_AUTO_TRADING'] as const
 
@@ -470,7 +470,7 @@ export function EmergencyControls({ exposure, onEmergencyClose }: EmergencyContr
     <Card className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 border-t-4 border-t-red-500 shadow-soft hover:shadow-md transition-all duration-200">
       <CardContent className="pt-6 flex flex-col items-center text-center gap-3">
         <div className="bg-red-50 text-red-500 p-3 rounded-full">
-          <AlertTriangle className="h-7 w-7" />
+          <MaterialIcon name="warning" size="lg" className="!text-[28px]" />
         </div>
         <h3 className="text-lg font-bold text-slate-900">Emergency Stop</h3>
         {exposure && exposure.positionCount === 0 && (

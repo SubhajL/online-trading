@@ -123,7 +123,10 @@ class SMCEngine:
             tracker.state = choch_event.to_state  # Update state on CHOCH
             if emit_events:
                 await self._persist_smc_event(
-                    choch_event, candle.venue, candle.symbol, candle.timeframe,
+                    choch_event,
+                    candle.venue,
+                    candle.symbol,
+                    candle.timeframe,
                 )
                 key_levels = get_key_levels(tracker)
                 event = create_smc_event(
@@ -181,7 +184,10 @@ class SMCEngine:
         if bos_event:
             if emit_events:
                 await self._persist_smc_event(
-                    bos_event, candle.venue, candle.symbol, candle.timeframe,
+                    bos_event,
+                    candle.venue,
+                    candle.symbol,
+                    candle.timeframe,
                 )
                 key_levels = get_key_levels(tracker)
                 event = create_smc_event(
@@ -251,7 +257,10 @@ class SMCEngine:
             return
         try:
             payload = SMCEventMapper.to_schema(
-                smc_event, venue, symbol, timeframe.value,
+                smc_event,
+                venue,
+                symbol,
+                timeframe.value,
             )
             await self._db_adapter.insert_smc_event_v1(payload)
         except Exception:

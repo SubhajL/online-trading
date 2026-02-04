@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { AlertCircle, AlertTriangle, Workflow } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 type PipelineHealthProps = {
   data: PipelineHealthResponse | null
@@ -74,7 +74,7 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <Workflow className="h-4 w-4 text-slate-400" />
+            <MaterialIcon name="account_tree" size="sm" className="text-slate-400" />
             Pipeline Health
           </CardTitle>
         </CardHeader>
@@ -95,13 +95,13 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <Workflow className="h-4 w-4 text-destructive" />
+            <MaterialIcon name="account_tree" size="sm" className="text-destructive" />
             Pipeline Health
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-start gap-2 text-sm text-destructive" role="alert">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <MaterialIcon name="error" size="sm" className="shrink-0 mt-0.5" />
             <div>
               <p className="font-medium">Pipeline unavailable</p>
               <p className="text-xs text-destructive/70 mt-0.5">{error}</p>
@@ -141,7 +141,7 @@ export function PipelineHealth({ data, loading, error }: PipelineHealthProps) {
           </span>
           {hasHighLagSymbols && (
             <span className="flex items-center gap-1 text-warning" data-testid="lag-warning">
-              <AlertTriangle className="h-3 w-3" /> High lag detected
+              <MaterialIcon name="warning" size="sm" className="!text-[12px]" /> High lag detected
             </span>
           )}
         </div>

@@ -7,7 +7,7 @@ import type { EquityPoint, EquityTimeRange } from '@/types/dashboard'
 import { formatCurrency } from '@/utils/formatters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 type EquityCurveProps = {
   data: EquityPoint[]
@@ -214,7 +214,7 @@ export function EquityCurve({
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2 text-sm text-destructive" role="alert">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+            <MaterialIcon name="error" size="sm" className="shrink-0" />
             {error}
           </div>
         </CardContent>

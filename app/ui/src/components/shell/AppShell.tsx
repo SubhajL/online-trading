@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { AppSidebar, MobileSidebar } from './AppSidebar'
+import { MobileSidebar } from './AppSidebar'
 import { AppTopbar } from './AppTopbar'
 import { AlertsDrawer } from './AlertsDrawer'
 import { HelpDrawer } from './HelpDrawer'
@@ -33,16 +33,11 @@ export function AppShell({
   onHelpClick,
   onCommandPaletteClick,
 }: AppShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [alerts, setAlerts] = useState<Alert[]>([])
-
-  const toggleSidebar = useCallback(() => {
-    setSidebarOpen(prev => !prev)
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -110,18 +105,12 @@ export function AppShell({
       if (e.key === '/') {
         e.preventDefault()
         openHelp()
-        return
-      }
-
-      if (e.key === 'b') {
-        e.preventDefault()
-        toggleSidebar()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [openCommandPalette, openHelp, toggleSidebar])
+  }, [openCommandPalette, openHelp])
 
   const handleMarkAllAlertsRead = useCallback(async () => {
     try {
@@ -172,36 +161,27 @@ export function AppShell({
         </div>
       )}
 
-      <div className="flex flex-1">
-        {/* Mobile sidebar (Sheet) */}
-        <div className="md:hidden">
-          <MobileSidebar
-            connectionState={connectionState}
-            open={mobileSidebarOpen}
-            onOpenChange={setMobileSidebarOpen}
-          />
-        </div>
-
-        {/* Desktop sidebar */}
-        <AppSidebar
-          isOpen={sidebarOpen}
-          onToggle={toggleSidebar}
+      {/* Mobile sidebar (Sheet) - visible only on small screens */}
+      <div className="lg:hidden">
+        <MobileSidebar
           connectionState={connectionState}
+          open={mobileSidebarOpen}
+          onOpenChange={setMobileSidebarOpen}
         />
-
-        {/* Main content */}
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className={cn(
-            'flex-1 overflow-auto',
-            'p-4 md:p-6 lg:p-8',
-            'w-full min-w-0 max-w-[1400px] mx-auto',
-          )}
-        >
-          {children}
-        </main>
       </div>
+
+      {/* Main content - full width, no sidebar on desktop */}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={cn(
+          'flex-1 overflow-auto',
+          'px-4 py-6 md:px-6 md:py-8 lg:px-8',
+          'w-full max-w-[1400px] mx-auto',
+        )}
+      >
+        {children}
+      </main>
 
       <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
       <HelpDrawer open={helpOpen} onOpenChange={setHelpOpen} />

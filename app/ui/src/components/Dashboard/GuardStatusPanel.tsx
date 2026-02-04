@@ -2,7 +2,7 @@ import type { GuardStatusResponse, GuardState, EngineState, Guards } from '@/typ
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Shield, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 type GuardStatusPanelProps = {
   status: GuardStatusResponse | null
@@ -49,7 +49,7 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-slate-400" />
+            <MaterialIcon name="verified_user" size="sm" className="text-slate-400" />
             Guard Status
           </CardTitle>
         </CardHeader>
@@ -72,13 +72,13 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-destructive" />
+            <MaterialIcon name="gpp_maybe" size="sm" className="text-destructive" />
             Guard Status
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-start gap-2 text-sm text-destructive" role="alert">
-            <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+            <MaterialIcon name="gpp_maybe" size="sm" className="shrink-0 mt-0.5" />
             <div>
               <p className="font-medium">Connection error</p>
               <p className="text-xs text-destructive/70 mt-0.5">{error}</p>
@@ -99,12 +99,12 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
       data-testid="guard-panel"
     >
       <div className="absolute top-0 right-0 p-4 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
-        <ShieldCheck className="h-28 w-28 text-indigo-500" />
+        <MaterialIcon name="verified_user" size="xl" className="text-indigo-500 !text-[112px]" />
       </div>
       <CardHeader className="pb-3 flex flex-row items-center justify-between relative z-10">
         <CardTitle className="flex items-center gap-3">
           <div className="p-2 bg-indigo-50 rounded-lg text-indigo-500">
-            <ShieldCheck className="h-5 w-5" />
+            <MaterialIcon name="verified_user" size="md" />
           </div>
           <div>
             <span className="text-sm font-bold text-slate-800">Guard Status</span>
@@ -142,9 +142,9 @@ export function GuardStatusPanel({ status, loading, error }: GuardStatusPanelPro
           >
             <span data-testid="overall-status-icon">
               {status.overallStatus === 'OK' ? (
-                <Shield className="h-3 w-3 mr-1 inline" />
+                <MaterialIcon name="shield" size="sm" className="mr-1 inline !text-[12px]" />
               ) : (
-                <ShieldAlert className="h-3 w-3 mr-1 inline" />
+                <MaterialIcon name="gpp_maybe" size="sm" className="mr-1 inline !text-[12px]" />
               )}
             </span>
             {status.overallStatus}

@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, AlertCircle, AlertTriangle } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -147,7 +147,7 @@ export default function LoginPage() {
                   role="status"
                   className="flex items-center gap-2 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-3 py-3 text-sm text-yellow-400"
                 >
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <MaterialIcon name="warning" size="md" className="shrink-0" />
                   {state.notification}
                 </div>
               )}
@@ -158,7 +158,7 @@ export default function LoginPage() {
                   role="alert"
                   className="flex items-center gap-2 rounded-md border border-red-500/50 bg-red-500/10 px-3 py-3 text-sm text-red-400"
                 >
-                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <MaterialIcon name="error" size="md" className="shrink-0" />
                   {loginError}
                 </div>
               )}
@@ -239,7 +239,7 @@ export default function LoginPage() {
                 className="h-11 w-full text-sm font-semibold"
               >
                 {isLoading && (
-                  <Loader2 data-testid="login-loading" className="h-4 w-4 animate-spin" />
+                  <MaterialIcon name="progress_activity" size="md" className="animate-spin" />
                 )}
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </Button>

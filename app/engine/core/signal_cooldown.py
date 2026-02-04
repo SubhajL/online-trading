@@ -144,7 +144,10 @@ class SignalCooldown:
         if self._redis is not None:
             try:
                 acquired = await self._redis.set_nx(
-                    key, "1", expire=self._cooldown_seconds, prefix=COOLDOWN_PREFIX,
+                    key,
+                    "1",
+                    expire=self._cooldown_seconds,
+                    prefix=COOLDOWN_PREFIX,
                 )
                 if acquired:
                     self._cache[key] = self._clock.monotonic() + self._cooldown_seconds

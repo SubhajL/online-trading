@@ -14,4 +14,3 @@ class ContractTopic:
     REGIME_V1 = "regime.v1"
     NEWS_WINDOW_V1 = "news_window.v1"
     FUNDING_WINDOW_V1 = "funding_window.v1"
-

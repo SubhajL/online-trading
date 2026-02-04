@@ -61,9 +61,9 @@ class KeyedExecutor:
             if existing is not None and not existing.task.done():
                 return existing
 
-            queue: asyncio.Queue[
-                tuple[Callable[[], Awaitable[Any]], asyncio.Future[Any]]
-            ] = asyncio.Queue(maxsize=self._max_queue_size_per_key)
+            queue: asyncio.Queue[tuple[Callable[[], Awaitable[Any]], asyncio.Future[Any]]] = (
+                asyncio.Queue(maxsize=self._max_queue_size_per_key)
+            )
 
             task = asyncio.create_task(self._worker_loop(key, queue))
             worker = _KeyWorker(

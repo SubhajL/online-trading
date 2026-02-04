@@ -2,7 +2,7 @@ import type { EngineStatus, EngineState } from '@/types/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, Bot } from 'lucide-react'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
 
 type AutoTradingStatusProps = {
   status: EngineStatus | null
@@ -71,7 +71,7 @@ export function AutoTradingStatus({
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <Bot className="h-4 w-4 text-slate-400" />
+            <MaterialIcon name="smart_toy" size="sm" className="text-slate-400" />
             Auto Trading
           </CardTitle>
         </CardHeader>
@@ -94,13 +94,13 @@ export function AutoTradingStatus({
       >
         <CardHeader className="pb-3">
           <CardTitle className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] flex items-center gap-2">
-            <Bot className="h-4 w-4 text-destructive" />
+            <MaterialIcon name="smart_toy" size="sm" className="text-destructive" />
             Auto Trading
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-start gap-2 text-sm text-destructive" role="alert">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <MaterialIcon name="error" size="sm" className="shrink-0 mt-0.5" />
             <div>
               <p className="font-medium">Engine unavailable</p>
               <p className="text-xs text-destructive/70 mt-0.5">{error}</p>
@@ -123,7 +123,7 @@ export function AutoTradingStatus({
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-4">
           <div className="p-3 bg-indigo-50 rounded-full text-indigo-500">
-            <Bot className="h-5 w-5" />
+            <MaterialIcon name="smart_toy" size="md" />
           </div>
           <div>
             <span className="text-lg font-bold text-slate-900">Auto Trading</span>
