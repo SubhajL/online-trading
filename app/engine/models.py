@@ -134,6 +134,7 @@ class EventType(str, Enum):
     POSITION_UPDATE = "position_update"
     HEALTH_CHECK = "health_check"
     ERROR = "error"
+    STARTUP_COMPLETE = "startup_complete"
 
 
 class MarketRegime(str, Enum):
@@ -821,6 +822,20 @@ class ErrorEvent(BaseEvent):
     error_message: str
     stack_trace: str | None = None
     component: str
+
+
+class StartupCompleteEvent(BaseEvent):
+    """Startup/warmup complete event for alerting.
+
+    Emitted when backfill completes or first realtime candle is received.
+    """
+
+    event_type: EventType = EventType.STARTUP_COMPLETE
+    phase: str  # "backfill_complete" or "realtime_active"
+    symbols: list[str]
+    timeframes: list[str]
+    candle_counts: dict[str, int]  # symbol -> count
+    duration_seconds: float
 
 
 # ============================================================================

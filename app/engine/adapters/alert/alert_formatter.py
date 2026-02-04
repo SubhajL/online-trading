@@ -188,3 +188,41 @@ class AlertFormatter:
             f"Total P&L: {self._format_currency(summary['total_pnl'], with_sign=True)}",
         ]
         return "\n".join(lines)
+
+    def format_startup_alert(self, startup: dict[str, Any]) -> str:
+        """Format a startup/warmup complete alert message.
+
+        Args:
+            startup: Dict with phase, symbols, timeframes, candle_counts, duration_seconds
+
+        Returns:
+            Formatted message string for Telegram/LINE.
+        """
+        phase = startup["phase"]
+        symbols = startup["symbols"]
+        timeframes = startup["timeframes"]
+        candle_counts = startup["candle_counts"]
+        duration_seconds = startup["duration_seconds"]
+
+        if phase == "backfill_complete":
+            emoji = "✅"
+            title = "Backfill Complete"
+        else:
+            emoji = "🚀"
+            title = "Realtime Active"
+
+        lines = [f"{emoji} {title}"]
+
+        lines.append(f"Symbols: {', '.join(symbols)}")
+        lines.append(f"Timeframes: {', '.join(timeframes)}")
+
+        if candle_counts:
+            lines.append("")
+            lines.append("Candles loaded:")
+            for symbol, count in candle_counts.items():
+                lines.append(f"  {symbol}: {count:,}")
+
+        if duration_seconds > 0:
+            lines.append(f"Duration: {duration_seconds:.2f}s")
+
+        return "\n".join(lines)

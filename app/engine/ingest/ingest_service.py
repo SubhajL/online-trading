@@ -12,7 +12,15 @@ from typing import Any
 
 from ..bus import get_event_bus
 from ..core.interfaces import DatabaseAdapterInterface
-from ..models import Candle, CandleOrigin, CandleUpdateEvent, ErrorEvent, EventType, TimeFrame
+from ..models import (
+    Candle,
+    CandleOrigin,
+    CandleUpdateEvent,
+    ErrorEvent,
+    EventType,
+    StartupCompleteEvent,
+    TimeFrame,
+)
 from .binance_rest import BinanceRestClient
 from .binance_ws import BinanceWebSocketClient
 
@@ -93,6 +101,13 @@ class IngestService:
         self._latest_candles: dict[str, dict[TimeFrame, Candle]] = {}
         self._backfill_complete: set[str] = set()
         self._candle_subscription_id: str | None = None
+
+        # Startup alert tracking
+        self._backfill_start_time: datetime | None = None
+        self._backfill_candle_counts: dict[str, int] = {}
+        self._backfill_complete_event_sent = False
+        self._backfill_monitor_task: asyncio.Task[None] | None = None
+        self._backfill_failures: dict[str, str] = {}  # Track failed backfills for observability
 
         logger.info(
             f"IngestService initialized for {len(symbols)} symbols "
@@ -181,6 +196,15 @@ class IngestService:
             return
 
         self._running = False
+
+        # Cancel backfill monitor task
+        if self._backfill_monitor_task is not None:
+            self._backfill_monitor_task.cancel()
+            try:
+                await self._backfill_monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._backfill_monitor_task = None
 
         # Cancel backfill tasks
         for task in self._backfill_tasks:
@@ -279,6 +303,8 @@ class IngestService:
     async def _start_backfill(self) -> None:
         """Start historical data backfill for all symbols and timeframes"""
         try:
+            self._backfill_start_time = datetime.now(UTC)
+
             for symbol in self.symbols:
                 for timeframe in self.timeframes:
                     task = asyncio.create_task(
@@ -288,9 +314,36 @@ class IngestService:
 
             logger.info(f"Started {len(self._backfill_tasks)} backfill tasks")
 
+            # Spawn a task to monitor backfill completion and publish startup event
+            self._backfill_monitor_task = asyncio.create_task(self._monitor_backfill_completion())
+
         except Exception as e:
             logger.error(f"Error starting backfill: {e}")
             raise
+
+    async def _monitor_backfill_completion(self) -> None:
+        """Monitor backfill tasks and publish startup event when all complete."""
+        try:
+            # Wait for all backfill tasks to complete
+            results = await asyncio.gather(*self._backfill_tasks, return_exceptions=True)
+
+            # Check for any failures
+            failures = [r for r in results if isinstance(r, Exception)]
+            if failures:
+                logger.warning(
+                    "Backfill completed with %d failures: %s",
+                    len(failures),
+                    [str(f) for f in failures[:3]],  # Log first 3 errors
+                )
+
+            # Still publish startup event even with partial failures
+            # (the system can still operate with some data missing)
+            await self._check_and_publish_backfill_complete()
+        except asyncio.CancelledError:
+            logger.info("Backfill monitor task cancelled")
+            raise
+        except Exception:
+            logger.exception("Error monitoring backfill completion")
 
     async def _backfill_symbol_timeframe(
         self,
@@ -304,7 +357,11 @@ class IngestService:
         for pipeline warm-up with BACKFILL origin.
 
         Without db_adapter, falls back to publishing all candles to event bus.
+
+        Marks backfill as complete for this symbol/timeframe even if no candles
+        are retrieved or an exception occurs, to avoid blocking startup indefinitely.
         """
+        backfill_key = f"{symbol}_{timeframe.value}"
         try:
             logger.info(f"Starting backfill for {symbol} {timeframe.value}")
 
@@ -360,14 +417,23 @@ class IngestService:
                 self._latest_candles[symbol] = {}
             self._latest_candles[symbol][timeframe] = candles[-1]
 
-            # Mark backfill as complete for this symbol-timeframe
-            backfill_key = f"{symbol}_{timeframe.value}"
-            self._backfill_complete.add(backfill_key)
+            # Track candle count for startup alert
+            self._backfill_candle_counts[symbol] = self._backfill_candle_counts.get(
+                symbol, 0
+            ) + len(candles)
 
             logger.info(f"Backfill complete for {symbol} {timeframe.value}")
 
         except Exception as e:
             logger.error(f"Error backfilling {symbol} {timeframe.value}: {e}")
+            # Track failure for observability
+            self._backfill_failures[backfill_key] = str(e)
+
+        finally:
+            # Always mark backfill as complete to avoid blocking startup indefinitely
+            # The system can still operate with partial data; missing backfills
+            # will be logged and can be monitored via _backfill_failures
+            self._backfill_complete.add(backfill_key)
 
     async def add_symbol(self, symbol: str) -> None:
         """Add a new symbol to ingestion"""
@@ -562,6 +628,52 @@ class IngestService:
                     timeframe,
                 )
         return progress
+
+    def _is_all_backfill_complete(self) -> bool:
+        """Check if backfill is complete for all symbol-timeframe combinations."""
+        expected_count = len(self.symbols) * len(self.timeframes)
+        return len(self._backfill_complete) >= expected_count
+
+    async def _check_and_publish_backfill_complete(self) -> None:
+        """Check if all backfills are done and publish STARTUP_COMPLETE event.
+
+        This should be called after each backfill completes to check if
+        all symbol-timeframe combinations have finished.
+        """
+        if self._backfill_complete_event_sent:
+            return
+
+        if not self._is_all_backfill_complete():
+            return
+
+        # Calculate duration
+        duration_seconds = 0.0
+        if self._backfill_start_time is not None:
+            duration_seconds = (datetime.now(UTC) - self._backfill_start_time).total_seconds()
+
+        # Build startup complete event
+        # Use first symbol for the required symbol field (system-level event)
+        event = StartupCompleteEvent(
+            timestamp=datetime.now(UTC),
+            symbol=self.symbols[0] if self.symbols else "SYSTEM",
+            phase="backfill_complete",
+            symbols=self.symbols.copy(),
+            timeframes=[tf.value for tf in self.timeframes],
+            candle_counts=self._backfill_candle_counts.copy(),
+            duration_seconds=duration_seconds,
+        )
+
+        try:
+            await self._event_bus.publish(event, priority=5)
+            # Only mark as sent after successful publish
+            self._backfill_complete_event_sent = True
+            logger.info(
+                "Published backfill_complete startup event: %d symbols, %.2fs duration",
+                len(self.symbols),
+                duration_seconds,
+            )
+        except Exception:
+            logger.exception("Failed to publish backfill complete event")
 
     async def health_check(self) -> dict[str, Any]:
         """Get health status of the ingestion service"""

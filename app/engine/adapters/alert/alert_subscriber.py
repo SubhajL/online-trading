@@ -19,6 +19,7 @@ from app.engine.models import (
     EventType,
     OrderFilledEvent,
     OrderUpdateEvent,
+    StartupCompleteEvent,
     TradingDecisionEvent,
 )
 
@@ -179,12 +180,14 @@ DEFAULT_ALERT_EVENT_TYPES: list[EventType] = [
 EXECUTION_ENABLED_EVENT_TYPES: list[EventType] = [
     EventType.ORDER_UPDATE,
     EventType.ERROR,
+    EventType.STARTUP_COMPLETE,
 ]
 
 # Event types for execution-disabled mode (alert on decision, signal-only)
 EXECUTION_DISABLED_EVENT_TYPES: list[EventType] = [
     EventType.TRADING_DECISION,
     EventType.ERROR,
+    EventType.STARTUP_COMPLETE,
 ]
 
 
@@ -311,6 +314,17 @@ class AlertSubscriber:
             if isinstance(event, ErrorEvent):
                 message = _error_event_to_text(event)
                 await self.telegram._send_alert(message)
+                return
+
+            if isinstance(event, StartupCompleteEvent):
+                startup_data = {
+                    "phase": event.phase,
+                    "symbols": event.symbols,
+                    "timeframes": event.timeframes,
+                    "candle_counts": event.candle_counts,
+                    "duration_seconds": event.duration_seconds,
+                }
+                await self.telegram.send_startup_alert(startup_data)
                 return
 
             logger.debug("Unhandled event type: %s", event.event_type)

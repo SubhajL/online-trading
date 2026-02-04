@@ -204,6 +204,23 @@ class TelegramAlertAdapter:
         except Exception:
             logger.exception("Error handling guard alert")
 
+    async def send_startup_alert(self, startup_data: dict[str, Any]) -> bool:
+        """Send a startup/warmup complete alert to Telegram.
+
+        Args:
+            startup_data: Dict with phase, symbols, timeframes, candle_counts, duration_seconds
+
+        Returns:
+            True if message was sent successfully, False otherwise.
+        """
+        try:
+            message = self.formatter.format_startup_alert(startup_data)
+            return await self._send_alert(message)
+
+        except Exception:
+            logger.exception("Error sending startup alert")
+            return False
+
     async def _check_rate_limit(self) -> bool:
         """Check if we're within rate limits."""
         now = datetime.now(tz=UTC)
