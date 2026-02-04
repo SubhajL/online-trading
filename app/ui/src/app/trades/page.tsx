@@ -89,7 +89,7 @@ export default function TradesPage() {
         <PageHeader title="Active Trades" />
 
         {error && (
-          <Card className="border-red-200 bg-red-50">
+          <Card className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950">
             <CardContent className="flex items-center gap-3 p-4">
               <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
               <div>
@@ -104,7 +104,7 @@ export default function TradesPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+              <Card key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <CardContent className="p-5">
                   <Skeleton className="h-3 w-20 mb-2" />
                   <Skeleton className="h-7 w-16" />
@@ -121,7 +121,7 @@ export default function TradesPage() {
               ].map(stat => (
                 <Card
                   key={stat.label}
-                  className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-md transition-all duration-200"
                 >
                   <CardContent className="p-5">
                     <p className="text-xs text-slate-400 uppercase tracking-wide">{stat.label}</p>
@@ -144,7 +144,7 @@ export default function TradesPage() {
         </Tabs>
 
         {/* Orders Table */}
-        <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+        <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
           <CardContent className="p-0">
             {loading ? (
               <div className="p-5 space-y-3">
@@ -155,7 +155,7 @@ export default function TradesPage() {
             ) : filteredOrders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <MaterialIcon name="list" size="xl" className="text-slate-300" />
-                <p className="text-lg font-medium text-slate-600">No trades found</p>
+                <p className="text-lg font-medium text-slate-600 dark:text-slate-400">No trades found</p>
                 <p className="text-sm text-slate-400">
                   {filter !== 'all'
                     ? 'Try changing the filter to see more trades.'
@@ -165,7 +165,7 @@ export default function TradesPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                  <TableRow className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                     <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
                       Time
                     </TableHead>
@@ -199,13 +199,13 @@ export default function TradesPage() {
                   {filteredOrders.map(order => (
                     <TableRow
                       key={order.orderId}
-                      className="hover:bg-slate-50 transition-colors duration-fast"
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-fast"
                     >
-                      <TableCell className="text-sm text-slate-600">
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
                         {formatDate(order.createdAt)}
                       </TableCell>
                       <TableCell className="text-sm font-medium">{order.symbol}</TableCell>
-                      <TableCell className="text-sm text-slate-600">{order.type}</TableCell>
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">{order.type}</TableCell>
                       <TableCell>
                         <Badge
                           variant={order.side === 'BUY' ? 'default' : 'destructive'}

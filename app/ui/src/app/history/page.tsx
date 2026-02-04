@@ -55,7 +55,7 @@ export default function HistoryPage() {
         <PageHeader title="Trade History" />
 
         {error && (
-          <Card className="border-red-200 bg-red-50">
+          <Card className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950">
             <CardContent className="flex items-center gap-3 p-4">
               <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
               <div>
@@ -70,7 +70,7 @@ export default function HistoryPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+              <Card key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <CardContent className="p-5">
                   <Skeleton className="h-3 w-20 mb-2" />
                   <Skeleton className="h-7 w-16" />
@@ -90,7 +90,7 @@ export default function HistoryPage() {
               ].map(stat => (
                 <Card
                   key={stat.label}
-                  className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-md transition-all duration-200"
                 >
                   <CardContent className="p-5">
                     <p className="text-xs text-slate-400 uppercase tracking-wide">{stat.label}</p>
@@ -105,7 +105,7 @@ export default function HistoryPage() {
         </div>
 
         {/* Filter Row */}
-        <Card className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+        <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
             <div className="flex items-center gap-1.5">
               {DATE_RANGE_OPTIONS.map(option => (
@@ -115,7 +115,7 @@ export default function HistoryPage() {
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors duration-fast ${
                     dateRange === option.value
                       ? 'bg-primary text-primary-foreground'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-50'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
                   {option.label}
@@ -126,7 +126,7 @@ export default function HistoryPage() {
         </Card>
 
         {/* History Table */}
-        <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+        <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
           <CardContent className="p-0">
             {loading ? (
               <div className="p-5 space-y-3">
@@ -137,7 +137,7 @@ export default function HistoryPage() {
             ) : filteredOrders.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <MaterialIcon name="search" size="xl" className="text-slate-300" />
-                <p className="text-lg font-medium text-slate-600">No trades match these filters</p>
+                <p className="text-lg font-medium text-slate-600 dark:text-slate-400">No trades match these filters</p>
                 <p className="text-sm text-slate-400">
                   Try widening your search or selecting a different time range.
                 </p>
@@ -145,7 +145,7 @@ export default function HistoryPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                  <TableRow className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                     <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
                       Date
                     </TableHead>
@@ -179,16 +179,16 @@ export default function HistoryPage() {
                   {filteredOrders.map((order, idx) => (
                     <TableRow
                       key={order.orderId}
-                      className={`hover:bg-slate-50 transition-colors duration-fast ${idx % 2 === 0 ? '' : 'bg-slate-50/50'}`}
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-fast ${idx % 2 === 0 ? '' : 'bg-slate-50/50 dark:bg-slate-800/50'}`}
                     >
-                      <TableCell className="text-sm text-slate-600">
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
                         {formatDate(order.createdAt)}
                       </TableCell>
-                      <TableCell className="text-sm text-slate-600">
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
                         {formatTime(order.createdAt)}
                       </TableCell>
                       <TableCell className="text-sm font-medium">{order.symbol}</TableCell>
-                      <TableCell className="text-sm text-slate-600">{order.type}</TableCell>
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">{order.type}</TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"

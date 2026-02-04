@@ -52,7 +52,7 @@ export default function AnalyticsPage() {
         />
 
         {error && (
-          <Card className="border-red-200 bg-red-50">
+          <Card className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950">
             <CardContent className="flex items-center gap-3 p-4">
               <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
               <div>
@@ -68,7 +68,7 @@ export default function AnalyticsPage() {
             {/* KPI Skeletons */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-5">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Card key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                <Card key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                   <CardContent className="p-5">
                     <Skeleton className="h-3 w-20 mb-2" />
                     <Skeleton className="h-7 w-16" />
@@ -78,19 +78,19 @@ export default function AnalyticsPage() {
             </div>
             {/* Chart Skeletons */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <CardContent className="p-5">
                   <Skeleton className="h-48 w-full" />
                 </CardContent>
               </Card>
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <CardContent className="p-5">
                   <Skeleton className="h-48 w-full" />
                 </CardContent>
               </Card>
             </div>
             {/* Table Skeleton */}
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
               <CardContent className="p-5 space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <Skeleton key={i} className="h-10 w-full" />
@@ -129,7 +129,7 @@ export default function AnalyticsPage() {
               ].map(kpi => (
                 <Card
                   key={kpi.label}
-                  className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200"
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-md transition-all duration-200"
                 >
                   <CardContent className="p-5">
                     <p className="text-xs text-slate-400 uppercase tracking-wide">{kpi.label}</p>
@@ -144,7 +144,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Trading Statistics */}
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                   <MaterialIcon name="trending_up" size="md" />
@@ -186,7 +186,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* Weekly PnL Chart */}
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                   <MaterialIcon name="bar_chart" size="md" />
@@ -218,7 +218,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* Performance by Symbol */}
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Performance by Symbol
@@ -227,7 +227,7 @@ export default function AnalyticsPage() {
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableRow className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                       <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
                         Symbol
                       </TableHead>
@@ -246,7 +246,7 @@ export default function AnalyticsPage() {
                     {data.symbols.map(sym => (
                       <TableRow
                         key={sym.symbol}
-                        className="hover:bg-slate-50 transition-colors duration-fast"
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-fast"
                       >
                         <TableCell className="font-medium text-sm">{sym.symbol}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums text-sm">

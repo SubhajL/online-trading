@@ -64,7 +64,7 @@ export default function SettingsPage() {
         <PageHeader title="Settings" />
 
         <Tabs defaultValue="general">
-          <TabsList className="border-b border-slate-100 mb-6">
+          <TabsList className="border-b border-slate-100 dark:border-slate-800 mb-6">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="trading">Trading</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
@@ -73,7 +73,7 @@ export default function SettingsPage() {
 
           {/* General Tab */}
           <TabsContent value="general">
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   General Settings
@@ -139,7 +139,7 @@ export default function SettingsPage() {
 
           {/* Trading Tab */}
           <TabsContent value="trading">
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Trading Settings
@@ -179,7 +179,7 @@ export default function SettingsPage() {
                     className="w-full max-w-xs"
                   />
                 </div>
-                <div className="flex items-center justify-between py-3 border-b border-slate-100">
+                <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
                   <Label htmlFor="confirm-orders">Confirm orders before submission</Label>
                   <Switch
                     id="confirm-orders"
@@ -249,7 +249,7 @@ export default function SettingsPage() {
 
           {/* Notifications Tab */}
           <TabsContent value="notifications">
-            <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Notification Settings
@@ -308,7 +308,7 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-5">
               {/* Connection Status */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+                <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
                   <CardContent className="flex items-center justify-between p-5">
                     <div className="flex items-center gap-3">
                       <MaterialIcon name="shield" size="lg" className="text-slate-400" />
@@ -329,7 +329,7 @@ export default function SettingsPage() {
                     </Badge>
                   </CardContent>
                 </Card>
-                <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+                <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
                   <CardContent className="flex items-center justify-between p-5">
                     <div className="flex items-center gap-3">
                       <MaterialIcon name="shield" size="lg" className="text-slate-400" />
@@ -353,7 +353,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Testnet Toggle */}
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
                 <CardContent className="flex items-center justify-between p-5">
                   <div>
                     <Label htmlFor="testnet">Testnet Mode</Label>
@@ -370,7 +370,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* API Keys */}
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                     <MaterialIcon name="key" size="md" />

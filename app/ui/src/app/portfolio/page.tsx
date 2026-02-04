@@ -45,7 +45,7 @@ export default function PortfolioPage() {
         <PageHeader title="Portfolio Overview" />
 
         {error && (
-          <Card className="border-red-200 bg-red-50">
+          <Card className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950">
             <CardContent className="flex items-center gap-3 p-4">
               <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
               <div>
@@ -62,7 +62,7 @@ export default function PortfolioPage() {
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
           {loading ? (
             Array.from({ length: 3 }).map((_, i) => (
-              <Card key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+              <Card key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <CardContent className="p-5">
                   <Skeleton className="h-3 w-24 mb-2" />
                   <Skeleton className="h-8 w-32" />
@@ -71,7 +71,7 @@ export default function PortfolioPage() {
             ))
           ) : (
             <>
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200">
+              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-md transition-all duration-200">
                 <CardContent className="p-5">
                   <p className="text-xs text-slate-400 uppercase tracking-wide">
                     Total Portfolio Value
@@ -85,7 +85,7 @@ export default function PortfolioPage() {
                   </p>
                 </CardContent>
               </Card>
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200">
+              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-md transition-all duration-200">
                 <CardContent className="p-5">
                   <p className="text-xs text-slate-400 uppercase tracking-wide">Total P&L</p>
                   <p
@@ -99,7 +99,7 @@ export default function PortfolioPage() {
                   </p>
                 </CardContent>
               </Card>
-              <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft hover:shadow-md transition-all duration-200">
+              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-md transition-all duration-200">
                 <CardContent className="p-5">
                   <p className="text-xs text-slate-400 uppercase tracking-wide">Open Positions</p>
                   <p className="text-2xl font-bold font-mono mt-1">{positions.length}</p>
@@ -112,7 +112,7 @@ export default function PortfolioPage() {
         {/* Tables */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Positions Table */}
-          <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+          <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
             <CardHeader className="pb-0">
               <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                 <MaterialIcon name="work" size="md" />
@@ -129,7 +129,7 @@ export default function PortfolioPage() {
               ) : positions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <MaterialIcon name="work" size="xl" className="text-slate-300" />
-                  <p className="text-lg font-medium text-slate-600">No open positions</p>
+                  <p className="text-lg font-medium text-slate-600 dark:text-slate-400">No open positions</p>
                   <p className="text-sm text-slate-400">
                     Positions will appear here when you open trades.
                   </p>
@@ -137,7 +137,7 @@ export default function PortfolioPage() {
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableRow className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                       <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
                         Symbol
                       </TableHead>
@@ -165,7 +165,7 @@ export default function PortfolioPage() {
                     {positions.map((pos, idx) => (
                       <TableRow
                         key={getPositionKey(pos.symbol, idx)}
-                        className="hover:bg-slate-50 transition-colors duration-fast"
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-fast"
                       >
                         <TableCell className="font-medium text-sm">{pos.symbol}</TableCell>
                         <TableCell>
@@ -209,7 +209,7 @@ export default function PortfolioPage() {
           </Card>
 
           {/* Balances Table */}
-          <Card className="bg-white rounded-2xl border border-slate-100 shadow-soft">
+          <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
             <CardHeader className="pb-0">
               <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                 <MaterialIcon name="account_balance_wallet" size="md" />
@@ -230,7 +230,7 @@ export default function PortfolioPage() {
                     size="xl"
                     className="text-slate-300"
                   />
-                  <p className="text-lg font-medium text-slate-600">No assets</p>
+                  <p className="text-lg font-medium text-slate-600 dark:text-slate-400">No assets</p>
                   <p className="text-sm text-slate-400">
                     Balances will appear once your account is funded.
                   </p>
@@ -238,7 +238,7 @@ export default function PortfolioPage() {
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableRow className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                       <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
                         Asset
                       </TableHead>
@@ -260,7 +260,7 @@ export default function PortfolioPage() {
                     {balances.map((balance, idx) => (
                       <TableRow
                         key={getBalanceKey(balance.asset, idx)}
-                        className="hover:bg-slate-50 transition-colors duration-fast"
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-fast"
                       >
                         <TableCell className="font-medium text-sm">{balance.asset}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums text-sm">

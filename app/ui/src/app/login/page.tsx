@@ -79,7 +79,7 @@ export default function LoginPage() {
   const isLoading = isSubmitting || state.isLoading
 
   return (
-    <div className="relative min-h-screen bg-[#FAFBFC]">
+    <div className="relative min-h-screen bg-[#FAFBFC] dark:bg-slate-900">
       {/* Subtle background accents */}
       <div
         aria-hidden="true"
@@ -90,14 +90,14 @@ export default function LoginPage() {
         {/* Left (brand) panel */}
         <div className="hidden lg:flex flex-col justify-between p-10">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-card/60 px-3 py-1 text-xs text-slate-600">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-card/60 px-3 py-1 text-xs text-slate-600 dark:text-slate-400">
               <span className="h-2 w-2 rounded-full bg-primary" />
               Real-time monitoring • Guarded execution • Audit-friendly
             </div>
-            <h1 className="mt-6 text-4xl font-semibold tracking-tight text-slate-900">
+            <h1 className="mt-6 text-4xl font-semibold tracking-tight text-slate-900 dark:text-white">
               Trading Platform
             </h1>
-            <p className="mt-3 max-w-[46ch] text-base text-slate-600">
+            <p className="mt-3 max-w-[46ch] text-base text-slate-600 dark:text-slate-400">
               A fast, safety-first surface for monitoring, decisions, and execution — designed for
               long sessions.
             </p>
@@ -108,8 +108,8 @@ export default function LoginPage() {
                 { title: 'Keyboard accelerators', desc: 'Command palette and quick actions.' },
                 { title: 'Clear states', desc: 'Loading, error, and offline are explicit.' },
               ].map(item => (
-                <div key={item.title} className="rounded-lg border border-slate-200 bg-card/60 p-4">
-                  <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+                <div key={item.title} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-card/60 p-4">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">{item.title}</div>
                   <div className="mt-1 text-sm text-slate-400">{item.desc}</div>
                 </div>
               ))}
@@ -117,20 +117,20 @@ export default function LoginPage() {
           </div>
 
           <div className="text-xs text-slate-400">
-            Tip: Press <kbd className="rounded border border-slate-200 bg-slate-100 px-1">Ctrl</kbd>{' '}
-            + <kbd className="rounded border border-slate-200 bg-slate-100 px-1">K</kbd> for the
+            Tip: Press <kbd className="rounded border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-1">Ctrl</kbd>{' '}
+            + <kbd className="rounded border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-1">K</kbd> for the
             command palette once signed in.
           </div>
         </div>
 
         {/* Right (form) panel */}
         <div className="flex items-center justify-center p-4 sm:p-6 lg:p-10">
-          <div className="w-full max-w-[440px] rounded-xl border border-slate-200 bg-card p-8 shadow-xl">
+          <div className="w-full max-w-[440px] rounded-xl border border-slate-200 dark:border-slate-800 bg-card p-8 shadow-xl">
             <div className="flex flex-col items-center text-center">
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-sm">
                 <span className="text-lg font-bold">TP</span>
               </div>
-              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
                 Welcome back
               </h2>
               <p className="mt-1 text-sm text-slate-400">Sign in to your account</p>
@@ -164,7 +164,7 @@ export default function LoginPage() {
               )}
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="email" className="text-sm font-medium text-slate-600">
+                <label htmlFor="email" className="text-sm font-medium text-slate-600 dark:text-slate-400">
                   Email
                 </label>
                 <input
@@ -174,10 +174,10 @@ export default function LoginPage() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className={cn(
-                    'rounded-md border bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-300',
+                    'rounded-md border bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-500',
                     'transition-colors duration-fast focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary',
                     'disabled:opacity-60 disabled:cursor-not-allowed',
-                    errors.email ? 'border-red-500' : 'border-slate-200',
+                    errors.email ? 'border-red-500' : 'border-slate-200 dark:border-slate-700',
                   )}
                   placeholder="trader@test.com"
                   autoComplete="email"
@@ -191,7 +191,7 @@ export default function LoginPage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="password" className="text-sm font-medium text-slate-600">
+                <label htmlFor="password" className="text-sm font-medium text-slate-600 dark:text-slate-400">
                   Password
                 </label>
                 <input
@@ -202,10 +202,10 @@ export default function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   onKeyDown={handleKeyDown}
                   className={cn(
-                    'rounded-md border bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-300',
+                    'rounded-md border bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-500',
                     'transition-colors duration-fast focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary',
                     'disabled:opacity-60 disabled:cursor-not-allowed',
-                    errors.password ? 'border-red-500' : 'border-slate-200',
+                    errors.password ? 'border-red-500' : 'border-slate-200 dark:border-slate-700',
                   )}
                   placeholder="••••••••"
                   autoComplete="current-password"
@@ -219,7 +219,7 @@ export default function LoginPage() {
               </div>
 
               <div className="flex items-center">
-                <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-600">
+                <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                   <input
                     type="checkbox"
                     data-testid="remember-me-checkbox"
