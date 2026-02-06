@@ -80,25 +80,68 @@ def evaluate_pipeline_health(
         ws_connected = websocket.get("connected") is True
         ws_stale = websocket.get("stale") is True
         ws_last_ago = websocket.get("last_message_ago_seconds")
+        ws_last_closed_kline_ago = websocket.get("last_closed_kline_ago_seconds")
         consecutive_failures = websocket.get("consecutive_failures")
 
-        ws_last_is_over_threshold = isinstance(ws_last_ago, (int, float)) and (
-            ws_last_ago > thresholds.stale_ws_seconds
-        )
-        if ws_connected and (ws_stale or ws_last_is_over_threshold):
+        if not ws_connected:
+            # Hard disconnect — report as root cause (supersedes stale and kline_stream_stale)
             issues.append(
                 PipelineHealthIssue(
-                    key="websocket_stale",
+                    key="websocket_disconnected",
                     symbol="SYSTEM",
-                    error_type="websocket_stale",
-                    message="WebSocket connected but not receiving messages",
+                    error_type="websocket_disconnected",
+                    message="WebSocket is disconnected",
                     details={
                         "last_message_ago_seconds": ws_last_ago,
-                        "stale_threshold_seconds": thresholds.stale_ws_seconds,
                         "consecutive_failures": consecutive_failures,
                     },
                 ),
             )
+        else:
+            ws_last_is_over_threshold = isinstance(ws_last_ago, (int, float)) and (
+                ws_last_ago > thresholds.stale_ws_seconds
+            )
+            if ws_stale or ws_last_is_over_threshold:
+                # WS stale supersedes kline_stream_stale (if WS is stale, klines are obviously stale too)
+                issues.append(
+                    PipelineHealthIssue(
+                        key="websocket_stale",
+                        symbol="SYSTEM",
+                        error_type="websocket_stale",
+                        message="WebSocket connected but not receiving messages",
+                        details={
+                            "last_message_ago_seconds": ws_last_ago,
+                            "stale_threshold_seconds": thresholds.stale_ws_seconds,
+                            "consecutive_failures": consecutive_failures,
+                        },
+                    ),
+                )
+            else:
+                # WS is connected and receiving messages (tickers flowing),
+                # but check if klines specifically are stale ("tickers alive, klines dead")
+                # Use last_kline_ago_seconds (any kline, open or closed) because:
+                # - Open klines arrive frequently (every few seconds during active trading)
+                # - Closed klines only arrive at timeframe intervals (e.g., every 5m)
+                # - Using stale_ws_seconds (120s default) for any-kline is appropriate
+                ws_last_kline_ago = websocket.get("last_kline_ago_seconds")
+                kline_is_stale = isinstance(ws_last_kline_ago, (int, float)) and (
+                    ws_last_kline_ago > thresholds.stale_ws_seconds
+                )
+                if kline_is_stale:
+                    issues.append(
+                        PipelineHealthIssue(
+                            key="kline_stream_stale",
+                            symbol="SYSTEM",
+                            error_type="kline_stream_stale",
+                            message="WebSocket connected but klines not arriving",
+                            details={
+                                "last_kline_ago_seconds": ws_last_kline_ago,
+                                "last_closed_kline_ago_seconds": ws_last_closed_kline_ago,
+                                "last_message_ago_seconds": ws_last_ago,
+                                "stale_threshold_seconds": thresholds.stale_ws_seconds,
+                            },
+                        ),
+                    )
 
     latest_candle_ago_seconds = ingest_health.get("latest_candle_ago_seconds")
     if isinstance(latest_candle_ago_seconds, dict):
@@ -150,7 +193,6 @@ class PipelineHealthService:
         self._running = False
         self._task: asyncio.Task[None] | None = None
         self._last_sent_at: dict[str, datetime] = {}
-        self._active_keys: set[str] = set()
         self._started_at: datetime | None = None
 
     async def start(self) -> None:
@@ -199,19 +241,12 @@ class PipelineHealthService:
             thresholds=self._thresholds,
         )
 
-        issue_keys = {i.key for i in issues}
-        self._active_keys.intersection_update(issue_keys)
-
         for issue in issues:
             if not self._should_emit(issue.key, now):
                 continue
             await self._emit_issue(issue, now)
 
-        self._active_keys = issue_keys
-
     def _should_emit(self, key: str, now: datetime) -> bool:
-        if key not in self._active_keys:
-            return True
         last_sent = self._last_sent_at.get(key)
         if last_sent is None:
             return True
