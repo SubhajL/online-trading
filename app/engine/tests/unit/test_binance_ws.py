@@ -493,3 +493,171 @@ class TestPingKeepalive:
         """Default ping keepalive interval is 30 seconds."""
         client = BinanceWebSocketClient(event_bus=MagicMock())
         assert client._ping_keepalive_interval == 30
+
+
+class TestKlineSpecificTracking:
+    """Tests for kline-specific message freshness tracking.
+
+    The WS client tracks ALL messages via _mark_message_received(), but this
+    doesn't distinguish klines from tickers. These tests verify that kline
+    messages are tracked separately so LiveRestFallbackService can detect
+    "tickers alive, klines dead" scenarios.
+    """
+
+    @pytest.mark.asyncio
+    async def test_kline_message_updates_last_kline_at(self) -> None:
+        """Any kline message (open or closed) updates _last_kline_at."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+
+        assert client._last_kline_at is None
+
+        # Open kline (k.x = False)
+        open_kline_data = {
+            "e": "kline",
+            "k": {
+                "t": 1234567800000,
+                "T": 1234568099999,
+                "s": "BTCUSDT",
+                "i": "5m",
+                "o": "50000.00",
+                "h": "50500.00",
+                "l": "49500.00",
+                "c": "50250.00",
+                "v": "100.5",
+                "q": "5025000.00",
+                "n": 1000,
+                "V": "60.3",
+                "Q": "3015000.00",
+                "x": False,
+            },
+        }
+
+        await client._handle_kline_message(open_kline_data)
+
+        assert client._last_kline_at is not None
+
+    @pytest.mark.asyncio
+    async def test_closed_kline_updates_last_closed_kline_at(self) -> None:
+        """Closed kline (k.x=true) updates _last_closed_kline_at."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+
+        assert client._last_closed_kline_at is None
+
+        # Closed kline (k.x = True)
+        closed_kline_data = {
+            "e": "kline",
+            "k": {
+                "t": 1234567800000,
+                "T": 1234568099999,
+                "s": "BTCUSDT",
+                "i": "5m",
+                "o": "50000.00",
+                "h": "50500.00",
+                "l": "49500.00",
+                "c": "50250.00",
+                "v": "100.5",
+                "q": "5025000.00",
+                "n": 1000,
+                "V": "60.3",
+                "Q": "3015000.00",
+                "x": True,
+            },
+        }
+
+        await client._handle_kline_message(closed_kline_data)
+
+        assert client._last_closed_kline_at is not None
+
+    @pytest.mark.asyncio
+    async def test_non_closed_kline_does_not_update_closed_timestamp(self) -> None:
+        """Open kline doesn't update _last_closed_kline_at."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+
+        # Open kline (k.x = False)
+        open_kline_data = {
+            "e": "kline",
+            "k": {
+                "t": 1234567800000,
+                "T": 1234568099999,
+                "s": "BTCUSDT",
+                "i": "5m",
+                "o": "50000.00",
+                "h": "50500.00",
+                "l": "49500.00",
+                "c": "50250.00",
+                "v": "100.5",
+                "q": "5025000.00",
+                "n": 1000,
+                "V": "60.3",
+                "Q": "3015000.00",
+                "x": False,
+            },
+        }
+
+        await client._handle_kline_message(open_kline_data)
+
+        assert client._last_kline_at is not None
+        assert client._last_closed_kline_at is None
+
+    @pytest.mark.asyncio
+    async def test_ticker_message_does_not_update_kline_timestamps(self) -> None:
+        """Ticker messages don't affect kline timestamps."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+
+        # Process ticker message
+        ticker_data = {
+            "e": "24hrTicker",
+            "s": "BTCUSDT",
+            "c": "50000.00",
+            "P": "2.5",
+        }
+
+        await client._handle_ticker_message(ticker_data)
+
+        assert client._last_kline_at is None
+        assert client._last_closed_kline_at is None
+
+    @pytest.mark.asyncio
+    async def test_health_check_includes_kline_ago_fields(self) -> None:
+        """health_check() returns both kline age fields."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+        client._running = True
+        client._websocket = MagicMock(state=WebSocketState.OPEN)
+
+        # Set kline timestamps to known values
+        now = datetime.now(UTC)
+        client._last_kline_at = now - timedelta(seconds=30)
+        client._last_closed_kline_at = now - timedelta(seconds=120)
+        client._last_message_at = now - timedelta(seconds=5)
+
+        health = await client.health_check()
+
+        assert "last_kline_ago_seconds" in health
+        assert "last_closed_kline_ago_seconds" in health
+        assert health["last_kline_ago_seconds"] >= 30
+        assert health["last_closed_kline_ago_seconds"] >= 120
+
+    @pytest.mark.asyncio
+    async def test_health_check_kline_ago_none_when_no_klines(self) -> None:
+        """Returns None for kline ages when no klines received."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+        client._running = True
+        client._websocket = MagicMock(state=WebSocketState.OPEN)
+        client._last_message_at = datetime.now(UTC)
+
+        health = await client.health_check()
+
+        assert health["last_kline_ago_seconds"] is None
+        assert health["last_closed_kline_ago_seconds"] is None

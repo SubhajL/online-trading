@@ -151,6 +151,11 @@ class BinanceWebSocketClient:
         self._watchdog_interval_seconds = 30
         self._watchdog_task: asyncio.Task[Any] | None = None
 
+        # Kline-specific tracking (separate from generic message tracking)
+        # Enables detection of "tickers alive, klines dead" scenarios
+        self._last_kline_at: datetime | None = None
+        self._last_closed_kline_at: datetime | None = None
+
         # Ping keepalive to prevent NAT/firewall silent disconnects
         self._ping_keepalive_interval = ping_keepalive_interval
         self._ping_keepalive_task: asyncio.Task[Any] | None = None
@@ -498,9 +503,16 @@ class BinanceWebSocketClient:
             timeframe = kline_data.get("i", "?")
             is_closed = kline_data.get("x", False)
 
+            # Track ANY kline message (open or closed) for freshness detection
+            now = datetime.now(UTC)
+            self._last_kline_at = now
+
             # Only process closed candles (k.x == true)
             if not is_closed:
                 return
+
+            # Track closed klines specifically for gap-fill triggering
+            self._last_closed_kline_at = now
 
             logger.info(f"Received CLOSED candle: {symbol} {timeframe}")
 
@@ -651,6 +663,18 @@ class BinanceWebSocketClient:
             return True
         return ago > self._stale_threshold_seconds
 
+    def _last_kline_ago_seconds(self, now: datetime) -> float | None:
+        """Seconds since last kline message (any, open or closed)."""
+        if self._last_kline_at is None:
+            return None
+        return (now - self._last_kline_at).total_seconds()
+
+    def _last_closed_kline_ago_seconds(self, now: datetime) -> float | None:
+        """Seconds since last closed kline (k.x == true)."""
+        if self._last_closed_kline_at is None:
+            return None
+        return (now - self._last_closed_kline_at).total_seconds()
+
     async def _watchdog_loop(self) -> None:
         while self._running:
             await asyncio.sleep(self._watchdog_interval_seconds)
@@ -710,6 +734,9 @@ class BinanceWebSocketClient:
             "stale": stale,
             "last_message_ago_seconds": last_ago,
             "messages_per_minute": messages_per_minute,
+            # Kline-specific freshness (for detecting "tickers alive, klines dead")
+            "last_kline_ago_seconds": self._last_kline_ago_seconds(now),
+            "last_closed_kline_ago_seconds": self._last_closed_kline_ago_seconds(now),
             # Resilience metrics
             "consecutive_failures": self._consecutive_failures,
             "circuit_state": circuit_state.value,
