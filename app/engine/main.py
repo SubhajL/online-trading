@@ -148,6 +148,12 @@ def _pipeline_health_alerts_enabled_from_env() -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+def _paper_trading_enabled_from_env() -> bool:
+    """Check if paper trading mode is enabled via ENABLE_PAPER_TRADING env var."""
+    value = os.getenv("ENABLE_PAPER_TRADING", "false").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def _live_rest_fallback_enabled_from_env() -> bool:
     value = os.getenv("LIVE_REST_FALLBACK_ENABLED", "1").strip().lower()
     return value in {"1", "true", "yes", "on"}
@@ -421,6 +427,52 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
             venue=execution_venue,
         )
 
+        # Initialize equity sampler for paper trading mode
+        # This keeps DecisionPublisher's risk snapshot from rejecting decisions
+        # due to stale equity samples
+        if _paper_trading_enabled_from_env():
+            from .paper.equity_sampler_service import (
+                EquitySamplerConfig,
+                EquitySamplerService,
+            )
+
+            paper_starting_balance = Decimal(os.getenv("PAPER_STARTING_BALANCE", "10000"))
+            sampler_config = EquitySamplerConfig(
+                starting_balance=paper_starting_balance,
+                poll_interval_seconds=60,
+            )
+            services["equity_sampler"] = EquitySamplerService(
+                db_adapter=db_adapter,
+                config=sampler_config,
+            )
+            logger.info(
+                "EquitySamplerService initialized (starting_balance=%s)",
+                paper_starting_balance,
+            )
+        else:
+            from .execution.router_equity_sampler_service import (
+                RouterEquitySamplerConfig,
+                RouterEquitySamplerService,
+            )
+
+            poll_interval_seconds = int(os.getenv("LIVE_EQUITY_POLL_INTERVAL_SECONDS", "60"))
+            if poll_interval_seconds <= 0:
+                poll_interval_seconds = 60
+
+            services["equity_sampler"] = RouterEquitySamplerService(
+                db_adapter=db_adapter,
+                router_client=router_client,
+                config=RouterEquitySamplerConfig(
+                    venue=execution_venue,
+                    poll_interval_seconds=poll_interval_seconds,
+                ),
+            )
+            logger.info(
+                "RouterEquitySamplerService initialized (venue=%s, poll_interval_seconds=%s)",
+                execution_venue,
+                poll_interval_seconds,
+            )
+
         # Initialize alert subscriber (if Telegram configured)
         telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if telegram_bot_token:
@@ -522,6 +574,12 @@ async def start_services() -> None:
         await services["features"].start()
         await services["smc"].start()
         await services["retest_engine"].start()
+
+        # Start equity sampler BEFORE decision publisher to ensure fresh samples
+        if "equity_sampler" in services:
+            await services["equity_sampler"].start()
+            logger.info("Started equity_sampler")
+
         await services["decision_publisher"].start()
 
         if "pipeline_health" in services:
@@ -554,6 +612,14 @@ async def start_services() -> None:
 async def shutdown_services() -> None:  # noqa: C901, PLR0912, PLR0915
     """Shutdown all services"""
     try:
+        # Stop equity sampler first (before decision publisher stops)
+        if "equity_sampler" in services:
+            try:
+                await services["equity_sampler"].stop()
+                logger.info("Stopped equity_sampler")
+            except Exception as e:
+                logger.error(f"Error stopping equity_sampler: {e}")
+
         if "execution_subscriber" in services:
             try:
                 await services["execution_subscriber"].stop()

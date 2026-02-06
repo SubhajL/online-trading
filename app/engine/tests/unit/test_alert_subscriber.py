@@ -8,7 +8,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.engine.adapters.alert.alert_subscriber import AlertSubscriber
+from app.engine.adapters.alert.alert_subscriber import (
+    AlertSubscriber,
+    _error_event_to_text,
+)
 from app.engine.models import (
     ErrorEvent,
     EventType,
@@ -134,7 +137,8 @@ class TestAlertSubscriberRegister:
         # Default is execution_enabled=False, which subscribes to decision-only events
         assert EventType.TRADING_DECISION in event_types  # type: ignore[operator]
         assert EventType.ERROR in event_types  # type: ignore[operator]
-        assert len(event_types) == 2  # type: ignore[arg-type]
+        assert EventType.STARTUP_COMPLETE in event_types  # type: ignore[operator]
+        assert len(event_types) == 3  # type: ignore[arg-type]
 
     @pytest.mark.asyncio
     async def test_registers_with_low_priority(self) -> None:
@@ -364,7 +368,7 @@ class TestAlertSubscriberEventTypesParameter:
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
         # Default is execution_enabled=False
-        assert len(event_types) == 2  # type: ignore[arg-type]
+        assert len(event_types) == 3  # type: ignore[arg-type]
         assert EventType.TRADING_DECISION in event_types  # type: ignore[operator]
         assert EventType.ERROR in event_types  # type: ignore[operator]
 
@@ -378,7 +382,7 @@ class TestAlertSubscriberEventTypesParameter:
 
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
-        assert len(event_types) == 2  # type: ignore[arg-type]
+        assert len(event_types) == 3  # type: ignore[arg-type]
         assert EventType.ORDER_UPDATE in event_types  # type: ignore[operator]
         assert EventType.ERROR in event_types  # type: ignore[operator]
 
@@ -711,3 +715,80 @@ class TestAlertSubscriberCooldown:
         await subscriber._handle_event(event)
 
         assert call_count == 2
+
+
+class TestErrorEventToText:
+    """Tests for _error_event_to_text metadata rendering."""
+
+    def test_error_event_text_includes_metadata_fields(self) -> None:
+        """Timeframe + age should appear in alert text when present in metadata."""
+        ts = datetime(2026, 2, 5, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            component="pipeline_health",
+            error_type="candle_stale",
+            error_message="No recent closed candle for symbol/timeframe",
+        )
+        event.metadata.update(
+            {
+                "timeframe": "5m",
+                "latest_candle_ago_seconds": 1200.5,
+                "max_allowed_candle_age_seconds": 720.0,
+            },
+        )
+
+        text = _error_event_to_text(event)
+
+        assert "BTCUSDT" in text
+        assert "candle_stale" in text
+        assert "5m" in text
+        assert "1200" in text
+        assert "720" in text
+
+    def test_error_event_text_without_metadata(self) -> None:
+        """Empty metadata should render clean basic format without extras."""
+        ts = datetime(2026, 2, 5, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            component="ingest",
+            error_type="ConnectionError",
+            error_message="WebSocket disconnected",
+        )
+        # No metadata set
+
+        text = _error_event_to_text(event)
+
+        assert "Engine error" in text
+        assert "ingest" in text
+        assert "ConnectionError" in text
+        assert "WebSocket disconnected" in text
+        # Should NOT have a "Details:" section
+        assert "Timeframe:" not in text
+
+    def test_error_event_text_includes_kline_stream_stale_metadata(self) -> None:
+        ts = datetime(2026, 2, 6, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="SYSTEM",
+            component="pipeline_health",
+            error_type="kline_stream_stale",
+            error_message="WebSocket connected but klines not arriving",
+        )
+        event.metadata.update(
+            {
+                "last_kline_ago_seconds": None,
+                "last_closed_kline_ago_seconds": None,
+                "last_message_ago_seconds": 0.07,
+                "stale_threshold_seconds": 120,
+            },
+        )
+
+        text = _error_event_to_text(event)
+
+        assert "kline_stream_stale" in text
+        assert "WS Kline Age: null" in text
+        assert "WS Closed Kline Age: null" in text
+        assert "WS Last Msg Age: 0s" in text
+        assert "Stale Threshold: 120s" in text

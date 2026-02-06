@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -72,6 +73,10 @@ class _StubDBAdapter:
     async def close(self) -> None:
         return None
 
+    async def insert_equity_sample(self, *, equity: Decimal, timestamp: datetime) -> bool:
+        _ = equity, timestamp
+        return True
+
 
 class _StubRedisAdapter(_StubDBAdapter):
     pass
@@ -80,6 +85,10 @@ class _StubRedisAdapter(_StubDBAdapter):
 class _StubRouterClient(_StubDBAdapter):
     async def place_bracket_order(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "payload": payload}
+
+    async def get_internal_equity(self, *, venue: str | None = None) -> tuple[Decimal, datetime]:
+        _ = venue
+        return Decimal("10000"), datetime(2026, 2, 6, 12, 0, tzinfo=UTC)
 
 
 @pytest.mark.asyncio

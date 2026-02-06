@@ -267,6 +267,33 @@ class RouterHTTPClient:
             logger.error("Error placing bracket order: %s", e)
             return {"error": str(e), "success": False}
 
+    async def get_internal_equity(self, *, venue: str | None = None) -> tuple[Decimal, datetime]:
+        """Fetch live equity snapshot from router.
+
+        Returns:
+            (equity_usd, timestamp)
+        """
+        params = {"venue": venue} if venue else None
+        payload = await self._make_request("GET", "/internal/equity", params=params)
+
+        equity_raw = payload.get("equity_usd")
+        if equity_raw is None:
+            raise ValueError("Router /internal/equity missing equity_usd")
+        try:
+            equity = Decimal(str(equity_raw))
+        except Exception as e:  # noqa: BLE001
+            raise ValueError(f"Invalid equity_usd from router: {equity_raw}") from e
+
+        ts_raw = payload.get("timestamp")
+        if isinstance(ts_raw, str) and ts_raw:
+            ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=UTC)
+        else:
+            ts = datetime.now(UTC)
+
+        return equity, ts
+
     async def cancel_order(self, order_id: str) -> bool:
         """Cancel an order"""
         try:

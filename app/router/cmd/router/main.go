@@ -176,6 +176,11 @@ func main() {
 	mux.HandleFunc("/close_positions", handlers.ClosePositionsHandler)
 	mux.HandleFunc("/healthz", handlers.HealthzHandler)
 	mux.HandleFunc("/readyz", handlers.ReadyzHandler)
+	equityProvider := api.NewBinanceEquityProvider(spotClient, futuresClient)
+	mux.HandleFunc(
+		"/internal/equity",
+		api.NewEquityHandler(equityProvider, logger.With().Str("component", "equity").Logger()),
+	)
 	if dbPool != nil {
 		mux.HandleFunc("/stats", api.NewStatsHandler(api.NewPostgresStatsProvider(dbPool), logger))
 		executionQualityHandler := api.NewExecutionQualityHandler(dbPool, logger.With().Str("component", "execution_quality").Logger())

@@ -179,8 +179,8 @@ class TestKlineStreamStaleDetection:
         assert any(i.key == "websocket_stale" for i in issues)
         assert not any(i.key == "kline_stream_stale" for i in issues)
 
-    def test_no_kline_stream_stale_when_last_kline_ago_is_none(self) -> None:
-        """No kline_stream_stale issue when no klines have been received yet."""
+    def test_reports_kline_stream_stale_when_last_kline_ago_is_none(self) -> None:
+        """WS connected and messages flowing, but no klines have been received."""
         now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
         thresholds = PipelineHealthThresholds()
         health = _ingest_health(
@@ -192,7 +192,7 @@ class TestKlineStreamStaleDetection:
 
         issues = evaluate_pipeline_health(ingest_health=health, now=now, thresholds=thresholds)
 
-        assert not any(i.key == "kline_stream_stale" for i in issues)
+        assert any(i.key == "kline_stream_stale" for i in issues)
 
     def test_kline_stream_stale_uses_stale_ws_seconds_threshold(self) -> None:
         """kline_stream_stale uses stale_ws_seconds as threshold."""
@@ -397,7 +397,11 @@ class TestPipelineHealthServiceCooldown:
         # Check 2: Issue gone (30s later)
         current_time = datetime(2026, 1, 5, 12, 0, 30, tzinfo=UTC)
         service._now_fn = lambda: current_time
-        ingest.health_check.return_value = _ingest_health(ws_stale=False)
+        ingest.health_check.return_value = _ingest_health(
+            ws_stale=False,
+            ws_last_message_ago_seconds=1.0,
+            ws_last_kline_ago_seconds=1.0,
+        )
         await service._check_once()
         # No new emit (no issues)
         assert bus.publish.await_count == 1
@@ -441,7 +445,11 @@ class TestPipelineHealthServiceCooldown:
         # Check 2: Issue gone
         current_time = datetime(2026, 1, 5, 12, 1, tzinfo=UTC)
         service._now_fn = lambda: current_time
-        ingest.health_check.return_value = _ingest_health(ws_stale=False)
+        ingest.health_check.return_value = _ingest_health(
+            ws_stale=False,
+            ws_last_message_ago_seconds=1.0,
+            ws_last_kline_ago_seconds=1.0,
+        )
         await service._check_once()
 
         # Check 3: Issue re-appears after 301s — past cooldown

@@ -98,8 +98,8 @@ def evaluate_pipeline_health(
                 ),
             )
         else:
-            ws_last_is_over_threshold = isinstance(ws_last_ago, (int, float)) and (
-                ws_last_ago > thresholds.stale_ws_seconds
+            ws_last_is_over_threshold = ws_last_ago is None or (
+                isinstance(ws_last_ago, (int, float)) and ws_last_ago > thresholds.stale_ws_seconds
             )
             if ws_stale or ws_last_is_over_threshold:
                 # WS stale supersedes kline_stream_stale (if WS is stale, klines are obviously stale too)
@@ -124,10 +124,11 @@ def evaluate_pipeline_health(
                 # - Closed klines only arrive at timeframe intervals (e.g., every 5m)
                 # - Using stale_ws_seconds (120s default) for any-kline is appropriate
                 ws_last_kline_ago = websocket.get("last_kline_ago_seconds")
+                kline_is_missing = ws_last_kline_ago is None
                 kline_is_stale = isinstance(ws_last_kline_ago, (int, float)) and (
                     ws_last_kline_ago > thresholds.stale_ws_seconds
                 )
-                if kline_is_stale:
+                if kline_is_missing or kline_is_stale:
                     issues.append(
                         PipelineHealthIssue(
                             key="kline_stream_stale",

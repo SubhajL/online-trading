@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import json
 import logging
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 import redis.asyncio as redis
 from redis.asyncio import Redis
@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
 
 
-async def _await_redis(value: Awaitable[_T] | _T) -> _T:
-    return await cast("Awaitable[_T]", value)
+async def _await_redis(value: Awaitable[_T]) -> _T:
+    return await value
 
 
 class RedisAdapter:
@@ -707,7 +707,7 @@ class RedisAdapter:
         self._ensure_connected()
 
         try:
-            redis_pairs: dict[str, str] = {}
+            redis_pairs: dict[str | bytes, str] = {}
             for key, value in key_value_pairs.items():
                 redis_key = self._build_key(prefix, key)
                 redis_pairs[redis_key] = self._serialize_value(value)

@@ -161,13 +161,40 @@ def _order_update_event_to_order_update_payload(
 
 
 def _error_event_to_text(event: ErrorEvent) -> str:
-    return (
-        "🚨 Engine error\n"
-        f"Component: {event.component}\n"
-        f"Type: {event.error_type}\n"
-        f"Symbol: {event.symbol}\n"
-        f"Message: {event.error_message}"
-    )
+    lines = [
+        "🚨 Engine error",
+        f"Component: {event.component}",
+        f"Type: {event.error_type}",
+        f"Symbol: {event.symbol}",
+        f"Message: {event.error_message}",
+    ]
+
+    meta = event.metadata
+
+    def _append_seconds(label: str, key: str) -> None:
+        if key not in meta:
+            return
+        value = meta.get(key)
+        if value is None:
+            lines.append(f"{label}: null")
+            return
+        if isinstance(value, (int, float)):
+            lines.append(f"{label}: {value:.0f}s")
+            return
+        lines.append(f"{label}: {value}")
+
+    if meta.get("timeframe"):
+        lines.append(f"Timeframe: {meta['timeframe']}")
+    if meta.get("latest_candle_ago_seconds") is not None:
+        lines.append(f"Age: {meta['latest_candle_ago_seconds']:.0f}s")
+    if meta.get("max_allowed_candle_age_seconds") is not None:
+        lines.append(f"Max: {meta['max_allowed_candle_age_seconds']:.0f}s")
+    _append_seconds("WS Kline Age", "last_kline_ago_seconds")
+    _append_seconds("WS Closed Kline Age", "last_closed_kline_ago_seconds")
+    _append_seconds("WS Last Msg Age", "last_message_ago_seconds")
+    _append_seconds("Stale Threshold", "stale_threshold_seconds")
+
+    return "\n".join(lines)
 
 
 DEFAULT_ALERT_EVENT_TYPES: list[EventType] = [

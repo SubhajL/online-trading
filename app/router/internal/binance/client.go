@@ -404,6 +404,13 @@ func (c *Client) GetFuturesAccountInfo(ctx context.Context) (*FuturesAccountResp
 	return &FuturesAccountResponse{Positions: positions}, nil
 }
 
+func (c *Client) GetFuturesAccount(ctx context.Context) (*rest.FuturesAccountResponse, error) {
+	if !c.isFutures {
+		return nil, fmt.Errorf("futures account not available on spot client")
+	}
+	return c.restClient.GetFuturesAccount(ctx)
+}
+
 // Validation functions
 
 func (c *Client) validateSpotOrder(order SpotOrderRequest) error {

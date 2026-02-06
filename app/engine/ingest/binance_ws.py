@@ -17,12 +17,7 @@ from urllib.parse import urlparse
 
 import websockets
 from websockets import State as WebSocketState
-from websockets.exceptions import ConnectionClosed
-
-try:
-    from websockets.exceptions import InvalidStatusCode  # type: ignore[attr-defined]
-except ImportError:
-    from websockets.exceptions import InvalidStatus as InvalidStatusCode
+from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
@@ -70,28 +65,19 @@ def unwrap_combined_stream_message(data: Any) -> Any:
     return inner
 
 
-def build_combined_stream_url(base_url: str, streams: list[str]) -> str:
-    """
-    Build Binance-compliant combined stream WebSocket URL.
+def normalize_ws_base_url(base_url: str) -> str:
+    """Normalize a Binance WS base URL to `/ws`.
 
-    Converts base URL and stream list into the format required by Binance:
-    wss://host:port/stream?streams=stream1/stream2/stream3
+    We intentionally use the `/ws` endpoint and manage subscriptions with
+    `SUBSCRIBE` / `UNSUBSCRIBE` frames.
 
-    Args:
-        base_url: Base WebSocket URL (e.g., "wss://stream.binance.com:9443/ws/")
-        streams: List of stream names (e.g., ["btcusdt@kline_1m", "ethusdt@ticker"])
-
-    Returns:
-        Combined stream URL in Binance format
+    This avoids mixed strategies (combined-stream URL + SUBSCRIBE frames) which
+    can lead to "tickers alive, klines dead" when the server ignores the frames.
     """
     parsed = urlparse(base_url)
-
-    # Construct new URL with /stream endpoint
-    scheme = parsed.scheme
-    netloc = parsed.netloc
-    streams_param = "/".join(streams)
-
-    return f"{scheme}://{netloc}/stream?streams={streams_param}"
+    if not parsed.scheme or not parsed.netloc:
+        return base_url.rstrip("/")
+    return f"{parsed.scheme}://{parsed.netloc}/ws"
 
 
 class BinanceWebSocketClient:
@@ -126,9 +112,9 @@ class BinanceWebSocketClient:
         stale_threshold_seconds: int = 60,
         ping_keepalive_interval: int = 30,
     ) -> None:
-        self.base_url = base_url
+        self.base_url = normalize_ws_base_url(base_url)
         if testnet:
-            self.base_url = "wss://stream.testnet.binance.vision/ws/"
+            self.base_url = normalize_ws_base_url("wss://stream.testnet.binance.vision/ws/")
 
         self.reconnect_interval = reconnect_interval
         self.ping_interval = ping_interval
@@ -407,15 +393,7 @@ class BinanceWebSocketClient:
     async def _connect_and_listen(self) -> None:
         """Connect to WebSocket and listen for messages"""
         try:
-            # Build WebSocket URL using Binance combined stream format
-            if self._subscriptions:
-                url = build_combined_stream_url(
-                    self.base_url,
-                    sorted(self._subscriptions),
-                )
-            else:
-                # Use a dummy stream for initial connection
-                url = build_combined_stream_url(self.base_url, ["btcusdt@ticker"])
+            url = self.base_url
 
             logger.info(f"Connecting to WebSocket: {url[:100]}...")
 
@@ -449,7 +427,7 @@ class BinanceWebSocketClient:
                     except Exception as e:
                         logger.error(f"Error handling message: {e}")
 
-        except (ConnectionClosed, InvalidStatusCode) as e:
+        except (ConnectionClosed, InvalidStatus) as e:
             logger.warning(f"WebSocket connection closed: {e}")
             raise
         except Exception as e:
