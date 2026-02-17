@@ -93,6 +93,59 @@ class _StubRouterClient(_StubDBAdapter):
 
 @pytest.mark.asyncio
 class TestMainExecutionWiring:
+    async def test_initialize_services_sanitizes_trading_symbols(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        main_mod.services.clear()
+
+        captured: dict[str, Any] = {}
+
+        def ingest_ctor(**kwargs: Any) -> _StubAsyncService:
+            captured["symbols"] = kwargs.get("symbols")
+            return _StubAsyncService()
+
+        bus = _StubEventBus()
+        monkeypatch.setenv("EXECUTION_MODE", "disabled")
+        monkeypatch.setenv("TRADING_SYMBOLS", " BTCUSDT , ethusdt ,, ")
+        monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+
+        monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
+        monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
+        monkeypatch.setattr(main_mod, "RouterHTTPClient", lambda **_: _StubRouterClient())
+
+        monkeypatch.setattr(main_mod, "IngestService", lambda **kw: ingest_ctor(**kw))
+        monkeypatch.setattr(main_mod, "FeatureService", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "SMCEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
+
+        monkeypatch.setattr(main_mod, "set_event_bus", lambda *_: None)
+        import app.engine.bus as bus_mod
+
+        monkeypatch.setattr(bus_mod, "create_event_bus", lambda: bus)
+
+        cfg = _StubConfig(
+            database=_StubDatabaseCfg(),
+            redis=_StubRedisCfg(),
+            binance=type("BinanceCfg", (), {"api_key": "", "api_secret": "", "testnet": True})(),
+            risk_parameters=type(
+                "RiskParams",
+                (),
+                {
+                    "risk_per_trade": Decimal("0.01"),
+                    "max_position_size": Decimal(1),
+                },
+            )(),
+        )
+
+        await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
+
+        assert captured["symbols"] == ["BTCUSDT", "ETHUSDT"]
+
     async def test_initialize_services_registers_execution_subscriber_when_enabled(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -143,10 +196,7 @@ class TestMainExecutionWiring:
         assert "decision_publisher" in main_mod.services
         assert "execution_cooldown" in main_mod.services
         assert "alert_cooldown" in main_mod.services
-        assert (
-            main_mod.services["execution_cooldown"]
-            is not main_mod.services["alert_cooldown"]
-        )
+        assert main_mod.services["execution_cooldown"] is not main_mod.services["alert_cooldown"]
 
     async def test_start_services_starts_execution_subscriber(
         self,

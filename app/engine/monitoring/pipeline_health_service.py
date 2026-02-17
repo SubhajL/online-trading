@@ -77,13 +77,20 @@ def evaluate_pipeline_health(
     issues: list[PipelineHealthIssue] = []
 
     if isinstance(websocket, dict):
+        ws_open = websocket.get("open")
+        if isinstance(ws_open, bool):
+            ws_is_open = ws_open
+        else:
+            # Backward compat: older health payloads only exposed "connected".
+            ws_is_open = websocket.get("connected") is True
+
         ws_connected = websocket.get("connected") is True
         ws_stale = websocket.get("stale") is True
         ws_last_ago = websocket.get("last_message_ago_seconds")
         ws_last_closed_kline_ago = websocket.get("last_closed_kline_ago_seconds")
         consecutive_failures = websocket.get("consecutive_failures")
 
-        if not ws_connected:
+        if not ws_is_open:
             # Hard disconnect — report as root cause (supersedes stale and kline_stream_stale)
             issues.append(
                 PipelineHealthIssue(
@@ -117,6 +124,33 @@ def evaluate_pipeline_health(
                     ),
                 )
             else:
+                kline_subscriptions = websocket.get("kline_subscriptions")
+                ticker_subscriptions = websocket.get("ticker_subscriptions")
+                if isinstance(kline_subscriptions, int) and kline_subscriptions <= 0:
+                    issues.append(
+                        PipelineHealthIssue(
+                            key="kline_not_subscribed",
+                            symbol="SYSTEM",
+                            error_type="kline_not_subscribed",
+                            message="WebSocket connected but no kline subscriptions are active",
+                            details={
+                                "subscriptions": websocket.get("subscriptions"),
+                                "kline_subscriptions": kline_subscriptions,
+                                "ticker_subscriptions": ticker_subscriptions,
+                                "last_subscribe_ok_ago_seconds": websocket.get(
+                                    "last_subscribe_ok_ago_seconds",
+                                ),
+                                "last_subscribe_error_ago_seconds": websocket.get(
+                                    "last_subscribe_error_ago_seconds",
+                                ),
+                                "last_subscribe_error": websocket.get(
+                                    "last_subscribe_error",
+                                ),
+                            },
+                        ),
+                    )
+                    return issues
+
                 # WS is connected and receiving messages (tickers flowing),
                 # but check if klines specifically are stale ("tickers alive, klines dead")
                 # Use last_kline_ago_seconds (any kline, open or closed) because:
@@ -140,6 +174,15 @@ def evaluate_pipeline_health(
                                 "last_closed_kline_ago_seconds": ws_last_closed_kline_ago,
                                 "last_message_ago_seconds": ws_last_ago,
                                 "stale_threshold_seconds": thresholds.stale_ws_seconds,
+                                "last_subscribe_ok_ago_seconds": websocket.get(
+                                    "last_subscribe_ok_ago_seconds",
+                                ),
+                                "last_subscribe_error_ago_seconds": websocket.get(
+                                    "last_subscribe_error_ago_seconds",
+                                ),
+                                "last_subscribe_error": websocket.get(
+                                    "last_subscribe_error",
+                                ),
                             },
                         ),
                     )
