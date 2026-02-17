@@ -15,22 +15,28 @@ from app.engine.monitoring.pipeline_health_service import (
 
 def _ingest_health(
     *,
+    ws_open: bool = True,
     ws_connected: bool = True,
     ws_stale: bool = False,
     ws_last_message_ago_seconds: float | None = 10.0,
     ws_last_kline_ago_seconds: float | None = None,
     ws_last_closed_kline_ago_seconds: float | None = None,
     consecutive_failures: int = 0,
+    kline_subscriptions: int = 1,
+    ticker_subscriptions: int = 1,
     latest_candle_ago_seconds: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, object]:
     return {
         "websocket": {
+            "open": ws_open,
             "connected": ws_connected,
             "stale": ws_stale,
             "last_message_ago_seconds": ws_last_message_ago_seconds,
             "last_kline_ago_seconds": ws_last_kline_ago_seconds,
             "last_closed_kline_ago_seconds": ws_last_closed_kline_ago_seconds,
             "consecutive_failures": consecutive_failures,
+            "kline_subscriptions": kline_subscriptions,
+            "ticker_subscriptions": ticker_subscriptions,
         },
         "latest_candle_ago_seconds": latest_candle_ago_seconds or {},
     }
@@ -41,7 +47,7 @@ class TestEvaluatePipelineHealth:
         """ws_connected=False yields websocket_disconnected issue."""
         now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
         thresholds = PipelineHealthThresholds()
-        health = _ingest_health(ws_connected=False)
+        health = _ingest_health(ws_open=False, ws_connected=False)
 
         issues = evaluate_pipeline_health(ingest_health=health, now=now, thresholds=thresholds)
 
@@ -53,6 +59,7 @@ class TestEvaluatePipelineHealth:
         now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
         thresholds = PipelineHealthThresholds()
         health = _ingest_health(
+            ws_open=False,
             ws_connected=False,
             ws_stale=True,
             ws_last_message_ago_seconds=500.0,
@@ -152,6 +159,7 @@ class TestKlineStreamStaleDetection:
         now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
         thresholds = PipelineHealthThresholds()
         health = _ingest_health(
+            ws_open=False,
             ws_connected=False,
             ws_last_kline_ago_seconds=150.0,
         )
@@ -252,6 +260,43 @@ class TestPipelineHealthService:
         published_event = bus.publish.await_args[0][0]
         assert isinstance(published_event, ErrorEvent)
         assert published_event.component == "pipeline_health"
+
+
+class TestKlineNotSubscribedDetection:
+    def test_reports_kline_not_subscribed_when_ws_open_and_no_kline_subs(self) -> None:
+        """WS open and messages flowing, but zero kline subscriptions is a root cause."""
+        now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        thresholds = PipelineHealthThresholds()
+        health = _ingest_health(
+            ws_open=True,
+            ws_connected=True,
+            ws_stale=False,
+            ws_last_message_ago_seconds=5.0,
+            ws_last_kline_ago_seconds=None,
+            kline_subscriptions=0,
+            ticker_subscriptions=1,
+        )
+
+        issues = evaluate_pipeline_health(ingest_health=health, now=now, thresholds=thresholds)
+
+        assert any(i.key == "kline_not_subscribed" for i in issues)
+        assert not any(i.key == "kline_stream_stale" for i in issues)
+
+    def test_ws_open_but_stale_is_not_misclassified_as_disconnected(self) -> None:
+        """open=true + connected=false + stale=true should yield websocket_stale, not disconnected."""
+        now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        thresholds = PipelineHealthThresholds(stale_ws_seconds=120)
+        health = _ingest_health(
+            ws_open=True,
+            ws_connected=False,
+            ws_stale=True,
+            ws_last_message_ago_seconds=200.0,
+        )
+
+        issues = evaluate_pipeline_health(ingest_health=health, now=now, thresholds=thresholds)
+
+        assert any(i.key == "websocket_stale" for i in issues)
+        assert not any(i.key == "websocket_disconnected" for i in issues)
 
     @pytest.mark.asyncio
     async def test_ingest_health_check_error_does_not_raise_or_publish(self) -> None:

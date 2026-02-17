@@ -367,7 +367,8 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         services["risk_manager"] = risk_manager
 
         # Initialize ingest service
-        symbols = os.getenv("TRADING_SYMBOLS", "BTCUSDT,ETHUSDT").split(",")
+        raw_symbols = os.getenv("TRADING_SYMBOLS", "BTCUSDT,ETHUSDT").split(",")
+        symbols = [s.strip().upper() for s in raw_symbols if s.strip()]
         from .models import TimeFrame
 
         timeframes = [TimeFrame.M5, TimeFrame.M15, TimeFrame.H1, TimeFrame.H4]

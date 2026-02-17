@@ -582,3 +582,73 @@ class TestKlineSpecificTracking:
 
         assert health["last_kline_ago_seconds"] is None
         assert health["last_closed_kline_ago_seconds"] is None
+
+
+class TestSubscribeResponses:
+    @pytest.mark.asyncio
+    async def test_subscribe_ack_updates_health(self) -> None:
+        """SUBSCRIBE ack frames are tracked for health/debugging."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+        client._running = True
+        client._websocket = MagicMock(state=WebSocketState.OPEN)
+        client._last_message_at = datetime.now(UTC)
+
+        # Binance SUBSCRIBE success response
+        await client._handle_message(json.dumps({"result": None, "id": 1}))
+
+        health = await client.health_check()
+
+        assert health["last_subscribe_ok_ago_seconds"] is not None
+        assert health["last_subscribe_error_ago_seconds"] is None
+        assert health["last_subscribe_error"] is None
+
+    @pytest.mark.asyncio
+    async def test_subscribe_error_updates_health(self) -> None:
+        """SUBSCRIBE error frames are tracked for health/debugging."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+        client._running = True
+        client._websocket = MagicMock(state=WebSocketState.OPEN)
+        client._last_message_at = datetime.now(UTC)
+
+        await client._handle_message(
+            json.dumps(
+                {
+                    "error": {"code": 123, "msg": "bad stream"},
+                    "id": 1,
+                },
+            ),
+        )
+
+        health = await client.health_check()
+
+        assert health["last_subscribe_ok_ago_seconds"] is None
+        assert health["last_subscribe_error_ago_seconds"] is not None
+        assert health["last_subscribe_error"] is not None
+
+    @pytest.mark.asyncio
+    async def test_health_check_includes_subscription_breakdown(self) -> None:
+        """health_check() includes kline/ticker subscription counts."""
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+        client._running = True
+        client._websocket = MagicMock(state=WebSocketState.OPEN)
+        client._last_message_at = datetime.now(UTC)
+
+        client._subscriptions.update(
+            {
+                "btcusdt@ticker",
+                "ethusdt@kline_5m",
+                "!ticker@arr",
+            },
+        )
+
+        health = await client.health_check()
+
+        assert health["open"] is True
+        assert health["kline_subscriptions"] == 1
+        assert health["ticker_subscriptions"] == 2

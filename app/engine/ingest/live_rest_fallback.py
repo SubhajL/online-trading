@@ -74,6 +74,7 @@ class LiveRestFallbackService:
         poll_interval_seconds: int = 30,
         now_fn: Callable[[], datetime] | None = None,
         candle_stale_multiplier: float = 2.0,
+        seed_cooldown_seconds: int = 600,
     ) -> None:
         self._bus = bus
         self._rest_client = rest_client
@@ -84,10 +85,12 @@ class LiveRestFallbackService:
         self._poll_interval_seconds = poll_interval_seconds
         self._now_fn = now_fn or (lambda: datetime.now(UTC))
         self._candle_stale_multiplier = candle_stale_multiplier
+        self._seed_cooldown_seconds = seed_cooldown_seconds
 
         self._running = False
         self._task: asyncio.Task[None] | None = None
         self._watermarks: dict[tuple[str, TimeFrame], datetime] = {}
+        self._seed_attempted_at: dict[tuple[str, TimeFrame], datetime] = {}
 
     async def start(self) -> None:
         if self._running:
@@ -140,10 +143,13 @@ class LiveRestFallbackService:
         for symbol in self._symbols:
             for timeframe in self._timeframes:
                 try:
-                    latest = await self._ingest_service.get_latest_candle(
-                        symbol, timeframe
-                    )
+                    latest = await self._ingest_service.get_latest_candle(symbol, timeframe)
                     if latest is None:
+                        await self._poll_symbol_timeframe(
+                            now=now,
+                            symbol=symbol,
+                            timeframe=timeframe,
+                        )
                         continue
 
                     if not self._is_candle_stale(latest, timeframe, now):
@@ -178,7 +184,51 @@ class LiveRestFallbackService:
         if watermark is None:
             latest = await self._ingest_service.get_latest_candle(symbol, timeframe)
             if latest is None:
+                last_attempt = self._seed_attempted_at.get(key)
+                if last_attempt is not None:
+                    ago = (now - last_attempt).total_seconds()
+                    if ago < self._seed_cooldown_seconds:
+                        return
+                self._seed_attempted_at[key] = now
+
+                timeframe_seconds = _timeframe_to_seconds(timeframe)
+                start_time = now - timedelta(seconds=timeframe_seconds * 3)
+                candles = await self._rest_client.get_klines(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    start_time=start_time,
+                    end_time=now,
+                )
+                if not isinstance(candles, list) or not candles:
+                    return
+
+                last_published = start_time.replace(tzinfo=UTC)
+                for candle in candles:
+                    close_time = getattr(candle, "close_time", None)
+                    if not isinstance(close_time, datetime):
+                        continue
+                    if close_time.tzinfo is None:
+                        close_time = close_time.replace(tzinfo=UTC)
+
+                    if close_time > now:
+                        continue
+                    if close_time <= last_published:
+                        continue
+
+                    event = CandleUpdateEvent(
+                        timestamp=now,
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        candle=candle,
+                        origin=CandleOrigin.GAP_FILL,
+                    )
+                    event.metadata["gap_fill_source"] = "rest_fallback_seed"
+                    await self._bus.publish(event)
+                    last_published = close_time
+
+                self._watermarks[key] = last_published
                 return
+
             watermark = latest.close_time
         if watermark.tzinfo is None:
             watermark = watermark.replace(tzinfo=UTC)

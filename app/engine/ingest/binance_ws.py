@@ -142,6 +142,14 @@ class BinanceWebSocketClient:
         self._last_kline_at: datetime | None = None
         self._last_closed_kline_at: datetime | None = None
 
+        # Subscription (SUBSCRIBE) response tracking for health/debugging.
+        # Binance returns {"result": null, "id": 1} on success, or
+        # {"error": {...}, "id": 1} on failure.
+        self._last_subscribe_ok_at: datetime | None = None
+        self._last_subscribe_error_at: datetime | None = None
+        self._last_subscribe_error: str | None = None
+        self._last_subscribe_response_id: int | None = None
+
         # Ping keepalive to prevent NAT/firewall silent disconnects
         self._ping_keepalive_interval = ping_keepalive_interval
         self._ping_keepalive_task: asyncio.Task[Any] | None = None
@@ -468,10 +476,41 @@ class BinanceWebSocketClient:
                 else:
                     logger.debug(f"No handler for event type: {event_type}")
             else:
+                if self._maybe_handle_subscribe_response(data):
+                    return
                 logger.debug(f"Message without event type: {data}")
 
         except Exception as e:
             logger.error(f"Error routing message: {e}")
+
+    def _maybe_handle_subscribe_response(self, data: dict[str, Any]) -> bool:
+        """Handle Binance SUBSCRIBE/UNSUBSCRIBE ack/error responses.
+
+        Returns True if the message was recognized and handled.
+        """
+        if "id" not in data:
+            return False
+        if "result" not in data and "error" not in data:
+            return False
+
+        now = datetime.now(UTC)
+        response_id = data.get("id")
+        if isinstance(response_id, int):
+            self._last_subscribe_response_id = response_id
+
+        error = data.get("error")
+        if error is not None:
+            self._last_subscribe_error_at = now
+            self._last_subscribe_error = json.dumps(error, default=str)[:500]
+            logger.warning("WS subscription response error (id=%s): %s", response_id, error)
+            return True
+
+        # Success response is typically {"result": null, "id": 1}
+        self._last_subscribe_ok_at = now
+        self._last_subscribe_error_at = None
+        self._last_subscribe_error = None
+        logger.info("WS subscription response ok (id=%s)", response_id)
+        return True
 
     async def _handle_kline_message(self, data: dict[str, Any]) -> None:
         """Handle kline/candlestick message"""
@@ -695,6 +734,11 @@ class BinanceWebSocketClient:
         """Check if WebSocket is connected"""
         return self._is_websocket_open() and not self._is_stale(datetime.now(UTC))
 
+    def _ago_seconds(self, ts: datetime | None, now: datetime) -> float | None:
+        if ts is None:
+            return None
+        return (now - ts).total_seconds()
+
     async def health_check(self) -> dict[str, Any]:
         """Get health status including resilience metrics."""
         circuit_state = await self._circuit_breaker.get_state()
@@ -702,10 +746,18 @@ class BinanceWebSocketClient:
         last_ago = self._last_message_ago_seconds(now)
         cutoff = now - timedelta(minutes=1)
         messages_per_minute = sum(1 for t in self._message_times if t >= cutoff)
-        stale = self._is_stale(now) if self._is_websocket_open() else False
+        open_ = self._is_websocket_open()
+        stale = self._is_stale(now) if open_ else False
+        kline_subscriptions = sum(1 for s in self._subscriptions if "@kline_" in s)
+        ticker_subscriptions = sum(
+            1 for s in self._subscriptions if s.endswith("@ticker") or s == "!ticker@arr"
+        )
         return {
             "connected": self.is_connected(),
+            "open": open_,
             "subscriptions": len(self._subscriptions),
+            "kline_subscriptions": kline_subscriptions,
+            "ticker_subscriptions": ticker_subscriptions,
             "symbols": len(self._symbols),
             "timeframes": len(self._timeframes),
             "running": self._running,
@@ -715,6 +767,13 @@ class BinanceWebSocketClient:
             # Kline-specific freshness (for detecting "tickers alive, klines dead")
             "last_kline_ago_seconds": self._last_kline_ago_seconds(now),
             "last_closed_kline_ago_seconds": self._last_closed_kline_ago_seconds(now),
+            # Subscription response diagnostics (SUBSCRIBE ack/error)
+            "last_subscribe_ok_ago_seconds": self._ago_seconds(self._last_subscribe_ok_at, now),
+            "last_subscribe_error_ago_seconds": self._ago_seconds(
+                self._last_subscribe_error_at,
+                now,
+            ),
+            "last_subscribe_error": self._last_subscribe_error,
             # Resilience metrics
             "consecutive_failures": self._consecutive_failures,
             "circuit_state": circuit_state.value,

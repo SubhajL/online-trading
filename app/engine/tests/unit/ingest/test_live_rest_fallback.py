@@ -36,8 +36,8 @@ def _make_candle(
 
 class TestLiveRestFallback:
     @pytest.mark.asyncio
-    async def test_skips_when_no_latest_candle_exists(self) -> None:
-        """Skips gap-fill when no baseline candle exists for symbol/timeframe."""
+    async def test_seeds_when_no_latest_candle_exists(self) -> None:
+        """Seeds gap-fill from REST when no baseline candle exists for symbol/timeframe."""
         from app.engine.ingest.live_rest_fallback import LiveRestFallbackService
 
         bus = AsyncMock()
@@ -46,6 +46,16 @@ class TestLiveRestFallback:
         ws_client.health_check.return_value = {"connected": True, "stale": False}
         ingest_service = AsyncMock()
         ingest_service.get_latest_candle.return_value = None
+        now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+
+        seeded_close = now - timedelta(minutes=5)
+        seeded = _make_candle(
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M5,
+            open_time=seeded_close - timedelta(minutes=5),
+            close_time=seeded_close,
+        )
+        rest_client.get_klines.return_value = [seeded]
 
         service = LiveRestFallbackService(
             bus=bus,
@@ -55,12 +65,13 @@ class TestLiveRestFallback:
             symbols=["BTCUSDT"],
             timeframes=[TimeFrame.M5],
             poll_interval_seconds=1,
+            now_fn=lambda: now,
         )
 
         await service._check_once()
 
-        rest_client.get_klines.assert_not_called()
-        bus.publish.assert_not_called()
+        rest_client.get_klines.assert_awaited_once()
+        assert bus.publish.await_count == 1
 
     @pytest.mark.asyncio
     async def test_publishes_only_closed_candles_as_gap_fill(self) -> None:
@@ -363,13 +374,14 @@ class TestCandleLagBasedGapFilling:
 
     @pytest.mark.asyncio
     async def test_handles_missing_latest_candle_gracefully(self) -> None:
-        """Skips symbol/timeframe if no candle data available."""
+        """Attempts a REST seed when no baseline candle exists."""
         from app.engine.ingest.live_rest_fallback import LiveRestFallbackService
 
         now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
 
         bus = AsyncMock()
         rest_client = AsyncMock()
+        rest_client.get_klines.return_value = []
         ws_client = AsyncMock()
         ws_client.health_check.return_value = {"connected": True, "stale": False}
         ingest_service = AsyncMock()
@@ -389,6 +401,5 @@ class TestCandleLagBasedGapFilling:
 
         await service._check_once()
 
-        # Should skip polling when no baseline candle exists
-        rest_client.get_klines.assert_not_called()
+        rest_client.get_klines.assert_awaited_once()
         bus.publish.assert_not_called()
