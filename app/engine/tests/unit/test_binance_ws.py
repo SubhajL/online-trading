@@ -603,6 +603,7 @@ class TestSubscribeResponses:
         assert health["last_subscribe_ok_ago_seconds"] is not None
         assert health["last_subscribe_error_ago_seconds"] is None
         assert health["last_subscribe_error"] is None
+        assert health["last_subscribe_response_id"] == 1
 
     @pytest.mark.asyncio
     async def test_subscribe_error_updates_health(self) -> None:
@@ -628,6 +629,7 @@ class TestSubscribeResponses:
         assert health["last_subscribe_ok_ago_seconds"] is None
         assert health["last_subscribe_error_ago_seconds"] is not None
         assert health["last_subscribe_error"] is not None
+        assert health["last_subscribe_response_id"] == 1
 
     @pytest.mark.asyncio
     async def test_health_check_includes_subscription_breakdown(self) -> None:

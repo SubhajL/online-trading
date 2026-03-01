@@ -74,6 +74,78 @@ class TestLiveRestFallback:
         assert bus.publish.await_count == 1
 
     @pytest.mark.asyncio
+    async def test_does_not_seed_when_backfill_incomplete(self) -> None:
+        """Avoid publishing seed candles while backfill is still running."""
+        from app.engine.ingest.live_rest_fallback import LiveRestFallbackService
+
+        bus = AsyncMock()
+        rest_client = AsyncMock()
+        ws_client = AsyncMock()
+        ws_client.health_check.return_value = {"connected": True, "stale": False}
+
+        ingest_service = AsyncMock()
+        ingest_service.enable_backfill = True
+        ingest_service.is_backfill_complete.return_value = False
+        ingest_service.get_latest_candle.return_value = None
+
+        now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        service = LiveRestFallbackService(
+            bus=bus,
+            rest_client=rest_client,
+            ws_client=ws_client,
+            ingest_service=ingest_service,
+            symbols=["BTCUSDT"],
+            timeframes=[TimeFrame.M5],
+            poll_interval_seconds=1,
+            now_fn=lambda: now,
+        )
+
+        await service._check_once()
+
+        rest_client.get_klines.assert_not_called()
+        bus.publish.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_seed_normalizes_naive_now_to_utc(self) -> None:
+        """Naive now_fn timestamps are treated as UTC for REST queries."""
+        from app.engine.ingest.live_rest_fallback import LiveRestFallbackService
+
+        bus = AsyncMock()
+        rest_client = AsyncMock()
+        ws_client = AsyncMock()
+        ws_client.health_check.return_value = {"connected": True, "stale": False}
+
+        ingest_service = AsyncMock()
+        ingest_service.get_latest_candle.return_value = None
+
+        now_naive = datetime(2026, 1, 5, 12, 0)
+        seeded_close = now_naive.replace(tzinfo=UTC) - timedelta(minutes=5)
+        seeded = _make_candle(
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M5,
+            open_time=seeded_close - timedelta(minutes=5),
+            close_time=seeded_close,
+        )
+        rest_client.get_klines.return_value = [seeded]
+
+        service = LiveRestFallbackService(
+            bus=bus,
+            rest_client=rest_client,
+            ws_client=ws_client,
+            ingest_service=ingest_service,
+            symbols=["BTCUSDT"],
+            timeframes=[TimeFrame.M5],
+            poll_interval_seconds=1,
+            now_fn=lambda: now_naive,
+        )
+
+        await service._check_once()
+
+        _, kwargs = rest_client.get_klines.await_args
+        assert kwargs["start_time"].tzinfo is UTC
+        assert kwargs["end_time"].tzinfo is UTC
+
+    @pytest.mark.asyncio
     async def test_publishes_only_closed_candles_as_gap_fill(self) -> None:
         from app.engine.ingest.live_rest_fallback import LiveRestFallbackService
 

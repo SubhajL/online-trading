@@ -8,6 +8,7 @@ Manages WebSocket connections and REST API calls.
 import asyncio
 from datetime import UTC, datetime
 import logging
+import os
 from typing import Any
 
 from ..bus import get_event_bus
@@ -61,6 +62,7 @@ class IngestService:
         backfill_days: int = 30,
         enable_realtime: bool = True,
         enable_backfill: bool = True,
+        enable_ticker_streams: bool | None = None,
         binance_breakers_config: dict[str, Any] | None = None,
         db_adapter: DatabaseAdapterInterface | None = None,
     ) -> None:
@@ -70,6 +72,11 @@ class IngestService:
         self.enable_realtime = enable_realtime
         self.enable_backfill = enable_backfill
         self._db_adapter = db_adapter
+        if enable_ticker_streams is None:
+            enable_ticker_streams = (
+                os.getenv("INGEST_ENABLE_TICKER_STREAMS", "false").lower() == "true"
+            )
+        self.enable_ticker_streams = enable_ticker_streams
 
         # Select credentials (supports nested shape with spot/futures)
         creds = self._select_binance_credentials(binance_config)
@@ -165,11 +172,6 @@ class IngestService:
             # Start REST client
             await self.rest_client.start()
 
-            # Start WebSocket client if enabled
-            if self.enable_realtime:
-                await self.ws_client.start()
-                await self._setup_realtime_streams()
-
             # Subscribe to candle updates for persistence (when db_adapter is present)
             if self._db_adapter is not None:
                 self._candle_subscription_id = await self._event_bus.subscribe(
@@ -182,6 +184,12 @@ class IngestService:
             # Start historical data backfill if enabled
             if self.enable_backfill:
                 await self._start_backfill()
+                await self._monitor_backfill_completion()
+
+            # Start WebSocket client if enabled (after backfill to reduce startup contention)
+            if self.enable_realtime:
+                await self.ws_client.start()
+                await self._setup_realtime_streams()
 
             logger.info("IngestService started successfully")
 
@@ -235,7 +243,8 @@ class IngestService:
             await self.ws_client.subscribe_klines(self.symbols, self.timeframes)
 
             # Subscribe to ticker streams for price updates
-            await self.ws_client.subscribe_ticker(self.symbols)
+            if self.enable_ticker_streams:
+                await self.ws_client.subscribe_ticker(self.symbols)
 
             logger.info("Real-time streams setup complete")
 
@@ -313,9 +322,6 @@ class IngestService:
                     self._backfill_tasks.append(task)
 
             logger.info(f"Started {len(self._backfill_tasks)} backfill tasks")
-
-            # Spawn a task to monitor backfill completion and publish startup event
-            self._backfill_monitor_task = asyncio.create_task(self._monitor_backfill_completion())
 
         except Exception as e:
             logger.error(f"Error starting backfill: {e}")

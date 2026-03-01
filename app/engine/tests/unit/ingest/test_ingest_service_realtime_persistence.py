@@ -253,7 +253,7 @@ class TestRealtimeCandlePersistence:
             db_adapter=None,
         )
 
-        assert service.ws_client.base_url == "wss://stream.binance.com:9443/ws/"
+        assert service.ws_client.base_url == "wss://stream.binance.com:9443/ws"
         assert service.rest_client.base_url == "https://api.binance.com"
 
     @pytest.mark.asyncio
