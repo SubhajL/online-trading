@@ -92,18 +92,64 @@ def evaluate_pipeline_health(
 
         if not ws_is_open:
             # Hard disconnect — report as root cause (supersedes stale and kline_stream_stale)
+            details: dict[str, object] = {
+                "last_message_ago_seconds": ws_last_ago,
+                "consecutive_failures": consecutive_failures,
+            }
+
+            last_connect_error_kind = websocket.get("last_connect_error_kind")
+            if isinstance(last_connect_error_kind, str) and last_connect_error_kind:
+                details["last_connect_error_kind"] = last_connect_error_kind
+            last_connect_error = websocket.get("last_connect_error")
+            if isinstance(last_connect_error, str) and last_connect_error:
+                details["last_connect_error"] = last_connect_error
+            last_connect_error_ago = websocket.get("last_connect_error_ago_seconds")
+            if isinstance(last_connect_error_ago, (int, float)):
+                details["last_connect_error_ago_seconds"] = last_connect_error_ago
+
+            consecutive_dns_failures = websocket.get("consecutive_dns_failures")
+            if isinstance(consecutive_dns_failures, int) and consecutive_dns_failures > 0:
+                details["consecutive_dns_failures"] = consecutive_dns_failures
+
+            latest_candle_ago_seconds = ingest_health.get("latest_candle_ago_seconds")
+            worst: list[dict[str, object]] = []
+            if isinstance(latest_candle_ago_seconds, dict):
+                for symbol, by_tf in latest_candle_ago_seconds.items():
+                    if not isinstance(symbol, str) or not isinstance(by_tf, dict):
+                        continue
+                    for timeframe, age in by_tf.items():
+                        if not isinstance(timeframe, str) or not isinstance(age, (int, float)):
+                            continue
+                        allowed = _max_allowed_candle_age_seconds(
+                            timeframe=timeframe,
+                            thresholds=thresholds,
+                        )
+                        worst.append(
+                            {
+                                "symbol": symbol,
+                                "timeframe": timeframe,
+                                "latest_candle_ago_seconds": float(age),
+                                "max_allowed_candle_age_seconds": allowed,
+                            },
+                        )
+
+            worst.sort(
+                key=lambda x: float(x.get("latest_candle_ago_seconds", 0.0)),
+                reverse=True,
+            )
+            if worst:
+                details["worst_candles"] = worst[:5]
+
             issues.append(
                 PipelineHealthIssue(
                     key="websocket_disconnected",
                     symbol="SYSTEM",
                     error_type="websocket_disconnected",
                     message="WebSocket is disconnected",
-                    details={
-                        "last_message_ago_seconds": ws_last_ago,
-                        "consecutive_failures": consecutive_failures,
-                    },
+                    details=details,
                 ),
             )
+            return issues
         else:
             ws_last_is_over_threshold = ws_last_ago is None or (
                 isinstance(ws_last_ago, (int, float)) and ws_last_ago > thresholds.stale_ws_seconds

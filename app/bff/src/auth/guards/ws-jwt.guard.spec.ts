@@ -61,13 +61,17 @@ describe('WsJwtGuard', () => {
       const mockToken = 'valid-jwt-token';
       const mockSecret = 'test-secret';
 
-      jest.spyOn(configService, 'get').mockReturnValue(mockSecret);
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'JWT_SECRET') return mockSecret;
+        return undefined;
+      });
       jest.spyOn(jwtService, 'verifyAsync').mockResolvedValue(mockPayload);
 
       const context = createMockExecutionContext(mockToken);
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
+      expect(configService.get).toHaveBeenCalledWith('JWT_SECRET');
       expect(jwtService.verifyAsync).toHaveBeenCalledWith(mockToken, { secret: mockSecret });
 
       const client = context.switchToWs().getClient<Socket>();
@@ -97,12 +101,16 @@ describe('WsJwtGuard', () => {
         }),
       } as unknown as ExecutionContext;
 
-      jest.spyOn(configService, 'get').mockReturnValue(mockSecret);
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'JWT_SECRET') return mockSecret;
+        return undefined;
+      });
       jest.spyOn(jwtService, 'verifyAsync').mockResolvedValue(mockPayload);
 
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
+      expect(configService.get).toHaveBeenCalledWith('JWT_SECRET');
       expect(jwtService.verifyAsync).toHaveBeenCalledWith(mockToken, { secret: mockSecret });
       expect(mockSocket.data.user).toEqual(mockPayload);
     });
@@ -132,13 +140,17 @@ describe('WsJwtGuard', () => {
       const mockToken = 'invalid-jwt-token';
       const mockSecret = 'test-secret';
 
-      jest.spyOn(configService, 'get').mockReturnValue(mockSecret);
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'JWT_SECRET') return mockSecret;
+        return undefined;
+      });
       jest.spyOn(jwtService, 'verifyAsync').mockRejectedValue(new Error('Invalid token'));
 
       const context = createMockExecutionContext(mockToken);
       const result = await guard.canActivate(context);
 
       expect(result).toBe(false);
+      expect(configService.get).toHaveBeenCalledWith('JWT_SECRET');
       expect(jwtService.verifyAsync).toHaveBeenCalledWith(mockToken, { secret: mockSecret });
     });
 
@@ -146,7 +158,10 @@ describe('WsJwtGuard', () => {
       const mockToken = 'expired-jwt-token';
       const mockSecret = 'test-secret';
 
-      jest.spyOn(configService, 'get').mockReturnValue(mockSecret);
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'JWT_SECRET') return mockSecret;
+        return undefined;
+      });
       jest
         .spyOn(jwtService, 'verifyAsync')
         .mockRejectedValue(new Error('TokenExpiredError: jwt expired'));
@@ -166,16 +181,45 @@ describe('WsJwtGuard', () => {
       const mockToken = 'Bearer valid-jwt-token';
       const mockSecret = 'test-secret';
 
-      jest.spyOn(configService, 'get').mockReturnValue(mockSecret);
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'JWT_SECRET') return mockSecret;
+        return undefined;
+      });
       jest.spyOn(jwtService, 'verifyAsync').mockResolvedValue(mockPayload);
 
       const context = createMockExecutionContext(mockToken);
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
+      expect(configService.get).toHaveBeenCalledWith('JWT_SECRET');
       expect(jwtService.verifyAsync).toHaveBeenCalledWith('valid-jwt-token', {
         secret: mockSecret,
       });
+    });
+
+    it('should fall back to legacy jwt.secret when JWT_SECRET is missing', async () => {
+      const mockPayload: JwtPayload = {
+        sub: 'user-123',
+        username: 'testuser',
+        roles: ['operator'],
+      };
+      const mockToken = 'valid-jwt-token';
+      const mockSecret = 'legacy-test-secret';
+
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'JWT_SECRET') return undefined;
+        if (key === 'jwt.secret') return mockSecret;
+        return undefined;
+      });
+      jest.spyOn(jwtService, 'verifyAsync').mockResolvedValue(mockPayload);
+
+      const context = createMockExecutionContext(mockToken);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(configService.get).toHaveBeenCalledWith('JWT_SECRET');
+      expect(configService.get).toHaveBeenCalledWith('jwt.secret');
+      expect(jwtService.verifyAsync).toHaveBeenCalledWith(mockToken, { secret: mockSecret });
     });
   });
 });

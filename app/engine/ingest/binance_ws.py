@@ -12,6 +12,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import json
 import logging
+import os
+import socket
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -78,6 +80,35 @@ def normalize_ws_base_url(base_url: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         return base_url.rstrip("/")
     return f"{parsed.scheme}://{parsed.netloc}/ws"
+
+
+def classify_connect_error_kind(error: Exception) -> str:
+    """Classify WS connection failures for health/alert visibility."""
+    if isinstance(error, socket.gaierror):
+        return "dns"
+    if isinstance(error, OSError):
+        if getattr(error, "errno", None) == -3:
+            return "dns"
+    if isinstance(error, InvalidStatus):
+        return "invalid_status"
+    if isinstance(error, ConnectionClosed):
+        message = str(error).lower()
+        if "keepalive ping timeout" in message:
+            return "keepalive_timeout"
+        return "connection_closed"
+
+    message = str(error).lower()
+    if (
+        "name resolution" in message
+        or "temporary failure in name resolution" in message
+        or "nodename nor servname provided" in message
+    ):
+        return "dns"
+    if "keepalive ping timeout" in message:
+        return "keepalive_timeout"
+    if "timed out" in message or "timeout" in message:
+        return "timeout"
+    return "unknown"
 
 
 class BinanceWebSocketClient:
@@ -157,6 +188,15 @@ class BinanceWebSocketClient:
         # Resilience: max retry limit
         self._max_reconnect_attempts = max_reconnect_attempts
         self._consecutive_failures = 0
+        self._consecutive_dns_failures = 0
+        self._last_connect_error_at: datetime | None = None
+        self._last_connect_error_kind: str | None = None
+        self._last_connect_error: str | None = None
+
+        self._dns_probe_initial_seconds = float(
+            os.getenv("WS_DNS_PROBE_INITIAL_SECONDS", "5"),
+        )
+        self._dns_probe_max_seconds = float(os.getenv("WS_DNS_PROBE_MAX_SECONDS", "30"))
 
         # Resilience: exponential backoff
         self._backoff = ExponentialBackoff(backoff_config or BackoffConfig())
@@ -370,9 +410,14 @@ class BinanceWebSocketClient:
                 await self._on_connection_success()
             except Exception as e:
                 logger.error(f"WebSocket connection error: {e}")
-                await self._on_connection_failure(e)
+                kind = await self._on_connection_failure(e)
 
                 if self._running:
+                    if kind == "dns":
+                        host, port = self._ws_host_port()
+                        if host is not None and port is not None:
+                            await self._wait_for_dns_recovery(host, port)
+                            continue
                     delay = self._backoff.next_delay()
                     logger.info(
                         f"Reconnecting in {delay:.1f}s "
@@ -383,20 +428,57 @@ class BinanceWebSocketClient:
     async def _on_connection_success(self) -> None:
         """Handle successful connection: reset backoff and circuit breaker."""
         self._consecutive_failures = 0
+        self._consecutive_dns_failures = 0
         self._backoff.reset()
         await self._circuit_breaker.record_success()
+        self._last_connect_error_at = None
+        self._last_connect_error_kind = None
+        self._last_connect_error = None
         logger.info("Connection successful, resilience counters reset")
 
-    async def _on_connection_failure(self, error: Exception) -> None:
-        """Handle connection failure: record to circuit breaker, increment counter."""
-        self._consecutive_failures += 1
-        await self._circuit_breaker.record_failure()
+    def _ws_host_port(self) -> tuple[str | None, int | None]:
+        parsed = urlparse(self.base_url)
+        host = parsed.hostname
+        if host is None:
+            return None, None
+        port = parsed.port
+        if port is None:
+            port = 443 if parsed.scheme == "wss" else 80
+        return host, port
+
+    async def _wait_for_dns_recovery(self, host: str, port: int) -> None:
+        delay = max(0.1, self._dns_probe_initial_seconds)
+        max_delay = max(delay, self._dns_probe_max_seconds)
+        loop = asyncio.get_running_loop()
+        while self._running:
+            try:
+                await loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+                logger.info("DNS resolution recovered for %s:%s", host, port)
+                return
+            except Exception:
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, max_delay)
+
+    async def _on_connection_failure(self, error: Exception) -> str:
+        """Handle connection failure. Returns classified error kind."""
+        self._last_connect_error_at = datetime.now(UTC)
+        self._last_connect_error_kind = classify_connect_error_kind(error)
+        self._last_connect_error = str(error)[:500]
+        kind = self._last_connect_error_kind
+        if kind == "dns":
+            self._consecutive_dns_failures += 1
+        else:
+            self._consecutive_failures += 1
+            self._consecutive_dns_failures = 0
+            await self._circuit_breaker.record_failure()
         logger.warning(
-            "Connection failed (%d/%d): %s",
+            "Connection failed (%d/%d, kind=%s): %s",
             self._consecutive_failures,
             self._max_reconnect_attempts,
+            self._last_connect_error_kind,
             error,
         )
+        return kind or "unknown"
 
     async def _connect_and_listen(self) -> None:
         """Connect to WebSocket and listen for messages"""
@@ -774,8 +856,13 @@ class BinanceWebSocketClient:
                 now,
             ),
             "last_subscribe_error": self._last_subscribe_error,
+            "last_subscribe_response_id": self._last_subscribe_response_id,
+            "last_connect_error_ago_seconds": self._ago_seconds(self._last_connect_error_at, now),
+            "last_connect_error_kind": self._last_connect_error_kind,
+            "last_connect_error": self._last_connect_error,
             # Resilience metrics
             "consecutive_failures": self._consecutive_failures,
+            "consecutive_dns_failures": self._consecutive_dns_failures,
             "circuit_state": circuit_state.value,
             "backoff_attempt": self._backoff.current_attempt,
             "max_reconnect_attempts": self._max_reconnect_attempts,

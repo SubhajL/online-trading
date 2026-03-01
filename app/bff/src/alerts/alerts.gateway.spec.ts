@@ -79,6 +79,7 @@ describe('AlertsGateway', () => {
       join: jest.fn(),
       leave: jest.fn(),
       emit: jest.fn(),
+      disconnect: jest.fn(),
       data: {
         user: {
           sub: 'user-123',
@@ -127,6 +128,22 @@ describe('AlertsGateway', () => {
         unreadCount: 5,
       });
     });
+
+    it('should disconnect unauthenticated clients', async () => {
+      const unauthClient = {
+        id: 'unauth-client-1',
+        data: {},
+        join: jest.fn(),
+        emit: jest.fn(),
+        disconnect: jest.fn(),
+      } as any;
+
+      await expect(gateway.handleConnection(unauthClient)).resolves.toBeUndefined();
+
+      expect(unauthClient.disconnect).toHaveBeenCalledWith(true);
+      expect(unauthClient.join).not.toHaveBeenCalled();
+      expect(mockAlertsService.getUnreadCount).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleDisconnect', () => {
@@ -134,6 +151,17 @@ describe('AlertsGateway', () => {
       gateway.handleDisconnect(mockClient);
 
       expect(mockClient.leave).toHaveBeenCalledWith('alerts:user-123');
+    });
+
+    it('should not throw when unauthenticated', () => {
+      const unauthClient = {
+        id: 'unauth-client-2',
+        data: {},
+        leave: jest.fn(),
+      } as any;
+
+      expect(() => gateway.handleDisconnect(unauthClient)).not.toThrow();
+      expect(unauthClient.leave).not.toHaveBeenCalled();
     });
   });
 

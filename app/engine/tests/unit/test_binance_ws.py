@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 import json
+import socket
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -267,6 +268,24 @@ class TestWebSocketHealth:
         assert health["stale"] is True
         assert health["connected"] is False
         assert health["last_message_ago_seconds"] >= 600
+
+    @pytest.mark.asyncio
+    async def test_health_check_includes_last_connect_error_fields(self) -> None:
+        bus = MagicMock()
+        bus.publish = AsyncMock(return_value=True)
+        client = BinanceWebSocketClient(event_bus=bus)
+        client._running = True
+        client._websocket = MagicMock(state=WebSocketState.CLOSED)
+
+        await client._on_connection_failure(
+            socket.gaierror(-3, "Temporary failure in name resolution"),
+        )
+
+        health = await client.health_check()
+
+        assert health["last_connect_error_kind"] == "dns"
+        assert "Temporary failure in name resolution" in str(health["last_connect_error"])
+        assert isinstance(health["last_connect_error_ago_seconds"], float)
 
 
 class TestStaleThresholdConfiguration:
@@ -603,6 +622,7 @@ class TestSubscribeResponses:
         assert health["last_subscribe_ok_ago_seconds"] is not None
         assert health["last_subscribe_error_ago_seconds"] is None
         assert health["last_subscribe_error"] is None
+        assert health["last_subscribe_response_id"] == 1
 
     @pytest.mark.asyncio
     async def test_subscribe_error_updates_health(self) -> None:
@@ -628,6 +648,7 @@ class TestSubscribeResponses:
         assert health["last_subscribe_ok_ago_seconds"] is None
         assert health["last_subscribe_error_ago_seconds"] is not None
         assert health["last_subscribe_error"] is not None
+        assert health["last_subscribe_response_id"] == 1
 
     @pytest.mark.asyncio
     async def test_health_check_includes_subscription_breakdown(self) -> None:
