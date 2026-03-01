@@ -47,10 +47,7 @@ export function useBalances(venue?: Venue, client?: ApiClient): UseBalancesRetur
     (order: OrderFormValues, price: number): OptimisticToken => {
       const currentBalances = optimisticBalances || baseBalances
       const deltas: BalanceDelta[] = computeBalanceDelta(order, price)
-      const { updatedBalances, token } = applyOptimisticDelta(
-        currentBalances,
-        deltas,
-      )
+      const { updatedBalances, token } = applyOptimisticDelta(currentBalances, deltas)
       setOptimisticBalances(updatedBalances)
       return token
     },
