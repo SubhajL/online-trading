@@ -5,11 +5,17 @@ This tracks progress as we fix each category of errors.
 
 from collections import defaultdict
 from pathlib import Path
+import os
 import subprocess
 import sys
 from typing import NamedTuple
 
 import pytest
+
+if os.getenv("RUN_MYPY_PROGRESS_TESTS", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    pytest.skip("Mypy progress tests are opt-in (set RUN_MYPY_PROGRESS_TESTS=1)", allow_module_level=True)
+
+pytest.importorskip("mypy")
 
 
 class MypyError(NamedTuple):

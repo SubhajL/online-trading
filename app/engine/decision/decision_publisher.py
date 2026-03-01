@@ -7,6 +7,7 @@ Converts retest signals into TradingDecision events for downstream execution.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 import logging
 from typing import TYPE_CHECKING
 
@@ -103,11 +104,26 @@ class DecisionPublisher:
         stop_loss = signal.stop_loss
         stop_distance = abs(entry_price - stop_loss)
 
-        if stop_distance == 0:
+        if entry_price <= 0 or stop_distance == 0:
             return
 
         risk_amount = snapshot.equity * self._risk.risk_per_trade
         quantity = risk_amount / stop_distance
+
+        max_qty_notional = snapshot.equity * self._risk.max_position_notional_pct / entry_price
+        symbol_headroom_usd = (
+            snapshot.equity * self._risk.max_symbol_exposure_pct
+            - snapshot.symbol_exposure_usd.get(signal.symbol, Decimal(0))
+        )
+        max_qty_symbol = symbol_headroom_usd / entry_price
+        total_headroom_usd = (
+            snapshot.equity * self._risk.max_total_exposure_leverage - snapshot.total_exposure_usd
+        )
+        max_qty_total = total_headroom_usd / entry_price
+
+        quantity = min(quantity, max_qty_notional, max_qty_symbol, max_qty_total)
+        if quantity <= 0:
+            return
 
         decision = TradingDecision(
             venue=self._venue,

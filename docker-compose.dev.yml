@@ -84,6 +84,13 @@ services:
       dockerfile: Dockerfile.dev
     container_name: trading-engine-dev
     restart: unless-stopped
+    dns:
+      - 127.0.0.11
+      - 1.1.1.1
+      - 8.8.8.8
+    dns_opt:
+      - "timeout:2"
+      - "attempts:3"
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-your_secure_password_here}@postgres:5432/${POSTGRES_DB:-trading_platform}
       - POSTGRES_HOST=postgres
@@ -107,8 +114,18 @@ services:
       - PIPELINE_HEALTH_ALERTS_ENABLED=${PIPELINE_HEALTH_ALERTS_ENABLED:-1}
       - LIVE_REST_FALLBACK_ENABLED=${LIVE_REST_FALLBACK_ENABLED:-1}
       - TRACING_DISABLED=true
+      - EXECUTION_MODE=${EXECUTION_MODE:-disabled}
+      - TRADING_SYMBOLS=${TRADING_SYMBOLS:-BTCUSDT,ETHUSDT}
+      - ENGINE_RELOAD=${ENGINE_RELOAD:-0}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - TELEGRAM_ALERTS_ENABLED=${TELEGRAM_ALERTS_ENABLED:-0}
+      - BFF_URL=http://bff:3001
+      - INTERNAL_ALERTS_TOKEN=${INTERNAL_ALERTS_TOKEN}
+      - RISK_PER_TRADE=${RISK_PER_TRADE:-0.005}
+      - MAX_POSITION_NOTIONAL_PCT=${MAX_POSITION_NOTIONAL_PCT:-1.0}
+      - MAX_SYMBOL_EXPOSURE_PCT=${MAX_SYMBOL_EXPOSURE_PCT:-1.0}
+      - MAX_TOTAL_EXPOSURE_LEVERAGE=${MAX_TOTAL_EXPOSURE_LEVERAGE:-1.0}
     ports:
       - "${ENGINE_PORT:-8000}:8000"
     working_dir: /workspace/app/engine
@@ -124,13 +141,11 @@ services:
     networks:
       - trading-network
     command:
-      - uvicorn
-      - app.engine.main:app
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8000"
-      - --reload
+      - sh
+      - -c
+      - >
+        uvicorn app.engine.main:app --host 0.0.0.0 --port 8000
+        $$([ "$$ENGINE_RELOAD" = "1" ] && echo --reload)
     healthcheck:
       test: ["CMD-SHELL", "python -m app.engine.scripts.healthcheck"]
       interval: 10s
@@ -144,6 +159,13 @@ services:
       dockerfile: app/router/Dockerfile.dev
     container_name: trading-router-dev
     restart: unless-stopped
+    dns:
+      - 127.0.0.11
+      - 1.1.1.1
+      - 8.8.8.8
+    dns_opt:
+      - "timeout:2"
+      - "attempts:3"
     environment:
       - PORT=${ROUTER_PORT:-8001}
       - ENGINE_URL=http://engine:8000
@@ -204,6 +226,7 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-trading_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_secure_password_here}
       - POSTGRES_DB=${POSTGRES_DB:-trading_platform}
+      - INTERNAL_ALERTS_TOKEN=${INTERNAL_ALERTS_TOKEN}
     ports:
       - "${BFF_PORT:-8002}:3001"
     volumes:

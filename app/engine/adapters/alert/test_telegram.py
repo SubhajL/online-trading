@@ -17,6 +17,20 @@ class TestTelegramAlertAdapter:
         return dedup
 
     @pytest.fixture
+    def mock_error_deduplicator(self) -> Any:
+        dedup = Mock()
+        dedup.is_duplicate = Mock(return_value=False)
+        dedup.add = Mock()
+        return dedup
+
+    @pytest.fixture
+    def mock_startup_deduplicator(self) -> Any:
+        dedup = Mock()
+        dedup.try_add = Mock(return_value=True)
+        dedup.clear = Mock()
+        return dedup
+
+    @pytest.fixture
     def mock_formatter(self) -> Any:
         formatter = Mock()
         formatter.format_decision = Mock(return_value="Formatted decision")
@@ -25,13 +39,21 @@ class TestTelegramAlertAdapter:
         return formatter
 
     @pytest.fixture
-    def adapter(self, mock_deduplicator: Any, mock_formatter: Any) -> Any:
+    def adapter(
+        self,
+        mock_deduplicator: Any,
+        mock_error_deduplicator: Any,
+        mock_startup_deduplicator: Any,
+        mock_formatter: Any,
+    ) -> Any:
         with patch("app.engine.adapters.alert.telegram.aiohttp.ClientSession"):
             adapter = TelegramAlertAdapter(
                 bot_token="test_token",
                 chat_id="test_chat",
             )
             adapter.deduplicator = mock_deduplicator
+            adapter.error_deduplicator = mock_error_deduplicator
+            adapter.startup_deduplicator = mock_startup_deduplicator
             adapter.formatter = mock_formatter
             adapter.session = Mock()
             return adapter
@@ -126,6 +148,58 @@ class TestTelegramAlertAdapter:
 
             mock_formatter.format_guard_alert.assert_called_once_with(guard)
             mock_send.assert_called_once_with("Formatted guard")
+
+    @pytest.mark.asyncio
+    async def test_send_error_alert_with_deduplication(
+        self,
+        adapter: Any,
+        mock_error_deduplicator: Any,
+    ) -> None:
+        message = "Error message"
+        dedup_key = "error:pipeline_health:websocket_disconnected:SYSTEM"
+
+        mock_error_deduplicator.is_duplicate.return_value = True
+        with patch.object(adapter, "_send_alert") as mock_send:
+            result = await adapter.send_error_alert(message, dedup_key=dedup_key)
+            assert result is False
+            mock_send.assert_not_called()
+
+        mock_error_deduplicator.is_duplicate.return_value = False
+        with patch.object(adapter, "_send_alert", new=AsyncMock(return_value=True)) as mock_send:
+            result = await adapter.send_error_alert(message, dedup_key=dedup_key)
+            assert result is True
+            mock_send.assert_awaited_once_with(message)
+            mock_error_deduplicator.add.assert_called_once_with(dedup_key)
+
+    @pytest.mark.asyncio
+    async def test_send_startup_alert_deduplicates(
+        self,
+        adapter: Any,
+        mock_startup_deduplicator: Any,
+        mock_formatter: Any,
+    ) -> None:
+        startup_data = {
+            "phase": "backfill_complete",
+            "symbols": ["BTCUSDT", "ETHUSDT"],
+            "timeframes": ["5m", "15m"],
+            "candle_counts": {"BTCUSDT": 1, "ETHUSDT": 1},
+            "duration_seconds": 1.0,
+        }
+
+        mock_startup_deduplicator.try_add.return_value = False
+        with patch.object(adapter, "_send_alert") as mock_send:
+            result = await adapter.send_startup_alert(startup_data)
+            assert result is False
+            mock_send.assert_not_called()
+            mock_formatter.format_startup_alert.assert_not_called()
+
+        mock_startup_deduplicator.try_add.return_value = True
+        mock_formatter.format_startup_alert.return_value = "startup"
+        with patch.object(adapter, "_send_alert", new=AsyncMock(return_value=True)) as mock_send:
+            result = await adapter.send_startup_alert(startup_data)
+            assert result is True
+            mock_send.assert_awaited_once_with("startup")
+            mock_startup_deduplicator.clear.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_rate_limiting(self, adapter: Any) -> None:

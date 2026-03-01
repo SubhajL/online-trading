@@ -7,6 +7,8 @@ from decimal import Decimal
 
 import pytest
 
+pytest.importorskip("pytesseract")
+
 from app.engine.telegram_validator.captain_image_levels import TradeLevels
 from app.engine.telegram_validator.external_telegram_persist import (
     ExternalTelegramMessageIngest,

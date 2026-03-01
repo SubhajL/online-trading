@@ -148,6 +148,11 @@ def _pipeline_health_alerts_enabled_from_env() -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+def _telegram_alerts_enabled_from_env() -> bool:
+    value = os.getenv("TELEGRAM_ALERTS_ENABLED", "1").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def _paper_trading_enabled_from_env() -> bool:
     """Check if paper trading mode is enabled via ENABLE_PAPER_TRADING env var."""
     value = os.getenv("ENABLE_PAPER_TRADING", "false").strip().lower()
@@ -170,6 +175,11 @@ def _signal_emitter_subscriber_enabled_from_env() -> bool:
     """
     value = os.getenv("SIGNAL_EMITTER_SUBSCRIBER_ENABLED", "0").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def _uvicorn_reload_enabled_from_env() -> bool:
+    environment = os.getenv("ENVIRONMENT", "production").strip().lower()
+    return environment == "development"
 
 
 def init_tracing_from_env() -> None:
@@ -226,15 +236,15 @@ def load_configuration() -> EngineConfig:
             max_position_size=Decimal(os.getenv("MAX_POSITION_SIZE", "0.1")),
             max_daily_loss=Decimal(os.getenv("MAX_DAILY_LOSS", "0.05")),
             max_drawdown=Decimal(os.getenv("MAX_DRAWDOWN", "0.15")),
-            risk_per_trade=Decimal(os.getenv("RISK_PER_TRADE", "0.02")),
+            risk_per_trade=Decimal(os.getenv("RISK_PER_TRADE", "0.005")),
             max_correlation=Decimal(os.getenv("MAX_CORRELATION", "0.7")),
             max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "5")),
             max_total_exposure_leverage=Decimal(
                 os.getenv("MAX_TOTAL_EXPOSURE_LEVERAGE", "3"),
             ),
-            max_symbol_exposure_pct=Decimal(os.getenv("MAX_SYMBOL_EXPOSURE_PCT", "0.25")),
+            max_symbol_exposure_pct=Decimal(os.getenv("MAX_SYMBOL_EXPOSURE_PCT", "1.0")),
             max_position_notional_pct=Decimal(
-                os.getenv("MAX_POSITION_NOTIONAL_PCT", "0.10"),
+                os.getenv("MAX_POSITION_NOTIONAL_PCT", "1.0"),
             ),
             risk_data_max_age_seconds=int(os.getenv("RISK_DATA_MAX_AGE_SECONDS", "120")),
             drawdown_lookback_days=int(os.getenv("DRAWDOWN_LOOKBACK_DAYS", "30")),
@@ -369,6 +379,11 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         # Initialize ingest service
         raw_symbols = os.getenv("TRADING_SYMBOLS", "BTCUSDT,ETHUSDT").split(",")
         symbols = [s.strip().upper() for s in raw_symbols if s.strip()]
+        if not symbols:
+            raise RuntimeError(
+                "TRADING_SYMBOLS resolved to an empty list after sanitization. "
+                "Set TRADING_SYMBOLS to a comma-separated list like 'BTCUSDT,ETHUSDT'.",
+            )
         from .models import TimeFrame
 
         timeframes = [TimeFrame.M5, TimeFrame.M15, TimeFrame.H1, TimeFrame.H4]
@@ -476,7 +491,7 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
 
         # Initialize alert subscriber (if Telegram configured)
         telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        if telegram_bot_token:
+        if telegram_bot_token and _telegram_alerts_enabled_from_env():
             from .adapters.alert.alert_subscriber import AlertSubscriber
             from .adapters.alert.telegram import TelegramAlertAdapter
 
@@ -1113,5 +1128,5 @@ if __name__ == "__main__":
         host="0.0.0.0",  # noqa: S104
         port=int(os.getenv("PORT", "8000")),
         log_level=os.getenv("LOG_LEVEL", "info").lower(),
-        reload=os.getenv("ENVIRONMENT", "development") == "development",
+        reload=_uvicorn_reload_enabled_from_env(),
     )

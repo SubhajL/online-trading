@@ -10,6 +10,7 @@ import pytest
 
 from app.engine.adapters.alert.alert_subscriber import (
     AlertSubscriber,
+    _error_event_dedup_key,
     _error_event_to_text,
 )
 from app.engine.models import (
@@ -792,3 +793,134 @@ class TestErrorEventToText:
         assert "WS Closed Kline Age: null" in text
         assert "WS Last Msg Age: 0s" in text
         assert "Stale Threshold: 120s" in text
+
+    def test_error_event_text_includes_ws_connect_error_metadata(self) -> None:
+        ts = datetime(2026, 2, 6, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="SYSTEM",
+            component="pipeline_health",
+            error_type="websocket_disconnected",
+            error_message="WebSocket is disconnected",
+        )
+        event.metadata.update(
+            {
+                "last_connect_error_kind": "dns",
+                "last_connect_error": "gaierror: Name or service not known",
+                "last_connect_error_ago_seconds": 12.0,
+                "consecutive_failures": 3,
+                "consecutive_dns_failures": 3,
+                "last_message_ago_seconds": 25.0,
+            },
+        )
+
+        text = _error_event_to_text(event)
+
+        assert "WS Last Connect Error Kind: dns" in text
+        assert "WS Last Connect Error: gaierror" in text
+        assert "WS Last Connect Error Age: 12s" in text
+        assert "WS Consecutive Failures: 3" in text
+        assert "WS Consecutive DNS Failures: 3" in text
+        assert "WS Last Msg Age: 25s" in text
+
+
+class TestAlertSubscriberErrorDedupKey:
+    @pytest.mark.asyncio
+    async def test_error_events_use_dedup_key_when_sending(self) -> None:
+        class _TrackingTelegram:
+            def __init__(self) -> None:
+                self.send_error_alert = AsyncMock(return_value=True)
+
+        ts = datetime(2026, 2, 5, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            component="pipeline_health",
+            error_type="candle_stale",
+            error_message="No recent closed candle for symbol/timeframe",
+        )
+        event.metadata.update({"timeframe": "5m"})
+
+        telegram = _TrackingTelegram()
+        subscriber = AlertSubscriber(telegram_adapter=telegram)  # type: ignore[arg-type]
+
+        await subscriber._handle_event(event)
+
+        message = _error_event_to_text(event)
+        dedup_key = _error_event_dedup_key(event)
+        telegram.send_error_alert.assert_awaited_once_with(  # type: ignore[attr-defined]
+            message,
+            dedup_key=dedup_key,
+        )
+
+
+class TestAlertSubscriberRiskLimitSuppression:
+    @pytest.mark.asyncio
+    async def test_suppresses_telegram_for_cap_only_risk_rejection(self) -> None:
+        class _TrackingTelegram:
+            def __init__(self) -> None:
+                self.send_error_alert = AsyncMock(return_value=True)
+                self._send_alert = AsyncMock(return_value=True)
+
+        ts = datetime(2026, 2, 5, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="ETHUSDT",
+            component="decision_publisher",
+            error_type="risk_limit_exceeded",
+            error_message="max_position_notional_exceeded:3.35",
+        )
+
+        telegram = _TrackingTelegram()
+        subscriber = AlertSubscriber(telegram_adapter=telegram)  # type: ignore[arg-type]
+
+        await subscriber._handle_event(event)
+
+        telegram.send_error_alert.assert_not_called()  # type: ignore[attr-defined]
+        telegram._send_alert.assert_not_called()  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    async def test_still_sends_telegram_for_daily_loss_exceeded(self) -> None:
+        class _TrackingTelegram:
+            def __init__(self) -> None:
+                self.send_error_alert = AsyncMock(return_value=True)
+                self._send_alert = AsyncMock(return_value=True)
+
+        ts = datetime(2026, 2, 5, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="ETHUSDT",
+            component="decision_publisher",
+            error_type="risk_limit_exceeded",
+            error_message="daily_loss_exceeded:0.06",
+        )
+
+        telegram = _TrackingTelegram()
+        subscriber = AlertSubscriber(telegram_adapter=telegram)  # type: ignore[arg-type]
+
+        await subscriber._handle_event(event)
+
+        telegram.send_error_alert.assert_awaited_once()  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    async def test_still_sends_telegram_for_mixed_risk_reasons(self) -> None:
+        class _TrackingTelegram:
+            def __init__(self) -> None:
+                self.send_error_alert = AsyncMock(return_value=True)
+                self._send_alert = AsyncMock(return_value=True)
+
+        ts = datetime(2026, 2, 5, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="ETHUSDT",
+            component="decision_publisher",
+            error_type="risk_limit_exceeded",
+            error_message="daily_loss_exceeded:0.06; max_position_notional_exceeded:3.35",
+        )
+
+        telegram = _TrackingTelegram()
+        subscriber = AlertSubscriber(telegram_adapter=telegram)  # type: ignore[arg-type]
+
+        await subscriber._handle_event(event)
+
+        telegram.send_error_alert.assert_awaited_once()  # type: ignore[attr-defined]

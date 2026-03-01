@@ -40,6 +40,21 @@ class _LossyDBAdapter(_FakeDBAdapter):
         return Decimal(10_000)
 
 
+class _TotalExposureDBAdapter(_FakeDBAdapter):
+    def __init__(self, *, total_exposure_usd: Decimal) -> None:
+        self._total_exposure_usd = total_exposure_usd
+
+    async def get_active_positions(self, _venue: str):
+        # RiskSnapshot computes notional as abs(size * current_price).
+        return [
+            {
+                "symbol": "OTHERUSDT",
+                "size": str(self._total_exposure_usd),
+                "current_price": "1",
+            }
+        ]
+
+
 @pytest.mark.asyncio
 async def test_decision_publisher_emits_buy_decision_from_retest_signal() -> None:
     bus = create_event_bus()
@@ -118,6 +133,236 @@ async def test_decision_publisher_emits_buy_decision_from_retest_signal() -> Non
     finally:
         await bus.stop()
 
+
+@pytest.mark.asyncio
+async def test_decision_publisher_clamps_quantity_to_notional_cap_and_emits_decision() -> None:
+    bus = create_event_bus()
+    set_event_bus(bus)
+    await bus.start(num_workers=1)
+
+    try:
+        publisher = DecisionPublisher(
+            db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
+            risk=RiskParameters(
+                max_position_size=Decimal("999999"),
+                max_daily_loss=Decimal("1"),
+                max_drawdown=Decimal("1"),
+                risk_per_trade=Decimal("0.02"),
+                max_correlation=Decimal("1"),
+                max_open_positions=100,
+                max_total_exposure_leverage=Decimal("100"),
+                max_symbol_exposure_pct=Decimal("1"),
+                max_position_notional_pct=Decimal("1"),
+                risk_data_max_age_seconds=86400,
+                drawdown_lookback_days=30,
+            ),
+            venue="SPOT",
+        )
+        await publisher.start()
+
+        decisions: list[TradingDecisionEvent] = []
+        errors: list[ErrorEvent] = []
+        done = asyncio.Event()
+
+        async def on_decision(event: TradingDecisionEvent) -> None:
+            decisions.append(event)
+            done.set()
+
+        async def on_error(event: ErrorEvent) -> None:
+            errors.append(event)
+            done.set()
+
+        await bus.subscribe(
+            subscriber_id="test_decision_capture",
+            handler=on_decision,
+            event_types=[EventType.TRADING_DECISION],
+        )
+        await bus.subscribe(
+            subscriber_id="test_error_capture",
+            handler=on_error,
+            event_types=[EventType.ERROR],
+        )
+
+        signal = RetestSignal(
+            venue="SPOT",
+            symbol="ETHUSDT",
+            timeframe=TimeFrame.M15,
+            timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+            level_price=Decimal(300),
+            direction="BUY",
+            stop_loss=Decimal("298.5"),
+            take_profit=Decimal("310"),
+            retest_type="zone_retest",
+            success_probability=Decimal("0.8"),
+            volume_confirmation=True,
+            confluence_factors=["bos_confirmation"],
+        )
+        await bus.publish(
+            RetestSignalEvent(
+                timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+                symbol=signal.symbol,
+                timeframe=signal.timeframe,
+                signal=signal,
+            ),
+        )
+
+        await asyncio.wait_for(done.wait(), timeout=1.0)
+
+        assert len(errors) == 0
+        assert len(decisions) == 1
+        assert decisions[0].decision.quantity is not None
+        assert decisions[0].decision.quantity <= Decimal("33.334")
+    finally:
+        await bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_decision_publisher_does_not_clamp_when_quantity_within_caps() -> None:
+    bus = create_event_bus()
+    set_event_bus(bus)
+    await bus.start(num_workers=1)
+
+    try:
+        publisher = DecisionPublisher(
+            db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
+            risk=RiskParameters(
+                max_position_size=Decimal("999999"),
+                max_daily_loss=Decimal("1"),
+                max_drawdown=Decimal("1"),
+                risk_per_trade=Decimal("0.005"),
+                max_correlation=Decimal("1"),
+                max_open_positions=100,
+                max_total_exposure_leverage=Decimal("100"),
+                max_symbol_exposure_pct=Decimal("1"),
+                max_position_notional_pct=Decimal("1"),
+                risk_data_max_age_seconds=86400,
+                drawdown_lookback_days=30,
+            ),
+            venue="SPOT",
+        )
+        await publisher.start()
+
+        decisions: list[TradingDecisionEvent] = []
+        got_decision = asyncio.Event()
+
+        async def on_decision(event: TradingDecisionEvent) -> None:
+            decisions.append(event)
+            got_decision.set()
+
+        await bus.subscribe(
+            subscriber_id="test_decision_capture",
+            handler=on_decision,
+            event_types=[EventType.TRADING_DECISION],
+        )
+
+        signal = RetestSignal(
+            venue="SPOT",
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M15,
+            timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+            level_price=Decimal(300),
+            direction="BUY",
+            stop_loss=Decimal(285),
+            take_profit=Decimal("310"),
+            retest_type="zone_retest",
+            success_probability=Decimal("0.8"),
+            volume_confirmation=True,
+            confluence_factors=["bos_confirmation"],
+        )
+        await bus.publish(
+            RetestSignalEvent(
+                timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+                symbol=signal.symbol,
+                timeframe=signal.timeframe,
+                signal=signal,
+            ),
+        )
+
+        await asyncio.wait_for(got_decision.wait(), timeout=1.0)
+        assert len(decisions) == 1
+        assert decisions[0].decision.quantity == Decimal("3.333333333333333333333333333")
+    finally:
+        await bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_decision_publisher_clamps_quantity_to_total_exposure_headroom() -> None:
+    bus = create_event_bus()
+    set_event_bus(bus)
+    await bus.start(num_workers=1)
+
+    try:
+        publisher = DecisionPublisher(
+            db_adapter=_TotalExposureDBAdapter(total_exposure_usd=Decimal(9000)),  # type: ignore[arg-type]
+            risk=RiskParameters(
+                max_position_size=Decimal("999999"),
+                max_daily_loss=Decimal("1"),
+                max_drawdown=Decimal("1"),
+                risk_per_trade=Decimal("0.02"),
+                max_correlation=Decimal("1"),
+                max_open_positions=100,
+                max_total_exposure_leverage=Decimal("1"),
+                max_symbol_exposure_pct=Decimal("1"),
+                max_position_notional_pct=Decimal("1"),
+                risk_data_max_age_seconds=86400,
+                drawdown_lookback_days=30,
+            ),
+            venue="SPOT",
+        )
+        await publisher.start()
+
+        decisions: list[TradingDecisionEvent] = []
+        errors: list[ErrorEvent] = []
+        done = asyncio.Event()
+
+        async def on_decision(event: TradingDecisionEvent) -> None:
+            decisions.append(event)
+            done.set()
+
+        async def on_error(event: ErrorEvent) -> None:
+            errors.append(event)
+            done.set()
+
+        await bus.subscribe(
+            subscriber_id="test_decision_capture",
+            handler=on_decision,
+            event_types=[EventType.TRADING_DECISION],
+        )
+        await bus.subscribe(
+            subscriber_id="test_error_capture",
+            handler=on_error,
+            event_types=[EventType.ERROR],
+        )
+
+        signal = RetestSignal(
+            venue="SPOT",
+            symbol="ETHUSDT",
+            timeframe=TimeFrame.M15,
+            timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+            level_price=Decimal(100),
+            direction="BUY",
+            stop_loss=Decimal(99),
+            take_profit=Decimal("110"),
+            retest_type="zone_retest",
+            success_probability=Decimal("0.8"),
+            volume_confirmation=True,
+            confluence_factors=["bos_confirmation"],
+        )
+        await bus.publish(
+            RetestSignalEvent(
+                timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+                symbol=signal.symbol,
+                timeframe=signal.timeframe,
+                signal=signal,
+            ),
+        )
+
+        await asyncio.wait_for(done.wait(), timeout=1.0)
+        assert len(errors) == 0
+        assert len(decisions) == 1
+        assert decisions[0].decision.quantity == Decimal("10")
+    finally:
+        await bus.stop()
 
 @pytest.mark.asyncio
 async def test_decision_publisher_blocks_when_daily_loss_exceeded() -> None:

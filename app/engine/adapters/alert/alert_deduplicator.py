@@ -107,6 +107,20 @@ class AlertDeduplicator:
         except Exception as e:
             logger.error(f"Error adding dedup key: {e}")
 
+    def try_add(self, key: str) -> bool:
+        """Atomically claim a deduplication key (NX + EX)."""
+        if not self.redis_client:
+            return False
+
+        try:
+            full_key = f"{self.key_prefix}:{key}"
+            result = self.redis_client.set(full_key, "1", nx=True, ex=self.ttl_seconds)
+            return result is True
+
+        except Exception as e:
+            logger.error(f"Error claiming dedup key: {e}")
+            return False
+
     def clear(self, key: str) -> None:
         """Clear a deduplication key."""
         if not self.redis_client:

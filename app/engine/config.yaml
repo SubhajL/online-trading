@@ -99,16 +99,16 @@ trading:
 
   # Risk Management
   risk_parameters:
+    # NOTE: The live engine runtime config is currently sourced from environment variables
+    # in app/engine/main.py, not from this file.
     max_position_size: 10000.0
     max_daily_loss: 500.0
     max_drawdown: 1000.0
-    risk_per_trade: 0.01 # 1% per trade
     max_correlation: 0.7
     max_open_positions: 3
     allowed_symbols:
       - BTCUSDT
       - ETHUSDT
-      - BNBUSDT
 
     # Position sizing
     use_atr_sizing: true
@@ -277,7 +277,6 @@ decision:
   use_stop_market_sl: true
 
   # Risk Management
-  risk_per_trade: 0.005  # 0.5% per trade
   max_daily_drawdown: 0.03  # 3% daily DD limit
   max_concurrent_positions: 3
 

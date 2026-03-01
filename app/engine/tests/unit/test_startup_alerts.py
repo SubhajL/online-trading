@@ -83,7 +83,85 @@ class TestTelegramAdapterStartupAlert:
             rate_limit_per_minute=30,
         )
         adapter.deduplicator.redis_client = None
+        adapter.startup_deduplicator.redis_client = MagicMock()
+        adapter.startup_deduplicator.redis_client.get = MagicMock(return_value=None)
+        adapter.startup_deduplicator.redis_client.set = MagicMock(return_value=True)
+        adapter.startup_deduplicator.redis_client.delete = MagicMock(return_value=1)
         return adapter
+
+    @pytest.mark.asyncio
+    async def test_send_startup_alert_claims_before_sending(
+        self,
+        telegram_adapter: TelegramAlertAdapter,
+    ) -> None:
+        calls: list[str] = []
+
+        def try_add(_key: str) -> bool:
+            calls.append("try_add")
+            return True
+
+        async def send(_message: str) -> bool:
+            calls.append("send")
+            return True
+
+        telegram_adapter.startup_deduplicator.try_add = try_add  # type: ignore[method-assign]
+        telegram_adapter._send_alert = send  # type: ignore[method-assign]
+
+        startup_data = {
+            "phase": "backfill_complete",
+            "symbols": ["BTCUSDT"],
+            "timeframes": ["15m"],
+            "candle_counts": {"BTCUSDT": 100},
+            "duration_seconds": 5.0,
+        }
+
+        ok = await telegram_adapter.send_startup_alert(startup_data)
+
+        assert ok is True
+        assert calls == ["try_add", "send"]
+
+    @pytest.mark.asyncio
+    async def test_send_startup_alert_skips_send_when_claim_fails(
+        self,
+        telegram_adapter: TelegramAlertAdapter,
+    ) -> None:
+        telegram_adapter.startup_deduplicator.try_add = MagicMock(return_value=False)  # type: ignore[method-assign]
+        telegram_adapter._send_alert = AsyncMock(return_value=True)  # type: ignore[method-assign]
+
+        startup_data = {
+            "phase": "backfill_complete",
+            "symbols": ["BTCUSDT"],
+            "timeframes": ["15m"],
+            "candle_counts": {"BTCUSDT": 100},
+            "duration_seconds": 5.0,
+        }
+
+        ok = await telegram_adapter.send_startup_alert(startup_data)
+
+        assert ok is False
+        telegram_adapter._send_alert.assert_not_called()  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    async def test_send_startup_alert_clears_key_on_send_failure(
+        self,
+        telegram_adapter: TelegramAlertAdapter,
+    ) -> None:
+        telegram_adapter.startup_deduplicator.try_add = MagicMock(return_value=True)  # type: ignore[method-assign]
+        telegram_adapter.startup_deduplicator.clear = MagicMock()  # type: ignore[method-assign]
+        telegram_adapter._send_alert = AsyncMock(return_value=False)  # type: ignore[method-assign]
+
+        startup_data = {
+            "phase": "backfill_complete",
+            "symbols": ["BTCUSDT"],
+            "timeframes": ["15m"],
+            "candle_counts": {"BTCUSDT": 100},
+            "duration_seconds": 5.0,
+        }
+
+        ok = await telegram_adapter.send_startup_alert(startup_data)
+
+        assert ok is False
+        telegram_adapter.startup_deduplicator.clear.assert_called_once()  # type: ignore[attr-defined]
 
     @pytest.mark.asyncio
     async def test_send_startup_alert_calls_telegram_api(

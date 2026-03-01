@@ -12,6 +12,7 @@ class TestAlertDeduplicator:
     def mock_redis(self) -> Any:
         redis = Mock()
         redis.get = Mock(return_value=None)
+        redis.set = Mock(return_value=True)
         redis.setex = Mock()
         redis.delete = Mock()
         return redis
@@ -66,6 +67,39 @@ class TestAlertDeduplicator:
         deduplicator.clear(key)
 
         mock_redis.delete.assert_called_once_with(f"alert:dedup:{key}")
+
+    def test_try_add_claims_key_with_nx_and_ex(self, deduplicator: Any, mock_redis: Any) -> None:
+        key = "test:key:123"
+
+        ok = deduplicator.try_add(key)
+
+        assert ok is True
+        mock_redis.set.assert_called_once_with(
+            f"alert:dedup:{key}",
+            "1",
+            nx=True,
+            ex=60,
+        )
+        mock_redis.setex.assert_not_called()
+
+    def test_try_add_returns_false_when_key_already_exists(
+        self,
+        deduplicator: Any,
+        mock_redis: Any,
+    ) -> None:
+        key = "test:key:123"
+        mock_redis.set.return_value = None
+
+        ok = deduplicator.try_add(key)
+
+        assert ok is False
+
+    def test_try_add_returns_false_when_redis_unavailable(self, deduplicator: Any) -> None:
+        deduplicator.redis_client = None
+
+        ok = deduplicator.try_add("key")
+
+        assert ok is False
 
     def test_custom_ttl(self, mock_redis: Any) -> None:
         with patch(

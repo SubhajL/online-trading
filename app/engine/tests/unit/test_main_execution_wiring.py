@@ -73,8 +73,14 @@ class _StubDBAdapter:
     async def close(self) -> None:
         return None
 
-    async def insert_equity_sample(self, *, equity: Decimal, timestamp: datetime) -> bool:
-        _ = equity, timestamp
+    async def insert_equity_sample(
+        self,
+        *,
+        equity: Decimal,
+        timestamp: datetime,
+        source_timestamp: datetime | None = None,
+    ) -> bool:
+        _ = equity, timestamp, source_timestamp
         return True
 
 
@@ -145,6 +151,55 @@ class TestMainExecutionWiring:
         await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
 
         assert captured["symbols"] == ["BTCUSDT", "ETHUSDT"]
+
+    async def test_initialize_services_fails_fast_when_trading_symbols_empty(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        main_mod.services.clear()
+
+        def ingest_ctor(**_kwargs: Any) -> _StubAsyncService:
+            return _StubAsyncService()
+
+        bus = _StubEventBus()
+        monkeypatch.setenv("EXECUTION_MODE", "disabled")
+        monkeypatch.setenv("TRADING_SYMBOLS", " , ,  ,")
+        monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+
+        monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
+        monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
+        monkeypatch.setattr(main_mod, "RouterHTTPClient", lambda **_: _StubRouterClient())
+
+        monkeypatch.setattr(main_mod, "IngestService", lambda **kw: ingest_ctor(**kw))
+        monkeypatch.setattr(main_mod, "FeatureService", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "SMCEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
+
+        monkeypatch.setattr(main_mod, "set_event_bus", lambda *_: None)
+        import app.engine.bus as bus_mod
+
+        monkeypatch.setattr(bus_mod, "create_event_bus", lambda: bus)
+
+        cfg = _StubConfig(
+            database=_StubDatabaseCfg(),
+            redis=_StubRedisCfg(),
+            binance=type("BinanceCfg", (), {"api_key": "", "api_secret": "", "testnet": True})(),
+            risk_parameters=type(
+                "RiskParams",
+                (),
+                {
+                    "risk_per_trade": Decimal("0.01"),
+                    "max_position_size": Decimal(1),
+                },
+            )(),
+        )
+
+        with pytest.raises(RuntimeError, match="TRADING_SYMBOLS"):
+            await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
 
     async def test_initialize_services_registers_execution_subscriber_when_enabled(
         self,
@@ -256,3 +311,56 @@ class TestMainExecutionWiring:
         assert retest.started is True
         assert publisher.started is True
         assert any(sub_id == "router-execution" for sub_id, _ in bus.subscribed)
+
+
+class TestMainEnvHelpers:
+    def test_telegram_alerts_enabled_from_env_defaults_to_true(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.delenv("TELEGRAM_ALERTS_ENABLED", raising=False)
+        assert main_mod._telegram_alerts_enabled_from_env() is True
+
+    def test_telegram_alerts_enabled_from_env_respects_zero(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.setenv("TELEGRAM_ALERTS_ENABLED", "0")
+        assert main_mod._telegram_alerts_enabled_from_env() is False
+
+    def test_uvicorn_reload_enabled_from_env_defaults_to_false(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        assert main_mod._uvicorn_reload_enabled_from_env() is False
+
+    def test_uvicorn_reload_enabled_from_env_is_true_for_development(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        assert main_mod._uvicorn_reload_enabled_from_env() is True
+
+    def test_load_configuration_risk_defaults_match_expected_spot_defaults(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.delenv("RISK_PER_TRADE", raising=False)
+        monkeypatch.delenv("MAX_SYMBOL_EXPOSURE_PCT", raising=False)
+        monkeypatch.delenv("MAX_POSITION_NOTIONAL_PCT", raising=False)
+
+        cfg = main_mod.load_configuration()
+        assert cfg.risk_parameters.risk_per_trade == Decimal("0.005")
+        assert cfg.risk_parameters.max_symbol_exposure_pct == Decimal("1.0")
+        assert cfg.risk_parameters.max_position_notional_pct == Decimal("1.0")

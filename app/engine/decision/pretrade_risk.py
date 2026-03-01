@@ -37,11 +37,6 @@ def evaluate_pretrade_risk(
     if new_notional <= 0:
         return False, ["invalid_notional"]
 
-    eq_ratio = _safe_div(new_notional, equity)
-    # Note: eq_ratio should never be None here since we already checked equity > 0
-    if eq_ratio is None:
-        return False, ["invalid_equity"]
-
     daily_loss_ratio = _safe_div(
         max(Decimal(0), snapshot.start_of_day_equity - snapshot.equity),
         snapshot.start_of_day_equity,
