@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+import inspect
 import logging
 from typing import Any, Protocol
 
@@ -28,6 +29,12 @@ def _timeframe_to_seconds(tf: TimeFrame) -> int:
     if suffix not in _TF_SECONDS:
         raise ValueError(f"Unknown timeframe suffix: {suffix!r} in {val!r}")
     return num * _TF_SECONDS[suffix]
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 class _EventBus(Protocol):
@@ -130,7 +137,7 @@ class LiveRestFallbackService:
         return age_seconds > threshold_seconds
 
     async def _check_once(self) -> None:
-        now = self._now_fn()
+        now = _ensure_utc(self._now_fn())
 
         # Log WS health for observability, but don't gate on it
         try:
@@ -184,6 +191,15 @@ class LiveRestFallbackService:
         if watermark is None:
             latest = await self._ingest_service.get_latest_candle(symbol, timeframe)
             if latest is None:
+                if getattr(self._ingest_service, "enable_backfill", False):
+                    is_complete = getattr(self._ingest_service, "is_backfill_complete", None)
+                    if callable(is_complete):
+                        maybe = is_complete(symbol, timeframe)
+                        if inspect.isawaitable(maybe):
+                            maybe = await maybe
+                        if maybe is False:
+                            return
+
                 last_attempt = self._seed_attempted_at.get(key)
                 if last_attempt is not None:
                     ago = (now - last_attempt).total_seconds()
@@ -202,7 +218,7 @@ class LiveRestFallbackService:
                 if not isinstance(candles, list) or not candles:
                     return
 
-                last_published = start_time.replace(tzinfo=UTC)
+                last_published = start_time
                 for candle in candles:
                     close_time = getattr(candle, "close_time", None)
                     if not isinstance(close_time, datetime):

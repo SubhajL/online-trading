@@ -12,6 +12,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import json
 import logging
+import os
+import socket
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -111,6 +113,8 @@ class BinanceWebSocketClient:
         event_bus: "EventBus | None" = None,
         stale_threshold_seconds: int = 60,
         ping_keepalive_interval: int = 30,
+        dispatch_queue_maxsize: int | None = None,
+        dispatch_workers: int | None = None,
     ) -> None:
         self.base_url = normalize_ws_base_url(base_url)
         if testnet:
@@ -154,9 +158,34 @@ class BinanceWebSocketClient:
         self._ping_keepalive_interval = ping_keepalive_interval
         self._ping_keepalive_task: asyncio.Task[Any] | None = None
 
+        if dispatch_queue_maxsize is None:
+            dispatch_queue_maxsize = int(os.getenv("WS_DISPATCH_QUEUE_SIZE", "2000"))
+        if dispatch_workers is None:
+            dispatch_workers = int(os.getenv("WS_DISPATCH_WORKERS", "2"))
+        if dispatch_queue_maxsize <= 0:
+            dispatch_queue_maxsize = 2000
+        if dispatch_workers <= 0:
+            dispatch_workers = 1
+
+        self._dispatch_queue_maxsize = dispatch_queue_maxsize
+        self._dispatch_workers = dispatch_workers
+        self._dispatch_queue: asyncio.Queue[dict[str, Any]] | None = None
+        self._dispatch_tasks: list[asyncio.Task[None]] = []
+        self._dispatch_dropped_messages_total: int = 0
+
         # Resilience: max retry limit
         self._max_reconnect_attempts = max_reconnect_attempts
         self._consecutive_failures = 0
+        self._consecutive_dns_failures = 0
+
+        self._last_connect_error_kind: str | None = None
+        self._last_connect_error_at: datetime | None = None
+        self._last_connect_error: str | None = None
+
+        self._dns_probe_initial_seconds = float(
+            os.getenv("WS_DNS_PROBE_INITIAL_SECONDS", "5"),
+        )
+        self._dns_probe_max_seconds = float(os.getenv("WS_DNS_PROBE_MAX_SECONDS", "30"))
 
         # Resilience: exponential backoff
         self._backoff = ExponentialBackoff(backoff_config or BackoffConfig())
@@ -190,7 +219,8 @@ class BinanceWebSocketClient:
 
         Uses websockets 13+ State API instead of deprecated .closed attribute.
         """
-        return self._websocket is not None and self._websocket.state == WebSocketState.OPEN
+        state = getattr(self._websocket, "state", None)
+        return self._websocket is not None and state == WebSocketState.OPEN
 
     async def start(self) -> None:
         """Start the WebSocket client"""
@@ -370,9 +400,14 @@ class BinanceWebSocketClient:
                 await self._on_connection_success()
             except Exception as e:
                 logger.error(f"WebSocket connection error: {e}")
-                await self._on_connection_failure(e)
+                kind = await self._on_connection_failure(e)
 
                 if self._running:
+                    if kind == "dns":
+                        host, port = self._ws_host_port()
+                        if host is not None and port is not None:
+                            await self._wait_for_dns_recovery(host, port)
+                            continue
                     delay = self._backoff.next_delay()
                     logger.info(
                         f"Reconnecting in {delay:.1f}s "
@@ -383,20 +418,68 @@ class BinanceWebSocketClient:
     async def _on_connection_success(self) -> None:
         """Handle successful connection: reset backoff and circuit breaker."""
         self._consecutive_failures = 0
+        self._consecutive_dns_failures = 0
         self._backoff.reset()
         await self._circuit_breaker.record_success()
         logger.info("Connection successful, resilience counters reset")
 
-    async def _on_connection_failure(self, error: Exception) -> None:
+    def _classify_connect_error(self, error: BaseException) -> str:
+        if isinstance(error, socket.gaierror):
+            return "dns"
+        if isinstance(error, OSError):
+            if getattr(error, "errno", None) == -3:
+                return "dns"
+        msg = str(error).lower()
+        if "temporary failure in name resolution" in msg or "name or service not known" in msg:
+            return "dns"
+        return "other"
+
+    def _ws_host_port(self) -> tuple[str | None, int | None]:
+        parsed = urlparse(self.base_url)
+        host = parsed.hostname
+        if host is None:
+            return None, None
+        port = parsed.port
+        if port is None:
+            port = 443 if parsed.scheme == "wss" else 80
+        return host, port
+
+    async def _wait_for_dns_recovery(self, host: str, port: int) -> None:
+        delay = max(0.1, self._dns_probe_initial_seconds)
+        max_delay = max(delay, self._dns_probe_max_seconds)
+        loop = asyncio.get_running_loop()
+        while self._running:
+            try:
+                await loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+                logger.info("DNS resolution recovered for %s:%s", host, port)
+                return
+            except Exception:
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, max_delay)
+
+    async def _on_connection_failure(self, error: Exception) -> str:
         """Handle connection failure: record to circuit breaker, increment counter."""
-        self._consecutive_failures += 1
-        await self._circuit_breaker.record_failure()
+        kind = self._classify_connect_error(error)
+        now = datetime.now(UTC)
+
+        self._last_connect_error_kind = kind
+        self._last_connect_error_at = now
+        self._last_connect_error = str(error)[:500]
+
+        if kind == "dns":
+            self._consecutive_dns_failures += 1
+        else:
+            self._consecutive_failures += 1
+            self._consecutive_dns_failures = 0
+            await self._circuit_breaker.record_failure()
+
         logger.warning(
             "Connection failed (%d/%d): %s",
             self._consecutive_failures,
             self._max_reconnect_attempts,
             error,
         )
+        return kind
 
     async def _connect_and_listen(self) -> None:
         """Connect to WebSocket and listen for messages"""
@@ -424,16 +507,29 @@ class BinanceWebSocketClient:
                     await self._resubscribe_all()
 
                 # Listen for messages
-                msg_count = 0
-                async for message in websocket:
-                    msg_count += 1
-                    self._mark_message_received(datetime.now(UTC))
-                    if msg_count <= 3 or msg_count % 50 == 0:
-                        logger.info(f"WS msg #{msg_count} received (len={len(message)})")
-                    try:
-                        await self._handle_message(message)
-                    except Exception as e:
-                        logger.error(f"Error handling message: {e}")
+                self._dispatch_queue = asyncio.Queue(maxsize=self._dispatch_queue_maxsize)
+                self._dispatch_tasks = [
+                    asyncio.create_task(self._dispatch_worker(self._dispatch_queue))
+                    for _ in range(self._dispatch_workers)
+                ]
+                try:
+                    msg_count = 0
+                    async for message in websocket:
+                        msg_count += 1
+                        self._mark_message_received(datetime.now(UTC))
+                        if msg_count <= 3 or msg_count % 50 == 0:
+                            logger.info(f"WS msg #{msg_count} received (len={len(message)})")
+                        try:
+                            await self._enqueue_message(message)
+                        except Exception as e:
+                            logger.error(f"Error handling message: {e}")
+                finally:
+                    # Ensure dispatch workers are always cleaned up, even if the WS loop raises.
+                    for t in self._dispatch_tasks:
+                        t.cancel()
+                    await asyncio.gather(*self._dispatch_tasks, return_exceptions=True)
+                    self._dispatch_tasks.clear()
+                    self._dispatch_queue = None
 
         except (ConnectionClosed, InvalidStatus) as e:
             logger.warning(f"WebSocket connection closed: {e}")
@@ -441,6 +537,67 @@ class BinanceWebSocketClient:
         except Exception as e:
             logger.error(f"WebSocket connection error: {e}")
             raise
+
+    async def _dispatch_worker(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
+        while True:
+            data = await queue.get()
+            try:
+                await self._route_message(data)
+            finally:
+                queue.task_done()
+
+    async def _enqueue_message(self, message: str) -> None:
+        """Parse/unpack a WS message and enqueue for background dispatch.
+
+        This keeps the WS receive loop fast so ping/pong isn't starved by slow handlers.
+        """
+        if self._dispatch_queue is None:
+            # Fallback (shouldn't happen): process inline.
+            await self._handle_message(message)
+            return
+
+        try:
+            data = json.loads(message)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to decode JSON message: {e}")
+            return
+
+        if isinstance(data, list):
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                unwrapped = unwrap_combined_stream_message(item)
+                if isinstance(unwrapped, dict):
+                    await self._try_enqueue_dispatch(unwrapped)
+            return
+
+        if isinstance(data, dict):
+            unwrapped = unwrap_combined_stream_message(data)
+            if isinstance(unwrapped, dict):
+                await self._try_enqueue_dispatch(unwrapped)
+
+    async def _try_enqueue_dispatch(self, data: dict[str, Any]) -> None:
+        """Enqueue a parsed message; drop non-critical types under pressure."""
+        if self._dispatch_queue is None:
+            return
+
+        try:
+            self._dispatch_queue.put_nowait(data)
+            return
+        except asyncio.QueueFull:
+            pass
+
+        event_type = data.get("e")
+        if event_type == "kline":
+            # Closed klines are critical; under sustained pressure, force reconnect rather than drop.
+            logger.warning("Dispatch queue full while receiving klines; forcing reconnect")
+            if self._websocket is not None:
+                with contextlib.suppress(Exception):
+                    await self._websocket.close()
+            return
+
+        self._dispatch_dropped_messages_total += 1
+        return
 
     async def _handle_message(self, message: str) -> None:
         """Handle incoming WebSocket message"""
@@ -764,6 +921,19 @@ class BinanceWebSocketClient:
             "stale": stale,
             "last_message_ago_seconds": last_ago,
             "messages_per_minute": messages_per_minute,
+            "last_connect_error_kind": self._last_connect_error_kind,
+            "last_connect_error": self._last_connect_error,
+            "last_connect_error_ago_seconds": self._ago_seconds(
+                self._last_connect_error_at,
+                now,
+            ),
+            "dispatch_queue_size": self._dispatch_queue.qsize()
+            if self._dispatch_queue is not None
+            else 0,
+            "dispatch_queue_max": self._dispatch_queue.maxsize
+            if self._dispatch_queue is not None
+            else self._dispatch_queue_maxsize,
+            "dispatch_dropped_messages_total": self._dispatch_dropped_messages_total,
             # Kline-specific freshness (for detecting "tickers alive, klines dead")
             "last_kline_ago_seconds": self._last_kline_ago_seconds(now),
             "last_closed_kline_ago_seconds": self._last_closed_kline_ago_seconds(now),
@@ -774,8 +944,10 @@ class BinanceWebSocketClient:
                 now,
             ),
             "last_subscribe_error": self._last_subscribe_error,
+            "last_subscribe_response_id": self._last_subscribe_response_id,
             # Resilience metrics
             "consecutive_failures": self._consecutive_failures,
+            "consecutive_dns_failures": self._consecutive_dns_failures,
             "circuit_state": circuit_state.value,
             "backoff_attempt": self._backoff.current_attempt,
             "max_reconnect_attempts": self._max_reconnect_attempts,
