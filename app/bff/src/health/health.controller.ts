@@ -31,8 +31,10 @@ export class HealthController {
   @Get()
   @HealthCheck()
   check(): Promise<HealthCheckResult> {
+    const routerBaseUrl = this.config.get<string>('router.url')!;
+    const routerHealthUrl = `${routerBaseUrl.replace(/\/+$/, '')}/healthz`;
     return this.health.check([
-      () => this.http.pingCheck('router', this.config.get<string>('router.url')!),
+      () => this.http.pingCheck('router', routerHealthUrl),
       () => this.checkEngine(),
       () => this.checkDatabase(),
     ]);
@@ -50,9 +52,11 @@ export class HealthController {
   @Get('readiness')
   @HealthCheck()
   readiness(): Promise<HealthCheckResult> {
+    const routerBaseUrl = this.config.get<string>('router.url')!;
+    const routerHealthUrl = `${routerBaseUrl.replace(/\/+$/, '')}/healthz`;
     return this.health.check([
       () => this.checkEngine(),
-      () => this.http.pingCheck('router', this.config.get<string>('router.url')!),
+      () => this.http.pingCheck('router', routerHealthUrl),
     ]);
   }
 
