@@ -23,7 +23,8 @@ jobs:
       matrix:
         service:
           - name: engine
-            context: ./app/engine
+            # Engine Dockerfile copies `app/` + `db/`, so it must be built from repo root.
+            context: .
             file: ./app/engine/Dockerfile
           - name: router
             context: ./app/router
