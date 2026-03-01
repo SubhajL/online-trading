@@ -23,8 +23,12 @@ export class WsJwtGuard implements CanActivate {
     }
 
     try {
+      const secret =
+        this.configService.get<string>('JWT_SECRET') ??
+        this.configService.get<string>('jwt.secret');
+
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
-        secret: this.configService.get<string>('jwt.secret'),
+        secret,
       });
 
       client.data.user = payload;

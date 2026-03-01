@@ -328,6 +328,9 @@ describe('RouterClientService', () => {
 
       const result = await service.checkHealth();
 
+      expect(mockHttpService.get).toHaveBeenCalledWith('http://localhost:8080/healthz', {
+        timeout: 3000,
+      });
       expect(result).toEqual({
         status: 'up',
         details: {
@@ -342,6 +345,9 @@ describe('RouterClientService', () => {
 
       const result = await service.checkHealth();
 
+      expect(mockHttpService.get).toHaveBeenCalledWith('http://localhost:8080/healthz', {
+        timeout: 3000,
+      });
       expect(result).toEqual({
         status: 'down',
         details: {

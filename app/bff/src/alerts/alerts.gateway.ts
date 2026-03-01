@@ -57,8 +57,14 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   async handleConnection(client: Socket) {
-    const user = client.data.user as JwtPayload;
+    const user = client.data.user as JwtPayload | undefined;
     this.logger.log(`Client connected to alerts: ${client.id} (user: ${user?.username})`);
+
+    if (!user?.sub) {
+      this.logger.warn(`Unauthenticated alerts WS connection; disconnecting: ${client.id}`);
+      client.disconnect(true);
+      return;
+    }
 
     // Join user-specific room for targeted alerts
     client.join(`alerts:${user.sub}`);
@@ -72,9 +78,11 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   handleDisconnect(client: Socket) {
-    const user = client.data.user as JwtPayload;
+    const user = client.data.user as JwtPayload | undefined;
     this.logger.log(`Client disconnected from alerts: ${client.id}`);
-    client.leave(`alerts:${user.sub}`);
+    if (user?.sub) {
+      client.leave(`alerts:${user.sub}`);
+    }
   }
 
   @SubscribeMessage('alerts:subscribe')
