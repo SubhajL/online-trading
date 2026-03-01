@@ -1,6 +1,34 @@
 import { io, type Socket } from 'socket.io-client'
 import { MAX_RECONNECT_ATTEMPTS, RECONNECT_INTERVAL } from '@/config/constants'
 
+const AUTH_STORAGE_KEY = 'trading_auth'
+const DEFAULT_ACK_TIMEOUT = 10000
+
+export type WebSocketResponse<T = unknown> = {
+  success: boolean
+  data?: T
+  error?: string
+}
+
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const localStored = localStorage.getItem(AUTH_STORAGE_KEY)
+    if (localStored) {
+      const data = JSON.parse(localStored)
+      return data.token || null
+    }
+    const sessionStored = sessionStorage.getItem(AUTH_STORAGE_KEY)
+    if (sessionStored) {
+      const data = JSON.parse(sessionStored)
+      return data.token || null
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export type ConnectionState = {
   connected: boolean
   connecting: boolean
@@ -24,9 +52,11 @@ export class WebSocketService {
     this.url = url
     this.emitConnectionState({ connected: false, connecting: true, reconnectAttempts: 0 })
 
+    const token = getAuthToken()
     this.socket = io(url, {
       autoConnect: true,
       reconnection: false, // We handle reconnection manually
+      auth: token ? { token } : undefined,
     })
 
     this.setupEventHandlers()
@@ -96,6 +126,57 @@ export class WebSocketService {
     return this.socket?.connected ?? false
   }
 
+  isReady(): boolean {
+    return this.socket?.connected ?? false
+  }
+
+  async emitWithAck<TReq, TRes = unknown>(
+    event: string,
+    data: TReq,
+    timeoutMs: number = DEFAULT_ACK_TIMEOUT,
+  ): Promise<WebSocketResponse<TRes>> {
+    if (!this.socket || !this.socket.connected) {
+      return Promise.reject(new Error('WebSocket is not connected'))
+    }
+
+    return new Promise((resolve, reject) => {
+      this.socket!.timeout(timeoutMs).emit(
+        event,
+        data,
+        (err: Error | null, response: WebSocketResponse<TRes>) => {
+          if (err) {
+            reject(err)
+            return
+          }
+
+          if (!response.success) {
+            reject(new Error(response.error || 'Unknown error'))
+            return
+          }
+
+          resolve(response)
+        },
+      )
+    })
+  }
+
+  // Reconnect with fresh auth token (call after login)
+  reconnectWithAuth(): void {
+    const token = getAuthToken()
+    if (!token) return
+
+    if (this.socket) {
+      this.socket.auth = { token }
+      if (!this.socket.connected) {
+        this.socket.connect()
+      } else {
+        // Already connected, disconnect and reconnect with new auth
+        this.socket.disconnect()
+        this.socket.connect()
+      }
+    }
+  }
+
   onConnectionStateChange(callback: ConnectionStateCallback): () => void {
     this.connectionStateCallbacks.push(callback)
 
@@ -153,6 +234,12 @@ export class WebSocketService {
         connecting: true,
         reconnectAttempts: this.reconnectAttempts,
       })
+
+      // Update auth token before reconnecting
+      const token = getAuthToken()
+      if (this.socket && token) {
+        this.socket.auth = { token }
+      }
 
       this.socket?.connect()
     }, RECONNECT_INTERVAL)

@@ -110,7 +110,7 @@ describe('EnhancedHealthController', () => {
         },
       };
 
-      jest.spyOn(healthCheckService, 'check').mockResolvedValue(mockHealthResult);
+      jest.spyOn(healthCheckService, 'check').mockResolvedValue(mockHealthResult as any);
 
       await controller.checkComprehensive();
 
@@ -129,16 +129,13 @@ describe('EnhancedHealthController', () => {
 
   describe('dependency health checks', () => {
     it('should report degraded status when router has high latency', async () => {
-      jest.spyOn(httpHealthIndicator, 'pingCheck').mockImplementation(() => {
-        return Promise.resolve({
-          router: {
-            status: 'up',
-            latency: 500, // high latency
-          },
-        });
+      jest.spyOn(httpHealthIndicator, 'pingCheck').mockResolvedValue({
+        router: { status: 'up' },
       });
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(1301);
 
       const result = await controller.checkRouter();
+      nowSpy.mockRestore();
 
       expect(result.router.status).toBe('degraded');
       expect(result.router.message).toContain('high latency');
@@ -249,7 +246,7 @@ describe('EnhancedHealthController', () => {
       const result = await controller.checkDiskSpace();
 
       expect(result.disk.status).toBe('degraded');
-      expect(result.disk.message).toContain('low disk space');
+      expect(result.disk.message.toLowerCase()).toContain('low disk space');
     });
   });
 
@@ -267,6 +264,13 @@ describe('EnhancedHealthController', () => {
     });
 
     it('should track health check history', async () => {
+      jest.spyOn(healthCheckService, 'check').mockResolvedValue({
+        status: 'ok',
+        info: {},
+        error: {},
+        details: {},
+      } as any);
+
       // Simulate multiple health checks
       await controller.checkComprehensive();
       await controller.checkComprehensive();
@@ -295,10 +299,15 @@ describe('EnhancedHealthController', () => {
     });
 
     it('should provide cached health data when services are slow', async () => {
-      // Simulate slow response
-      jest
-        .spyOn(httpHealthIndicator, 'pingCheck')
-        .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 5000)));
+      // Seed cache with a successful result
+      jest.spyOn(httpHealthIndicator, 'pingCheck').mockResolvedValue({
+        router: { status: 'up' },
+      });
+      await controller.checkWithTimeout();
+
+      // Simulate slow response to trigger timeout + cached fallback
+      (controller as any).HEALTH_CHECK_TIMEOUT_MS = 1;
+      jest.spyOn(httpHealthIndicator, 'pingCheck').mockImplementation(() => new Promise(() => {}));
 
       const result = await controller.checkWithTimeout();
 

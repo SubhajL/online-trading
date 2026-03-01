@@ -86,10 +86,25 @@ services:
   # ===========================
   # Application Services
   # ===========================
+  migrate:
+    build:
+      context: .
+      dockerfile: app/engine/Dockerfile
+    container_name: trading-migrate
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-trading_platform}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - trading-network
+    command: ["python", "-m", "app.engine.scripts.migrate_db"]
+
   engine:
     build:
-      context: ./app/engine
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: app/engine/Dockerfile
     container_name: trading-engine
     restart: unless-stopped
     environment:
@@ -102,6 +117,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:
@@ -121,6 +138,7 @@ services:
     environment:
       - ROUTER_PORT=${ROUTER_PORT:-8001}
       - ENGINE_URL=http://engine:8000
+      - ORDER_UPDATE_URL=http://engine:8000/internal/order_update
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=${ENVIRONMENT:-development}
     ports:
@@ -155,6 +173,7 @@ services:
     depends_on:
       - engine
       - router
+      - migrate
       - postgres
       - redis
     networks:

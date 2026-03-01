@@ -1,6 +1,8 @@
 """Alert deduplication using Redis to prevent duplicate notifications."""
 
 import logging
+import os
+import urllib.parse
 
 import redis
 
@@ -8,12 +10,18 @@ logger = logging.getLogger(__name__)
 
 
 class AlertDeduplicator:
-    """Deduplicate alerts within a time window using Redis."""
+    """Deduplicate alerts within a time window using Redis.
+
+    Supports multiple Redis configuration methods (in order of precedence):
+    1. Explicit redis_host/redis_port parameters
+    2. REDIS_URL environment variable (supports redis://, rediss:// for TLS, ACL usernames)
+    3. REDIS_HOST/REDIS_PORT environment variables
+    """
 
     def __init__(
         self,
-        redis_host: str = "localhost",
-        redis_port: int = 6379,
+        redis_host: str | None = None,
+        redis_port: int | None = None,
         redis_db: int = 1,
         ttl_seconds: int = 60,
         key_prefix: str = "alert:dedup",
@@ -22,17 +30,52 @@ class AlertDeduplicator:
         self.key_prefix = key_prefix
 
         try:
+            # Explicit parameters take precedence - use Redis() directly
+            if redis_host is not None or redis_port is not None:
+                host = redis_host if redis_host is not None else "localhost"
+                port = redis_port if redis_port is not None else 6379
+                self.redis_client = redis.Redis(
+                    host=host,
+                    port=port,
+                    db=redis_db,
+                    decode_responses=True,
+                )
+                self.redis_client.ping()
+                logger.info("Alert deduplicator connected to Redis at %s:%d", host, port)
+                return
+
+            # Try REDIS_URL - use from_url to preserve scheme (rediss://), ACL username, etc.
+            redis_url = os.getenv("REDIS_URL")
+            if redis_url:
+                self.redis_client = redis.from_url(
+                    redis_url,
+                    db=redis_db,
+                    decode_responses=True,
+                )
+                self.redis_client.ping()
+                # Extract host for logging (don't log password)
+                parsed = urllib.parse.urlparse(redis_url)
+                logger.info(
+                    "Alert deduplicator connected to Redis via URL at %s:%d",
+                    parsed.hostname or "unknown",
+                    parsed.port or 6379,
+                )
+                return
+
+            # Fall back to REDIS_HOST/REDIS_PORT
+            host = os.getenv("REDIS_HOST", "localhost")
+            port = int(os.getenv("REDIS_PORT", "6379"))
             self.redis_client = redis.Redis(
-                host=redis_host,
-                port=redis_port,
+                host=host,
+                port=port,
                 db=redis_db,
                 decode_responses=True,
             )
-            # Test connection
             self.redis_client.ping()
-            logger.info("Alert deduplicator connected to Redis")
+            logger.info("Alert deduplicator connected to Redis at %s:%d", host, port)
+
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.exception("Failed to connect to Redis: %s", e)
             self.redis_client = None
 
     def is_duplicate(self, key: str) -> bool:

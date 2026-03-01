@@ -27,21 +27,21 @@ from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConf
 
 async def _open_router_breaker(client):
     # helper: trip GET:/orders once (threshold 1) to OPEN
-    mapping = {("GET", "/orders"): [(500, "e")]}  # type: ignore
+    mapping = {("GET", "/orders"): [(500, "e")]}
     from app.engine.tests.unit.test_client_circuit_breakers import _RouterSession
 
-    client._initialized = True  # type: ignore[attr-defined]
-    client._session = _RouterSession(mapping)  # type: ignore[attr-defined]
-    await client._make_request("GET", "/orders")  # type: ignore[attr-defined]
+    client._initialized = True
+    client._session = _RouterSession(mapping)
+    await client._make_request("GET", "/orders")
 
 
 async def _open_binance_breaker(client):
-    mapping = {("GET", "/api/v3/depth"): [(500, {"msg": "e"})]}  # type: ignore
+    mapping = {("GET", "/api/v3/depth"): [(500, {"msg": "e"})]}
     from app.engine.tests.unit.test_client_circuit_breakers import _BinanceSession
 
-    client._session = _BinanceSession(mapping)  # type: ignore[attr-defined]
+    client._session = _BinanceSession(mapping)
     try:
-        await client.get_order_book("BTCUSDT", 5)  # type: ignore
+        await client.get_order_book("BTCUSDT", 5)
     except Exception:
         pass
 
@@ -435,7 +435,7 @@ class TestHealthEndpoint:
         )
 
         endpoint = create_health_endpoint(lambda: health_check)
-        response = endpoint()
+        response = endpoint()  # type: ignore[call-arg]
 
         assert response["status_code"] == 200
         assert "application/json" in response["content_type"]
@@ -455,7 +455,7 @@ class TestHealthEndpoint:
         )
 
         endpoint = create_health_endpoint(lambda: health_check)
-        response = endpoint()
+        response = endpoint()  # type: ignore[call-arg]
 
         assert response["status_code"] == 200  # Still 200 for degraded
         body = json.loads(response["body"])
@@ -471,7 +471,7 @@ class TestHealthEndpoint:
         )
 
         endpoint = create_health_endpoint(lambda: health_check)
-        response = endpoint()
+        response = endpoint()  # type: ignore[call-arg]
 
         assert response["status_code"] == 503  # Service unavailable
         body = json.loads(response["body"])
@@ -486,14 +486,14 @@ class TestHealthEndpoint:
         endpoint = create_health_endpoint(lambda: health_check)
 
         # Test liveness probe
-        liveness_response = endpoint(probe_type="liveness")
+        liveness_response = endpoint(probe_type="liveness")  # type: ignore[call-arg]
         assert liveness_response["status_code"] == 200
 
         # Test readiness probe
-        readiness_response = endpoint(probe_type="readiness")
+        readiness_response = endpoint(probe_type="readiness")  # type: ignore[call-arg]
         assert readiness_response["status_code"] == 200
 
         # Unhealthy should fail readiness but not liveness
         health_check.status = HealthStatus.DEGRADED
-        readiness_response = endpoint(probe_type="readiness")
+        readiness_response = endpoint(probe_type="readiness")  # type: ignore[call-arg]
         assert readiness_response["status_code"] == 503  # Not ready

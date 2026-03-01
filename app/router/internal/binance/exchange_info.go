@@ -230,45 +230,6 @@ func (e *ExchangeInfoCache) refreshCache(ctx context.Context) error {
 	return nil
 }
 
-// parseFilters extracts relevant filter values
-func (e *ExchangeInfoCache) parseFilters(info *SymbolInfo, filters []interface{}) {
-	for _, filterRaw := range filters {
-		filterMap, ok := filterRaw.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		filterType, _ := filterMap["filterType"].(string)
-
-		switch filterType {
-		case "PRICE_FILTER":
-			info.MinPrice = parseDecimalField(filterMap, "minPrice")
-			info.MaxPrice = parseDecimalField(filterMap, "maxPrice")
-			info.TickSize = parseDecimalField(filterMap, "tickSize")
-			info.PricePrecision = calculatePrecision(info.TickSize)
-
-		case "LOT_SIZE":
-			info.MinQuantity = parseDecimalField(filterMap, "minQty")
-			info.MaxQuantity = parseDecimalField(filterMap, "maxQty")
-			info.StepSize = parseDecimalField(filterMap, "stepSize")
-			info.QuantityPrecision = calculatePrecision(info.StepSize)
-
-		case "MIN_NOTIONAL", "NOTIONAL":
-			info.MinNotional = parseDecimalField(filterMap, "minNotional")
-		}
-	}
-}
-
-// parseDecimalField safely parses a decimal field from a map
-func parseDecimalField(m map[string]interface{}, field string) decimal.Decimal {
-	if val, ok := m[field].(string); ok {
-		if d, err := decimal.NewFromString(val); err == nil {
-			return d
-		}
-	}
-	return decimal.Zero
-}
-
 // calculatePrecision calculates decimal precision from step size
 func calculatePrecision(stepSize decimal.Decimal) int {
 	if stepSize.IsZero() {

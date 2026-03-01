@@ -5,22 +5,22 @@ import { Entity, Column, PrimaryColumn, Index, CreateDateColumn } from 'typeorm'
 @Index(['asset', 'updatedAt'])
 @Index(['updatedAt'])
 export class BalanceEntity {
-  @PrimaryColumn()
+  @PrimaryColumn({ name: 'asset' })
   asset: string;
 
-  @PrimaryColumn()
+  @PrimaryColumn({ name: 'venue' })
   venue: 'SPOT' | 'USD_M';
 
-  @Column('decimal', { precision: 18, scale: 8 })
+  @Column('decimal', { name: 'free', precision: 18, scale: 8 })
   free: number;
 
-  @Column('decimal', { precision: 18, scale: 8 })
+  @Column('decimal', { name: 'locked', precision: 18, scale: 8 })
   locked: number;
 
-  @Column('decimal', { precision: 18, scale: 8 })
+  @Column('decimal', { name: 'total', precision: 18, scale: 8 })
   total: number;
 
-  @Column('decimal', { precision: 18, scale: 8, nullable: true })
+  @Column('decimal', { name: 'usd_value', precision: 18, scale: 8, nullable: true })
   usdValue: number | null;
 
   @CreateDateColumn({ name: 'updated_at' })

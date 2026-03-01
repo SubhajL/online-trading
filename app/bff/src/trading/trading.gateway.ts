@@ -13,13 +13,14 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommandBus } from '@nestjs/cqrs';
 import { TradingService } from './trading.service';
 import { OrderRequest } from '../router-client/router-client.service';
+import { CONTRACT_TOPICS } from '../contracts/topics';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PlaceOrderCommand } from './commands/place-order.command';
 import { CancelOrderCommand } from './commands/cancel-order.command';
 import { SetAutoTradingCommand } from './commands/set-auto-trading.command';
 
-interface WebSocketResponse<T = any> {
+interface WebSocketResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -48,40 +49,32 @@ export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGat
     this.logger.log('Trading WebSocket Gateway initialized');
 
     // Subscribe to trading events and forward to clients
-    this.eventEmitter.on('order.placed', (data) => {
-      this.server.to('trading').emit('order.placed', data);
+    this.eventEmitter.on(CONTRACT_TOPICS.orderUpdateV1, (data) => {
+      this.server.to('trading').emit(CONTRACT_TOPICS.orderUpdateV1, data);
     });
 
-    this.eventEmitter.on('order.updated', (data) => {
-      this.server.to('trading').emit('order.updated', data);
+    this.eventEmitter.on(CONTRACT_TOPICS.orderFailedV1, (data) => {
+      this.server.to('trading').emit(CONTRACT_TOPICS.orderFailedV1, data);
     });
 
-    this.eventEmitter.on('order.canceled', (data) => {
-      this.server.to('trading').emit('order.canceled', data);
+    this.eventEmitter.on(CONTRACT_TOPICS.positionUpdateV1, (data) => {
+      this.server.to('trading').emit(CONTRACT_TOPICS.positionUpdateV1, data);
     });
 
-    this.eventEmitter.on('order.failed', (data) => {
-      this.server.to('trading').emit('order.failed', data);
+    this.eventEmitter.on(CONTRACT_TOPICS.decisionV1, (data) => {
+      this.server.to('trading').emit(CONTRACT_TOPICS.decisionV1, data);
     });
 
-    this.eventEmitter.on('position.updated', (data) => {
-      this.server.to('trading').emit('position.updated', data);
+    this.eventEmitter.on(CONTRACT_TOPICS.decisionSkippedV1, (data) => {
+      this.server.to('trading').emit(CONTRACT_TOPICS.decisionSkippedV1, data);
     });
 
-    this.eventEmitter.on('decision.received', (data) => {
-      this.server.to('trading').emit('decision.received', data);
+    this.eventEmitter.on(CONTRACT_TOPICS.decisionFailedV1, (data) => {
+      this.server.to('trading').emit(CONTRACT_TOPICS.decisionFailedV1, data);
     });
 
-    this.eventEmitter.on('decision.skipped', (data) => {
-      this.server.to('trading').emit('decision.skipped', data);
-    });
-
-    this.eventEmitter.on('decision.failed', (data) => {
-      this.server.to('trading').emit('decision.failed', data);
-    });
-
-    this.eventEmitter.on('autoTrading.changed', (data) => {
-      this.server.to('trading').emit('autoTrading.changed', data);
+    this.eventEmitter.on(CONTRACT_TOPICS.autoTradingV1, (data) => {
+      this.server.to('trading').emit(CONTRACT_TOPICS.autoTradingV1, data);
     });
   }
 

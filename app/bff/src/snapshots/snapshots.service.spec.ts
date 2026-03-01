@@ -3,9 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SnapshotsService } from './snapshots.service';
 import { AlertSnapshot } from '../database/entities/alert-snapshot.entity';
-import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 
 jest.mock('fs/promises');
 
@@ -45,7 +43,7 @@ describe('SnapshotsService', () => {
   });
 
   describe('saveSnapshot', () => {
-    it('writes PNG to disk with UUID name', async () => {
+    it('writes PNG to disk with signalId-based filename', async () => {
       const signalId = 'signal-123';
       const imageBuffer = Buffer.from('fake-png-data');
       const metadata = {
@@ -61,18 +59,19 @@ describe('SnapshotsService', () => {
 
       repository.findOne.mockResolvedValue(null);
       repository.save.mockImplementation((entity) =>
-        Promise.resolve({ ...entity, id: uuidv4(), createdAt: new Date() } as AlertSnapshot),
+        Promise.resolve({
+          ...entity,
+          id: 'generated-id-123',
+          createdAt: new Date(),
+        } as AlertSnapshot),
       );
       (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
       (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
 
       const result = await service.saveSnapshot(signalId, imageBuffer, metadata);
 
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        expect.stringMatching(/\/var\/app\/snapshots\/.*\.png$/),
-        imageBuffer,
-      );
-      expect(result.imagePath).toMatch(/\/var\/app\/snapshots\/.*\.png$/);
+      expect(fs.writeFile).toHaveBeenCalledWith('/var/app/snapshots/signal-123.png', imageBuffer);
+      expect(result.imagePath).toBe('/var/app/snapshots/signal-123.png');
     });
 
     it('creates database record with metadata', async () => {
@@ -92,7 +91,7 @@ describe('SnapshotsService', () => {
       repository.save.mockImplementation((entity) =>
         Promise.resolve({
           ...entity,
-          id: uuidv4(),
+          id: 'generated-id-456',
           createdAt: new Date(),
         } as AlertSnapshot),
       );
@@ -112,6 +111,31 @@ describe('SnapshotsService', () => {
       expect(result.meta).toEqual(metadata);
     });
 
+    it('sanitizes signalId to prevent path traversal', async () => {
+      const signalId = '../../../etc/passwd';
+      const imageBuffer = Buffer.from('fake-png-data');
+      const metadata = { symbol: 'BTCUSDT', timeframe: '15m' };
+
+      repository.findOne.mockResolvedValue(null);
+      repository.save.mockImplementation((entity) =>
+        Promise.resolve({
+          ...entity,
+          id: 'generated-id-789',
+          createdAt: new Date(),
+        } as AlertSnapshot),
+      );
+      (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
+      (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+
+      await service.saveSnapshot(signalId, imageBuffer, metadata);
+
+      // Dangerous characters (including dots and slashes) should be replaced with underscores
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        '/var/app/snapshots/_________etc_passwd.png',
+        imageBuffer,
+      );
+    });
+
     it('is idempotent for same signalId', async () => {
       const signalId = 'signal-789';
       const imageBuffer = Buffer.from('fake-png-data');
@@ -120,6 +144,8 @@ describe('SnapshotsService', () => {
       const existingSnapshot = {
         id: 'existing-id',
         signalId,
+        symbol: 'BTCUSDT',
+        timeframe: '15m',
         imagePath: '/var/app/snapshots/existing.png',
         meta: metadata,
         createdAt: new Date(),
@@ -144,10 +170,12 @@ describe('SnapshotsService', () => {
       expect(result).toBeNull();
     });
 
-    it('returns snapshot with imageUrl', async () => {
+    it('returns snapshot with imageUrl using signalId', async () => {
       const snapshot = {
         id: 'test-id',
         signalId: 'signal-123',
+        symbol: 'BTCUSDT',
+        timeframe: '15m',
         imagePath: '/var/app/snapshots/test.png',
         meta: { symbol: 'BTCUSDT' },
         createdAt: new Date(),
@@ -158,7 +186,50 @@ describe('SnapshotsService', () => {
       const result = await service.getSnapshot('test-id');
 
       expect(result).not.toBeNull();
-      expect(result?.imageUrl).toBe('/snapshots/test-id.png');
+      expect(result?.imageUrl).toBe('/api/snapshots/signal-123.png');
+    });
+  });
+
+  describe('getSnapshotBySignalId', () => {
+    it('returns null for non-existent signalId', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      const result = await service.getSnapshotBySignalId('non-existent-signal');
+
+      expect(result).toBeNull();
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { signalId: 'non-existent-signal' },
+      });
+    });
+
+    it('returns snapshot with imageUrl using signalId', async () => {
+      const snapshot = {
+        id: 'snapshot-uuid',
+        signalId: 'signal-abc',
+        symbol: 'BTCUSDT',
+        timeframe: '15m',
+        imagePath: '/var/app/snapshots/snapshot-uuid.png',
+        meta: { entry: 50000 },
+        createdAt: new Date(),
+      } as AlertSnapshot;
+
+      repository.findOne.mockResolvedValue(snapshot);
+
+      const result = await service.getSnapshotBySignalId('signal-abc');
+
+      expect(result).not.toBeNull();
+      expect(result?.signalId).toBe('signal-abc');
+      expect(result?.imageUrl).toBe('/api/snapshots/signal-abc.png');
+    });
+
+    it('queries by signalId field not id field', async () => {
+      repository.findOne.mockResolvedValue(null);
+
+      await service.getSnapshotBySignalId('my-signal-id');
+
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { signalId: 'my-signal-id' },
+      });
     });
   });
 

@@ -53,6 +53,7 @@ class DeliveryOrchestrator:
         storage_type = os.getenv("SNAPSHOT_STORAGE_TYPE", "local")
         if storage_type == "s3":
             from .storage import S3SnapshotStorage
+
             self.storage = S3SnapshotStorage(
                 bucket=os.getenv("S3_BUCKET", "trading-snapshots"),
                 prefix=os.getenv("S3_PREFIX", "signals/"),
@@ -60,6 +61,7 @@ class DeliveryOrchestrator:
             )
         else:
             from .storage import LocalSnapshotStorage
+
             self.storage = LocalSnapshotStorage(
                 base_path=os.getenv("SNAPSHOT_PATH", "./snapshots"),
             )
@@ -89,7 +91,10 @@ class DeliveryOrchestrator:
         if self.storage:
             try:
                 signal_id = f"signal_{int(signal_event.signal.timestamp.timestamp())}"
-                snapshot_url = await self.storage.store_snapshot(signal_id, snapshot_data)
+                snapshot_url = await self.storage.store_snapshot(
+                    signal_id,
+                    snapshot_data,
+                )
                 logger.info(f"Stored snapshot: {snapshot_url}")
             except Exception as e:
                 logger.error(f"Failed to store snapshot: {e}")
@@ -115,7 +120,12 @@ class DeliveryOrchestrator:
             if channel_name == "telegram" and isinstance(channel, TelegramDelivery):
                 caption = channel._format_signal_caption(signal_event.signal)
                 task = asyncio.create_task(
-                    self._deliver_to_telegram(channel, snapshot_data, caption, signal_event),
+                    self._deliver_to_telegram(
+                        channel,
+                        snapshot_data,
+                        caption,
+                        signal_event,
+                    ),
                 )
                 tasks.append((channel_name, task))
 
@@ -133,7 +143,9 @@ class DeliveryOrchestrator:
                     },
                     "signal_data": {
                         "level_price": float(signal_event.signal.level_price),
-                        "success_probability": float(signal_event.signal.success_probability),
+                        "success_probability": float(
+                            signal_event.signal.success_probability,
+                        ),
                         "volume_confirmation": signal_event.signal.volume_confirmation,
                         "confluence_factors": signal_event.signal.confluence_factors,
                     },
@@ -160,8 +172,8 @@ class DeliveryOrchestrator:
                         "error": str(result),
                     }
                 else:
-                    results[channel_name] = result
-                    if result.get("success"):
+                    results[channel_name] = result  # type: ignore[assignment]
+                    if result.get("success"):  # type: ignore[union-attr]
                         success_count += 1
 
         # Overall success if at least one channel succeeded
@@ -281,7 +293,7 @@ class DeliveryOrchestrator:
                 if isinstance(result, Exception):
                     results[channel_name] = {"success": False, "error": str(result)}
                 else:
-                    results[channel_name] = result
+                    results[channel_name] = result  # type: ignore[assignment]
 
         return results
 

@@ -30,7 +30,7 @@ binance:
   api_secret: ${BINANCE_SECRET_KEY:-}
   testnet: ${BINANCE_TESTNET:-true}
   base_url: ${BINANCE_BASE_URL:-https://testnet.binance.vision}
-  ws_base_url: ${BINANCE_WS_URL:-wss://testnet.binance.vision}
+  ws_base_url: ${BINANCE_WS_URL:-wss://stream.testnet.binance.vision/ws}
 
   # Rate limiting
   requests_per_minute: 1200

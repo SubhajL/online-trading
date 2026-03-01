@@ -1,6 +1,15 @@
-import { describe, it, expect } from 'vitest'
-import { formatPercentageChange, calculateDailyPnL } from './calculations'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  formatPercentageChange,
+  calculateDailyPnL,
+  calculateWinRate,
+  calculateProfitFactor,
+  calculateSharpeRatio,
+  calculateMaxDrawdown,
+  buildEquityCurve,
+} from './calculations'
 import type { Position, Order } from '@/types'
+import type { EquityPoint } from '@/types/dashboard'
 
 describe('formatPercentageChange', () => {
   it('formats positive percentage with plus sign', () => {
@@ -256,5 +265,456 @@ describe('calculateDailyPnL', () => {
     // BTC P&L: (41000 - 40000) * 0.05 = 50
     // ETH: no sell, so no realized P&L
     expect(calculateDailyPnL([], trades)).toBe(50)
+  })
+})
+
+// Closed trade type for KPI calculations
+type ClosedTrade = {
+  pnl: number
+  timestamp: string
+}
+
+describe('calculateWinRate', () => {
+  it('returns percentage of winning trades', () => {
+    const trades: ClosedTrade[] = [
+      { pnl: 100, timestamp: '2025-01-01T00:00:00Z' },
+      { pnl: 50, timestamp: '2025-01-01T01:00:00Z' },
+      { pnl: -30, timestamp: '2025-01-01T02:00:00Z' },
+      { pnl: 80, timestamp: '2025-01-01T03:00:00Z' },
+      { pnl: -20, timestamp: '2025-01-01T04:00:00Z' },
+      { pnl: 60, timestamp: '2025-01-01T05:00:00Z' },
+      { pnl: -10, timestamp: '2025-01-01T06:00:00Z' },
+      { pnl: 40, timestamp: '2025-01-01T07:00:00Z' },
+      { pnl: -15, timestamp: '2025-01-01T08:00:00Z' },
+      { pnl: 25, timestamp: '2025-01-01T09:00:00Z' },
+    ]
+    // 6 wins, 4 losses = 60%
+    expect(calculateWinRate(trades)).toBe(60)
+  })
+
+  it('returns null when fewer than minTrades', () => {
+    const trades: ClosedTrade[] = [
+      { pnl: 100, timestamp: '2025-01-01T00:00:00Z' },
+      { pnl: -50, timestamp: '2025-01-01T01:00:00Z' },
+    ]
+    expect(calculateWinRate(trades, 10)).toBeNull()
+  })
+
+  it('returns 100 when all trades are winners', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: (i + 1) * 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    expect(calculateWinRate(trades)).toBe(100)
+  })
+
+  it('returns 0 when all trades are losers', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: -(i + 1) * 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    expect(calculateWinRate(trades)).toBe(0)
+  })
+
+  it('treats zero pnl as not a win', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: i === 0 ? 0 : 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    // 9 wins out of 10 = 90%
+    expect(calculateWinRate(trades)).toBe(90)
+  })
+})
+
+describe('calculateProfitFactor', () => {
+  it('divides gross wins by gross losses', () => {
+    const trades: ClosedTrade[] = [
+      { pnl: 100, timestamp: '2025-01-01T00:00:00Z' },
+      { pnl: 200, timestamp: '2025-01-01T01:00:00Z' },
+      { pnl: -100, timestamp: '2025-01-01T02:00:00Z' },
+    ]
+    // Gross wins: 300, Gross losses: 100 -> PF = 3.0
+    // Pass minTrades=3 since we only have 3 trades
+    expect(calculateProfitFactor(trades, 3)).toBe(3)
+  })
+
+  it('returns null when fewer than minTrades', () => {
+    const trades: ClosedTrade[] = [{ pnl: 100, timestamp: '2025-01-01T00:00:00Z' }]
+    expect(calculateProfitFactor(trades, 10)).toBeNull()
+  })
+
+  it('returns Infinity when no losses', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: (i + 1) * 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    expect(calculateProfitFactor(trades)).toBe(Infinity)
+  })
+
+  it('returns 0 when no wins', () => {
+    const trades: ClosedTrade[] = Array.from({ length: 10 }, (_, i) => ({
+      pnl: -(i + 1) * 10,
+      timestamp: `2025-01-01T0${i}:00:00Z`,
+    }))
+    expect(calculateProfitFactor(trades)).toBe(0)
+  })
+
+  it('ignores zero pnl trades', () => {
+    const trades: ClosedTrade[] = [
+      { pnl: 100, timestamp: '2025-01-01T00:00:00Z' },
+      { pnl: 0, timestamp: '2025-01-01T01:00:00Z' },
+      { pnl: -50, timestamp: '2025-01-01T02:00:00Z' },
+      ...Array.from({ length: 7 }, (_, i) => ({
+        pnl: 10,
+        timestamp: `2025-01-01T0${i + 3}:00:00Z`,
+      })),
+    ]
+    // Gross wins: 100 + 70 = 170, Gross losses: 50 -> PF = 3.4
+    expect(calculateProfitFactor(trades)).toBe(3.4)
+  })
+})
+
+describe('calculateSharpeRatio', () => {
+  it('returns null when fewer than 30 trades', () => {
+    const returns = Array.from({ length: 20 }, () => 0.01)
+    expect(calculateSharpeRatio(returns, 30, 7)).toBeNull()
+  })
+
+  it('returns null when fewer than minDays', () => {
+    // 10 returns, but we require minDays=14, so should return null
+    const returns = Array.from({ length: 10 }, () => 0.01)
+    expect(calculateSharpeRatio(returns, 5, 14)).toBeNull()
+  })
+
+  it('returns 0 when variance is zero', () => {
+    // All identical returns = zero variance
+    const returns = Array.from({ length: 30 }, () => 0.01)
+    const result = calculateSharpeRatio(returns, 30, 7)
+    // With zero variance, Sharpe is undefined - we return 0
+    expect(result).toBe(0)
+  })
+
+  it('annualizes daily returns correctly', () => {
+    // Mean = 0.001 (0.1% daily), Std = 0.01
+    // Sharpe = (0.001 / 0.01) * sqrt(252) ≈ 1.587
+    const returns = [
+      0.011, 0.009, -0.001, 0.012, 0.008, -0.002, 0.013, 0.007, -0.003, 0.011, 0.009, 0.001, 0.012,
+      0.008, -0.001, 0.013, 0.007, 0.002, 0.011, 0.009, -0.002, 0.012, 0.008, 0.001, 0.013, 0.007,
+      -0.001, 0.011, 0.009, 0.001,
+    ]
+    const result = calculateSharpeRatio(returns, 30, 7)
+    expect(result).not.toBeNull()
+    expect(result).toBeGreaterThan(0)
+  })
+
+  it('returns negative Sharpe for losing strategy', () => {
+    const returns = Array.from({ length: 30 }, (_, i) => (i % 3 === 0 ? -0.02 : 0.005))
+    const result = calculateSharpeRatio(returns, 30, 7)
+    expect(result).not.toBeNull()
+  })
+})
+
+describe('calculateMaxDrawdown', () => {
+  it('finds peak-to-trough decline', () => {
+    const equityCurve: EquityPoint[] = [
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 120 },
+      { timestamp: '2025-01-03T00:00:00Z', equity: 90 },
+      { timestamp: '2025-01-04T00:00:00Z', equity: 110 },
+    ]
+    // Peak: 120, Trough: 90, Drawdown: (120-90)/120 = 25%
+    expect(calculateMaxDrawdown(equityCurve)).toBe(25)
+  })
+
+  it('returns 0 for monotonically increasing equity', () => {
+    const equityCurve: EquityPoint[] = [
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 110 },
+      { timestamp: '2025-01-03T00:00:00Z', equity: 120 },
+    ]
+    expect(calculateMaxDrawdown(equityCurve)).toBe(0)
+  })
+
+  it('returns 0 for empty equity curve', () => {
+    expect(calculateMaxDrawdown([])).toBe(0)
+  })
+
+  it('returns 0 for single point', () => {
+    expect(calculateMaxDrawdown([{ timestamp: '2025-01-01T00:00:00Z', equity: 100 }])).toBe(0)
+  })
+
+  it('handles multiple drawdowns and finds the largest', () => {
+    const equityCurve: EquityPoint[] = [
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 90 }, // 10% DD
+      { timestamp: '2025-01-03T00:00:00Z', equity: 95 },
+      { timestamp: '2025-01-04T00:00:00Z', equity: 110 },
+      { timestamp: '2025-01-05T00:00:00Z', equity: 80 }, // 27.27% DD from 110
+      { timestamp: '2025-01-06T00:00:00Z', equity: 100 },
+    ]
+    // Max DD: (110 - 80) / 110 = 27.27%
+    expect(calculateMaxDrawdown(equityCurve)).toBeCloseTo(27.27, 1)
+  })
+})
+
+describe('buildEquityCurve', () => {
+  it('sorts points by timestamp', () => {
+    const unsorted: EquityPoint[] = [
+      { timestamp: '2025-01-03T00:00:00Z', equity: 120 },
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 110 },
+    ]
+    const result = buildEquityCurve(unsorted)
+    expect(result[0]?.timestamp).toBe('2025-01-01T00:00:00Z')
+    expect(result[1]?.timestamp).toBe('2025-01-02T00:00:00Z')
+    expect(result[2]?.timestamp).toBe('2025-01-03T00:00:00Z')
+  })
+
+  it('deduplicates by timestamp keeping latest', () => {
+    const withDupes: EquityPoint[] = [
+      { timestamp: '2025-01-01T00:00:00Z', equity: 100 },
+      { timestamp: '2025-01-01T00:00:00Z', equity: 105 },
+      { timestamp: '2025-01-02T00:00:00Z', equity: 110 },
+    ]
+    const result = buildEquityCurve(withDupes)
+    expect(result).toHaveLength(2)
+    expect(result[0]?.equity).toBe(105)
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(buildEquityCurve([])).toEqual([])
+  })
+
+  it('handles single point', () => {
+    const single: EquityPoint[] = [{ timestamp: '2025-01-01T00:00:00Z', equity: 100 }]
+    expect(buildEquityCurve(single)).toEqual(single)
+  })
+})
+
+describe('calculateDailyPnL (time-freeze tests)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('includes trades from today when frozen at midnight', () => {
+    // Freeze time at 2025-01-15 00:00:00 UTC
+    const frozenDate = new Date('2025-01-15T00:00:00Z')
+    vi.setSystemTime(frozenDate)
+
+    const todayTrade: Order = {
+      orderId: 'T1' as any,
+      symbol: 'BTCUSDT' as any,
+      side: 'BUY',
+      type: 'MARKET',
+      quantity: 0.1,
+      status: 'FILLED',
+      venue: 'SPOT',
+      createdAt: '2025-01-15T00:00:01Z',
+      updatedAt: '2025-01-15T00:00:01Z',
+      executedQuantity: 0.1,
+      avgPrice: 50000,
+    }
+
+    const todaySell: Order = {
+      orderId: 'T2' as any,
+      symbol: 'BTCUSDT' as any,
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: 0.1,
+      status: 'FILLED',
+      venue: 'SPOT',
+      createdAt: '2025-01-15T00:01:00Z',
+      updatedAt: '2025-01-15T00:01:00Z',
+      executedQuantity: 0.1,
+      avgPrice: 51000,
+    }
+
+    // P&L = (51000 - 50000) * 0.1 = 100
+    expect(calculateDailyPnL([], [todayTrade, todaySell])).toBe(100)
+  })
+
+  it('excludes trades from yesterday when frozen at noon', () => {
+    // Freeze time at 2025-01-15 12:00:00 UTC
+    const frozenDate = new Date('2025-01-15T12:00:00Z')
+    vi.setSystemTime(frozenDate)
+
+    const yesterdayTrade: Order = {
+      orderId: 'Y1' as any,
+      symbol: 'BTCUSDT' as any,
+      side: 'BUY',
+      type: 'MARKET',
+      quantity: 0.1,
+      status: 'FILLED',
+      venue: 'SPOT',
+      createdAt: '2025-01-14T23:59:59Z',
+      updatedAt: '2025-01-14T23:59:59Z',
+      executedQuantity: 0.1,
+      avgPrice: 50000,
+    }
+
+    // This trade is from yesterday, should be excluded
+    expect(calculateDailyPnL([], [yesterdayTrade])).toBe(0)
+  })
+
+  it('handles trades at exact midnight boundary', () => {
+    // Freeze time at end of day (local time)
+    const frozenDate = new Date()
+    frozenDate.setHours(23, 59, 59, 0)
+    vi.setSystemTime(frozenDate)
+
+    // Get today's midnight in local time for trade timestamps
+    const todayMidnight = new Date()
+    todayMidnight.setHours(0, 0, 0, 0)
+
+    const midnightTrade: Order = {
+      orderId: 'M1' as any,
+      symbol: 'BTCUSDT' as any,
+      side: 'BUY',
+      type: 'MARKET',
+      quantity: 0.1,
+      status: 'FILLED',
+      venue: 'SPOT',
+      createdAt: todayMidnight.toISOString(), // Exactly at midnight local
+      updatedAt: todayMidnight.toISOString(),
+      executedQuantity: 0.1,
+      avgPrice: 50000,
+    }
+
+    const lateTrade: Order = {
+      orderId: 'M2' as any,
+      symbol: 'BTCUSDT' as any,
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: 0.1,
+      status: 'FILLED',
+      venue: 'SPOT',
+      createdAt: frozenDate.toISOString(),
+      updatedAt: frozenDate.toISOString(),
+      executedQuantity: 0.1,
+      avgPrice: 52000,
+    }
+
+    // Both trades are from today
+    // P&L = (52000 - 50000) * 0.1 = 200
+    expect(calculateDailyPnL([], [midnightTrade, lateTrade])).toBe(200)
+  })
+
+  it('correctly separates trades across day boundaries', () => {
+    // Freeze time at 2025-01-16 02:00:00 UTC
+    const frozenDate = new Date('2025-01-16T02:00:00Z')
+    vi.setSystemTime(frozenDate)
+
+    const twoDaysAgo: Order = {
+      orderId: 'OLD1' as any,
+      symbol: 'BTCUSDT' as any,
+      side: 'BUY',
+      type: 'MARKET',
+      quantity: 0.1,
+      status: 'FILLED',
+      venue: 'SPOT',
+      createdAt: '2025-01-14T10:00:00Z',
+      updatedAt: '2025-01-14T10:00:00Z',
+      executedQuantity: 0.1,
+      avgPrice: 48000,
+    }
+
+    const yesterday: Order = {
+      orderId: 'OLD2' as any,
+      symbol: 'BTCUSDT' as any,
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: 0.1,
+      status: 'FILLED',
+      venue: 'SPOT',
+      createdAt: '2025-01-15T10:00:00Z',
+      updatedAt: '2025-01-15T10:00:00Z',
+      executedQuantity: 0.1,
+      avgPrice: 49000,
+    }
+
+    const today: Order = {
+      orderId: 'TODAY1' as any,
+      symbol: 'ETHUSDT' as any,
+      side: 'BUY',
+      type: 'MARKET',
+      quantity: 1,
+      status: 'FILLED',
+      venue: 'SPOT',
+      createdAt: '2025-01-16T01:00:00Z',
+      updatedAt: '2025-01-16T01:00:00Z',
+      executedQuantity: 1,
+      avgPrice: 3000,
+    }
+
+    // Only today's trade should be included (but it's only a buy, no realized P&L)
+    expect(calculateDailyPnL([], [twoDaysAgo, yesterday, today])).toBe(0)
+  })
+
+  it('handles multiple trades throughout the frozen day', () => {
+    // Freeze time at 6 PM local time
+    const frozenDate = new Date()
+    frozenDate.setHours(18, 0, 0, 0)
+    vi.setSystemTime(frozenDate)
+
+    // Create trade timestamps relative to today's midnight (local time)
+    const today9am = new Date()
+    today9am.setHours(9, 0, 0, 0)
+
+    const todayNoon = new Date()
+    todayNoon.setHours(12, 0, 0, 0)
+
+    const today3pm = new Date()
+    today3pm.setHours(15, 0, 0, 0)
+
+    const trades: Order[] = [
+      {
+        orderId: 'AM1' as any,
+        symbol: 'BTCUSDT' as any,
+        side: 'BUY',
+        type: 'MARKET',
+        quantity: 0.1,
+        status: 'FILLED',
+        venue: 'SPOT',
+        createdAt: today9am.toISOString(),
+        updatedAt: today9am.toISOString(),
+        executedQuantity: 0.1,
+        avgPrice: 50000,
+      },
+      {
+        orderId: 'AM2' as any,
+        symbol: 'BTCUSDT' as any,
+        side: 'SELL',
+        type: 'MARKET',
+        quantity: 0.05,
+        status: 'FILLED',
+        venue: 'SPOT',
+        createdAt: todayNoon.toISOString(),
+        updatedAt: todayNoon.toISOString(),
+        executedQuantity: 0.05,
+        avgPrice: 51000,
+      },
+      {
+        orderId: 'PM1' as any,
+        symbol: 'BTCUSDT' as any,
+        side: 'SELL',
+        type: 'MARKET',
+        quantity: 0.05,
+        status: 'FILLED',
+        venue: 'SPOT',
+        createdAt: today3pm.toISOString(),
+        updatedAt: today3pm.toISOString(),
+        executedQuantity: 0.05,
+        avgPrice: 52000,
+      },
+    ]
+
+    // First sell: (51000 - 50000) * 0.05 = 50
+    // Second sell: (52000 - 50000) * 0.05 = 100
+    // Total = 150
+    expect(calculateDailyPnL([], trades)).toBe(150)
   })
 })

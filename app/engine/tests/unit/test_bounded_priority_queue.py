@@ -31,7 +31,7 @@ class TestBoundedPriorityQueue:
     async def test_old_items_expire(self) -> None:
         start_time = datetime(2024, 1, 1, 12, 0, 0)
         clock = FakeClock(initial_time=start_time)
-        queue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
 
         # Add items at different times
         await queue.put_with_ttl(TestMessage(1, "old"), priority=1)
@@ -55,7 +55,7 @@ class TestBoundedPriorityQueue:
     @pytest.mark.asyncio
     async def test_max_size_enforced(self) -> None:
         clock = FakeClock()
-        queue = BoundedPriorityQueue(max_size=3, ttl_seconds=300, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=3, ttl_seconds=300, clock=clock)
 
         # Fill queue
         await queue.put_with_ttl(TestMessage(1, "a"), priority=1)
@@ -69,7 +69,7 @@ class TestBoundedPriorityQueue:
     @pytest.mark.asyncio
     async def test_priority_order_maintained(self) -> None:
         clock = FakeClock()
-        queue = BoundedPriorityQueue(max_size=10, ttl_seconds=300, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=10, ttl_seconds=300, clock=clock)
 
         # Add items in random priority order
         await queue.put_with_ttl(TestMessage(1, "low"), priority=1)
@@ -89,7 +89,7 @@ class TestBoundedPriorityQueue:
     @pytest.mark.asyncio
     async def test_memory_bounded(self) -> None:
         clock = FakeClock()
-        queue = BoundedPriorityQueue(max_size=100, ttl_seconds=10, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=100, ttl_seconds=10, clock=clock)
 
         # Add many items
         for i in range(100):
@@ -120,7 +120,7 @@ class TestBoundedPriorityQueue:
     @pytest.mark.asyncio
     async def test_concurrent_put_get(self) -> None:
         clock = FakeClock()
-        queue = BoundedPriorityQueue(max_size=100, ttl_seconds=60, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=100, ttl_seconds=60, clock=clock)
 
         received = []
         producer_done = asyncio.Event()
@@ -167,7 +167,7 @@ class TestBoundedPriorityQueue:
     async def test_get_not_expired_skips_expired(self) -> None:
         start_time = datetime(2024, 1, 1, 12, 0, 0)
         clock = FakeClock(initial_time=start_time)
-        queue = BoundedPriorityQueue(max_size=10, ttl_seconds=30, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=10, ttl_seconds=30, clock=clock)
 
         # Add items with different ages
         await queue.put_with_ttl(TestMessage(1, "old"), priority=10)
@@ -187,7 +187,7 @@ class TestBoundedPriorityQueue:
     async def test_custom_ttl_override(self) -> None:
         start_time = datetime(2024, 1, 1, 12, 0, 0)
         clock = FakeClock(initial_time=start_time)
-        queue = BoundedPriorityQueue(
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(
             max_size=10, ttl_seconds=30, clock=clock  # Default TTL
         )
 
@@ -205,7 +205,7 @@ class TestBoundedPriorityQueue:
     @pytest.mark.asyncio
     async def test_stats_tracking(self) -> None:
         clock = FakeClock()
-        queue = BoundedPriorityQueue(max_size=5, ttl_seconds=30, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=5, ttl_seconds=30, clock=clock)
 
         # Add items
         for i in range(3):
@@ -228,7 +228,7 @@ class TestBoundedPriorityQueue:
     @pytest.mark.asyncio
     async def test_wait_for_item_blocks_until_available(self) -> None:
         clock = FakeClock()
-        queue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
 
         result = []
 
@@ -248,7 +248,7 @@ class TestBoundedPriorityQueue:
     @pytest.mark.asyncio
     async def test_clear_removes_all_items(self) -> None:
         clock = FakeClock()
-        queue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
+        queue: BoundedPriorityQueue = BoundedPriorityQueue(max_size=10, ttl_seconds=60, clock=clock)
 
         # Add items
         for i in range(5):

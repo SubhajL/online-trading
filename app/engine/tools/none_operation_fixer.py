@@ -28,6 +28,7 @@ class NoneOperationFixer:
         # Convert back to source code
         try:
             import astor
+
             return astor.to_source(fixed_tree)
         except ImportError:
             # Fallback to regex-based fixing if astor not available
@@ -72,7 +73,7 @@ class NoneOperationFixer:
                     if re.search(pattern, line) and "if" not in line:
                         # Check if already guarded (look back up to 3 lines)
                         already_guarded = False
-                        for j in range(max(0, i-3), i):
+                        for j in range(max(0, i - 3), i):
                             if f"if {var} is None:" in lines[j]:
                                 already_guarded = True
                                 break
@@ -103,7 +104,8 @@ class NoneOperationFixer:
                         elif op == "-":
                             # For subtraction, return the left operand
                             match = re.search(
-                                rf"(\w+)\s*-\s*{var}", line,
+                                rf"(\w+)\s*-\s*{var}",
+                                line,
                             )
                             if match:
                                 default = match.group(1)
@@ -137,15 +139,12 @@ class NoneOperationFixer:
                                 lhs = parts[0]
                                 rhs = parts[1].strip()
                                 # Determine default for ternary based on type
-                                if "int" in lines[i-1] or "int" in lines[i-2]:
+                                if "int" in lines[i - 1] or "int" in lines[i - 2]:
                                     ternary_default = "0"
                                 else:
                                     ternary_default = default
                                 condition = f"{var} is not None"
-                                new_line = (
-                                    f"{lhs}= {rhs} if {condition} else "
-                                    f"{ternary_default}"
-                                )
+                                new_line = f"{lhs}= {rhs} if {condition} else {ternary_default}"
                                 result_lines.append(new_line)
                                 modified = True
                                 break
@@ -274,9 +273,9 @@ class NoneOperationTransformer(ast.NodeTransformer):
             )
         elif isinstance(node.op, ast.Add):
             # For addition, default to the other operand
-            default = node.right
+            default = node.right  # type: ignore[assignment]
         else:
-            default = ast.Constant(value=0)
+            default = ast.Constant(value=0)  # type: ignore[assignment]
 
         # Create: node if test else default
         return ast.IfExp(test=test, body=node, orelse=default)

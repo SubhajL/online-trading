@@ -6,14 +6,14 @@ import { EngineClientModule } from '../engine-client/engine-client.module';
 import { AuthModule } from '../auth/auth.module';
 import { MarketDataGateway } from './market-data.gateway';
 import { MarketDataController } from './market-data.controller';
-import { Candle, Indicators, SmcEvent, Zone } from '../database/entities';
+import { Candle, Indicators, SmcEvent, SmcEventV1, Zone } from '../database/entities';
 import { QueryHandlers } from './queries/handlers';
 
 @Module({
   imports: [
     ConfigModule,
     CqrsModule,
-    TypeOrmModule.forFeature([Candle, Indicators, SmcEvent, Zone]),
+    TypeOrmModule.forFeature([Candle, Indicators, SmcEvent, SmcEventV1, Zone]),
     EngineClientModule,
     AuthModule,
   ],

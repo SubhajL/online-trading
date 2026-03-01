@@ -46,11 +46,149 @@ func NewManager(spotClient, futuresClient *binance.Client, eventEmitter EventEmi
 	}
 }
 
+func (m *Manager) CancelOpenOrders(
+	ctx context.Context,
+	req *CancelOpenOrdersRequest,
+) (*CancelOpenOrdersResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if req.Scope != EmergencyScopeAll && req.Scope != EmergencyScopeSpot && req.Scope != EmergencyScopeFutures {
+		return nil, fmt.Errorf("invalid scope: %s", req.Scope)
+	}
+
+	resp := &CancelOpenOrdersResponse{CanceledOrders: 0, Errors: nil}
+
+	cancelForClient := func(client *binance.Client, symbols []string) {
+		if client == nil {
+			resp.Errors = append(resp.Errors, "client not configured")
+			return
+		}
+		for _, symbol := range symbols {
+			openOrders, err := client.GetOpenOrders(ctx, symbol)
+			if err != nil {
+				resp.Errors = append(resp.Errors, fmt.Sprintf("%s: list open orders failed: %v", symbol, err))
+				continue
+			}
+			for _, order := range openOrders {
+				if err := client.CancelOrder(ctx, symbol, order.OrderID); err != nil {
+					resp.Errors = append(resp.Errors, fmt.Sprintf("%s: cancel order %d failed: %v", symbol, order.OrderID, err))
+					continue
+				}
+				resp.CanceledOrders += 1
+			}
+		}
+	}
+
+	switch req.Scope {
+	case EmergencyScopeSpot:
+		cancelForClient(m.spotClient, req.Symbols)
+	case EmergencyScopeFutures:
+		cancelForClient(m.futuresClient, req.Symbols)
+	case EmergencyScopeAll:
+		cancelForClient(m.spotClient, req.Symbols)
+		cancelForClient(m.futuresClient, req.Symbols)
+	}
+
+	return resp, nil
+}
+
+func (m *Manager) ClosePositions(
+	ctx context.Context,
+	req *ClosePositionsRequest,
+) (*ClosePositionsResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if req.Scope != EmergencyScopeAll && req.Scope != EmergencyScopeSpot && req.Scope != EmergencyScopeFutures {
+		return nil, fmt.Errorf("invalid scope: %s", req.Scope)
+	}
+
+	resp := &ClosePositionsResponse{ClosedPositions: 0, Errors: nil}
+
+	if req.Scope == EmergencyScopeSpot {
+		resp.Errors = append(resp.Errors, "spot position closing not supported")
+		return resp, nil
+	}
+
+	if m.futuresClient == nil {
+		resp.Errors = append(resp.Errors, "futures client not configured")
+		return resp, nil
+	}
+
+	account, err := m.futuresClient.GetFuturesAccountInfo(ctx)
+	if err != nil {
+		resp.Errors = append(resp.Errors, fmt.Sprintf("get futures account failed: %v", err))
+		return resp, nil
+	}
+
+	allowedSymbols := map[string]struct{}{}
+	if len(req.Symbols) > 0 {
+		for _, s := range req.Symbols {
+			allowedSymbols[s] = struct{}{}
+		}
+	}
+
+	for _, p := range account.Positions {
+		if p.PositionAmt.IsZero() {
+			continue
+		}
+		if len(allowedSymbols) > 0 {
+			if _, ok := allowedSymbols[p.Symbol]; !ok {
+				continue
+			}
+		}
+
+		side := "SELL"
+		if p.PositionAmt.IsNegative() {
+			side = "BUY"
+		}
+
+		_, placeErr := m.futuresClient.PlaceFuturesOrder(ctx, binance.FuturesOrderRequest{
+			Symbol:        p.Symbol,
+			Side:          side,
+			Type:          "MARKET",
+			Quantity:      decimal.Zero,
+			ReduceOnly:    true,
+			ClosePosition: true,
+		})
+		if placeErr != nil {
+			resp.Errors = append(resp.Errors, fmt.Sprintf("%s: close position failed: %v", p.Symbol, placeErr))
+			continue
+		}
+
+		resp.ClosedPositions += 1
+	}
+
+	return resp, nil
+}
+
 // PlaceBracketOrder places a bracket order with idempotency
 func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketRequest) (*PlaceBracketResponse, error) {
 	// Validate request
 	if err := m.validateBracketRequest(req); err != nil {
 		return nil, fmt.Errorf("invalid bracket request: %w", err)
+	}
+
+	if req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
+		m.mu.RLock()
+		bracketID, exists := m.ordersByClient[req.ClientOrderIDs.Main]
+		var existing *BracketOrder
+		if exists {
+			existing = m.orders[bracketID]
+		}
+		m.mu.RUnlock()
+
+		if exists && existing != nil {
+			return &PlaceBracketResponse{
+				BracketOrderID: bracketID,
+				ClientOrderIDs: existing.ClientOrderIDs,
+				Symbol:         existing.Symbol,
+				Side:           existing.Side,
+				Quantity:       existing.Quantity,
+				CreatedAt:      existing.CreatedAt,
+			}, nil
+		}
 	}
 
 	// Select client
@@ -166,21 +304,23 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	m.mu.Unlock()
 
 	// Emit order update
-	if m.eventEmitter != nil {
-		update := &OrderUpdate{
-			EventType:     "order_update.v1",
-			Symbol:        req.Symbol,
-			ClientOrderID: bracket.ClientOrderIDs.Main,
-			Status:        "NEW",
-			Side:          req.Side,
-			OrderType:     req.OrderType,
-			Price:         req.EntryPrice,
-			Quantity:      req.Quantity,
-			ExecutedQty:   decimal.Zero,
-			UpdateTime:    time.Now(),
-		}
-		_ = m.eventEmitter.EmitOrderUpdate(ctx, update)
+	venue := "SPOT"
+	if req.IsFutures {
+		venue = "USD_M"
 	}
+	m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
+		EventType:     "order_update.v1",
+		Venue:         venue,
+		Symbol:        req.Symbol,
+		ClientOrderID: bracket.ClientOrderIDs.Main,
+		Status:        "NEW",
+		Side:          req.Side,
+		OrderType:     req.OrderType,
+		Price:         req.EntryPrice,
+		Quantity:      req.Quantity,
+		ExecutedQty:   decimal.Zero,
+		UpdateTime:    time.Now(),
+	})
 
 	return response, nil
 }
@@ -215,22 +355,24 @@ func (m *Manager) ReconcileOrder(ctx context.Context, clientOrderID string) erro
 	for _, order := range orders {
 		if order.ClientOrderID == clientOrderID {
 			// Emit update if status changed
-			if m.eventEmitter != nil {
-				update := &OrderUpdate{
-					EventType:     "order_update.v1",
-					Symbol:        order.Symbol,
-					OrderID:       order.OrderID,
-					ClientOrderID: order.ClientOrderID,
-					Status:        order.Status,
-					Side:          order.Side,
-					OrderType:     order.Type,
-					Price:         order.Price,
-					Quantity:      order.OrigQty,
-					ExecutedQty:   order.ExecutedQty,
-					UpdateTime:    time.Now(),
-				}
-				_ = m.eventEmitter.EmitOrderUpdate(ctx, update)
+			venue := "SPOT"
+			if bracket.Type == OrderTypeFutures {
+				venue = "USD_M"
 			}
+			m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
+				EventType:     "order_update.v1",
+				Venue:         venue,
+				Symbol:        order.Symbol,
+				OrderID:       order.OrderID,
+				ClientOrderID: order.ClientOrderID,
+				Status:        order.Status,
+				Side:          order.Side,
+				OrderType:     order.Type,
+				Price:         order.Price,
+				Quantity:      order.OrigQty,
+				ExecutedQty:   order.ExecutedQty,
+				UpdateTime:    time.Now(),
+			})
 			break
 		}
 	}
@@ -244,31 +386,43 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 		return fmt.Errorf("symbol is required")
 	}
 
-	// Determine which client to use based on symbol
-	// For simplicity, try spot first, then futures
-	var err error
+	// For simplicity, try spot first, then futures.
+	var (
+		err   error
+		venue string
+	)
 	if req.OrderID > 0 {
-		err = m.spotClient.CancelOrder(ctx, req.Symbol, req.OrderID)
-		if err != nil {
+		if m.spotClient != nil {
+			err = m.spotClient.CancelOrder(ctx, req.Symbol, req.OrderID)
+			if err == nil {
+				venue = "SPOT"
+			}
+		} else {
+			err = fmt.Errorf("spot client not configured")
+		}
+		if err != nil && m.futuresClient != nil {
 			// Try futures
 			err = m.futuresClient.CancelOrder(ctx, req.Symbol, req.OrderID)
+			if err == nil {
+				venue = "USD_M"
+			}
 		}
 	} else {
 		return fmt.Errorf("order ID is required")
 	}
 
-	if err == nil && m.eventEmitter != nil {
+	if err == nil {
 		// Emit cancellation event
-		update := &OrderUpdate{
+		m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
 			EventType:     "order_update.v1",
+			Venue:         venue,
 			Symbol:        req.Symbol,
 			OrderID:       req.OrderID,
 			ClientOrderID: req.ClientOrderID,
 			Status:        "CANCELED",
 			UpdateTime:    time.Now(),
 			Reason:        "User requested cancellation",
-		}
-		_ = m.eventEmitter.EmitOrderUpdate(ctx, update)
+		})
 	}
 
 	return err
@@ -290,6 +444,33 @@ func (m *Manager) validateBracketRequest(req *PlaceBracketRequest) error {
 	}
 	if req.StopLossPrice.LessThanOrEqual(decimal.Zero) {
 		return fmt.Errorf("stop loss price must be positive")
+	}
+
+	if req.ClientOrderIDs != nil {
+		if req.ClientOrderIDs.Main == "" {
+			return fmt.Errorf("client_order_ids.main is required")
+		}
+		if req.ClientOrderIDs.StopLoss == "" {
+			return fmt.Errorf("client_order_ids.stop_loss is required")
+		}
+		if len(req.ClientOrderIDs.TakeProfits) != len(req.TakeProfitPrices) {
+			return fmt.Errorf("client_order_ids.take_profits count must match take_profit_prices")
+		}
+
+		all := append([]string{req.ClientOrderIDs.Main, req.ClientOrderIDs.StopLoss}, req.ClientOrderIDs.TakeProfits...)
+		seen := make(map[string]struct{}, len(all))
+		for _, id := range all {
+			if id == "" {
+				return fmt.Errorf("client_order_ids values must be non-empty")
+			}
+			if len(id) > 36 {
+				return fmt.Errorf("client_order_id too long: %d", len(id))
+			}
+			if _, ok := seen[id]; ok {
+				return fmt.Errorf("duplicate client_order_id: %s", id)
+			}
+			seen[id] = struct{}{}
+		}
 	}
 
 	// Validate price relationships
@@ -321,4 +502,21 @@ func (m *Manager) validateBracketRequest(req *PlaceBracketRequest) error {
 // generateClientOrderID generates a unique client order ID
 func (m *Manager) generateClientOrderID(bracketID, orderType string) string {
 	return fmt.Sprintf("%s_%s_%d", bracketID[:8], orderType, time.Now().UnixNano())
+}
+
+// emitOrderUpdateWithLogging emits an order update and logs any errors.
+// This ensures event emission failures are observable while not failing the order operation.
+func (m *Manager) emitOrderUpdateWithLogging(ctx context.Context, update *OrderUpdate) {
+	if m.eventEmitter == nil || update == nil {
+		return
+	}
+	if err := m.eventEmitter.EmitOrderUpdate(ctx, update); err != nil {
+		m.logger.Error().
+			Err(err).
+			Str("symbol", update.Symbol).
+			Str("client_order_id", update.ClientOrderID).
+			Str("event_type", update.EventType).
+			Str("status", update.Status).
+			Msg("failed to emit order update event")
+	}
 }

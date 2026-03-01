@@ -9,31 +9,39 @@
  */
 
 :root {
+  /* ===== SPEC DARK MODE VARIABLES (for Tailwind aliases) ===== */
+  /* These allow spec patterns like dark:bg-surface-dark to work */
+  --bg-page-dark: #101022;
+  --bg-surface-dark: #1a1a2e;
+  --bg-surface-secondary-dark: #232340;
+  --bg-surface-hover-dark: #2a2a4a;
+  --border-dark-mode: #334155;
+
   /* ===== PRIMARY PALETTE ===== */
-  /* Based on HSL(220, 70%, [lightness]) for consistency */
-  --color-primary-50: hsl(220, 70%, 95%);
-  --color-primary-100: hsl(220, 70%, 90%);
-  --color-primary-200: hsl(220, 70%, 80%);
-  --color-primary-300: hsl(220, 70%, 70%);
-  --color-primary-400: hsl(220, 70%, 60%);
-  --color-primary-500: hsl(220, 70%, 50%); /* Main brand color */
-  --color-primary-600: hsl(220, 70%, 45%);
-  --color-primary-700: hsl(220, 70%, 40%);
-  --color-primary-800: hsl(220, 70%, 30%);
-  --color-primary-900: hsl(220, 70%, 20%);
+  /* Indigo brand (matches Visualization Design Spec --color-primary: #6464f2) */
+  --color-primary-50: hsl(240 85% 97%);
+  --color-primary-100: hsl(240 85% 93%);
+  --color-primary-200: hsl(240 85% 87%);
+  --color-primary-300: hsl(240 85% 80%);
+  --color-primary-400: hsl(240 85% 73%);
+  --color-primary-500: hsl(240 85% 67%); /* #6464f2 — Spec brand primary */
+  --color-primary-600: hsl(240 85% 60%);
+  --color-primary-700: hsl(240 85% 52%);
+  --color-primary-800: hsl(240 85% 44%);
+  --color-primary-900: hsl(240 85% 35%);
 
   /* ===== SEMANTIC COLORS ===== */
-  /* Success - Green spectrum */
-  --color-success-50: hsl(142, 71%, 95%);
-  --color-success-100: hsl(142, 71%, 85%);
-  --color-success-200: hsl(142, 71%, 75%);
-  --color-success-300: hsl(142, 71%, 65%);
-  --color-success-400: hsl(142, 71%, 55%);
-  --color-success-500: hsl(142, 71%, 45%); /* #26a69a equivalent */
-  --color-success-600: hsl(142, 71%, 38%);
-  --color-success-700: hsl(142, 71%, 32%);
-  --color-success-800: hsl(142, 71%, 25%);
-  --color-success-900: hsl(142, 71%, 18%);
+  /* Success - Emerald Green spectrum (centered on #22c55e) */
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-300: #86efac;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e; /* Emerald green - design spec */
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-800: #166534;
+  --color-success-900: #14532d;
 
   /* Warning - Orange/Yellow spectrum */
   --color-warning-50: hsl(38, 92%, 95%);
@@ -85,23 +93,23 @@
   --color-gray-900: hsl(220, 13%, 13%); /* #1a1d2a */
 
   /* ===== SURFACE COLORS ===== */
-  /* Dark theme backgrounds */
-  --color-surface-base: hsl(220, 20%, 7%); /* #131722 - main background */
-  --color-surface-raised: hsl(220, 16%, 13%); /* #1e222d - cards, modals */
-  --color-surface-overlay: hsl(220, 15%, 16%); /* #2a2e39 - borders, dividers */
-  --color-surface-hover: hsl(220, 14%, 19%); /* #3a3e49 - hover states */
-  --color-surface-input: hsl(220, 18%, 9%); /* #161a1e - input backgrounds */
+  /* Modern light theme surfaces */
+  --color-surface-base: hsl(210, 20%, 98%); /* #FAFBFC - main background */
+  --color-surface-raised: hsl(0, 0%, 100%); /* #FFFFFF - cards, modals */
+  --color-surface-overlay: hsl(214, 32%, 91%); /* #E2E8F0 - borders, dividers */
+  --color-surface-hover: hsl(210, 20%, 96%); /* #F1F5F9 - hover states */
+  --color-surface-input: hsl(210, 20%, 98%); /* #FAFBFC - input backgrounds */
 
   /* ===== TEXT COLORS ===== */
-  /* Contrast ratios against --color-surface-base (#131722) */
-  --color-text-primary: hsl(220, 13%, 85%); /* #d1d4dc - 11.2:1 ratio ✓ */
-  --color-text-secondary: hsl(220, 13%, 72%); /* #b4b8c1 - 8.1:1 ratio ✓ */
-  --color-text-muted: hsl(220, 13%, 58%); /* #91959e - 5.2:1 ratio ✓ */
-  --color-text-disabled: hsl(220, 13%, 42%); /* #63676f - 3.0:1 ratio (UI component minimum) */
-  --color-text-inverse: hsl(220, 13%, 13%); /* For light backgrounds */
+  /* Contrast ratios against --color-surface-base (#FAFBFC) */
+  --color-text-primary: #0f172a; /* slate-900 - design spec */
+  --color-text-secondary: #475569; /* slate-600 - design spec */
+  --color-text-muted: #64748b; /* slate-500 - design spec */
+  --color-text-disabled: hsl(215, 16%, 65%); /* #B0BEC5 - slate-300 */
+  --color-text-inverse: hsl(0, 0%, 100%); /* For dark backgrounds */
 
-  /* Semantic text colors */
-  --color-text-success: var(--color-success-400);
+  /* Semantic text colors - use darker shades for WCAG AA contrast on white */
+  --color-text-success: var(--color-success-700); /* #15803d - 5:1 contrast */
   --color-text-danger: var(--color-error-400);
   --color-text-warning: var(--color-warning-400);
   --color-text-info: var(--color-info-400);
@@ -113,10 +121,21 @@
   --color-text-on-danger: white;
 
   /* ===== BORDER COLORS ===== */
-  --color-border-subtle: hsl(220, 15%, 16%); /* #2a2e39 - subtle dividers */
-  --color-border-default: hsl(220, 14%, 19%); /* #3a3e49 - default borders */
-  --color-border-strong: hsl(220, 13%, 28%); /* #494d59 - emphasized borders */
+  --color-border-subtle: hsl(214, 32%, 91%); /* #E2E8F0 - subtle dividers */
+  --color-border-default: hsl(214, 20%, 85%); /* #CBD5E1 - default borders */
+  --color-border-strong: hsl(215, 16%, 75%); /* #94A3B8 - emphasized borders */
   --color-border-focus: var(--color-primary-500); /* Focus indicator */
+
+  /* ===== LEGACY / COMPATIBILITY ALIASES ===== */
+  /* Older dashboard CSS uses these names. Keep them as aliases to avoid drift. */
+  --color-primary: var(--color-primary-500);
+  --color-success: var(--color-success-500);
+  --color-warning: var(--color-warning-500);
+  --color-error: var(--color-error-500);
+  --color-surface: var(--color-surface-raised);
+  --color-border: var(--color-border-default);
+  --color-border-light: var(--color-border-subtle);
+  --color-text: var(--color-text-primary);
 
   /* ===== SPACING SYSTEM ===== */
   /* Base unit: 4px (following 8px grid with half-steps) */
@@ -140,11 +159,12 @@
   --radius-full: 9999px; /* Pills, avatars, badges */
 
   /* ===== SHADOWS ===== */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
-  --shadow-focus: 0 0 0 3px rgba(59, 130, 246, 0.1); /* Focus ring */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05); /* Cards, panels - design spec */
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.06), 0 4px 10px rgba(0, 0, 0, 0.03);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.2); /* Indigo focus ring */
 
   /* ===== TYPOGRAPHY ===== */
   /* Modular scale with 1.250 ratio (Major Third) */
@@ -197,10 +217,10 @@
   --z-index-tooltip: 60;
 
   /* ===== CHART-SPECIFIC TOKENS ===== */
-  /* TradingView-style chart colors */
-  --color-chart-bg: var(--color-surface-input);
-  --color-chart-text: var(--color-text-primary);
-  --color-chart-grid: var(--color-surface-overlay);
+  /* Chart colors for light theme */
+  --color-chart-bg: var(--color-surface-raised);
+  --color-chart-text: var(--color-text-secondary);
+  --color-chart-grid: var(--color-border-subtle);
   --color-chart-candle-up: var(--color-success-500);
   --color-chart-candle-down: var(--color-error-400);
   --color-chart-volume-up: hsla(142, 71%, 45%, 0.5);
@@ -213,6 +233,7 @@
   --button-primary-bg: var(--color-primary-500);
   --button-primary-bg-hover: var(--color-primary-600);
   --button-primary-text: white;
+  --button-primary-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
 
   --button-secondary-bg: transparent;
   --button-secondary-border: var(--color-border-default);
@@ -237,14 +258,16 @@
   /* Cards */
   --card-bg: var(--color-surface-raised);
   --card-border: var(--color-border-subtle);
+  --card-shadow: var(--shadow-sm);
+  --card-shadow-hover: var(--shadow-md);
 
   /* Navigation */
   --nav-text: var(--color-text-muted);
   --nav-text-hover: var(--color-text-primary);
-  --nav-text-active: var(--color-text-primary);
-  --nav-indicator: var(--color-success-500);
-  --nav-active-bg: hsla(142, 71%, 45%, 0.1);
-  --nav-active-shadow: hsla(142, 71%, 45%, 0.2);
+  --nav-text-active: var(--color-primary-600);
+  --nav-indicator: var(--color-primary-500);
+  --nav-active-bg: hsla(239, 84%, 67%, 0.08);
+  --nav-active-shadow: hsla(239, 84%, 67%, 0.15);
 
   /* Status indicators */
   --status-new-bg: hsla(220, 70%, 50%, 0.15);
@@ -272,7 +295,6 @@
 
   /* Touch targets */
   --touch-target-min: 44px; /* WCAG minimum */
-}
 
   /* ===== BREAKPOINTS ===== */
   /* Responsive breakpoint values for media queries */
@@ -284,7 +306,78 @@
   /* ===== CONSTRAINTS ===== */
   /* Reusable constraint values for consistent UX */
   --constraint-max-scroll-height: 300px; /* Max height for scrollable code blocks */
-  --constraint-min-touch-target: 44px;   /* Minimum touch target size (iOS HIG / WCAG) */
+  --constraint-min-touch-target: 44px; /* Minimum touch target size (iOS HIG / WCAG) */
+}
+
+/**
+ * ===== DARK MODE OVERRIDES =====
+ * Aligned to Visualization Design Specifications.md
+ * These tokens switch when .dark class is applied to <html>
+ */
+.dark {
+  /* ===== SURFACE COLORS ===== */
+  --color-surface-base: #101022; /* Spec: --bg-page-dark */
+  --color-surface-raised: #1a1a2e; /* Spec: --bg-surface-dark */
+  --color-surface-overlay: #232340; /* Spec: --bg-surface-secondary-dark */
+  --color-surface-hover: #2a2a4a; /* Spec: --bg-surface-hover-dark */
+  --color-surface-input: #1a1a2e;
+
+  /* ===== TEXT COLORS ===== */
+  --color-text-primary: #ffffff; /* Spec: --text-primary-dark */
+  --color-text-secondary: #e2e8f0; /* Spec: --text-secondary-dark */
+  --color-text-muted: #94a3b8; /* Spec: --text-muted-dark */
+  --color-text-disabled: #64748b; /* Spec: --text-disabled-dark */
+  --color-text-inverse: #0f172a;
+
+  /* ===== BORDER COLORS ===== */
+  --color-border-subtle: #334155; /* Spec: --border-dark-mode */
+  --color-border-default: #475569;
+  --color-border-strong: #64748b;
+  --color-border-focus: #6464f2;
+
+  /* ===== GRAY PALETTE (dark adapted) ===== */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+
+  /* ===== CHART COLORS (dark adapted) ===== */
+  --color-chart-bg: #1a1a2e;
+  --color-chart-text: #94a3b8;
+  --color-chart-grid: #334155;
+  --color-chart-candle-up: #22c55e;
+  --color-chart-candle-down: #ef4444;
+  --color-chart-volume-up: hsla(142, 71%, 45%, 0.4);
+  --color-chart-volume-down: hsla(0, 84%, 60%, 0.4);
+
+  /* ===== COMPONENT TOKENS (dark adapted) ===== */
+  --card-bg: #1a1a2e;
+  --card-border: #334155;
+  --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+
+  --input-bg: #1a1a2e;
+  --input-border: #334155;
+  --input-text: #ffffff;
+  --input-placeholder: #64748b;
+
+  --nav-text: #94a3b8;
+  --nav-text-hover: #ffffff;
+  --nav-text-active: #6464f2;
+  --nav-active-bg: hsla(240, 85%, 67%, 0.12);
+  --nav-active-shadow: hsla(240, 85%, 67%, 0.2);
+
+  /* ===== SHADOWS (dark adapted - higher opacity) ===== */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.2), 0 4px 10px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.25), 0 8px 16px rgba(0, 0, 0, 0.15);
 }
 
 /**

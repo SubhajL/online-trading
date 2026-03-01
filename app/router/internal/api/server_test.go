@@ -131,7 +131,7 @@ func TestServerShutdown(t *testing.T) {
 		}
 
 		// Start server
-		go server.httpServer.ListenAndServe()
+		go func() { _ = server.httpServer.ListenAndServe() }()
 		time.Sleep(100 * time.Millisecond)
 
 		// Shutdown with timeout
@@ -161,14 +161,18 @@ func TestServerShutdown(t *testing.T) {
 		// Start server
 		listener, err := net.Listen("tcp", ":0")
 		require.NoError(t, err)
-		defer listener.Close()
+		defer func() { _ = listener.Close() }()
 
-		go server.httpServer.Serve(listener)
+		go func() { _ = server.httpServer.Serve(listener) }()
 		time.Sleep(100 * time.Millisecond)
 
 		// Make a request to trigger the long-running handler
 		go func() {
-			http.Get(fmt.Sprintf("http://localhost:%d/", listener.Addr().(*net.TCPAddr).Port))
+			resp, err := http.Get(fmt.Sprintf("http://localhost:%d/", listener.Addr().(*net.TCPAddr).Port))
+			if err != nil {
+				return
+			}
+			_ = resp.Body.Close()
 		}()
 
 		// Wait for handler to start

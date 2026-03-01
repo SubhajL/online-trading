@@ -35,6 +35,9 @@ export class SignalPayloadDto {
   symbol: string;
 
   @IsString()
+  venue: string;
+
+  @IsString()
   timeframe: string;
 
   @IsEnum(SignalSide)
@@ -51,6 +54,9 @@ export class SignalPayloadDto {
   @IsNumber()
   @IsPositive()
   takeProfit: number;
+
+  @IsNumber()
+  confidence: number;
 
   @IsISO8601()
   signalTime: string;

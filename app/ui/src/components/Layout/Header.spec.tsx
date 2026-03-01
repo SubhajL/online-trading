@@ -72,9 +72,9 @@ describe('Header', () => {
 
   test('renders userName when provided', () => {
     vi.mocked(usePathname).mockReturnValue('/')
-    render(<Header userName="Trader" />)
+    render(<Header userName="trader@test.com" />)
 
-    expect(screen.getByText('Welcome, Trader')).toBeInTheDocument()
+    expect(screen.getByTestId('user-email')).toHaveTextContent('trader@test.com')
   })
 
   test('applies custom className when provided', () => {

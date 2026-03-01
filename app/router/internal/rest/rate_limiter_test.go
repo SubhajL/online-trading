@@ -336,7 +336,7 @@ func TestRateLimiter_ConcurrentAccess(t *testing.T) {
 				start := time.Now()
 				for time.Since(start) < duration {
 					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-					limiter.Wait(ctx)
+					_ = limiter.Wait(ctx)
 					cancel()
 				}
 			}()
@@ -419,6 +419,6 @@ func BenchmarkRateLimiter_Wait(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		limiter.Wait(ctx)
+		_ = limiter.Wait(ctx)
 	}
 }

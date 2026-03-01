@@ -9,6 +9,6 @@ import { OrderRepository } from './repositories/order.repository';
   imports: [TypeOrmModule.forFeature([OrderEntity])],
   controllers: [OrdersController],
   providers: [OrdersService, OrderRepository],
-  exports: [OrdersService],
+  exports: [OrdersService, OrderRepository],
 })
 export class OrdersModule {}

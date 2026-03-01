@@ -24,7 +24,7 @@ def test_smc_event_timestamp_timezone_aware():
         to_state=StructureState.BULLISH,
         trigger_pivot=pivot,
     )
-    evt = create_smc_event("BTCUSDT", TimeFrame.M5, smc, StructureState.BULLISH, {})
+    evt = create_smc_event("SPOT", "BTCUSDT", TimeFrame.M5, smc, StructureState.BULLISH, {})
     assert evt.timestamp.tzinfo is not None
     assert evt.timestamp.tzname() in ("UTC", "UTC+00:00", "Coordinated Universal Time")
 
@@ -42,6 +42,6 @@ def test_zone_event_timestamp_timezone_aware():
         created_bar_index=1,
         expiry_bars=10,
     )
-    evt = create_zone_event(zone, "created")
+    evt = create_zone_event("SPOT", zone, "created")
     assert evt.timestamp.tzinfo is not None
     assert evt.timestamp.tzname() in ("UTC", "UTC+00:00", "Coordinated Universal Time")

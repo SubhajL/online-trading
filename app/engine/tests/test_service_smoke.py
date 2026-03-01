@@ -10,13 +10,12 @@ from unittest.mock import Mock, AsyncMock
 
 import pytest
 
-from app.engine.bus import create_event_bus, set_event_bus
-
-
 def setup_event_bus():
     """Set up event bus for services that need it."""
-    bus = create_event_bus()
-    set_event_bus(bus)
+    from app.engine import bus as bus_module
+
+    bus = bus_module.create_event_bus()
+    bus_module.set_event_bus(bus)
     return bus
 
 
@@ -36,6 +35,11 @@ class TestDecisionEngineSmoke:
             risk_per_trade=Decimal("0.02"),     # 2% per trade
             max_correlation=Decimal("0.7"),     # 70% max correlation
             max_open_positions=3,
+            max_total_exposure_leverage=Decimal("3"),
+            max_symbol_exposure_pct=Decimal("0.25"),
+            max_position_notional_pct=Decimal("0.10"),
+            risk_data_max_age_seconds=120,
+            drawdown_lookback_days=30,
             allowed_symbols=["BTCUSDT", "ETHUSDT"]
         )
 
@@ -82,25 +86,26 @@ class TestFeatureServiceSmoke:
         assert service._running is True
 
 
-class TestSMCServiceSmoke:
-    """Test SMCService can be instantiated."""
+class TestSMCEngineSmoke:
+    """Test SMCEngine can be instantiated."""
 
-    def test_smc_service_instantiates(self):
-        """SMCService initializes with required dependencies mocked."""
-        from app.engine.smc.smc_service import SMCService
+    def test_smc_engine_instantiates(self):
+        """SMCEngine initializes without runtime errors."""
+        from app.engine.smc.engine import SMCEngine
 
         # Set up event bus
         setup_event_bus()
 
         # Should instantiate without errors
-        service = SMCService()
-        assert service is not None
+        engine = SMCEngine()
+        assert engine is not None
 
 
 class TestEventBusSmoke:
     """Test EventBus singleton creation."""
 
-    def test_event_bus_creation(self):
+    @pytest.mark.asyncio
+    async def test_event_bus_creation(self):
         """EventBus singleton creates and accepts subscriptions."""
         # Use setup function which handles singleton
         bus = setup_event_bus()
@@ -112,7 +117,7 @@ class TestEventBusSmoke:
         # Just verify subscribe doesn't throw
         # (internal structure is not part of public API)
         try:
-            bus.subscribe("test.event", test_callback)
+            await bus.subscribe("test.event", test_callback)
             subscription_works = True
         except Exception:
             subscription_works = False

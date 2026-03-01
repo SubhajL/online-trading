@@ -27,6 +27,25 @@ type Client struct {
 	maxRetries  int
 }
 
+type FuturesIncomeQuery struct {
+	IncomeType string
+	Symbol     string
+	StartTime  int64
+	EndTime    int64
+	Limit      int
+}
+
+type FuturesIncomeRecord struct {
+	IncomeType string `json:"incomeType"`
+	Income     string `json:"income"`
+	Asset      string `json:"asset"`
+	Time       int64  `json:"time"`
+	Symbol     string `json:"symbol,omitempty"`
+	Info       string `json:"info,omitempty"`
+	TranID     int64  `json:"tranId,omitempty"`
+	TradeID    int64  `json:"tradeId,omitempty"`
+}
+
 // Option configures the client
 type Option func(*Client)
 
@@ -268,6 +287,30 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 	return nil
 }
 
+// CancelFuturesOrder cancels an active futures order
+func (c *Client) CancelFuturesOrder(ctx context.Context, symbol string, orderID int64) error {
+	if c.signer == nil {
+		return fmt.Errorf("signer required for CancelFuturesOrder")
+	}
+	if symbol == "" {
+		return fmt.Errorf("symbol is required")
+	}
+	if orderID <= 0 {
+		return fmt.Errorf("orderID is required")
+	}
+
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("orderId", strconv.FormatInt(orderID, 10))
+
+	_, err := c.doRequest(ctx, "DELETE", "/fapi/v1/order", params, true)
+	if err != nil {
+		return ErrorWithContext(err, "CancelFuturesOrder")
+	}
+
+	return nil
+}
+
 // GetTicker24hr retrieves 24 hour ticker statistics for a symbol
 func (c *Client) GetTicker24hr(ctx context.Context, symbol string) (*Ticker24hr, error) {
 	params := url.Values{}
@@ -309,6 +352,126 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]Order, err
 	}
 
 	return orders, nil
+}
+
+// GetFuturesOpenOrders lists all open futures orders for a symbol
+func (c *Client) GetFuturesOpenOrders(ctx context.Context, symbol string) ([]Order, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for GetFuturesOpenOrders")
+	}
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+
+	params := url.Values{}
+	params.Set("symbol", symbol)
+
+	body, err := c.doRequest(ctx, "GET", "/fapi/v1/openOrders", params, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesOpenOrders")
+	}
+
+	var orders []Order
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesOpenOrders")
+	}
+
+	return orders, nil
+}
+
+type _listenKeyResponse struct {
+	ListenKey string `json:"listenKey"`
+}
+
+func (c *Client) CreateFuturesListenKey(ctx context.Context) (string, error) {
+	if c.signer == nil {
+		return "", fmt.Errorf("signer required for CreateFuturesListenKey")
+	}
+
+	body, err := c.doRequest(ctx, "POST", "/fapi/v1/listenKey", nil, false)
+	if err != nil {
+		return "", ErrorWithContext(err, "CreateFuturesListenKey")
+	}
+
+	var resp _listenKeyResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", ErrorWithContext(err, "CreateFuturesListenKey")
+	}
+	if resp.ListenKey == "" {
+		return "", fmt.Errorf("listenKey missing in response")
+	}
+	return resp.ListenKey, nil
+}
+
+func (c *Client) KeepAliveFuturesListenKey(ctx context.Context, listenKey string) error {
+	if c.signer == nil {
+		return fmt.Errorf("signer required for KeepAliveFuturesListenKey")
+	}
+	if listenKey == "" {
+		return fmt.Errorf("listenKey is required")
+	}
+
+	params := url.Values{}
+	params.Set("listenKey", listenKey)
+
+	_, err := c.doRequest(ctx, "PUT", "/fapi/v1/listenKey", params, false)
+	if err != nil {
+		return ErrorWithContext(err, "KeepAliveFuturesListenKey")
+	}
+	return nil
+}
+
+func (c *Client) DeleteFuturesListenKey(ctx context.Context, listenKey string) error {
+	if c.signer == nil {
+		return fmt.Errorf("signer required for DeleteFuturesListenKey")
+	}
+	if listenKey == "" {
+		return fmt.Errorf("listenKey is required")
+	}
+
+	params := url.Values{}
+	params.Set("listenKey", listenKey)
+
+	_, err := c.doRequest(ctx, "DELETE", "/fapi/v1/listenKey", params, false)
+	if err != nil {
+		return ErrorWithContext(err, "DeleteFuturesListenKey")
+	}
+	return nil
+}
+
+func (c *Client) GetFuturesIncome(ctx context.Context, query FuturesIncomeQuery) ([]FuturesIncomeRecord, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for GetFuturesIncome")
+	}
+
+	params := url.Values{}
+	if query.IncomeType != "" {
+		params.Set("incomeType", query.IncomeType)
+	}
+	if query.Symbol != "" {
+		params.Set("symbol", query.Symbol)
+	}
+	if query.StartTime > 0 {
+		params.Set("startTime", strconv.FormatInt(query.StartTime, 10))
+	}
+	if query.EndTime > 0 {
+		params.Set("endTime", strconv.FormatInt(query.EndTime, 10))
+	}
+	if query.Limit > 0 {
+		params.Set("limit", strconv.Itoa(query.Limit))
+	}
+
+	body, err := c.doRequest(ctx, "GET", "/fapi/v1/income", params, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesIncome")
+	}
+
+	var records []FuturesIncomeRecord
+	if err := json.Unmarshal(body, &records); err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesIncome")
+	}
+
+	return records, nil
 }
 
 // PlaceFuturesOrder places a futures order
@@ -469,15 +632,23 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 		}
 
 		// Read response body
-		respBody, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			lastErr = err
+		respBody, readErr := io.ReadAll(resp.Body)
+		closeErr := resp.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
 			if attempt < c.maxRetries {
 				c.waitForRetry(attempt)
 				continue
 			}
-			return nil, err
+			return nil, readErr
+		}
+		if closeErr != nil {
+			lastErr = closeErr
+			if attempt < c.maxRetries {
+				c.waitForRetry(attempt)
+				continue
+			}
+			return nil, closeErr
 		}
 
 		// Check for success

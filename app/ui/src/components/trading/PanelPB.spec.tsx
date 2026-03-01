@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { PanelPB } from './PanelPB'
 import { useBalances } from '@/hooks/useBalances'
 import { useOrders } from '@/hooks/useOrders'
+import { ToastProvider } from '@/context/ToastContext'
+import type { Balance } from '@/types'
 
 vi.mock('@/hooks/useBalances')
 vi.mock('@/hooks/useOrders')
@@ -19,6 +21,8 @@ describe('PanelPB', () => {
     loading: false,
     error: null,
     refresh: vi.fn(),
+    applyOptimistic: vi.fn(() => 'optimistic-token'),
+    rollback: vi.fn(),
   }
 
   const mockUseOrders = {
@@ -36,19 +40,31 @@ describe('PanelPB', () => {
 
   describe('rendering', () => {
     it('should render trading panel', () => {
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByTestId('trading-panel')).toBeInTheDocument()
     })
 
     it('should display symbol', () => {
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByText(/BTCUSDT/)).toBeInTheDocument()
     })
 
     it('should show order form fields', () => {
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByLabelText('Side')).toBeInTheDocument()
       expect(screen.getByLabelText('Type')).toBeInTheDocument()
@@ -56,14 +72,22 @@ describe('PanelPB', () => {
     })
 
     it('should show buy and sell buttons', () => {
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByTestId('buy-button')).toBeInTheDocument()
       expect(screen.getByTestId('sell-button')).toBeInTheDocument()
     })
 
     it('should show balance information', () => {
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByText(/Available:/)).toBeInTheDocument()
       expect(screen.getByText(/10,000/)).toBeInTheDocument() // USDT balance
@@ -73,7 +97,11 @@ describe('PanelPB', () => {
   describe('order types', () => {
     it('should show price field for limit orders', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       const typeSelect = screen.getByLabelText('Type')
       await user.selectOptions(typeSelect, 'LIMIT')
@@ -82,14 +110,22 @@ describe('PanelPB', () => {
     })
 
     it('should hide price field for market orders', () => {
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.queryByLabelText('Price')).not.toBeInTheDocument()
     })
 
     it('should show stop price for stop orders', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       const typeSelect = screen.getByLabelText('Type')
       await user.selectOptions(typeSelect, 'STOP_LIMIT')
@@ -102,7 +138,11 @@ describe('PanelPB', () => {
   describe('form submission', () => {
     it('should place buy market order', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       const quantityInput = screen.getByLabelText('Quantity')
       await user.clear(quantityInput)
@@ -121,7 +161,11 @@ describe('PanelPB', () => {
 
     it('should place sell limit order', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       await user.selectOptions(screen.getByLabelText('Type'), 'LIMIT')
       await user.clear(screen.getByLabelText('Quantity'))
@@ -143,7 +187,11 @@ describe('PanelPB', () => {
 
     it('should place stop limit order with all fields', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       await user.selectOptions(screen.getByLabelText('Type'), 'STOP_LIMIT')
       await user.clear(screen.getByLabelText('Quantity'))
@@ -170,7 +218,11 @@ describe('PanelPB', () => {
   describe('validation', () => {
     it('should show error for empty quantity', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       const buyButton = screen.getByTestId('buy-button')
       await user.click(buyButton)
@@ -180,7 +232,11 @@ describe('PanelPB', () => {
 
     it('should show error for negative quantity', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       await user.type(screen.getByLabelText('Quantity'), '-0.001')
       await user.click(screen.getByTestId('buy-button'))
@@ -190,7 +246,11 @@ describe('PanelPB', () => {
 
     it('should show error for missing price on limit order', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       await user.selectOptions(screen.getByLabelText('Type'), 'LIMIT')
       await user.type(screen.getByLabelText('Quantity'), '0.001')
@@ -201,7 +261,11 @@ describe('PanelPB', () => {
 
     it('should show error for insufficient balance', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" price={50000} />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" price={50000} />
+        </ToastProvider>,
+      )
 
       await user.clear(screen.getByLabelText('Quantity'))
       await user.type(screen.getByLabelText('Quantity'), '1') // 1 BTC at $50,000 = $50,000 > $10,000 balance
@@ -218,7 +282,11 @@ describe('PanelPB', () => {
         loading: true,
       })
 
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByLabelText('Quantity')).toBeDisabled()
       expect(screen.getByTestId('buy-button')).toBeDisabled()
@@ -231,7 +299,11 @@ describe('PanelPB', () => {
         loading: true,
       })
 
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
     })
@@ -244,7 +316,11 @@ describe('PanelPB', () => {
         error: 'Order rejected: Insufficient balance',
       })
 
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByText(/Order rejected: Insufficient balance/)).toBeInTheDocument()
     })
@@ -255,7 +331,11 @@ describe('PanelPB', () => {
         error: 'Failed to fetch balances',
       })
 
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByText(/Failed to fetch balances/)).toBeInTheDocument()
     })
@@ -263,7 +343,11 @@ describe('PanelPB', () => {
 
   describe('balance calculations', () => {
     it('should calculate and display max buy amount', () => {
-      render(<PanelPB symbol="BTCUSDT" price={50000} />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" price={50000} />
+        </ToastProvider>,
+      )
 
       const maxButton = screen.getByText('Max')
       expect(maxButton).toBeInTheDocument()
@@ -271,7 +355,11 @@ describe('PanelPB', () => {
 
     it('should fill quantity with max amount on max button click', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" price={50000} />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" price={50000} />
+        </ToastProvider>,
+      )
 
       const maxButton = screen.getByText('Max')
       await user.click(maxButton)
@@ -283,7 +371,11 @@ describe('PanelPB', () => {
 
   describe('quick amount buttons', () => {
     it('should show percentage buttons', () => {
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByText('25%')).toBeInTheDocument()
       expect(screen.getByText('50%')).toBeInTheDocument()
@@ -293,7 +385,11 @@ describe('PanelPB', () => {
 
     it('should set quantity based on percentage', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" price={50000} />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" price={50000} />
+        </ToastProvider>,
+      )
 
       await user.click(screen.getByText('50%'))
 
@@ -305,7 +401,11 @@ describe('PanelPB', () => {
   describe('form reset', () => {
     it('should reset form after successful order', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       await user.type(screen.getByLabelText('Quantity'), '0.001')
       await user.click(screen.getByTestId('buy-button'))
@@ -318,7 +418,11 @@ describe('PanelPB', () => {
 
     it('should clear errors on form change', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       // Trigger error
       await user.click(screen.getByTestId('buy-button'))
@@ -334,7 +438,11 @@ describe('PanelPB', () => {
 
   describe('accessibility', () => {
     it('should have proper form labels', () => {
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       expect(screen.getByLabelText('Side')).toHaveAttribute('id', 'order-side')
       expect(screen.getByLabelText('Type')).toHaveAttribute('id', 'order-type')
@@ -343,7 +451,11 @@ describe('PanelPB', () => {
 
     it('should announce errors to screen readers', async () => {
       const user = userEvent.setup()
-      render(<PanelPB symbol="BTCUSDT" />)
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
 
       await user.click(screen.getByTestId('buy-button'))
 

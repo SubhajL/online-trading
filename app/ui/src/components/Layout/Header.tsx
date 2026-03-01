@@ -54,10 +54,19 @@ export function Header({ userName, onLogout, className = '' }: HeaderProps) {
           </nav>
         </div>
 
-        <div className="header-right">
-          {userName && <span className="user-name">Welcome, {userName}</span>}
+        <div className="header-right" data-testid="user-menu">
+          {userName && (
+            <span className="user-name" data-testid="user-email">
+              {userName}
+            </span>
+          )}
           {onLogout && (
-            <button onClick={onLogout} className="logout-button" type="button">
+            <button
+              onClick={onLogout}
+              className="logout-button"
+              type="button"
+              data-testid="logout-button"
+            >
               Logout
             </button>
           )}

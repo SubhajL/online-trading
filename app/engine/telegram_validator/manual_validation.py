@@ -16,7 +16,11 @@ class ManualSignalValidator:
         self.validator = TelegramSignalValidator({}, system_api)
         self.results = []
 
-    async def validate_pasted_signal(self, message_text: str, source: str = "Manual") -> dict:
+    async def validate_pasted_signal(
+        self,
+        message_text: str,
+        source: str = "Manual",
+    ) -> dict:
         """
         Validate a signal you copied from Telegram
 
@@ -83,7 +87,9 @@ class ManualSignalValidator:
             "total_validated": len(self.results),
             "average_score": sum(r.overall_score for r in self.results) / len(self.results),
             "high_confidence": sum(1 for r in self.results if r.overall_score >= 80),
-            "direction_accuracy": sum(1 for r in self.results if r.direction_match) / len(self.results) * 100,
+            "direction_accuracy": sum(1 for r in self.results if r.direction_match)
+            / len(self.results)
+            * 100,
         }
 
 
@@ -93,6 +99,7 @@ async def validate_telegram_signals():
 
     # Your system's API
     from app.engine import TradingSystemAPI
+
     system_api = TradingSystemAPI()
 
     validator = ManualSignalValidator(system_api)
@@ -109,7 +116,6 @@ async def validate_telegram_signals():
 
         Reason: 4H BOS confirmed, retest of broken resistance
         """,
-
         """
         ETHUSDT
         SELL Signal
@@ -119,7 +125,6 @@ async def validate_telegram_signals():
 
         Daily Order Block rejection
         """,
-
         """
         💎 Premium Signal 💎
         $SOL - SOLUSDT
@@ -139,25 +144,29 @@ async def validate_telegram_signals():
 
     # Validate each message
     for i, msg in enumerate(telegram_messages, 1):
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"Validating Signal {i}")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
 
         result = await validator.validate_pasted_signal(msg, "Premium SMC Signals")
 
-        print(f"Parsed: {result['parsed_signal']['symbol']} {result['parsed_signal']['direction']}")
+        print(
+            f"Parsed: {result['parsed_signal']['symbol']} {result['parsed_signal']['direction']}",
+        )
         print(f"Score: {result['validation']['overall_score']}%")
         print(f"Recommendation: {result['recommendation']}")
 
         if result["validation"]["our_signal"]:
-            print(f"Our system: {result['validation']['our_signal']['direction']} at {result['validation']['our_signal']['entry']}")
+            print(
+                f"Our system: {result['validation']['our_signal']['direction']} at {result['validation']['our_signal']['entry']}",
+            )
         else:
             print("Our system: No signal")
 
     # Final summary
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("VALIDATION SUMMARY")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     summary = validator.get_validation_summary()
     print(f"Total signals: {summary['total_validated']}")
     print(f"Average score: {summary['average_score']:.1f}%")

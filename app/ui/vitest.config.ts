@@ -9,6 +9,8 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: './src/test/setup.ts',
+    include: ['src/**/*.{spec,test}.{ts,tsx}'],
+    exclude: ['tests/**', 'node_modules/**', '.next/**', 'dist/**'],
     coverage: {
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.{ts,tsx}'],

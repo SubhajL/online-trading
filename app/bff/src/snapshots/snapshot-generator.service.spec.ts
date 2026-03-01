@@ -8,7 +8,6 @@ jest.mock('puppeteer');
 
 describe('SnapshotGeneratorService', () => {
   let service: SnapshotGeneratorService;
-  let configService: jest.Mocked<ConfigService>;
   let mockBrowser: any;
   let mockPage: any;
 
@@ -47,7 +46,6 @@ describe('SnapshotGeneratorService', () => {
     }).compile();
 
     service = module.get<SnapshotGeneratorService>(SnapshotGeneratorService);
-    configService = module.get(ConfigService);
   });
 
   afterEach(async () => {
@@ -59,11 +57,13 @@ describe('SnapshotGeneratorService', () => {
     const testSignal: SignalPayloadDto = {
       signalId: 'test-123',
       symbol: 'BTCUSDT',
+      venue: 'SPOT',
       timeframe: '15m',
       side: SignalSide.BUY,
       entry: 52000,
       stopLoss: 51000,
       takeProfit: 53000,
+      confidence: 0.85,
       signalTime: '2025-01-26T10:00:00Z',
       reasons: ['SMC Breaker', 'BOS'],
       context: { preCandles: 100, postCandles: 20 },
@@ -158,11 +158,13 @@ describe('SnapshotGeneratorService', () => {
       await service.generateSnapshot({
         signalId: 'test',
         symbol: 'BTCUSDT',
+        venue: 'SPOT',
         timeframe: '15m',
         side: SignalSide.BUY,
         entry: 50000,
         stopLoss: 49000,
         takeProfit: 51000,
+        confidence: 0.9,
         signalTime: '2025-01-26T10:00:00Z',
       });
 
@@ -181,11 +183,13 @@ describe('SnapshotGeneratorService', () => {
         await service.generateSnapshot({
           signalId: `test-${i}`,
           symbol: 'BTCUSDT',
+          venue: 'SPOT',
           timeframe: '15m',
           side: SignalSide.BUY,
           entry: 50000,
           stopLoss: 49000,
           takeProfit: 51000,
+          confidence: 0.9,
           signalTime: '2025-01-26T10:00:00Z',
         });
       }
@@ -203,11 +207,13 @@ describe('SnapshotGeneratorService', () => {
       await service.generateSnapshot({
         signalId: 'test',
         symbol: 'BTCUSDT',
+        venue: 'SPOT',
         timeframe: '15m',
         side: SignalSide.BUY,
         entry: 50000,
         stopLoss: 49000,
         takeProfit: 51000,
+        confidence: 0.9,
         signalTime: '2025-01-26T10:00:00Z',
       });
 

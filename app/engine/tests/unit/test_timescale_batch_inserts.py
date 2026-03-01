@@ -61,11 +61,12 @@ async def test_insert_candles_batch_calls_executemany(monkeypatch) -> None:
     fake_conn = _FakeConn()
 
     # Patch write connection to return our fake connection context manager
-    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment]
+    adapter.get_write_connection = lambda: _FakePoolCtx(fake_conn)  # type: ignore[assignment, return-value]
 
     t0 = datetime.now(UTC)
     candles = [
         Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M15,
             open_time=t0 + timedelta(minutes=i * 15),
@@ -122,11 +123,12 @@ async def test_insert_candles_batch_uses_copy_for_large_batches(monkeypatch) -> 
 
     fake_conn = _FakeConnCopy()
     # Patch write connection to return our fake connection context manager
-    adapter.get_write_connection = lambda: _FakePoolCtxCopy(fake_conn)  # type: ignore[assignment]
+    adapter.get_write_connection = lambda: _FakePoolCtxCopy(fake_conn)  # type: ignore[assignment, return-value]
 
     t0 = datetime.now(UTC)
     candles = [
         Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M1,
             open_time=t0,
@@ -151,9 +153,11 @@ async def test_insert_candles_batch_uses_copy_for_large_batches(monkeypatch) -> 
     args = fake_conn.copy_args
     assert args is not None and args["table"] == "candles"
     assert set(args["columns"]) == {
-        "timestamp",
+        "venue",
         "symbol",
         "timeframe",
+        "open_time",
+        "close_time",
         "open_price",
         "high_price",
         "low_price",

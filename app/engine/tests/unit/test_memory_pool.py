@@ -29,7 +29,7 @@ class TestCreatePool:
 
     def test_create_pool_initialization(self) -> None:
         """Pool allocates arrays with correct shape/dtype."""
-        pool = create_pool(shape=(100, 10), dtype=np.float64, capacity=5)
+        pool = create_pool(shape=(100, 10), dtype=np.float64, capacity=5)  # type: ignore[arg-type]
 
         assert pool.shape == (100, 10)
         assert pool.dtype == np.float64
@@ -39,8 +39,8 @@ class TestCreatePool:
 
     def test_create_pool_different_dtypes(self) -> None:
         """Pool supports different numpy dtypes."""
-        int_pool = create_pool(shape=(50,), dtype=np.int32, capacity=3)
-        float_pool = create_pool(shape=(50,), dtype=np.float32, capacity=3)
+        int_pool = create_pool(shape=(50,), dtype=np.int32, capacity=3)  # type: ignore[arg-type]
+        float_pool = create_pool(shape=(50,), dtype=np.float32, capacity=3)  # type: ignore[arg-type]
 
         assert int_pool.dtype == np.int32
         assert float_pool.dtype == np.float32
@@ -48,10 +48,10 @@ class TestCreatePool:
     def test_create_pool_validation(self) -> None:
         """Pool creation validates parameters."""
         with pytest.raises(ValueError):
-            create_pool(shape=(100,), dtype=np.float64, capacity=0)
+            create_pool(shape=(100,), dtype=np.float64, capacity=0)  # type: ignore[arg-type]
 
         with pytest.raises(ValueError):
-            create_pool(shape=(), dtype=np.float64, capacity=5)
+            create_pool(shape=(), dtype=np.float64, capacity=5)  # type: ignore[arg-type]
 
 
 class TestAcquireRelease:
@@ -59,7 +59,7 @@ class TestAcquireRelease:
 
     def test_acquire_from_pool(self) -> None:
         """Returns array from pool when available."""
-        pool = create_pool(shape=(10, 5), dtype=np.float32, capacity=3)
+        pool = create_pool(shape=(10, 5), dtype=np.float32, capacity=3)  # type: ignore[arg-type]
 
         array = acquire(pool)
 
@@ -72,7 +72,7 @@ class TestAcquireRelease:
 
     def test_acquire_pool_exhausted(self) -> None:
         """Allocates new array when pool empty."""
-        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
+        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)  # type: ignore[arg-type]
 
         # Acquire all from pool
         arr1 = acquire(pool)
@@ -90,7 +90,7 @@ class TestAcquireRelease:
 
     def test_release_returns_to_pool(self) -> None:
         """Released arrays available for reacquisition."""
-        pool = create_pool(shape=(5, 5), dtype=np.int32, capacity=2)
+        pool = create_pool(shape=(5, 5), dtype=np.int32, capacity=2)  # type: ignore[arg-type]
 
         arr1 = acquire(pool)
         original_id = id(arr1._array)
@@ -106,7 +106,7 @@ class TestAcquireRelease:
 
     def test_release_validates_array_integrity(self) -> None:
         """Detects corrupted arrays via checksum."""
-        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
+        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)  # type: ignore[arg-type]
 
         array = acquire(pool)
         array._checksum = 0xDEADBEEF  # Corrupt checksum
@@ -116,7 +116,7 @@ class TestAcquireRelease:
 
     def test_release_zeros_array(self) -> None:
         """Released arrays are properly zeroed."""
-        pool = create_pool(shape=(5,), dtype=np.float64, capacity=2)
+        pool = create_pool(shape=(5,), dtype=np.float64, capacity=2)  # type: ignore[arg-type]
 
         array = acquire(pool)
         array.data[:] = 42.0  # Modify array
@@ -133,7 +133,7 @@ class TestPoolStats:
 
     def test_pool_stats_tracking(self) -> None:
         """Accurately tracks utilization and hit rate."""
-        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
+        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)  # type: ignore[arg-type]
 
         # Initial stats
         stats = get_pool_stats(pool)
@@ -157,7 +157,7 @@ class TestPoolStats:
 
     def test_pool_stats_memory_usage(self) -> None:
         """Tracks memory usage accurately."""
-        pool = create_pool(shape=(1000, 100), dtype=np.float64, capacity=5)
+        pool = create_pool(shape=(1000, 100), dtype=np.float64, capacity=5)  # type: ignore[arg-type]
 
         stats = get_pool_stats(pool)
         expected_memory = 1000 * 100 * 8 * 5  # shape * dtype_size * capacity
@@ -165,7 +165,7 @@ class TestPoolStats:
 
     def test_pool_stats_average_hold_time(self) -> None:
         """Tracks average array hold time."""
-        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
+        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)  # type: ignore[arg-type]
 
         arr1 = acquire(pool)
         time.sleep(0.1)
@@ -181,7 +181,7 @@ class TestTrimPool:
 
     def test_trim_pool_lru_eviction(self) -> None:
         """Removes least recently used arrays."""
-        pool = create_pool(shape=(10,), dtype=np.float64, capacity=3)
+        pool = create_pool(shape=(10,), dtype=np.float64, capacity=3)  # type: ignore[arg-type]
 
         # Force expansion
         arrays = [acquire(pool) for _ in range(5)]
@@ -198,7 +198,7 @@ class TestTrimPool:
 
     def test_trim_pool_no_trim_needed(self) -> None:
         """Does nothing when pool within target."""
-        pool = create_pool(shape=(10,), dtype=np.float64, capacity=3)
+        pool = create_pool(shape=(10,), dtype=np.float64, capacity=3)  # type: ignore[arg-type]
 
         freed = trim_pool(pool, target_size=5)
 
@@ -207,7 +207,7 @@ class TestTrimPool:
 
     def test_trim_pool_minimum_size(self) -> None:
         """Maintains minimum pool size."""
-        pool = create_pool(shape=(10,), dtype=np.float64, capacity=5)
+        pool = create_pool(shape=(10,), dtype=np.float64, capacity=5)  # type: ignore[arg-type]
 
         freed = trim_pool(pool, target_size=0)
 
@@ -220,7 +220,7 @@ class TestConcurrency:
 
     def test_concurrent_acquire_release(self) -> None:
         """Thread-safe under concurrent access."""
-        pool = create_pool(shape=(100,), dtype=np.float64, capacity=10)
+        pool = create_pool(shape=(100,), dtype=np.float64, capacity=10)  # type: ignore[arg-type]
         errors = []
 
         def worker() -> None:
@@ -244,7 +244,7 @@ class TestConcurrency:
 
     def test_memory_leak_detection(self) -> None:
         """Identifies arrays held too long."""
-        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)
+        pool = create_pool(shape=(10,), dtype=np.float64, capacity=2)  # type: ignore[arg-type]
         pool.max_hold_seconds = 0.1
 
         arr = acquire(pool)

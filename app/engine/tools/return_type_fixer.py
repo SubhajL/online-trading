@@ -33,23 +33,27 @@ def detect_missing_return_types(code: str) -> list[dict[str, Any]]:
                 # Determine if it's __init__ (should be -> None)
                 should_be_none = node.name == "__init__"
 
-                missing_functions.append({
-                    "name": node.name,
-                    "line": node.lineno - 1,  # 0-based for consistency
-                    "is_async": False,
-                    "should_be_none": should_be_none,
-                })
+                missing_functions.append(
+                    {
+                        "name": node.name,
+                        "line": node.lineno - 1,  # 0-based for consistency
+                        "is_async": False,
+                        "should_be_none": should_be_none,
+                    },
+                )
             self.generic_visit(node)
 
         def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
             # Check if return type annotation is missing
             if node.returns is None:
-                missing_functions.append({
-                    "name": node.name,
-                    "line": node.lineno - 1,  # 0-based
-                    "is_async": True,
-                    "should_be_none": False,
-                })
+                missing_functions.append(
+                    {
+                        "name": node.name,
+                        "line": node.lineno - 1,  # 0-based
+                        "is_async": True,
+                        "should_be_none": False,
+                    },
+                )
             self.generic_visit(node)
 
     visitor = FunctionVisitor()
@@ -76,7 +80,7 @@ def infer_return_type(code: str, function_name: str) -> str:
 
     class ReturnTypeFinder(ast.NodeVisitor):
         def __init__(self) -> None:
-            self.return_values = []
+            self.return_values: list[object] = []
             self.in_target_function = False
             self.has_bare_return = False
 

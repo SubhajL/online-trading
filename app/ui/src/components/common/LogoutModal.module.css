@@ -1,0 +1,165 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  background: hsl(220, 20%, 12%);
+  border: 1px solid hsl(220, 20%, 25%);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.title {
+  color: hsl(38, 92%, 50%);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+.message {
+  color: hsl(220, 15%, 70%);
+  line-height: 1.5;
+  margin: 0 0 1.25rem;
+}
+
+.loading {
+  color: hsl(220, 15%, 55%);
+  text-align: center;
+  padding: 2rem;
+}
+
+.positionsTable {
+  background: hsl(220, 20%, 8%);
+  border: 1px solid hsl(220, 20%, 20%);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr;
+  padding: 0.75rem 1rem;
+  background: hsl(220, 20%, 15%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: hsl(220, 15%, 55%);
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid hsl(220, 20%, 15%);
+  font-size: 0.875rem;
+  color: hsl(220, 15%, 85%);
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.symbol {
+  font-weight: 500;
+}
+
+.buy {
+  color: hsl(142, 71%, 50%);
+}
+
+.sell {
+  color: hsl(0, 84%, 60%);
+}
+
+.positive {
+  color: hsl(142, 71%, 50%);
+}
+
+.negative {
+  color: hsl(0, 84%, 60%);
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: hsl(220, 20%, 10%);
+  font-weight: 600;
+  color: hsl(220, 15%, 85%);
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.cancelButton {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid hsl(220, 20%, 30%);
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(220, 15%, 70%);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.cancelButton:hover {
+  border-color: hsl(220, 15%, 50%);
+  color: hsl(220, 15%, 85%);
+}
+
+.confirmButton {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  background: hsl(0, 70%, 50%);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.confirmButton:hover:not(:disabled) {
+  background: hsl(0, 70%, 40%);
+}
+
+.confirmButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

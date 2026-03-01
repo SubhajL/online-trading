@@ -3,11 +3,12 @@ Event-driven backtesting simulator.
 Reuses exact same math as live trading system with no lookahead.
 """
 
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 import logging
 
-from ..decision.engine import DecisionEngine
+from ..decision.engine import DecisionEngine  # type: ignore[attr-defined]
 from ..features.indicators import TechnicalIndicatorsCalculator
 from ..models import Candle, TechnicalIndicators
 from ..smc.engine import SMCEngine
@@ -90,12 +91,14 @@ class BacktestSimulator:
         logger.debug(f"Processing candle: {symbol} at {candle.close_time}")
 
         # 1. Update market data and calculate indicators
-        indicators = self._calculate_indicators([candle])  # In real backtest, use history
+        indicators = self._calculate_indicators(
+            [candle],
+        )  # In real backtest, use history
         if not indicators:
             return
 
         # 2. Process SMC analysis
-        self.smc_engine.process_candle(candle)
+        asyncio.run(self.smc_engine.process_candle(candle, emit_events=False))
 
         # 3. Check and execute fills for existing orders
         self._process_order_fills(candle)
@@ -130,7 +133,10 @@ class BacktestSimulator:
         # 9. Check for position management (TP/SL adjustments)
         self._manage_positions(candle)
 
-    def _calculate_indicators(self, candles: list[Candle]) -> TechnicalIndicators | None:
+    def _calculate_indicators(
+        self,
+        candles: list[Candle],
+    ) -> TechnicalIndicators | None:
         """
         Calculate technical indicators using the same calculator as live trading.
 
@@ -151,7 +157,7 @@ class BacktestSimulator:
             volumes = [c.volume for c in candles]
 
             # Use the exact same calculation as live
-            return self.indicators_calc.calculate_all(
+            return self.indicators_calc.calculate_all(  # type: ignore[attr-defined]
                 candles=candles,
                 ema_periods=[9, 21, 50],
                 rsi_period=14,
@@ -213,7 +219,9 @@ class BacktestSimulator:
         # Update position
         self._update_position_from_fill(fill, candle)
 
-        logger.info(f"Fill executed: {fill.symbol} {fill.side} {fill.quantity}@{fill.price}")
+        logger.info(
+            f"Fill executed: {fill.symbol} {fill.side} {fill.quantity}@{fill.price}",
+        )
 
     def _update_position_from_fill(self, fill, candle: Candle) -> None:
         """
@@ -244,7 +252,11 @@ class BacktestSimulator:
             else:
                 # Opening/adding to long position
                 position.side = "LONG"
-                old_value = position.quantity * position.entry_price if position.quantity > 0 else Decimal(0)
+                old_value = (
+                    position.quantity * position.entry_price
+                    if position.quantity > 0
+                    else Decimal(0)
+                )
                 new_quantity = position.quantity + fill.quantity
                 new_value = old_value + fill_value
                 position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal(0)
@@ -256,7 +268,9 @@ class BacktestSimulator:
         else:
             # Opening/adding to short position
             position.side = "SHORT"
-            old_value = position.quantity * position.entry_price if position.quantity > 0 else Decimal(0)
+            old_value = (
+                position.quantity * position.entry_price if position.quantity > 0 else Decimal(0)
+            )
             new_quantity = position.quantity + fill.quantity
             new_value = old_value + fill_value
             position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal(0)
@@ -334,7 +348,10 @@ class BacktestSimulator:
         for symbol, position in self.positions.items():
             if symbol == candle.symbol:
                 position.mark_price = candle.close_price
-                position.unrealized_pnl = self._calculate_position_pnl(position, candle.close_price)
+                position.unrealized_pnl = self._calculate_position_pnl(
+                    position,
+                    candle.close_price,
+                )
 
     def _process_funding(self, candle: Candle) -> None:
         """
@@ -355,8 +372,14 @@ class BacktestSimulator:
                 continue
 
             # Check if funding should be charged
-            if self.cost_calculator.should_charge_funding(candle.close_time, position.opened_at):
-                funding_rate = self.cost_calculator.get_funding_rate(symbol, candle.close_time)
+            if self.cost_calculator.should_charge_funding(
+                candle.close_time,
+                position.opened_at,
+            ):
+                funding_rate = self.cost_calculator.get_funding_rate(
+                    symbol,
+                    candle.close_time,
+                )
                 funding_payment = self.cost_calculator.calculate_funding_payment(
                     position.quantity,
                     position.side,
@@ -396,9 +419,18 @@ class BacktestSimulator:
                 "entry_price": candle.close_price,
                 "stop_loss": candle.close_price * Decimal("0.98"),
                 "take_profits": [
-                    {"price": candle.close_price * Decimal("1.015"), "size": Decimal("0.4")},
-                    {"price": candle.close_price * Decimal("1.02"), "size": Decimal("0.3")},
-                    {"price": candle.close_price * Decimal("1.03"), "size": Decimal("0.3")},
+                    {
+                        "price": candle.close_price * Decimal("1.015"),
+                        "size": Decimal("0.4"),
+                    },
+                    {
+                        "price": candle.close_price * Decimal("1.02"),
+                        "size": Decimal("0.3"),
+                    },
+                    {
+                        "price": candle.close_price * Decimal("1.03"),
+                        "size": Decimal("0.3"),
+                    },
                 ],
                 "regime": "trending",
             }
@@ -507,7 +539,9 @@ class BacktestSimulator:
         trade.net_pnl = trade.gross_pnl - trade.fees - trade.funding
 
         # Calculate R multiples (risk-reward)
-        stop_distance = abs(trade.entry_price - (position.stop_loss or trade.entry_price))
+        stop_distance = abs(
+            trade.entry_price - (position.stop_loss or trade.entry_price),
+        )
         if stop_distance > 0:
             trade.gross_pnl_r = trade.gross_pnl / (stop_distance * trade.size)
             trade.net_pnl_r = trade.net_pnl / (stop_distance * trade.size)
@@ -530,5 +564,6 @@ class BacktestSimulator:
             "total_fees": self.total_fees,
             "total_slippage": self.total_slippage,
             "total_funding": self.total_funding,
-            "current_equity": self.current_balance + sum(p.unrealized_pnl for p in self.positions.values()),
+            "current_equity": self.current_balance
+            + sum(p.unrealized_pnl for p in self.positions.values()),
         }

@@ -119,12 +119,12 @@ We have successfully implemented a comprehensive chart snapshot system for tradi
 
 ```bash
 # BFF
-UPLOADS_DIR=/path/to/uploads
-INTERNAL_API_KEY=your-secret-key
+SNAPSHOT_STORAGE_DIR=/path/to/snapshots
+INTERNAL_ALERTS_TOKEN=your-secret-token
 
 # Python
-BFF_URL=http://localhost:3000
-INTERNAL_API_KEY=your-secret-key
+BFF_URL=http://localhost:3001
+INTERNAL_ALERTS_TOKEN=your-secret-token
 ```
 
 ## Testing the Flow

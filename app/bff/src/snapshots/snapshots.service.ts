@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { AlertSnapshot } from '../database/entities/alert-snapshot.entity';
 import { AlertSnapshotDto } from '../alerts/dto/alert-snapshot.dto';
-import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -20,7 +19,7 @@ export class SnapshotsService {
   async saveSnapshot(
     signalId: string,
     imageBuffer: Buffer,
-    metadata: any,
+    metadata: Record<string, unknown>,
   ): Promise<AlertSnapshotDto> {
     // Check if snapshot already exists
     const existing = await this.snapshotRepository.findOne({
@@ -32,9 +31,9 @@ export class SnapshotsService {
       return this.mapToDto(existing);
     }
 
-    // Generate unique filename
-    const snapshotId = uuidv4();
-    const filename = `${snapshotId}.png`;
+    // Sanitize signalId to prevent path traversal
+    const safeSignalId = signalId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `${safeSignalId}.png`;
     const imagePath = path.join(this.storageDir, filename);
 
     // Ensure directory exists
@@ -46,8 +45,8 @@ export class SnapshotsService {
     // Save to database
     const snapshot = this.snapshotRepository.create({
       signalId,
-      symbol: metadata.symbol,
-      timeframe: metadata.timeframe,
+      symbol: String(metadata.symbol ?? ''),
+      timeframe: String(metadata.timeframe ?? ''),
       imagePath,
       meta: metadata,
     });
@@ -59,6 +58,18 @@ export class SnapshotsService {
   async getSnapshot(id: string): Promise<AlertSnapshotDto | null> {
     const snapshot = await this.snapshotRepository.findOne({
       where: { id },
+    });
+
+    if (!snapshot) {
+      return null;
+    }
+
+    return this.mapToDto(snapshot);
+  }
+
+  async getSnapshotBySignalId(signalId: string): Promise<AlertSnapshotDto | null> {
+    const snapshot = await this.snapshotRepository.findOne({
+      where: { signalId },
     });
 
     if (!snapshot) {
@@ -100,13 +111,15 @@ export class SnapshotsService {
   }
 
   private mapToDto(entity: AlertSnapshot): AlertSnapshotDto {
+    // Sanitize signalId for URL to match saved filename
+    const safeSignalId = entity.signalId.replace(/[^a-zA-Z0-9_-]/g, '_');
     return {
       id: entity.id,
       signalId: entity.signalId,
       symbol: entity.symbol,
       timeframe: entity.timeframe,
       imagePath: entity.imagePath,
-      imageUrl: `/snapshots/${entity.id}.png`,
+      imageUrl: `/api/snapshots/${safeSignalId}.png`,
       meta: entity.meta,
       createdAt: entity.createdAt,
     };

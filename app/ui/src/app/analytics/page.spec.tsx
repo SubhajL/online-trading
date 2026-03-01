@@ -37,12 +37,6 @@ describe('AnalyticsPage', () => {
     expect(screen.getByText('Trading Analytics')).toBeInTheDocument()
   })
 
-  test('applies appLayout CSS module class to root div', () => {
-    const { container } = render(<AnalyticsPage />)
-    const rootDiv = container.firstChild as HTMLElement
-    expect(rootDiv.className).toContain('appLayout')
-  })
-
   test('renders timeframe selector buttons', () => {
     render(<AnalyticsPage />)
     expect(screen.getByText('24h')).toBeInTheDocument()

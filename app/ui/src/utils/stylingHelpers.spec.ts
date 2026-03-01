@@ -433,20 +433,20 @@ describe('getIconSizeStyles', () => {
 })
 
 describe('panel styles', () => {
-test('getPanelContainerStyles uses surface and border tokens', () => {
+  test('getPanelContainerStyles uses surface and border tokens', () => {
     const s = getPanelContainerStyles(mockTokens)
     expect(s.backgroundColor).toBe(mockTokens.colors.surface.raised)
     expect(s.borderLeft).toBe(`1px solid ${mockTokens.colors.border.default}`)
     expect(s.borderRadius).toBe(mockTokens.radius.lg)
   })
 
-test('getPanelHeaderStyles uses border and padding tokens', () => {
+  test('getPanelHeaderStyles uses border and padding tokens', () => {
     const s = getPanelHeaderStyles(mockTokens)
     expect(s.borderBottom).toBe(`1px solid ${mockTokens.colors.border.subtle}`)
     expect(s.padding).toBe(`${mockTokens.spacing[4]} ${mockTokens.spacing[4]}`)
   })
 
-test('getPanelItemStyles active/inactive token palettes', () => {
+  test('getPanelItemStyles active/inactive token palettes', () => {
     const active = getPanelItemStyles(true, mockTokens)
     const inactive = getPanelItemStyles(false, mockTokens)
     expect(active.backgroundColor).not.toBe('transparent')
@@ -456,13 +456,13 @@ test('getPanelItemStyles active/inactive token palettes', () => {
 })
 
 describe('SMC overlay styles', () => {
-test('label uses success tokens for bullish', () => {
+  test('label uses success tokens for bullish', () => {
     const s = getSmcLabelStyles({ direction: 'bullish', type: 'CHOCH' }, mockTokens)
     expect(s.backgroundColor).toBe(mockTokens.colors.success[600])
     expect(s.color).toBe(mockTokens.colors.text.inverse)
   })
 
-test('line uses error tokens for bearish', () => {
+  test('line uses error tokens for bearish', () => {
     const s = getSmcLineStyles({ direction: 'bearish', type: 'BOS' }, mockTokens)
     expect(s.backgroundColor).toBe(mockTokens.colors.error[500])
     expect(s.height).toBe('1px')
@@ -470,14 +470,14 @@ test('line uses error tokens for bearish', () => {
 })
 
 describe('Zone overlay styles', () => {
-test('overlay uses tokens and computed opacity', () => {
+  test('overlay uses tokens and computed opacity', () => {
     const s = getZoneOverlayStyles({ type: 'supply', strength: 3, touches: 1 }, mockTokens)
     expect(s.backgroundColor).toBe(mockTokens.colors.error[500])
     expect(typeof s.opacity).toBe('number')
     expect(s.border).toBe(`1px solid ${mockTokens.colors.error[500]}`)
   })
 
-test('label and badge token colors reflect type', () => {
+  test('label and badge token colors reflect type', () => {
     const label = getZoneLabelStyles({ type: 'demand' }, mockTokens)
     const badge = getZoneBadgeStyles({ type: 'demand' }, mockTokens)
     expect(label.color).toBe(mockTokens.colors.success[600])
@@ -486,7 +486,7 @@ test('label and badge token colors reflect type', () => {
 })
 
 describe('layout helpers', () => {
-test('getAbsoluteFillStyles returns absolute inset and zIndex', () => {
+  test('getAbsoluteFillStyles returns absolute inset and zIndex', () => {
     const s = getAbsoluteFillStyles(mockTokens, 20)
     expect(s.position).toBe('absolute')
     expect(s.top).toBe(0)
@@ -495,14 +495,14 @@ test('getAbsoluteFillStyles returns absolute inset and zIndex', () => {
     expect(s.pointerEvents).toBe('none')
   })
 
-test('getPageHeadingStyles uses typography and text tokens', () => {
+  test('getPageHeadingStyles uses typography and text tokens', () => {
     const s = getPageHeadingStyles(mockTokens)
     expect(s.fontSize).toBe(mockTokens.typography.fontSize.xl)
     expect(s.color).toBe(mockTokens.colors.text.primary)
     expect(s.margin).toContain(mockTokens.spacing[4])
   })
 
-test('getTabButtonStyles active/inactive use tokens', () => {
+  test('getTabButtonStyles active/inactive use tokens', () => {
     const a = getTabButtonStyles(true, mockTokens)
     const i = getTabButtonStyles(false, mockTokens)
     expect(a.backgroundColor).toBe(mockTokens.colors.primary[600])

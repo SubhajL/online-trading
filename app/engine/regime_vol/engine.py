@@ -88,8 +88,7 @@ def calculate_volatility_metrics(
     if atr_values:
         # Calculate percentile based on historical distribution
         atr_normalized = [
-            float(atr / candles[i]["close"])
-            for i, atr in enumerate(atr_values[-lookback_period:])
+            float(atr / candles[i]["close"]) for i, atr in enumerate(atr_values[-lookback_period:])
         ]
         current_atr_norm = atr_normalized[-1] if atr_normalized else 0
         atr_percentile = Decimal(
@@ -180,10 +179,7 @@ def calculate_adx_series(candles: list[Any], period: int = 14) -> list[Decimal]:
         price_changes = []
 
         for j in range(1, len(window)):
-            change = (
-                abs(window[j]["close"] - window[j - 1]["close"])
-                / window[j - 1]["close"]
-            )
+            change = abs(window[j]["close"] - window[j - 1]["close"]) / window[j - 1]["close"]
             price_changes.append(float(change))
 
         if price_changes:
@@ -343,7 +339,8 @@ class RegimeVolEngine:
 
             # Calculate percentiles
             metrics = await self._calculate_percentiles(
-                features.symbol, features.timeframe.value,
+                features.symbol,
+                features.timeframe.value,
             )
 
             # Classify regime
@@ -403,7 +400,8 @@ class RegimeVolEngine:
         ]
 
         return calculate_volatility_metrics(
-            candles=candle_dicts, lookback_period=self.lookback_periods,
+            candles=candle_dicts,
+            lookback_period=self.lookback_periods,
         )
 
     def get_current_regime(self, symbol: str, timeframe: str) -> MarketRegime | None:

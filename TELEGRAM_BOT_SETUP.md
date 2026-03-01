@@ -1,7 +1,17 @@
 # Telegram Bot Setup Guide
 
 ## Your Bot Information
-- **Bot Token**: `8289541020:AAHd-sruzaADQO_3-aQ-6-C6_5izZ6s5edI`
+- **Bot Token**: See `.env` file (never commit real tokens to git)
+
+> ⚠️ **SECURITY WARNING**: The token that was previously in this file has been rotated.
+> If you see a real token here in git history, it has been compromised and revoked.
+> Always store tokens only in `.env` files (which are gitignored).
+>
+> **To rotate a compromised token:**
+> 1. Open Telegram and message `@BotFather`
+> 2. Send `/revoke` and select your bot
+> 3. Generate a new token with `/token`
+> 4. Update your `.env` file with the new token
 
 ## Steps to Complete Setup:
 
@@ -25,7 +35,7 @@ python scripts/get_telegram_chat_id.py
 ### 4. Update Your Environment File
 Once you have your chat ID, update your `.env` file:
 ```bash
-TELEGRAM_BOT_TOKEN=8289541020:AAHd-sruzaADQO_3-aQ-6-C6_5izZ6s5edI
+TELEGRAM_BOT_TOKEN=YOUR_BOT_TOKEN_HERE
 TELEGRAM_CHAT_ID=YOUR_CHAT_ID_HERE
 ```
 

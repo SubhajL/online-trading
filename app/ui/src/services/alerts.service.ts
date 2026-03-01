@@ -22,31 +22,31 @@ class AlertsService {
       ...filters,
     }
 
-    return await apiClient.get<AlertsResponse>('/api/alerts', { params })
+    return await apiClient.get<AlertsResponse>('/alerts', { params })
   }
 
   async getAlert(id: AlertId): Promise<Alert> {
-    return await apiClient.get<Alert>(`/api/alerts/${id}`)
+    return await apiClient.get<Alert>(`/alerts/${id}`)
   }
 
   async markAsRead(id: AlertId): Promise<Alert> {
-    return await apiClient.put<Alert>(`/api/alerts/${id}/read`)
+    return await apiClient.put<Alert>(`/alerts/${id}/read`)
   }
 
   async markAllAsRead(): Promise<{ updated: number }> {
-    return await apiClient.put<{ updated: number }>('/api/alerts/read-all')
+    return await apiClient.put<{ updated: number }>('/alerts/read-all')
   }
 
   async deleteAlert(id: AlertId): Promise<void> {
-    await apiClient.delete(`/api/alerts/${id}`)
+    await apiClient.delete(`/alerts/${id}`)
   }
 
   async getStats(): Promise<AlertStats> {
-    return await apiClient.get<AlertStats>('/api/alerts/stats')
+    return await apiClient.get<AlertStats>('/alerts/stats')
   }
 
   async getUnreadCount(): Promise<number> {
-    const response = await apiClient.get<{ count: number }>('/api/alerts/unread-count')
+    const response = await apiClient.get<{ count: number }>('/alerts/unread-count')
     return response.count
   }
 
@@ -60,7 +60,7 @@ class AlertsService {
   }
 
   async searchAlerts(query: string, limit = 50): Promise<AlertSearchResponse> {
-    return await apiClient.get<AlertSearchResponse>('/api/alerts/search', {
+    return await apiClient.get<AlertSearchResponse>('/alerts/search', {
       params: { q: query, limit },
     })
   }
@@ -73,7 +73,7 @@ class AlertsService {
 
     // Note: responseType is not supported in current apiClient
     // This would need special handling for blob responses
-    return await apiClient.get<Blob>('/api/alerts/export', { params })
+    return await apiClient.get<Blob>('/alerts/export', { params })
   }
 }
 

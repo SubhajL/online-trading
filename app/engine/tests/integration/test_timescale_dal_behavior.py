@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+import os
 from uuid import uuid4
 
 import pytest
@@ -10,18 +11,19 @@ import pytest_asyncio
 from app.engine.adapters.db import timescale
 from app.engine.adapters.db.connection_pool import DBConfig
 from app.engine.models import Candle, TimeFrame, TechnicalIndicators, SupplyDemandZone, ZoneType
+from app.engine.tests.integration.db_config import load_test_database_config
 
 
 @pytest.fixture(scope="session")
 def test_db_config() -> DBConfig:
     """Database configuration for integration tests (from env)."""
-    import os
+    cfg = load_test_database_config()
     return DBConfig(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        database=os.getenv("TEST_DB_NAME", "test_trading_db"),
-        username=os.getenv("DB_USER", "trading_user"),
-        password=os.getenv("DB_PASSWORD", "trading_pass"),
+        host=cfg.host,
+        port=cfg.port,
+        database=cfg.database,
+        username=cfg.username,
+        password=cfg.password,
         pool_size=5,
     )
 
@@ -43,7 +45,7 @@ async def clean_db(pool):
             "zones",
             "orders",
             "positions",
-            "decisions",
+            "trading_decisions",
             "smc_events",
         ]:
             await conn.execute(f"TRUNCATE TABLE {table} CASCADE")
@@ -53,6 +55,7 @@ async def clean_db(pool):
 @pytest.mark.asyncio
 async def test_upsert_candle_and_retrieve(pool) -> None:
     candle = Candle(
+        venue="spot",
         symbol="BTCUSDT",
         timeframe=TimeFrame.H1,
         open_time=datetime.utcnow().replace(microsecond=0),
@@ -100,6 +103,7 @@ async def test_get_candles_with_filters(pool) -> None:
     base = datetime.utcnow().replace(microsecond=0)
     for i in range(6):
         c = Candle(
+            venue="spot",
             symbol="ETHUSDT",
             timeframe=TimeFrame.M15,
             open_time=base + timedelta(minutes=15 * i),
@@ -172,7 +176,7 @@ async def test_upsert_indicator(pool) -> None:
 @pytest.mark.asyncio
 async def test_upsert_zone(pool) -> None:
     zone = SupplyDemandZone(
-        zone_id=str(uuid4()),
+        zone_id=str(uuid4()),  # type: ignore[arg-type]
         symbol="BTCUSDT",
         timeframe=TimeFrame.H4,
         zone_type=ZoneType.DEMAND,

@@ -1,5 +1,6 @@
 import { DEFAULT_TOKENS } from '../constants/defaultTokens'
 import type {
+  Breakpoints,
   DesignTokens,
   ColorScale,
   SurfaceColors,
@@ -9,6 +10,7 @@ import type {
   RadiusScale,
   Typography,
   ChartColors,
+  Constraints,
 } from '../types/tokens'
 
 /**
@@ -218,9 +220,7 @@ export function getTokens(): DesignTokens {
 /**
  * Reads breakpoint tokens from CSS custom properties
  */
-export function readBreakpoints(
-  styles: CSSStyleDeclaration,
-): import('../types/tokens').Breakpoints {
+export function readBreakpoints(styles: CSSStyleDeclaration): Breakpoints {
   return {
     mobile:
       styles.getPropertyValue('--breakpoint-mobile').trim() || DEFAULT_TOKENS.breakpoints.mobile,
@@ -235,9 +235,7 @@ export function readBreakpoints(
 /**
  * Reads constraint tokens from CSS custom properties
  */
-export function readConstraints(
-  styles: CSSStyleDeclaration,
-): import('../types/tokens').Constraints {
+export function readConstraints(styles: CSSStyleDeclaration): Constraints {
   return {
     maxScrollHeight:
       styles.getPropertyValue('--constraint-max-scroll-height').trim() ||

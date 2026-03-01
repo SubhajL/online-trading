@@ -51,14 +51,16 @@ def detect_missing_argument_types(code: str) -> list[dict[str, Any]]:
                     has_kwargs = True
 
             if missing_args or has_args or has_kwargs:
-                missing_functions.append({
-                    "name": node.name,
-                    "line": node.lineno - 1,  # 0-based
-                    "missing_args": missing_args,
-                    "has_args": has_args,
-                    "has_kwargs": has_kwargs,
-                    "is_async": False,
-                })
+                missing_functions.append(
+                    {
+                        "name": node.name,
+                        "line": node.lineno - 1,  # 0-based
+                        "missing_args": missing_args,
+                        "has_args": has_args,
+                        "has_kwargs": has_kwargs,
+                        "is_async": False,
+                    },
+                )
 
             self.generic_visit(node)
 
@@ -80,14 +82,16 @@ def detect_missing_argument_types(code: str) -> list[dict[str, Any]]:
                 has_kwargs = True
 
             if missing_args or has_args or has_kwargs:
-                missing_functions.append({
-                    "name": node.name,
-                    "line": node.lineno - 1,
-                    "missing_args": missing_args,
-                    "has_args": has_args,
-                    "has_kwargs": has_kwargs,
-                    "is_async": True,
-                })
+                missing_functions.append(
+                    {
+                        "name": node.name,
+                        "line": node.lineno - 1,
+                        "missing_args": missing_args,
+                        "has_args": has_args,
+                        "has_kwargs": has_kwargs,
+                        "is_async": True,
+                    },
+                )
 
             self.generic_visit(node)
 
@@ -135,7 +139,15 @@ def infer_argument_type(code: str, function_name: str, arg_name: str) -> str:
             if self.in_target_function and isinstance(node.value, ast.Name):
                 if node.value.id == arg_name:
                     # Check method names to infer type
-                    if node.attr in ("upper", "lower", "strip", "split", "replace", "startswith", "endswith"):
+                    if node.attr in (
+                        "upper",
+                        "lower",
+                        "strip",
+                        "split",
+                        "replace",
+                        "startswith",
+                        "endswith",
+                    ):
                         self.inferred_types.add("str")
                     elif node.attr in ("append", "extend", "pop", "remove"):
                         self.inferred_types.add("list")
@@ -150,7 +162,11 @@ def infer_argument_type(code: str, function_name: str, arg_name: str) -> str:
                     self.inferred_types.add("callable")
                 # Check for len() calls
                 elif isinstance(node.func, ast.Name) and node.func.id == "len":
-                    if node.args and isinstance(node.args[0], ast.Name) and node.args[0].id == arg_name:
+                    if (
+                        node.args
+                        and isinstance(node.args[0], ast.Name)
+                        and node.args[0].id == arg_name
+                    ):
                         # Could be list, dict, str, etc.
                         pass
             self.generic_visit(node)
@@ -159,7 +175,10 @@ def infer_argument_type(code: str, function_name: str, arg_name: str) -> str:
             if self.in_target_function and isinstance(node.value, ast.Name):
                 if node.value.id == arg_name:
                     # Being subscripted suggests dict or list
-                    if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+                    if isinstance(node.slice, ast.Constant) and isinstance(
+                        node.slice.value,
+                        str,
+                    ):
                         self.inferred_types.add("dict")
                     else:
                         # Could be list or dict

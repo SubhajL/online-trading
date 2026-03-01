@@ -5,7 +5,7 @@ Provides unified observability for the EventBus system.
 """
 
 from collections import deque
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -219,7 +219,7 @@ class ObservabilityManager:
         operation_name: str,
         attributes: dict[str, Any] | None = None,
         record_metrics: bool = True,
-    ) -> None:
+    ) -> AsyncGenerator[Any, None]:
         """
         Trace an async operation with metrics.
 
@@ -281,9 +281,7 @@ class ObservabilityManager:
                             "operation": operation_name,
                             "duration": duration,
                             "timestamp": start_time,
-                            "success": (
-                                span.status.code == StatusCode.OK if span else True
-                            ),
+                            "success": (span.status.code == StatusCode.OK if span else True),
                         },
                     )
         else:
@@ -341,13 +339,17 @@ class ObservabilityManager:
             return {}
 
         metrics = self.metrics.registry.collect_all()
-        summary = {"uptime_seconds": time.time() - self._start_time, "metrics": {}}
+        metrics_dict: dict[str, list[dict[str, Any]]] = {}
+        summary: dict[str, Any] = {
+            "uptime_seconds": time.time() - self._start_time,
+            "metrics": metrics_dict,
+        }
 
         for metric in metrics:
-            if metric.name not in summary["metrics"]:
-                summary["metrics"][metric.name] = []
+            if metric.name not in metrics_dict:
+                metrics_dict[metric.name] = []
 
-            summary["metrics"][metric.name].append(
+            metrics_dict[metric.name].append(
                 {
                     "labels": metric.labels,
                     "value": metric.value,

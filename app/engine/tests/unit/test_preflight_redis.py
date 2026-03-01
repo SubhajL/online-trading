@@ -52,7 +52,7 @@ class TestRedisPreflight:
             async def close(self):
                 return None
 
-        def fake_from_url(url, **kwargs):  # type: ignore[no-untyped-def]
+        def fake_from_url(url, **kwargs):
             captured["url"] = url
             return DummyClient()
 

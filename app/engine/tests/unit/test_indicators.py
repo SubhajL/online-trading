@@ -26,6 +26,7 @@ class TestIndicatorCalculations:
         candles = []
         for i, (o, h, l, c) in enumerate(prices):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
                 open_time=base_time + timedelta(minutes=5*i),
@@ -317,6 +318,7 @@ class TestIndicatorIntegration:
         candles = []
         for i, (o, h, l, c) in enumerate(prices):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.H1,
                 open_time=base_time + timedelta(hours=i),
@@ -384,6 +386,7 @@ class TestIndicatorIntegration:
         candles = []
         for i in range(10):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
                 open_time=base_time + timedelta(minutes=5*i),
@@ -438,6 +441,7 @@ class TestIndicatorIntegration:
         candles = []
         for i, (o, h, l, c) in enumerate(extreme_prices):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.H1,
                 open_time=base_time + timedelta(hours=i),

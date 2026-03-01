@@ -108,7 +108,10 @@ export function IndicatorPanel({
               data-testid={`indicator-item-${indicator.type}`}
               style={getPanelItemStyles(isActive, tokens)}
             >
-              <label htmlFor={`indicator-${indicator.type}`} style={{ display: 'flex', flex: 1, alignItems: 'center', cursor: 'pointer' }}>
+              <label
+                htmlFor={`indicator-${indicator.type}`}
+                style={{ display: 'flex', flex: 1, alignItems: 'center', cursor: 'pointer' }}
+              >
                 <input
                   id={`indicator-${indicator.type}`}
                   type="checkbox"
@@ -118,10 +121,21 @@ export function IndicatorPanel({
                   style={{ width: '16px', height: '16px', margin: 0 }}
                 />
                 <div style={{ marginLeft: tokens.spacing[3], flex: 1 }}>
-                  <div style={{ fontSize: tokens.typography.fontSize.sm, fontWeight: tokens.typography.fontWeight.medium, color: tokens.colors.text.primary }}>
+                  <div
+                    style={{
+                      fontSize: tokens.typography.fontSize.sm,
+                      fontWeight: tokens.typography.fontWeight.medium,
+                      color: tokens.colors.text.primary,
+                    }}
+                  >
                     {indicator.name}
                   </div>
-                  <div style={{ fontSize: tokens.typography.fontSize.xs, color: tokens.colors.text.muted }}>
+                  <div
+                    style={{
+                      fontSize: tokens.typography.fontSize.xs,
+                      color: tokens.colors.text.muted,
+                    }}
+                  >
                     {indicator.description}
                   </div>
                 </div>

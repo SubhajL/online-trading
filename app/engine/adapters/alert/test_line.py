@@ -10,12 +10,6 @@ from app.engine.adapters.alert.line import LineAlertAdapter
 
 class TestLineAlertAdapter:
     @pytest.fixture
-    def mock_event_bus(self) -> Any:
-        bus = Mock()
-        bus.subscribe = AsyncMock()
-        return bus
-
-    @pytest.fixture
     def mock_deduplicator(self) -> Any:
         dedup = Mock()
         dedup.is_duplicate = Mock(return_value=False)
@@ -31,32 +25,25 @@ class TestLineAlertAdapter:
         return formatter
 
     @pytest.fixture
-    def adapter(self, mock_event_bus: Any, mock_deduplicator: Any, mock_formatter: Any) -> Any:
-        with patch("line.aiohttp.ClientSession"):
+    def adapter(self, mock_deduplicator: Any, mock_formatter: Any) -> Any:
+        with patch("app.engine.adapters.alert.line.aiohttp.ClientSession"):
             adapter = LineAlertAdapter(
                 access_token="test_token",
                 user_id="test_user",
-                event_bus=mock_event_bus,
             )
             adapter.deduplicator = mock_deduplicator
             adapter.formatter = mock_formatter
+            adapter.session = Mock()
             return adapter
 
     @pytest.mark.asyncio
-    async def test_init_subscribes_to_events(self, mock_event_bus: Any) -> None:
-        with patch("line.aiohttp.ClientSession"):
-            adapter = LineAlertAdapter(
-                access_token="test_token",
-                user_id="test_user",
-                event_bus=mock_event_bus,
-            )
+    async def test_start_initializes_session(self) -> None:
+        with patch(
+            "app.engine.adapters.alert.line.aiohttp.ClientSession",
+        ) as mock_session:
+            adapter = LineAlertAdapter(access_token="test_token", user_id="test_user")
             await adapter.start()
-
-        assert mock_event_bus.subscribe.call_count == 3
-        calls = mock_event_bus.subscribe.call_args_list
-        assert calls[0][0][0] == "decision.v1"
-        assert calls[1][0][0] == "order_update.v1"
-        assert calls[2][0][0] == "guard_alert.v1"
+        assert mock_session.call_count == 1
 
     @pytest.mark.asyncio
     async def test_send_alert_success(self, adapter: Any) -> None:
@@ -75,7 +62,10 @@ class TestLineAlertAdapter:
                     "to": "test_user",
                     "messages": [{"type": "text", "text": "Test message"}],
                 },
-                headers={"Authorization": "Bearer test_token"},
+                headers={
+                    "Authorization": "Bearer test_token",
+                    "Content-Type": "application/json",
+                },
             )
 
     @pytest.mark.asyncio
@@ -91,7 +81,11 @@ class TestLineAlertAdapter:
             assert result is False
 
     @pytest.mark.asyncio
-    async def test_handle_decision_with_deduplication(self, adapter: Any, mock_deduplicator: Any) -> None:
+    async def test_handle_decision_with_deduplication(
+        self,
+        adapter: Any,
+        mock_deduplicator: Any,
+    ) -> None:
         decision = {
             "symbol": "BTCUSDT",
             "side": "long",
@@ -150,9 +144,10 @@ class TestLineAlertAdapter:
 
     @pytest.mark.asyncio
     async def test_stop_closes_session(self, adapter: Any) -> None:
-        adapter.session = Mock()
-        adapter.session.close = AsyncMock()
+        session = Mock()
+        session.close = AsyncMock()
+        adapter.session = session
 
         await adapter.stop()
 
-        adapter.session.close.assert_called_once()
+        session.close.assert_called_once()

@@ -92,7 +92,7 @@ func TestBinanceConnectionTimeout(t *testing.T) {
 	defer cancel()
 
 	// Delay the mock response to trigger timeout
-	mockClient.On("Ping", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+	mockClient.On("Ping", mock.Anything).Return(context.DeadlineExceeded).Run(func(args mock.Arguments) {
 		time.Sleep(10 * time.Millisecond)
 	})
 
@@ -130,6 +130,7 @@ func TestRedisCacheHighLatency(t *testing.T) {
 	mockRedis.On("Ping", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 		time.Sleep(100 * time.Millisecond)
 	})
+	mockRedis.On("Info", mock.Anything, "memory").Return("", nil)
 
 	ctx := context.Background()
 	status := checker.CheckRedisCache(ctx, mockRedis)
@@ -148,10 +149,10 @@ func TestOrderProcessingPipeline(t *testing.T) {
 	// Simulate healthy pipeline
 	ctx := context.Background()
 	stats := health.OrderStats{
-		TotalOrders:     1000,
+		TotalOrders:      1000,
 		SuccessfulOrders: 995,
-		FailedOrders:    5,
-		AvgProcessingMs: 50,
+		FailedOrders:     5,
+		AvgProcessingMs:  50,
 	}
 
 	status := checker.CheckOrderProcessing(ctx, stats)
@@ -167,10 +168,10 @@ func TestOrderProcessingHighFailureRate(t *testing.T) {
 
 	ctx := context.Background()
 	stats := health.OrderStats{
-		TotalOrders:     1000,
+		TotalOrders:      1000,
 		SuccessfulOrders: 800,
-		FailedOrders:    200,
-		AvgProcessingMs: 100,
+		FailedOrders:     200,
+		AvgProcessingMs:  100,
 	}
 
 	status := checker.CheckOrderProcessing(ctx, stats)
@@ -219,21 +220,9 @@ func TestHealthEndpointHandler(t *testing.T) {
 	checker := health.NewHealthChecker()
 	handler := health.NewHealthHandler(checker)
 
-	// Mock dependencies
-	mockBinance := new(mockBinanceClient)
-	mockBinance.On("Ping", mock.Anything).Return(nil)
-
-	mockRedis := new(mockRedisClient)
-	mockRedis.On("Ping", mock.Anything).Return(nil)
-
 	// Create test request
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	w := httptest.NewRecorder()
-
-	// Set dependencies in context
-	ctx := context.WithValue(req.Context(), "binanceClient", mockBinance)
-	ctx = context.WithValue(ctx, "redisClient", mockRedis)
-	req = req.WithContext(ctx)
 
 	handler.HandleHealth(w, req)
 

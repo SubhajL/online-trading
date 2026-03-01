@@ -31,7 +31,10 @@ def true_range(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> np.ndarr
 
 
 def atr(
-    high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int,
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    period: int,
 ) -> np.ndarray:
     """Vectorized Average True Range using simple moving average over TR.
 

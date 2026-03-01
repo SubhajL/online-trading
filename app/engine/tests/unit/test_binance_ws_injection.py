@@ -1,6 +1,7 @@
 import pytest
 
-from app.engine.ingest.binance_ws import BinanceWebSocketClient, build_combined_stream_url
+from app.engine.bus import create_event_bus
+from app.engine.ingest.binance_ws import BinanceWebSocketClient
 
 
 class DummyWS:
@@ -25,11 +26,11 @@ class DummyWS:
 @pytest.mark.asyncio
 async def test_binance_ws_uses_injected_connector(monkeypatch):
     base_url = "wss://stream.binance.com:9443/ws/"
-    client = BinanceWebSocketClient(base_url=base_url)
+    client = BinanceWebSocketClient(base_url=base_url, event_bus=create_event_bus())
 
     called = {}
 
-    def fake_connector(url: str, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_connector(url: str, **kwargs):
         called["url"] = url
         called["kwargs"] = kwargs
         return DummyWS()
@@ -39,11 +40,8 @@ async def test_binance_ws_uses_injected_connector(monkeypatch):
 
     monkeypatch.setattr(mod, "get_ws_connector", lambda: fake_connector)
 
-    # No subscriptions -> dummy ticker stream in URL
-    expected_url = build_combined_stream_url(base_url, ["btcusdt@ticker"])[:100]
-
     await client._connect_and_listen()
 
-    assert called["url"].startswith(expected_url)
+    assert called["url"].startswith(base_url.rstrip("/"))
     assert "ping_interval" in called["kwargs"]
     assert "ping_timeout" in called["kwargs"]

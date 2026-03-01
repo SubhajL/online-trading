@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -457,6 +457,10 @@ $RECYCLE.BIN/
 *.env.*
 !.env.example
 
+# Telethon session files (external Telegram channel monitoring)
+.telegram_sessions/
+captain_trading_session.session*
+
 # Trading data and logs
 /data/
 /logs/
@@ -516,9 +520,23 @@ playwright-report/
 # ===========================
 # Project caches and temp directories
 # ===========================
+# Local Graphite state (should not be committed)
+.graphite-config/
+.graphite-data/
+
 # pnpm store (workspace-local cache)
 app/bff/.pnpm-store/
 
 # Temp migrations directories used during tests/tools
 app/engine/tests/integration/_migrations_contiguous/
 db/_migrations_contiguous_event_flow/
+
+# UX test screenshots
+tests/UX/
+
+# Runtime report artifacts
+reports/*.json
+
+# Go compiled binaries
+app/router/main
+app/router/server

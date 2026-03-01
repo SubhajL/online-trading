@@ -2,6 +2,7 @@
 
 -- Enable TimescaleDB extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Create candles table
 CREATE TABLE IF NOT EXISTS candles (

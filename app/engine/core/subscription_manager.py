@@ -41,6 +41,8 @@ class EventSubscription:
     event_types: set[EventType] | None
     priority: int
     max_retries: int
+    serialize_by_key: bool = False
+    key_extractor: Callable[[BaseEvent], str] | None = None
     retry_count: int = 0
     last_error: str | None = None
     is_active: bool = True
@@ -69,9 +71,7 @@ class SubscriptionManager:
         self._config = config or SubscriptionConfig()
 
         # Subscriptions by event type
-        self._specific_subscriptions: dict[EventType, list[EventSubscription]] = (
-            defaultdict(list)
-        )
+        self._specific_subscriptions: dict[EventType, list[EventSubscription]] = defaultdict(list)
 
         # Subscriptions for all events
         self._all_event_subscriptions: list[EventSubscription] = []
@@ -82,6 +82,14 @@ class SubscriptionManager:
         # Thread safety
         self._lock = asyncio.Lock()
 
+    @staticmethod
+    def default_key_extractor(event: BaseEvent) -> str:
+        """Default keying strategy for stateful handlers."""
+        tf = getattr(event, "timeframe", None)
+        if tf is None:
+            return str(getattr(event, "symbol", ""))
+        return f"{event.symbol}:{tf.value}"
+
     async def add_subscription(
         self,
         subscriber_id: str,
@@ -89,6 +97,9 @@ class SubscriptionManager:
         event_types: list[EventType] | None = None,
         priority: int | None = None,
         max_retries: int | None = None,
+        *,
+        serialize_by_key: bool = False,
+        key_extractor: Callable[[BaseEvent], str] | None = None,
     ) -> str:
         """
         Add a new subscription.
@@ -136,14 +147,12 @@ class SubscriptionManager:
                 subscriber_id=subscriber_id,
                 handler=handler,
                 event_types=event_type_set,
-                priority=(
-                    priority if priority is not None else self._config.default_priority
-                ),
+                priority=(priority if priority is not None else self._config.default_priority),
                 max_retries=(
-                    max_retries
-                    if max_retries is not None
-                    else self._config.default_max_retries
+                    max_retries if max_retries is not None else self._config.default_max_retries
                 ),
+                serialize_by_key=serialize_by_key,
+                key_extractor=key_extractor,
             )
 
             # Store subscription
@@ -217,11 +226,7 @@ class SubscriptionManager:
             # Add specific event type subscriptions
             if event_type in self._specific_subscriptions:
                 subscriptions.extend(
-                    [
-                        sub
-                        for sub in self._specific_subscriptions[event_type]
-                        if sub.is_active
-                    ],
+                    [sub for sub in self._specific_subscriptions[event_type] if sub.is_active],
                 )
 
             # Add all-events subscriptions
@@ -321,7 +326,8 @@ class SubscriptionManager:
             subscription.last_error = None
 
     async def get_subscription_by_id(
-        self, subscription_id: str,
+        self,
+        subscription_id: str,
     ) -> EventSubscription | None:
         """Get a subscription by its ID (read-only access)."""
         async with self._lock:

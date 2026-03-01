@@ -7,17 +7,17 @@ RUN apk add --no-cache python3 make g++
 # Install pnpm
 RUN npm install -g pnpm@9
 
-# Set working directory
+# Set working directory for UI app
 WORKDIR /app
 
-# Copy workspace configuration
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Avoid huge browser downloads during install (Playwright is used for tests, not runtime).
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
-# Copy service-specific package.json
-COPY app/ui/package.json app/ui/
+# Copy all UI files from build context (root)
+COPY app/ui/ ./
 
-# Install all dependencies (including devDependencies)
-RUN pnpm install --frozen-lockfile
+# Install dependencies in the container
+RUN pnpm install --fetch-retries 5 --fetch-retry-mintimeout 20000 --fetch-retry-maxtimeout 120000
 
 # Expose port
 EXPOSE 3000

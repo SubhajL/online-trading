@@ -8,16 +8,68 @@ These tests ensure:
 4. Duplicate messages are handled correctly
 """
 
-import pytest
 import asyncio
-from decimal import Decimal
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from decimal import Decimal
 import json
+from unittest.mock import AsyncMock, Mock, patch
 
-from app.engine.models import Candle, TimeFrame, CandleUpdateEvent
+import pytest
+
 from app.engine.ingest.binance_ws import BinanceWebSocketClient
 from app.engine.ingest.ingest_service import IngestService
+from app.engine.models import Candle, CandleUpdateEvent, TimeFrame
+from app.engine.resilience.backoff import BackoffConfig
+
+
+class _AsyncIter:
+    def __init__(self, messages: list[str], *, raise_after: BaseException | None = None) -> None:
+        self._messages = list(messages)
+        self._raise_after = raise_after
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> str:
+        if self._messages:
+            return self._messages.pop(0)
+        if self._raise_after is not None:
+            raise self._raise_after
+        raise StopAsyncIteration
+
+
+class _WebSocketStub:
+    def __init__(
+        self,
+        messages: list[str],
+        *,
+        raise_after: BaseException | None = None,
+        aiter: object | None = None,
+    ) -> None:
+        self.closed = False
+        self._iter = aiter if aiter is not None else _AsyncIter(messages, raise_after=raise_after)
+
+    def __aiter__(self):
+        return self._iter
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class _NeverEndingIter:
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> str:
+        await asyncio.sleep(3600)
+        raise StopAsyncIteration
+
+
+def _cm_for_ws(ws: object) -> AsyncMock:
+    cm = AsyncMock()
+    cm.__aenter__.return_value = ws
+    cm.__aexit__.return_value = False
+    return cm
 
 
 class TestWebSocketReconnection:
@@ -33,32 +85,30 @@ class TestWebSocketReconnection:
     @pytest.fixture
     def ws_client(self, mock_event_bus):
         """Create WebSocket client with mock event bus."""
-        with patch('app.engine.ingest.binance_ws.get_event_bus', return_value=mock_event_bus):
+        with patch("app.engine.ingest.binance_ws.get_event_bus", return_value=mock_event_bus):
             client = BinanceWebSocketClient(
                 base_url="wss://test.binance.com/ws/",
                 reconnect_interval=1,  # Fast reconnect for testing
                 ping_interval=1,
-                ping_timeout=1
+                ping_timeout=1,
+                backoff_config=BackoffConfig(
+                    base_delay_s=0.01,
+                    max_delay_s=0.05,
+                    multiplier=1.0,
+                    jitter_pct=0.0,
+                ),
+                ping_keepalive_interval=9999,
             )
             return client
 
     @pytest.mark.asyncio
     async def test_automatic_reconnection(self, ws_client):
         """Test that WebSocket reconnects automatically after disconnection."""
-        connection_count = 0
-        disconnect_after = 2  # Disconnect after 2 messages
-
-        async def mock_websocket_handler(websocket, path):
-            """Mock WebSocket server that disconnects after N messages."""
-            nonlocal connection_count
-            connection_count += 1
-
-            # Send a few messages then disconnect
-            for i in range(disconnect_after):
-                kline_msg = {
+        # Mock the websockets.connect
+        with patch("websockets.connect") as mock_connect:
+            message = json.dumps(
+                {
                     "e": "kline",
-                    "E": int(datetime.now().timestamp() * 1000),
-                    "s": "BTCUSDT",
                     "k": {
                         "t": int((datetime.now() - timedelta(minutes=5)).timestamp() * 1000),
                         "T": int(datetime.now().timestamp() * 1000),
@@ -70,40 +120,36 @@ class TestWebSocketReconnection:
                         "l": "49950.00",
                         "v": "100.00",
                         "n": 1000,
-                        "x": i == disconnect_after - 1,  # Last candle is closed
+                        "x": True,
                         "q": "5000000.00",
                         "V": "60.00",
                         "Q": "3000000.00",
-                    }
-                }
-                await websocket.send(json.dumps(kline_msg))
-                await asyncio.sleep(0.1)
+                    },
+                },
+            )
 
-            # Force disconnect
-            await websocket.close()
+            ws1 = _WebSocketStub(
+                [message],
+                raise_after=ConnectionError("Connection lost"),
+            )
+            ws2 = _WebSocketStub([], aiter=_NeverEndingIter())
 
-        # Mock the websockets.connect
-        with patch('websockets.connect') as mock_connect:
-            # Create a mock websocket that simulates disconnection
-            mock_ws = AsyncMock()
-            mock_ws.closed = False
-            mock_ws.__aiter__.side_effect = [
-                # First connection
-                iter([json.dumps({
-                    "e": "kline",
-                    "k": {"x": True, "s": "BTCUSDT", "i": "5m"}
-                })]),
-                # Connection closed
-                ConnectionError("Connection lost")
-            ]
+            call_count = 0
 
-            mock_connect.return_value.__aenter__.return_value = mock_ws
+            def _side_effect(*_args, **_kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    return _cm_for_ws(ws1)
+                return _cm_for_ws(ws2)
+
+            mock_connect.side_effect = _side_effect
 
             # Start the client
             await ws_client.start()
 
             # Let it run for a bit
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.2)
 
             # Stop the client
             await ws_client.stop()
@@ -122,12 +168,10 @@ class TestWebSocketReconnection:
         assert "ethusdt@kline_5m" in ws_client._subscriptions
 
         # Mock reconnection scenario
-        with patch.object(ws_client, '_resubscribe_all', new_callable=AsyncMock) as mock_resub:
-            with patch('websockets.connect') as mock_connect:
+        with patch.object(ws_client, "_resubscribe_all", new_callable=AsyncMock) as mock_resub:
+            with patch("websockets.connect") as mock_connect:
                 # Mock successful connection
-                mock_ws = AsyncMock()
-                mock_ws.closed = False
-                mock_ws.__aiter__.return_value = iter([])  # No messages
+                mock_ws = _WebSocketStub([])  # No messages
                 mock_connect.return_value.__aenter__.return_value = mock_ws
 
                 # Start connection task
@@ -176,7 +220,7 @@ class TestWebSocketReconnection:
                 "q": "5000000.00",
                 "V": "60.00",
                 "Q": "3000000.00",
-            }
+            },
         }
 
         # Handle the message
@@ -204,10 +248,11 @@ class TestDataBackfill:
             # Generate mock historical candles
             for i in range(100):  # 100 candles
                 candle = Candle(
+                    venue="spot",
                     symbol=symbol,
                     timeframe=timeframe,
-                    open_time=base_time + timedelta(minutes=5*i),
-                    close_time=base_time + timedelta(minutes=5*(i+1)),
+                    open_time=base_time + timedelta(minutes=5 * i),
+                    close_time=base_time + timedelta(minutes=5 * (i + 1)),
                     open_price=Decimal("50000") + Decimal(str(i * 10)),
                     high_price=Decimal("50000") + Decimal(str(i * 10 + 50)),
                     low_price=Decimal("50000") + Decimal(str(i * 10 - 50)),
@@ -217,21 +262,27 @@ class TestDataBackfill:
                     trades=100,
                     taker_buy_base_volume=Decimal("60"),
                     taker_buy_quote_volume=Decimal("3000000"),
-                    bar_index=i
+                    bar_index=i,
                 )
                 candles.append(candle)
 
             return candles
 
-        client.get_historical_data = mock_get_historical
+        client.get_historical_data = AsyncMock(side_effect=mock_get_historical)
         return client
 
     @pytest.fixture
     def ingest_service(self, mock_rest_client):
         """Create ingest service with mocked clients."""
-        with patch('app.engine.bus.get_event_bus') as mock_get_bus:
+        with (
+            patch("app.engine.ingest.ingest_service.get_event_bus") as mock_get_bus,
+            patch(
+                "app.engine.ingest.binance_ws.get_event_bus",
+            ) as mock_ws_get_bus,
+        ):
             mock_bus = AsyncMock()
             mock_get_bus.return_value = mock_bus
+            mock_ws_get_bus.return_value = mock_bus
 
             # Mock binance config
             binance_config = {
@@ -291,6 +342,7 @@ class TestDataBackfill:
         ingest_service._latest_candles = {
             "BTCUSDT": {
                 TimeFrame.M5: Candle(
+                    venue="spot",
                     symbol="BTCUSDT",
                     timeframe=TimeFrame.M5,
                     open_time=last_candle_time - timedelta(minutes=5),
@@ -303,7 +355,7 @@ class TestDataBackfill:
                     quote_volume=Decimal("5000000"),
                     trades=100,
                     taker_buy_base_volume=Decimal("60"),
-                    taker_buy_quote_volume=Decimal("3000000")
+                    taker_buy_quote_volume=Decimal("3000000"),
                 )
             }
         }
@@ -313,9 +365,7 @@ class TestDataBackfill:
 
         # Should have fetched historical data to fill the gap
         ingest_service.rest_client.get_historical_data.assert_called_with(
-            symbol="BTCUSDT",
-            timeframe=TimeFrame.M5,
-            days_back=1
+            symbol="BTCUSDT", timeframe=TimeFrame.M5, days_back=1
         )
 
     @pytest.mark.asyncio
@@ -323,6 +373,7 @@ class TestDataBackfill:
         """Test that duplicate candles are not processed twice."""
         # Create a candle
         test_candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             open_time=datetime.now() - timedelta(minutes=5),
@@ -335,22 +386,16 @@ class TestDataBackfill:
             quote_volume=Decimal("5000000"),
             trades=100,
             taker_buy_base_volume=Decimal("60"),
-            taker_buy_quote_volume=Decimal("3000000")
+            taker_buy_quote_volume=Decimal("3000000"),
         )
 
         # Process it twice
         event1 = CandleUpdateEvent(
-            timestamp=datetime.now(),
-            symbol="BTCUSDT",
-            timeframe=TimeFrame.M5,
-            candle=test_candle
+            timestamp=datetime.now(), symbol="BTCUSDT", timeframe=TimeFrame.M5, candle=test_candle
         )
 
         event2 = CandleUpdateEvent(
-            timestamp=datetime.now(),
-            symbol="BTCUSDT",
-            timeframe=TimeFrame.M5,
-            candle=test_candle
+            timestamp=datetime.now(), symbol="BTCUSDT", timeframe=TimeFrame.M5, candle=test_candle
         )
 
         # In a real implementation, duplicates would be filtered by the database
@@ -366,29 +411,36 @@ class TestErrorRecovery:
     @pytest.mark.asyncio
     async def test_websocket_error_recovery(self):
         """Test recovery from WebSocket errors."""
-        with patch('app.engine.ingest.binance_ws.get_event_bus'):
-            ws_client = BinanceWebSocketClient(reconnect_interval=0.1)
+        with patch("app.engine.ingest.binance_ws.get_event_bus"):
+            ws_client = BinanceWebSocketClient(
+                reconnect_interval=0.1,
+                backoff_config=BackoffConfig(
+                    base_delay_s=0.01,
+                    max_delay_s=0.05,
+                    multiplier=1.0,
+                    jitter_pct=0.0,
+                ),
+                ping_keepalive_interval=9999,
+            )
             ws_client._running = True  # Simulate running state
 
             # Mock websocket that raises errors
-            with patch('websockets.connect') as mock_connect:
+            with patch("websockets.connect") as mock_connect:
                 # First two attempts fail, third succeeds
-                mock_ws_success = AsyncMock()
-                mock_ws_success.closed = False
-                mock_ws_success.__aiter__.return_value = iter([])  # No messages
+                mock_ws_success = _WebSocketStub([])  # No messages
 
                 mock_connect.side_effect = [
                     ConnectionError("Network error"),
                     ConnectionError("Network error"),
                     # Third attempt succeeds
-                    mock_ws_success
+                    _cm_for_ws(mock_ws_success),
                 ]
 
                 # Start connection manager
                 connection_task = asyncio.create_task(ws_client._connection_manager())
 
                 # Let it try to connect multiple times
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.2)
 
                 # Stop the client
                 ws_client._running = False
@@ -406,7 +458,7 @@ class TestErrorRecovery:
     @pytest.mark.asyncio
     async def test_malformed_message_handling(self):
         """Test handling of malformed WebSocket messages."""
-        with patch('app.engine.ingest.binance_ws.get_event_bus') as mock_get_bus:
+        with patch("app.engine.ingest.binance_ws.get_event_bus") as mock_get_bus:
             mock_bus = AsyncMock()
             mock_get_bus.return_value = mock_bus
 
@@ -418,7 +470,7 @@ class TestErrorRecovery:
                 '{"incomplete": ',
                 '{"e": "unknown_event"}',
                 '{"e": "kline"}',  # Missing required fields
-                '[]',  # Empty array
+                "[]",  # Empty array
             ]
 
             for msg in malformed_messages:
@@ -431,7 +483,7 @@ class TestErrorRecovery:
     @pytest.mark.asyncio
     async def test_connection_state_management(self):
         """Test proper connection state management."""
-        with patch('app.engine.ingest.binance_ws.get_event_bus'):
+        with patch("app.engine.ingest.binance_ws.get_event_bus"):
             ws_client = BinanceWebSocketClient()
 
         # Initially not running
@@ -466,10 +518,11 @@ class TestDataIntegrity:
         # Generate sequence of candles
         for i in range(10):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
-                open_time=base_time + timedelta(minutes=5*i),
-                close_time=base_time + timedelta(minutes=5*(i+1)),
+                open_time=base_time + timedelta(minutes=5 * i),
+                close_time=base_time + timedelta(minutes=5 * (i + 1)),
                 open_price=Decimal("50000"),
                 high_price=Decimal("50100"),
                 low_price=Decimal("49900"),
@@ -479,13 +532,13 @@ class TestDataIntegrity:
                 trades=100,
                 taker_buy_base_volume=Decimal("60"),
                 taker_buy_quote_volume=Decimal("3000000"),
-                bar_index=i
+                bar_index=i,
             )
             candles.append(candle)
 
         # Verify sequence integrity
         for i in range(1, len(candles)):
-            prev_candle = candles[i-1]
+            prev_candle = candles[i - 1]
             curr_candle = candles[i]
 
             # Close time of previous should equal open time of current
@@ -497,7 +550,7 @@ class TestDataIntegrity:
     @pytest.mark.asyncio
     async def test_closed_candle_only_processing(self):
         """Test that only closed candles are processed."""
-        with patch('app.engine.ingest.binance_ws.get_event_bus') as mock_get_bus:
+        with patch("app.engine.ingest.binance_ws.get_event_bus") as mock_get_bus:
             mock_bus = AsyncMock()
             mock_get_bus.return_value = mock_bus
 
@@ -526,8 +579,8 @@ class TestDataIntegrity:
                     "n": 1000,
                     "q": "5000000",
                     "V": "60",
-                    "Q": "3000000"
-                }
+                    "Q": "3000000",
+                },
             }
 
             await ws_client._handle_message(json.dumps(open_msg))

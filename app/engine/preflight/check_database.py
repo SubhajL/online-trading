@@ -132,11 +132,10 @@ def main() -> int:
         asyncio.run(check_db_connectivity())
         print("✅ Database preflight check passed.")
         return 0
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"❌ Database preflight failed: {e}", file=sys.stderr)
         return 1
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

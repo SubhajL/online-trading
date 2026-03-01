@@ -11,11 +11,34 @@ import logging
 from typing import Any
 
 from ..bus import get_event_bus
-from ..models import Candle, CandleUpdateEvent, TimeFrame
+from ..core.interfaces import DatabaseAdapterInterface
+from ..models import (
+    Candle,
+    CandleOrigin,
+    CandleUpdateEvent,
+    ErrorEvent,
+    EventType,
+    StartupCompleteEvent,
+    TimeFrame,
+)
 from .binance_rest import BinanceRestClient
 from .binance_ws import BinanceWebSocketClient
 
 logger = logging.getLogger(__name__)
+
+# Number of recent candles to publish for pipeline warm-up during backfill
+WARMUP_CANDLE_COUNT = 250
+
+# Mapping of timeframe suffix to seconds multiplier
+_TF_SECONDS: dict[str, int] = {"m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+
+def _timeframe_to_seconds(tf: TimeFrame) -> int:
+    """Convert TimeFrame enum value (e.g. '15m', '4h') to seconds."""
+    val = tf.value  # e.g. "15m"
+    suffix = val[-1]
+    num = int(val[:-1])
+    return num * _TF_SECONDS.get(suffix, 60)
 
 
 class IngestService:
@@ -30,7 +53,7 @@ class IngestService:
     - Error handling and recovery
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         binance_config: dict[Any, Any],
         symbols: list[str],
@@ -39,40 +62,56 @@ class IngestService:
         enable_realtime: bool = True,
         enable_backfill: bool = True,
         binance_breakers_config: dict[str, Any] | None = None,
+        db_adapter: DatabaseAdapterInterface | None = None,
     ) -> None:
         self.symbols = symbols
         self.timeframes = timeframes
         self.backfill_days = backfill_days
         self.enable_realtime = enable_realtime
         self.enable_backfill = enable_backfill
+        self._db_adapter = db_adapter
 
         # Select credentials (supports nested shape with spot/futures)
         creds = self._select_binance_credentials(binance_config)
 
         # Initialize clients
-        self.ws_client = BinanceWebSocketClient(
-            testnet=creds.get("testnet", True),
-            base_url=creds.get("ws_base_url"),
-            reconnect_interval=creds.get("reconnect_interval", 5),
-        )
+        ws_kwargs: dict[str, Any] = {
+            "testnet": creds.get("testnet", True),
+            "reconnect_interval": creds.get("reconnect_interval", 5),
+        }
+        ws_base_url = creds.get("ws_base_url")
+        if isinstance(ws_base_url, str) and ws_base_url:
+            ws_kwargs["base_url"] = ws_base_url
+        self.ws_client = BinanceWebSocketClient(**ws_kwargs)
 
-        self.rest_client = BinanceRestClient(
-            api_key=creds["api_key"],
-            api_secret=creds["api_secret"],
-            testnet=creds.get("testnet", True),
-            base_url=creds.get("base_url"),
-            per_endpoint_breakers_config=binance_breakers_config,
-        )
+        rest_kwargs: dict[str, Any] = {
+            "api_key": creds["api_key"],
+            "api_secret": creds["api_secret"],
+            "testnet": creds.get("testnet", True),
+            "per_endpoint_breakers_config": binance_breakers_config,
+        }
+        rest_base_url = creds.get("base_url")
+        if isinstance(rest_base_url, str) and rest_base_url:
+            rest_kwargs["base_url"] = rest_base_url
+        self.rest_client = BinanceRestClient(**rest_kwargs)
 
         self._event_bus = get_event_bus()
         self._running = False
         self._backfill_tasks: list[asyncio.Task[Any]] = []
         self._latest_candles: dict[str, dict[TimeFrame, Candle]] = {}
         self._backfill_complete: set[str] = set()
+        self._candle_subscription_id: str | None = None
+
+        # Startup alert tracking
+        self._backfill_start_time: datetime | None = None
+        self._backfill_candle_counts: dict[str, int] = {}
+        self._backfill_complete_event_sent = False
+        self._backfill_monitor_task: asyncio.Task[None] | None = None
+        self._backfill_failures: dict[str, str] = {}  # Track failed backfills for observability
 
         logger.info(
             f"IngestService initialized for {len(symbols)} symbols "
-            f"and {len(timeframes)} timeframes",
+            f"and {len(timeframes)} timeframes (db_adapter={'yes' if db_adapter else 'no'})",
         )
 
     # Provide a property to allow tests to inject a mockable client while preserving call assertions
@@ -82,18 +121,6 @@ class IngestService:
 
     @rest_client.setter
     def rest_client(self, client: Any) -> None:
-        """Set REST client; wrap get_historical_data with AsyncMock if needed for assertions."""
-        from unittest.mock import AsyncMock
-
-        # If client has a coroutine function but not an AsyncMock, wrap it so tests can assert calls
-        if hasattr(client, "get_historical_data") and not isinstance(
-            client.get_historical_data,
-            AsyncMock,
-        ):
-            fn = client.get_historical_data
-            # Only wrap callables
-            if callable(fn):
-                client.get_historical_data = AsyncMock(side_effect=fn)
         self._rest_client = client
 
     def _select_binance_credentials(self, config: dict[Any, Any]) -> dict[str, Any]:
@@ -143,6 +170,15 @@ class IngestService:
                 await self.ws_client.start()
                 await self._setup_realtime_streams()
 
+            # Subscribe to candle updates for persistence (when db_adapter is present)
+            if self._db_adapter is not None:
+                self._candle_subscription_id = await self._event_bus.subscribe(
+                    subscriber_id="ingest-candle-persistence",
+                    handler=self._on_candle_update,
+                    event_types=[EventType.CANDLE_UPDATE],
+                )
+                logger.info("IngestService subscribed to candle updates for DB persistence")
+
             # Start historical data backfill if enabled
             if self.enable_backfill:
                 await self._start_backfill()
@@ -161,12 +197,27 @@ class IngestService:
 
         self._running = False
 
+        # Cancel backfill monitor task
+        if self._backfill_monitor_task is not None:
+            self._backfill_monitor_task.cancel()
+            try:
+                await self._backfill_monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._backfill_monitor_task = None
+
         # Cancel backfill tasks
         for task in self._backfill_tasks:
             task.cancel()
 
         await asyncio.gather(*self._backfill_tasks, return_exceptions=True)
         self._backfill_tasks.clear()
+
+        # Unsubscribe from candle updates
+        if self._candle_subscription_id is not None:
+            await self._event_bus.unsubscribe(self._candle_subscription_id)
+            self._candle_subscription_id = None
+            logger.info("IngestService unsubscribed from candle updates")
 
         # Stop clients
         if self.ws_client:
@@ -192,9 +243,68 @@ class IngestService:
             logger.error(f"Error setting up real-time streams: {e}")
             raise
 
+    async def _on_candle_update(self, event: CandleUpdateEvent) -> None:
+        """Handle CandleUpdateEvent and persist REALTIME/GAP_FILL candles to DB.
+
+        BACKFILL candles are skipped since they're already written during backfill.
+        """
+        # Update latest candles tracking
+        symbol = event.symbol
+        timeframe = event.timeframe
+        logger.info(
+            f"_on_candle_update received: {symbol} {timeframe.value} origin={event.origin.value}",
+        )
+
+        if symbol not in self._latest_candles:
+            self._latest_candles[symbol] = {}
+        self._latest_candles[symbol][timeframe] = event.candle
+
+        # Skip BACKFILL events - already written during backfill
+        if event.origin == CandleOrigin.BACKFILL:
+            logger.debug(f"Skipping BACKFILL candle: {symbol} {timeframe.value}")
+            return
+
+        # Persist REALTIME and GAP_FILL candles to DB
+        if self._db_adapter is not None:
+            try:
+                success = await self._db_adapter.insert_candle(event.candle)
+                if success:
+                    logger.info(
+                        f"Persisted {event.origin.value} candle to DB: {symbol} {timeframe.value}",
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to persist {event.origin.value} candle: {symbol} {timeframe.value}",
+                    )
+            except Exception as e:
+                logger.exception("Failed to persist candle %s %s", symbol, timeframe.value)
+                await self._emit_error(
+                    str(e),
+                    "candle_persistence_failed",
+                    symbol=symbol,
+                )
+        else:
+            logger.warning(f"No db_adapter - skipping candle persist: {symbol} {timeframe.value}")
+
+    async def _emit_error(self, message: str, error_type: str, symbol: str = "") -> None:
+        try:
+            error_event = ErrorEvent(
+                event_type=EventType.ERROR,
+                timestamp=datetime.now(UTC),
+                symbol=symbol,
+                error_type=error_type,
+                error_message=message,
+                component="ingest_service",
+            )
+            await self._event_bus.publish(error_event, priority=7)
+        except Exception:
+            logger.exception("Failed to publish ingest service error event")
+
     async def _start_backfill(self) -> None:
         """Start historical data backfill for all symbols and timeframes"""
         try:
+            self._backfill_start_time = datetime.now(UTC)
+
             for symbol in self.symbols:
                 for timeframe in self.timeframes:
                     task = asyncio.create_task(
@@ -204,16 +314,54 @@ class IngestService:
 
             logger.info(f"Started {len(self._backfill_tasks)} backfill tasks")
 
+            # Spawn a task to monitor backfill completion and publish startup event
+            self._backfill_monitor_task = asyncio.create_task(self._monitor_backfill_completion())
+
         except Exception as e:
             logger.error(f"Error starting backfill: {e}")
             raise
+
+    async def _monitor_backfill_completion(self) -> None:
+        """Monitor backfill tasks and publish startup event when all complete."""
+        try:
+            # Wait for all backfill tasks to complete
+            results = await asyncio.gather(*self._backfill_tasks, return_exceptions=True)
+
+            # Check for any failures
+            failures = [r for r in results if isinstance(r, Exception)]
+            if failures:
+                logger.warning(
+                    "Backfill completed with %d failures: %s",
+                    len(failures),
+                    [str(f) for f in failures[:3]],  # Log first 3 errors
+                )
+
+            # Still publish startup event even with partial failures
+            # (the system can still operate with some data missing)
+            await self._check_and_publish_backfill_complete()
+        except asyncio.CancelledError:
+            logger.info("Backfill monitor task cancelled")
+            raise
+        except Exception:
+            logger.exception("Error monitoring backfill completion")
 
     async def _backfill_symbol_timeframe(
         self,
         symbol: str,
         timeframe: TimeFrame,
     ) -> None:
-        """Backfill historical data for a specific symbol and timeframe"""
+        """Backfill historical data for a specific symbol and timeframe.
+
+        If db_adapter is available, writes directly to database to avoid
+        saturating the event bus queue. Only publishes the last N candles
+        for pipeline warm-up with BACKFILL origin.
+
+        Without db_adapter, falls back to publishing all candles to event bus.
+
+        Marks backfill as complete for this symbol/timeframe even if no candles
+        are retrieved or an exception occurs, to avoid blocking startup indefinitely.
+        """
+        backfill_key = f"{symbol}_{timeframe.value}"
         try:
             logger.info(f"Starting backfill for {symbol} {timeframe.value}")
 
@@ -224,34 +372,68 @@ class IngestService:
                 days_back=self.backfill_days,
             )
 
+            if not candles:
+                logger.info(f"No candles retrieved for {symbol} {timeframe.value}")
+                return
+
             logger.info(
                 f"Retrieved {len(candles)} candles for {symbol} {timeframe.value}",
             )
 
-            # Publish historical candles as events
-            for candle in candles:
-                event = CandleUpdateEvent(
-                    timestamp=datetime.now(UTC),
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    candle=candle,
+            if self._db_adapter is not None:
+                # Optimized path: write directly to database
+                inserted = await self._db_adapter.insert_candles_batch(candles)
+                logger.info(
+                    f"Inserted {inserted} candles to DB for {symbol} {timeframe.value}",
                 )
-                event.metadata["is_historical"] = True
-                await self._event_bus.publish(event)
 
-                # Update latest candle tracking
-                if symbol not in self._latest_candles:
-                    self._latest_candles[symbol] = {}
-                self._latest_candles[symbol][timeframe] = candle
+                # Publish only the last N candles for pipeline warm-up
+                warmup_candles = candles[-WARMUP_CANDLE_COUNT:]
+                for candle in warmup_candles:
+                    event = CandleUpdateEvent(
+                        timestamp=datetime.now(UTC),
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        candle=candle,
+                        origin=CandleOrigin.BACKFILL,
+                    )
+                    event.metadata["is_historical"] = True
+                    await self._event_bus.publish(event)
+            else:
+                # Legacy path: publish all candles to event bus
+                for candle in candles:
+                    event = CandleUpdateEvent(
+                        timestamp=datetime.now(UTC),
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        candle=candle,
+                        origin=CandleOrigin.BACKFILL,
+                    )
+                    event.metadata["is_historical"] = True
+                    await self._event_bus.publish(event)
 
-            # Mark backfill as complete for this symbol-timeframe
-            backfill_key = f"{symbol}_{timeframe.value}"
-            self._backfill_complete.add(backfill_key)
+            # Update latest candle tracking
+            if symbol not in self._latest_candles:
+                self._latest_candles[symbol] = {}
+            self._latest_candles[symbol][timeframe] = candles[-1]
+
+            # Track candle count for startup alert
+            self._backfill_candle_counts[symbol] = self._backfill_candle_counts.get(
+                symbol, 0
+            ) + len(candles)
 
             logger.info(f"Backfill complete for {symbol} {timeframe.value}")
 
         except Exception as e:
             logger.error(f"Error backfilling {symbol} {timeframe.value}: {e}")
+            # Track failure for observability
+            self._backfill_failures[backfill_key] = str(e)
+
+        finally:
+            # Always mark backfill as complete to avoid blocking startup indefinitely
+            # The system can still operate with partial data; missing backfills
+            # will be logged and can be monitored via _backfill_failures
+            self._backfill_complete.add(backfill_key)
 
     async def add_symbol(self, symbol: str) -> None:
         """Add a new symbol to ingestion"""
@@ -287,10 +469,9 @@ class IngestService:
         # Remove from WebSocket streams if running
         if self._running and self.enable_realtime:
             # Build stream names to unsubscribe
-            streams = []
-            for timeframe in self.timeframes:
-                streams.append(f"{symbol.lower()}@kline_{timeframe.value}")
-            streams.append(f"{symbol.lower()}@ticker")
+            streams = [f"{symbol.lower()}@kline_{tf.value}" for tf in self.timeframes] + [
+                f"{symbol.lower()}@ticker",
+            ]
 
             await self.ws_client.unsubscribe_streams(streams)
 
@@ -340,13 +521,55 @@ class IngestService:
         symbol: str,
         timeframe: TimeFrame,
     ) -> list[dict[Any, Any]]:
-        """Detect gaps in historical data"""
-        # This would implement gap detection logic
-        # For now, return empty list
-        gaps = []
+        """Detect gaps in candle data by comparing consecutive close_times.
 
-        # TODO: Implement actual gap detection by checking timestamp sequences
-        # in the database or cached data
+        Compares each candle's close_time against the expected next close.
+        If the delta exceeds the timeframe duration, a gap is reported.
+        """
+        if self._db_adapter is None or not hasattr(self._db_adapter, "get_candles"):
+            return []
+
+        try:
+            candles = await self._db_adapter.get_candles(
+                symbol=symbol,
+                timeframe=timeframe,
+                limit=1000,
+            )
+        except Exception as e:
+            logger.error(f"Gap detection query failed for {symbol} {timeframe.value}: {e}")
+            return []
+
+        if len(candles) < 2:
+            return []
+
+        candles = sorted(candles, key=lambda c: c.open_time)
+
+        duration_s = _timeframe_to_seconds(timeframe)
+        # Allow 10% tolerance for slight timestamp drift
+        threshold_s = duration_s * 1.1
+
+        gaps: list[dict[Any, Any]] = []
+        for i in range(1, len(candles)):
+            prev_close = candles[i - 1].close_time
+            curr_open = candles[i].open_time
+            delta = (curr_open - prev_close).total_seconds()
+            if delta > threshold_s:
+                gaps.append(
+                    {
+                        "start_time": prev_close,
+                        "end_time": curr_open,
+                        "missing_seconds": delta,
+                        "expected_candles": int(delta / duration_s) - 1,
+                    }
+                )
+
+        if gaps:
+            logger.warning(
+                "Detected %d gaps for %s %s",
+                len(gaps),
+                symbol,
+                timeframe.value,
+            )
 
         return gaps
 
@@ -377,6 +600,7 @@ class IngestService:
                         symbol=symbol,
                         timeframe=timeframe,
                         candle=candle,
+                        origin=CandleOrigin.GAP_FILL,
                     )
                     event.metadata["is_gap_fill"] = True
                     await self._event_bus.publish(event)
@@ -395,7 +619,7 @@ class IngestService:
 
     def get_backfill_progress(self) -> dict[str, dict[str, bool]]:
         """Get backfill progress for all symbols and timeframes"""
-        progress = {}
+        progress: dict[str, dict[str, bool]] = {}
         for symbol in self.symbols:
             progress[symbol] = {}
             for timeframe in self.timeframes:
@@ -405,14 +629,70 @@ class IngestService:
                 )
         return progress
 
-    async def health_check(self) -> dict[str, any]:
+    def _is_all_backfill_complete(self) -> bool:
+        """Check if backfill is complete for all symbol-timeframe combinations."""
+        expected_count = len(self.symbols) * len(self.timeframes)
+        return len(self._backfill_complete) >= expected_count
+
+    async def _check_and_publish_backfill_complete(self) -> None:
+        """Check if all backfills are done and publish STARTUP_COMPLETE event.
+
+        This should be called after each backfill completes to check if
+        all symbol-timeframe combinations have finished.
+        """
+        if self._backfill_complete_event_sent:
+            return
+
+        if not self._is_all_backfill_complete():
+            return
+
+        # Calculate duration
+        duration_seconds = 0.0
+        if self._backfill_start_time is not None:
+            duration_seconds = (datetime.now(UTC) - self._backfill_start_time).total_seconds()
+
+        # Build startup complete event
+        # Use first symbol for the required symbol field (system-level event)
+        event = StartupCompleteEvent(
+            timestamp=datetime.now(UTC),
+            symbol=self.symbols[0] if self.symbols else "SYSTEM",
+            phase="backfill_complete",
+            symbols=self.symbols.copy(),
+            timeframes=[tf.value for tf in self.timeframes],
+            candle_counts=self._backfill_candle_counts.copy(),
+            duration_seconds=duration_seconds,
+        )
+
+        try:
+            await self._event_bus.publish(event, priority=5)
+            # Only mark as sent after successful publish
+            self._backfill_complete_event_sent = True
+            logger.info(
+                "Published backfill_complete startup event: %d symbols, %.2fs duration",
+                len(self.symbols),
+                duration_seconds,
+            )
+        except Exception:
+            logger.exception("Failed to publish backfill complete event")
+
+    async def health_check(self) -> dict[str, Any]:
         """Get health status of the ingestion service"""
         ws_health = (
-            await self.ws_client.health_check()
-            if self.enable_realtime
-            else {"status": "disabled"}
+            await self.ws_client.health_check() if self.enable_realtime else {"status": "disabled"}
         )
         rest_health = await self.rest_client.health_check()
+
+        now = datetime.now(UTC)
+        latest_candle_ago_seconds: dict[str, dict[str, float]] = {}
+        for symbol, by_timeframe in self._latest_candles.items():
+            latest_candle_ago_seconds[symbol] = {}
+            for timeframe, candle in by_timeframe.items():
+                close_time = candle.close_time
+                if close_time.tzinfo is None:
+                    close_time = close_time.replace(tzinfo=UTC)
+                latest_candle_ago_seconds[symbol][timeframe.value] = (
+                    now - close_time
+                ).total_seconds()
 
         return {
             "running": self._running,
@@ -423,4 +703,5 @@ class IngestService:
             "websocket": ws_health,
             "rest_api": rest_health,
             "latest_candles": len(self._latest_candles),
+            "latest_candle_ago_seconds": latest_candle_ago_seconds,
         }

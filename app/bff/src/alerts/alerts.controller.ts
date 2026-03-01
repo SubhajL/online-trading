@@ -23,7 +23,7 @@ import {
   UnreadCountDto,
 } from './dto/alert.dto';
 
-@Controller('api/alerts')
+@Controller('alerts')
 @UseGuards(JwtAuthGuard)
 export class AlertsController {
   constructor(private readonly alertsService: AlertsService) {}

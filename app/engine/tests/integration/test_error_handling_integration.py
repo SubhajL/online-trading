@@ -4,23 +4,24 @@ Tests error handling patterns across the full system.
 """
 
 import asyncio
-import pytest
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
-from app.engine.core.event_bus_factory import EventBusFactory, EventBusConfig
+import pytest
+
 from app.engine.core.error_handling import (
     ErrorCategory,
     ErrorSeverity,
     EventBusError,
-    SubscriptionError,
     ProcessingError,
     QueueError,
+    SubscriptionError,
+    error_boundary,
     error_manager,
     handle_error,
-    error_boundary,
 )
-from app.engine.models import EventType, BaseEvent
+from app.engine.core.event_bus_factory import EventBusConfig, EventBusFactory
+from app.engine.models import BaseEvent, EventType
 
 
 class TestEvent(BaseEvent):
@@ -29,7 +30,7 @@ class TestEvent(BaseEvent):
     test_data: str
 
     def __init__(self, test_data: str, **kwargs) -> None:
-        super().__init__(
+        super().__init__(  # type: ignore[call-arg]
             event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
             timestamp=kwargs.get("timestamp", datetime.utcnow()),
             symbol=kwargs.get("symbol", "BTCUSDT"),
@@ -96,8 +97,8 @@ class TestErrorHandlingIntegration:
 
         errors_handled = []
 
-        async def mock_handle_error(error) -> None:
-            errors_handled.append(error)
+        async def mock_handle_error(error, context=None) -> None:
+            errors_handled.append((error, context))
 
         # Patch the error handling to capture errors
         with patch(
@@ -115,10 +116,12 @@ class TestErrorHandlingIntegration:
 
             # Verify error was handled
             assert len(errors_handled) == 1
-            handled_error = errors_handled[0]
-            assert isinstance(handled_error, EventBusError)
-            assert handled_error.context.component == "TestComponent"
-            assert handled_error.context.operation == "test_operation"
+            handled_error, handled_context = errors_handled[0]
+            assert isinstance(handled_error, ValueError)
+            assert str(handled_error) == "Simulated failure"
+            assert handled_context is not None
+            assert handled_context.component == "TestComponent"
+            assert handled_context.operation == "test_operation"
 
         await event_bus.stop()
 
@@ -173,22 +176,24 @@ class TestErrorHandlingIntegration:
             )
 
             # Publish events that will cause handler failures
-            with patch(
-                "app.engine.core.error_handling.handle_error"
-            ) as mock_handle_error:
-                for i in range(5):
-                    event = TestEvent(test_data=f"test_{i}")
-                    await event_bus.publish(event)
+            for i in range(5):
+                event = TestEvent(test_data=f"test_{i}")
+                await event_bus.publish(event)
 
-                # Wait for processing
-                await asyncio.sleep(0.2)
+            # Wait for processing
+            await asyncio.sleep(0.2)
 
-                # Verify error handling was called for subscription failures
-                assert mock_handle_error.call_count > 0
+            # Verify failures were tracked and the subscription was eventually disabled
+            status = await event_bus.get_subscription_status(subscription_id)
+            assert status is not None
+            assert status["is_active"] is False
+            assert status["retry_count"] >= 3
 
             # Verify subscription was disabled after max retries
             metrics = await event_bus.get_metrics()
             assert metrics["active_subscription_count"] == 0
+            assert metrics["failed_handlers"] > 0
+            assert metrics["events_failed"] > 0
 
         finally:
             await event_bus.stop()
@@ -265,41 +270,24 @@ class TestErrorHandlingIntegration:
     async def test_error_context_propagation(self) -> None:
         """Test that error context is properly propagated through the system."""
         factory = EventBusFactory()
-        event_bus = factory.create_event_bus()
+        config = EventBusConfig(subscription_config={"max_subscriptions": 1})
+        limited_bus = factory.create_with_config(config)
 
-        captured_contexts = []
+        async def handler(event: BaseEvent) -> None:
+            pass
 
-        async def mock_handle_error(error) -> None:
-            if hasattr(error, "context"):
-                captured_contexts.append(error.context)
+        try:
+            await limited_bus.subscribe("sub1", handler)
 
-        with patch(
-            "app.engine.core.error_handling.handle_error", side_effect=mock_handle_error
-        ):
-            await event_bus.start()
-
-            try:
-                # Create a subscription error scenario
-                config = EventBusConfig(subscription_config={"max_subscriptions": 1})
-                limited_bus = factory.create_with_config(config)
-
-                async def handler(event: BaseEvent) -> None:
-                    pass
-
-                await limited_bus.subscribe("sub1", handler)
+            with pytest.raises(SubscriptionError) as exc_info:
                 await limited_bus.subscribe("sub2", handler)
-            except SubscriptionError:
-                pass  # Expected
 
-            # Verify error context was captured and contains expected metadata
-            assert len(captured_contexts) > 0
-            context = captured_contexts[0]
-
+            context = exc_info.value.context
             assert context.category == ErrorCategory.RESOURCE
             assert context.severity == ErrorSeverity.HIGH
             assert context.component == "SubscriptionManager"
             assert context.operation == "add_subscription"
             assert "max_subscriptions" in context.metadata
             assert "current_subscriptions" in context.metadata
-
-            await event_bus.stop()
+        finally:
+            await limited_bus.stop()

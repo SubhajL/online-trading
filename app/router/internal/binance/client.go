@@ -30,6 +30,18 @@ type Client struct {
 	exchangeInfoCache *ExchangeInfoCache
 }
 
+func (c *Client) BaseURL() string {
+	return c.baseURL
+}
+
+func (c *Client) IsFutures() bool {
+	return c.isFutures
+}
+
+func (c *Client) SetExchangeInfoCache(cache *ExchangeInfoCache) {
+	c.exchangeInfoCache = cache
+}
+
 // convertFills converts REST fills to our Fill type
 func convertFills(restFills []rest.Fill) []Fill {
 	fills := make([]Fill, len(restFills))
@@ -286,8 +298,12 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 		Int64("order_id", orderID).
 		Msg("Canceling order")
 
-	// Use REST client to cancel order
-	err := c.restClient.CancelOrder(ctx, symbol, orderID)
+	var err error
+	if c.isFutures {
+		err = c.restClient.CancelFuturesOrder(ctx, symbol, orderID)
+	} else {
+		err = c.restClient.CancelOrder(ctx, symbol, orderID)
+	}
 	if err != nil {
 		c.logger.Error().
 			Err(err).
@@ -316,7 +332,13 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]*Order, er
 		Msg("Retrieving open orders")
 
 	// Get open orders from REST client
-	restOrders, err := c.restClient.GetOpenOrders(ctx, symbol)
+	var restOrders []rest.Order
+	var err error
+	if c.isFutures {
+		restOrders, err = c.restClient.GetFuturesOpenOrders(ctx, symbol)
+	} else {
+		restOrders, err = c.restClient.GetOpenOrders(ctx, symbol)
+	}
 	if err != nil {
 		c.logger.Error().
 			Err(err).
@@ -350,6 +372,43 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]*Order, er
 		Msg("Retrieved open orders")
 
 	return orders, nil
+}
+
+type FuturesAccountResponse struct {
+	Positions []FuturesPosition `json:"positions"`
+}
+
+type FuturesPosition struct {
+	Symbol      string          `json:"symbol"`
+	PositionAmt decimal.Decimal `json:"positionAmt"`
+}
+
+func (c *Client) GetFuturesAccountInfo(ctx context.Context) (*FuturesAccountResponse, error) {
+	if !c.isFutures {
+		return nil, fmt.Errorf("futures account info not available on spot client")
+	}
+
+	account, err := c.restClient.GetFuturesAccount(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	positions := make([]FuturesPosition, 0, len(account.Positions))
+	for _, p := range account.Positions {
+		positions = append(positions, FuturesPosition{
+			Symbol:      p.Symbol,
+			PositionAmt: p.PositionAmt,
+		})
+	}
+
+	return &FuturesAccountResponse{Positions: positions}, nil
+}
+
+func (c *Client) GetFuturesAccount(ctx context.Context) (*rest.FuturesAccountResponse, error) {
+	if !c.isFutures {
+		return nil, fmt.Errorf("futures account not available on spot client")
+	}
+	return c.restClient.GetFuturesAccount(ctx)
 }
 
 // Validation functions
@@ -413,10 +472,12 @@ func (c *Client) validateFuturesOrder(order FuturesOrderRequest) error {
 	if order.Side != "BUY" && order.Side != "SELL" {
 		return fmt.Errorf("invalid side: %s", order.Side)
 	}
-	if order.Type != "MARKET" && order.Type != "LIMIT" {
+	switch order.Type {
+	case "MARKET", "LIMIT", "STOP_MARKET":
+	default:
 		return fmt.Errorf("invalid order type: %s", order.Type)
 	}
-	if order.Quantity.LessThanOrEqual(decimal.Zero) {
+	if order.Quantity.LessThanOrEqual(decimal.Zero) && !order.ClosePosition {
 		return fmt.Errorf("quantity must be positive")
 	}
 
@@ -428,6 +489,10 @@ func (c *Client) validateFuturesOrder(order FuturesOrderRequest) error {
 
 	if order.Type == "LIMIT" && order.Price.LessThanOrEqual(decimal.Zero) {
 		return fmt.Errorf("price must be positive for limit orders")
+	}
+
+	if order.Type == "STOP_MARKET" && order.StopPrice.LessThanOrEqual(decimal.Zero) {
+		return fmt.Errorf("stopPrice must be positive for stop orders")
 	}
 
 	return nil

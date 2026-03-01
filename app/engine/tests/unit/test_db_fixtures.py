@@ -1,13 +1,13 @@
 """Unit tests for database fixtures."""
 
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from contextlib import asynccontextmanager
 
-import pytest
 import asyncpg
+import pytest
 
 from app.engine.tests.fixtures.db_fixtures import (
     DBFixtures,
@@ -19,14 +19,14 @@ from app.engine.tests.fixtures.db_fixtures import (
 
 
 @pytest.fixture
-def mock_pool() -> None:
+def mock_pool() -> tuple[MagicMock, AsyncMock]:
     """Mock connection pool for testing."""
     pool = MagicMock()
     conn = AsyncMock()
 
     # Create async context manager for acquire
     @asynccontextmanager
-    async def mock_acquire() -> None:
+    async def mock_acquire() -> None:  # type: ignore[misc]
         yield conn
 
     pool.acquire = mock_acquire
@@ -34,6 +34,7 @@ def mock_pool() -> None:
     pool.close = AsyncMock()
     conn.execute = AsyncMock()
     conn.fetchval = AsyncMock()
+    return pool, conn
 
 
 class TestDBFixtures:
@@ -154,7 +155,7 @@ class TestDataFactories:
 
 
 @pytest.fixture
-async def db_session(mock_pool) -> None:
+async def db_session(mock_pool) -> None:  # type: ignore[misc]
     """Pytest fixture for database session."""
     pool, conn = mock_pool
     fixtures = DBFixtures(pool)

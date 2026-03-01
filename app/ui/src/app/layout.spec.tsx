@@ -3,7 +3,8 @@ import { render, screen } from '@testing-library/react'
 import RootLayout from './layout'
 
 vi.mock('next/font/google', () => ({
-  Inter: () => ({ className: 'inter-font' }),
+  Inter: () => ({ className: 'inter-font', variable: '--font-sans' }),
+  JetBrains_Mono: () => ({ className: 'jetbrains-mono-font', variable: '--font-mono' }),
 }))
 
 describe('RootLayout', () => {
@@ -48,5 +49,18 @@ describe('RootLayout', () => {
     )
 
     expect(screen.getByTestId('test-child')).toBeInTheDocument()
+  })
+
+  test('applies both Inter and JetBrains Mono font variables', () => {
+    const { container } = render(
+      <RootLayout>
+        <main id="main-content">Test Content</main>
+      </RootLayout>,
+    )
+
+    const body = container.querySelector('body')
+    expect(body).toHaveClass('font-sans')
+    expect(body?.className).toContain('--font-sans')
+    expect(body?.className).toContain('--font-mono')
   })
 })

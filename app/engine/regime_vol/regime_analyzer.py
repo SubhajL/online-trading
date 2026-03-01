@@ -15,6 +15,7 @@ from ..models import (
     BaseEvent,
     Candle,
     CandleUpdateEvent,
+    EventType,
     FeaturesCalculatedEvent,
     MarketRegime,
     TechnicalIndicators,
@@ -51,9 +52,10 @@ class RegimeVolatilityAnalyzer:
 
         # Current regime state
         self._current_regime: dict[str, MarketRegime] = {}  # symbol_timeframe -> regime
-        self._volatility_state: dict[str, str] = (
-            {}
-        )  # symbol_timeframe -> volatility level
+        self._volatility_state: dict[
+            str,
+            str,
+        ] = {}  # symbol_timeframe -> volatility level
 
         # Event bus
         self._event_bus = get_event_bus()
@@ -74,12 +76,12 @@ class RegimeVolatilityAnalyzer:
             (
                 "regime_candle_handler",
                 self._handle_candle_update,
-                [BaseEvent.EventType.CANDLE_UPDATE],
+                [EventType.CANDLE_UPDATE],
             ),
             (
                 "regime_features_handler",
                 self._handle_features_calculated,
-                [BaseEvent.EventType.FEATURES_CALCULATED],
+                [EventType.FEATURES_CALCULATED],
             ),
         ]
 
@@ -179,14 +181,12 @@ class RegimeVolatilityAnalyzer:
 
             # Volatility analysis
             price_ranges = [
-                (h - l) / c for h, l, c in zip(highs, lows, closes, strict=False)
+                (high - low) / close for high, low, close in zip(highs, lows, closes, strict=False)
             ]
             avg_volatility = sum(price_ranges) / len(price_ranges)
 
             # Higher highs and higher lows detection
-            higher_highs = sum(
-                1 for i in range(1, len(highs)) if highs[i] > highs[i - 1]
-            )
+            higher_highs = sum(1 for i in range(1, len(highs)) if highs[i] > highs[i - 1])
             lower_lows = sum(1 for i in range(1, len(lows)) if lows[i] < lows[i - 1])
 
             # Regime classification
@@ -274,9 +274,7 @@ class RegimeVolatilityAnalyzer:
             consistency_ratio = max_direction / total_changes
 
             # Convert to confidence (0.5 to 1.0)
-            confidence = Decimal("0.5") + (
-                Decimal(str(consistency_ratio)) * Decimal("0.5")
-            )
+            confidence = Decimal("0.5") + (Decimal(str(consistency_ratio)) * Decimal("0.5"))
 
             return min(Decimal("1.0"), confidence)
 
@@ -295,8 +293,6 @@ class RegimeVolatilityAnalyzer:
         return {
             "running": self._running,
             "tracked_symbols": len(self._candles),
-            "current_regimes": {
-                key: regime.value for key, regime in self._current_regime.items()
-            },
+            "current_regimes": {key: regime.value for key, regime in self._current_regime.items()},
             "volatility_states": dict(self._volatility_state),
         }

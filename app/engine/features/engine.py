@@ -88,8 +88,7 @@ class FeatureEngine:
         self._db_writes = 0
 
         logger.info(
-            f"FeatureEngine initialized with buffer_size={buffer_size}, "
-            f"EMA periods={ema_periods}",
+            f"FeatureEngine initialized with buffer_size={buffer_size}, EMA periods={ema_periods}",
         )
 
     async def start(self) -> None:
@@ -172,8 +171,8 @@ class FeatureEngine:
         indicators = await self._calculate_indicators(symbol, timeframe)
 
         if indicators:
-            # Write to database
-            await self._write_to_database(indicators)
+            # Write to database (canonical schema: indicators PK includes venue)
+            await self._write_to_database(candle.venue, indicators)
 
             # Publish event
             await self._publish_features_event(indicators)
@@ -212,27 +211,19 @@ class FeatureEngine:
                 ema_values = calculate_ema(close_prices, period)
                 if period == 9:
                     indicators.ema_9 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
+                        Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
                     )
                 elif period == 20 or period == 21:
                     indicators.ema_21 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
+                        Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
                     )
                 elif period == 50:
                     indicators.ema_50 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
+                        Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
                     )
                 elif period == 200:
                     indicators.ema_200 = (
-                        Decimal(str(ema_values[-1]))
-                        if not np.isnan(ema_values[-1])
-                        else None
+                        Decimal(str(ema_values[-1])) if not np.isnan(ema_values[-1]) else None
                     )
 
             # Calculate RSI
@@ -297,9 +288,9 @@ class FeatureEngine:
                 indicators.bb_width = (
                     indicators.bb_upper - indicators.bb_lower
                 ) / indicators.bb_middle
-                indicators.bb_percent = (
-                    latest_candle.close_price - indicators.bb_lower
-                ) / (indicators.bb_upper - indicators.bb_lower)
+                indicators.bb_percent = (latest_candle.close_price - indicators.bb_lower) / (
+                    indicators.bb_upper - indicators.bb_lower
+                )
 
             self._calculations_performed += 1
             return indicators
@@ -311,59 +302,19 @@ class FeatureEngine:
             )
             return None
 
-    async def _write_to_database(self, indicators: TechnicalIndicators) -> None:
+    async def _write_to_database(
+        self,
+        venue: str,
+        indicators: TechnicalIndicators,
+    ) -> None:
         """Write indicators to the database"""
         try:
-            async with self.db_adapter.get_connection() as conn:
-                await conn.execute(
-                    """
-                    INSERT INTO technical_indicators (
-                        timestamp, symbol, timeframe,
-                        ema_9, ema_21, ema_50, ema_200,
-                        rsi_14,
-                        macd_line, macd_signal, macd_histogram,
-                        atr_14,
-                        bb_upper, bb_middle, bb_lower, bb_width, bb_percent
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-                    ON CONFLICT (timestamp, symbol, timeframe) DO UPDATE SET
-                        ema_9 = EXCLUDED.ema_9,
-                        ema_21 = EXCLUDED.ema_21,
-                        ema_50 = EXCLUDED.ema_50,
-                        ema_200 = EXCLUDED.ema_200,
-                        rsi_14 = EXCLUDED.rsi_14,
-                        macd_line = EXCLUDED.macd_line,
-                        macd_signal = EXCLUDED.macd_signal,
-                        macd_histogram = EXCLUDED.macd_histogram,
-                        atr_14 = EXCLUDED.atr_14,
-                        bb_upper = EXCLUDED.bb_upper,
-                        bb_middle = EXCLUDED.bb_middle,
-                        bb_lower = EXCLUDED.bb_lower,
-                        bb_width = EXCLUDED.bb_width,
-                        bb_percent = EXCLUDED.bb_percent
-                    """,
-                    indicators.timestamp,
-                    indicators.symbol,
-                    indicators.timeframe.value,
-                    indicators.ema_9,
-                    indicators.ema_21,
-                    indicators.ema_50,
-                    indicators.ema_200,
-                    indicators.rsi_14,
-                    indicators.macd_line,
-                    indicators.macd_signal,
-                    indicators.macd_histogram,
-                    indicators.atr_14,
-                    indicators.bb_upper,
-                    indicators.bb_middle,
-                    indicators.bb_lower,
-                    indicators.bb_width,
-                    indicators.bb_percent,
-                )
+            await self.db_adapter.insert_technical_indicators(venue, indicators)
 
-                self._db_writes += 1
-                logger.debug(
-                    f"Wrote indicators for {indicators.symbol} {indicators.timeframe} at {indicators.timestamp}",
-                )
+            self._db_writes += 1
+            logger.debug(
+                f"Wrote indicators for {indicators.symbol} {indicators.timeframe} at {indicators.timestamp}",
+            )
 
         except Exception as e:
             logger.error(f"Error writing indicators to database: {e}", exc_info=True)
@@ -431,12 +382,8 @@ class FeatureEngine:
                 stats["buffer_stats"][symbol][timeframe.value] = {
                     "buffer_size": len(buffer),
                     "processed_count": len(processed),
-                    "oldest_candle": (
-                        buffer[0].open_time.isoformat() if buffer else None
-                    ),
-                    "newest_candle": (
-                        buffer[-1].close_time.isoformat() if buffer else None
-                    ),
+                    "oldest_candle": (buffer[0].open_time.isoformat() if buffer else None),
+                    "newest_candle": (buffer[-1].close_time.isoformat() if buffer else None),
                 }
 
         return stats

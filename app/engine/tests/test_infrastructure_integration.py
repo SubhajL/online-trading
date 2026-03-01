@@ -11,6 +11,8 @@ from datetime import datetime
 
 from app.engine.models import Candle, TimeFrame
 
+pytestmark = pytest.mark.integration
+
 
 class TestDatabaseIntegration:
     """Test real PostgreSQL/TimescaleDB operations."""
@@ -28,6 +30,7 @@ class TestDatabaseIntegration:
         """Test CRUD operations on candles hypertable."""
         # Insert test candle
         test_candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             open_time=datetime.now(),

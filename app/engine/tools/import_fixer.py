@@ -20,14 +20,28 @@ def detect_missing_imports(mypy_output: str) -> dict[Path, set[str]]:
     # Name "Any" is not defined  [name-defined]
     error_pattern = re.compile(
         r'^(.+?):(\d+):\s*error:\s*Name\s*"(\w+)"\s*is\s*not\s*defined\s*'
-        r'\[name-defined\]',
+        r"\[name-defined\]",
     )
 
     # Track which types are from typing module
     typing_types = {
-        "Any", "Callable", "Optional", "Union", "List", "Dict", "Tuple",
-        "Set", "Type", "TypeVar", "Generic", "Protocol", "Literal",
-        "Final", "TypedDict", "Annotated", "TypeAlias",
+        "Any",
+        "Callable",
+        "Optional",
+        "Union",
+        "List",
+        "Dict",
+        "Tuple",
+        "Set",
+        "Type",
+        "TypeVar",
+        "Generic",
+        "Protocol",
+        "Literal",
+        "Final",
+        "TypedDict",
+        "Annotated",
+        "TypeAlias",
     }
 
     lines = mypy_output.strip().split("\n")
@@ -73,8 +87,7 @@ def add_missing_imports(file_path: Path, imports_needed: set[str]) -> bool:
             # Parse existing imports
             imports_str = match.group(1)
             # Handle multi-line imports by removing line continuations
-            imports_str = (imports_str.replace("\\", "")
-                           .replace("(", "").replace(")", ""))
+            imports_str = imports_str.replace("\\", "").replace("(", "").replace(")", "")
             # Split by comma and strip whitespace
             for imp in imports_str.split(","):
                 imp = imp.strip()
@@ -103,8 +116,7 @@ def add_missing_imports(file_path: Path, imports_needed: set[str]) -> bool:
             stripped = line.strip()
             if stripped.startswith("from __future__"):
                 future_idx = i
-            elif (stripped and not stripped.startswith("#")
-                  and not stripped.startswith('"""')):
+            elif stripped and not stripped.startswith("#") and not stripped.startswith('"""'):
                 if first_code_idx == -1:
                     first_code_idx = i
                     break
@@ -182,7 +194,6 @@ def fix_all_import_errors(engine_path: Path) -> tuple[int, int]:
         if add_missing_imports(file_path, imports_needed):
             files_fixed += 1
             total_imports_added += len(imports_needed)
-            print(f"Fixed {file_path}: added "
-                  f"{', '.join(sorted(imports_needed))}")
+            print(f"Fixed {file_path}: added {', '.join(sorted(imports_needed))}")
 
     return (files_fixed, total_imports_added)

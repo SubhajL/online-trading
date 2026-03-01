@@ -23,6 +23,9 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
     type: 'MARKET',
     quantity: 0,
   })
+  // Use string state for quantity input to allow typing decimals like "0.001"
+  const [quantityStr, setQuantityStr] = useState('')
+  const [priceStr, setPriceStr] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -48,6 +51,30 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
     setSubmitError(null)
   }
 
+  const handleQuantityChange = (strValue: string) => {
+    setQuantityStr(strValue)
+    setErrors(prev => ({ ...prev, quantity: '' }))
+    setSubmitError(null)
+    const numValue = parseFloat(strValue)
+    if (!isNaN(numValue)) {
+      setValues(prev => ({ ...prev, quantity: numValue }))
+    } else if (strValue === '') {
+      setValues(prev => ({ ...prev, quantity: 0 }))
+    }
+  }
+
+  const handlePriceChange = (strValue: string) => {
+    setPriceStr(strValue)
+    setErrors(prev => ({ ...prev, price: '' }))
+    setSubmitError(null)
+    const numValue = parseFloat(strValue)
+    if (!isNaN(numValue)) {
+      setValues(prev => ({ ...prev, price: numValue }))
+    } else if (strValue === '') {
+      setValues(prev => ({ ...prev, price: undefined }))
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitError(null)
@@ -68,6 +95,8 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
         type: 'MARKET',
         quantity: 0,
       })
+      setQuantityStr('')
+      setPriceStr('')
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Failed to place order')
     } finally {
@@ -76,7 +105,7 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
   }
 
   return (
-    <form className={`order-form ${className}`} onSubmit={handleSubmit}>
+    <form className={`order-form ${className}`} noValidate onSubmit={handleSubmit}>
       <div className="form-group">
         <label htmlFor="symbol">Symbol</label>
         <input
@@ -136,11 +165,12 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
         <input
           id="quantity"
           type="number"
-          step="any"
-          value={values.quantity === 0 ? '' : values.quantity}
-          onChange={e => handleChange('quantity', parseFloat(e.target.value) || 0)}
+          step="0.001"
+          min="0"
+          value={quantityStr}
+          onChange={e => handleQuantityChange(e.target.value)}
           disabled={isSubmitting}
-          placeholder="0.00"
+          placeholder="0.001"
         />
         {errors.quantity && <span className="error-message">{errors.quantity}</span>}
       </div>
@@ -151,9 +181,10 @@ export function OrderForm({ onSubmit, className = '' }: OrderFormProps) {
           <input
             id="price"
             type="number"
-            step="any"
-            value={values.price || ''}
-            onChange={e => handleChange('price', parseFloat(e.target.value) || 0)}
+            step="0.01"
+            min="0"
+            value={priceStr}
+            onChange={e => handlePriceChange(e.target.value)}
             disabled={isSubmitting}
             placeholder="0.00"
           />

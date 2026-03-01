@@ -273,7 +273,7 @@ class TestObservabilityManager:
             check_called = True
 
         manager.register_health_check("test", test_check)
-        manager.start_health_checks(interval=0.1)
+        manager.start_health_checks(interval=0.1)  # type: ignore[arg-type]
 
         time.sleep(0.2)
         manager.stop_health_checks()

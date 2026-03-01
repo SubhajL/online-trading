@@ -153,8 +153,8 @@ class TestEventBusFactory:
 
         assert event_bus is not None
         # Subscription manager should use custom config
-        assert event_bus._subscription_manager._config.max_subscriptions == 100
-        assert event_bus._subscription_manager._config.default_priority == 5
+        assert event_bus._subscription_manager._config.max_subscriptions == 100  # type: ignore[attr-defined]
+        assert event_bus._subscription_manager._config.default_priority == 5  # type: ignore[attr-defined]
 
     def test_factory_with_custom_processing_config(self) -> None:
         factory = EventBusFactory()
@@ -169,8 +169,8 @@ class TestEventBusFactory:
 
         assert event_bus is not None
         # Event processor should use custom config
-        assert event_bus._event_processor._config.max_processing_time_seconds == 60.0
-        assert event_bus._event_processor._config.max_concurrent_handlers == 20
+        assert event_bus._event_processor._config.max_processing_time_seconds == 60.0  # type: ignore[attr-defined]
+        assert event_bus._event_processor._config.max_concurrent_handlers == 20  # type: ignore[attr-defined]
 
     def test_factory_validates_dependency_interfaces(self) -> None:
         factory = EventBusFactory()
@@ -183,7 +183,7 @@ class TestEventBusFactory:
 
         with pytest.raises(InvalidConfigurationError) as exc_info:
             factory.create_with_dependencies(
-                subscription_manager=invalid_manager,
+                subscription_manager=invalid_manager,  # type: ignore[arg-type]
                 event_processor=Mock(spec=EventProcessorInterface),
             )
 

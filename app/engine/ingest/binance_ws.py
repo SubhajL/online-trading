@@ -6,45 +6,78 @@ Handles kline/candlestick data, ticker updates, and order book streams.
 """
 
 import asyncio
-from collections.abc import Callable
-from datetime import UTC, datetime
+from collections import deque
+import contextlib
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import websockets
-from websockets.exceptions import ConnectionClosed, InvalidStatusCode
+from websockets import State as WebSocketState
+from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from ..bus import get_event_bus
 from ..models import Candle, CandleUpdateEvent, TimeFrame
+from ..resilience.backoff import BackoffConfig, ExponentialBackoff
+from ..resilience.thread_safe_circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+)
+from .bar_index import bar_index_from_open_time
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from ..bus import EventBus
 
 logger = logging.getLogger(__name__)
 
 
-def build_combined_stream_url(base_url: str, streams: list[str]) -> str:
+def unwrap_combined_stream_message(data: Any) -> Any:
     """
-    Build Binance-compliant combined stream WebSocket URL.
+    Unwrap combined stream message wrapper if present.
 
-    Converts base URL and stream list into the format required by Binance:
-    wss://host:port/stream?streams=stream1/stream2/stream3
+    Binance combined streams (via /stream?streams=...) wrap messages in:
+    {"stream": "btcusdt@kline_5m", "data": {"e": "kline", ...}}
+
+    This function extracts the inner 'data' dict when the wrapper is detected.
+    For direct messages or non-dict inputs, returns the original unchanged.
 
     Args:
-        base_url: Base WebSocket URL (e.g., "wss://stream.binance.com:9443/ws/")
-        streams: List of stream names (e.g., ["btcusdt@kline_1m", "ethusdt@ticker"])
+        data: Parsed JSON message (can be dict, list, or primitive)
 
     Returns:
-        Combined stream URL in Binance format
+        Inner 'data' dict if combined stream wrapper detected, else original
+    """
+    if not isinstance(data, dict):
+        return data
+
+    if "stream" not in data or "data" not in data:
+        return data
+
+    inner = data["data"]
+    if not isinstance(inner, dict):
+        return data
+
+    return inner
+
+
+def normalize_ws_base_url(base_url: str) -> str:
+    """Normalize a Binance WS base URL to `/ws`.
+
+    We intentionally use the `/ws` endpoint and manage subscriptions with
+    `SUBSCRIBE` / `UNSUBSCRIBE` frames.
+
+    This avoids mixed strategies (combined-stream URL + SUBSCRIBE frames) which
+    can lead to "tickers alive, klines dead" when the server ignores the frames.
     """
     parsed = urlparse(base_url)
-
-    # Construct new URL with /stream endpoint
-    scheme = parsed.scheme
-    netloc = parsed.netloc
-    streams_param = "/".join(streams)
-
-    return f"{scheme}://{netloc}/stream?streams={streams_param}"
+    if not parsed.scheme or not parsed.netloc:
+        return base_url.rstrip("/")
+    return f"{parsed.scheme}://{parsed.netloc}/ws"
 
 
 class BinanceWebSocketClient:
@@ -57,32 +90,85 @@ class BinanceWebSocketClient:
     - All market tickers stream
     - Partial book depth streams
     - Trade streams
+
+    Resilience features:
+    - Exponential backoff with jitter
+    - Circuit breaker integration
+    - Max retry limit
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         base_url: str = "wss://stream.binance.com:9443/ws/",
         testnet: bool = False,
         reconnect_interval: int = 5,
         ping_interval: int = 20,
         ping_timeout: int = 10,
+        *,
+        max_reconnect_attempts: int = 50,
+        backoff_config: BackoffConfig | None = None,
+        circuit_breaker: CircuitBreaker | None = None,
+        event_bus: "EventBus | None" = None,
+        stale_threshold_seconds: int = 60,
+        ping_keepalive_interval: int = 30,
     ) -> None:
-        self.base_url = base_url
+        self.base_url = normalize_ws_base_url(base_url)
         if testnet:
-            self.base_url = "wss://testnet.binance.vision/ws/"
+            self.base_url = normalize_ws_base_url("wss://stream.testnet.binance.vision/ws/")
 
         self.reconnect_interval = reconnect_interval
         self.ping_interval = ping_interval
         self.ping_timeout = ping_timeout
 
-        self._websocket: websockets.WebSocketServerProtocol | None = None
+        self._websocket: Any = None
         self._subscriptions: set[str] = set()
         self._symbols: set[str] = set()
         self._timeframes: set[TimeFrame] = set()
         self._running = False
         self._reconnect_task: asyncio.Task[Any] | None = None
         self._handlers: dict[str, Callable[..., Any]] = {}
-        self._event_bus = get_event_bus()
+
+        # Event bus - use provided or get global
+        self._event_bus = event_bus if event_bus is not None else get_event_bus()
+
+        self._last_message_at: datetime | None = None
+        self._message_times: deque[datetime] = deque(maxlen=2000)
+        self._stale_threshold_seconds = stale_threshold_seconds
+        self._watchdog_interval_seconds = 30
+        self._watchdog_task: asyncio.Task[Any] | None = None
+
+        # Kline-specific tracking (separate from generic message tracking)
+        # Enables detection of "tickers alive, klines dead" scenarios
+        self._last_kline_at: datetime | None = None
+        self._last_closed_kline_at: datetime | None = None
+
+        # Subscription (SUBSCRIBE) response tracking for health/debugging.
+        # Binance returns {"result": null, "id": 1} on success, or
+        # {"error": {...}, "id": 1} on failure.
+        self._last_subscribe_ok_at: datetime | None = None
+        self._last_subscribe_error_at: datetime | None = None
+        self._last_subscribe_error: str | None = None
+        self._last_subscribe_response_id: int | None = None
+
+        # Ping keepalive to prevent NAT/firewall silent disconnects
+        self._ping_keepalive_interval = ping_keepalive_interval
+        self._ping_keepalive_task: asyncio.Task[Any] | None = None
+
+        # Resilience: max retry limit
+        self._max_reconnect_attempts = max_reconnect_attempts
+        self._consecutive_failures = 0
+
+        # Resilience: exponential backoff
+        self._backoff = ExponentialBackoff(backoff_config or BackoffConfig())
+
+        # Resilience: circuit breaker
+        self._circuit_breaker = circuit_breaker or CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=5,
+                success_threshold=2,
+                timeout_seconds=60,
+            ),
+        )
 
         # Stream message handlers
         self._handlers.update(
@@ -99,6 +185,13 @@ class BinanceWebSocketClient:
             f"BinanceWebSocketClient initialized with base_url: {self.base_url}",
         )
 
+    def _is_websocket_open(self) -> bool:
+        """Check if WebSocket connection is open.
+
+        Uses websockets 13+ State API instead of deprecated .closed attribute.
+        """
+        return self._websocket is not None and self._websocket.state == WebSocketState.OPEN
+
     async def start(self) -> None:
         """Start the WebSocket client"""
         if self._running:
@@ -107,6 +200,8 @@ class BinanceWebSocketClient:
 
         self._running = True
         self._reconnect_task = asyncio.create_task(self._connection_manager())
+        self._watchdog_task = asyncio.create_task(self._watchdog_loop())
+        self._ping_keepalive_task = asyncio.create_task(self._ping_keepalive_loop())
         logger.info("WebSocket client started")
 
     async def stop(self) -> None:
@@ -116,12 +211,23 @@ class BinanceWebSocketClient:
 
         self._running = False
 
+        if self._ping_keepalive_task:
+            self._ping_keepalive_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._ping_keepalive_task
+            self._ping_keepalive_task = None
+
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._watchdog_task
+            self._watchdog_task = None
+
         if self._reconnect_task:
             self._reconnect_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._reconnect_task
-            except asyncio.CancelledError:
-                pass
+            self._reconnect_task = None
 
         if self._websocket:
             await self._websocket.close()
@@ -129,7 +235,9 @@ class BinanceWebSocketClient:
         logger.info("WebSocket client stopped")
 
     async def subscribe_klines(
-        self, symbols: list[str], timeframes: list[TimeFrame],
+        self,
+        symbols: list[str],
+        timeframes: list[TimeFrame],
     ) -> None:
         """
         Subscribe to kline/candlestick streams
@@ -148,7 +256,7 @@ class BinanceWebSocketClient:
         self._symbols.update(symbols)
         self._timeframes.update(timeframes)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams(streams)
 
         logger.info(
@@ -166,7 +274,7 @@ class BinanceWebSocketClient:
         self._subscriptions.update(streams)
         self._symbols.update(symbols)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams(streams)
 
         logger.info(f"Subscribed to ticker for {len(symbols)} symbols")
@@ -176,7 +284,7 @@ class BinanceWebSocketClient:
         stream = "!ticker@arr"
         self._subscriptions.add(stream)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams([stream])
 
         logger.info("Subscribed to all market tickers")
@@ -195,13 +303,11 @@ class BinanceWebSocketClient:
             levels: Number of price levels (5, 10, or 20)
             update_speed: Update speed (1000ms or 100ms)
         """
-        streams = [
-            f"{symbol.lower()}@depth{levels}@{update_speed}" for symbol in symbols
-        ]
+        streams = [f"{symbol.lower()}@depth{levels}@{update_speed}" for symbol in symbols]
         self._subscriptions.update(streams)
         self._symbols.update(symbols)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams(streams)
 
         logger.info(f"Subscribed to depth for {len(symbols)} symbols")
@@ -217,7 +323,7 @@ class BinanceWebSocketClient:
         self._subscriptions.update(streams)
         self._symbols.update(symbols)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._subscribe_streams(streams)
 
         logger.info(f"Subscribed to trades for {len(symbols)} symbols")
@@ -231,34 +337,71 @@ class BinanceWebSocketClient:
         """
         self._subscriptions.difference_update(streams)
 
-        if self._websocket and not self._websocket.closed:
+        if self._is_websocket_open():
             await self._unsubscribe_streams(streams)
 
         logger.info(f"Unsubscribed from {len(streams)} streams")
 
     async def _connection_manager(self) -> None:
-        """Manage WebSocket connection with automatic reconnection"""
+        """Manage WebSocket connection with automatic reconnection and resilience."""
         while self._running:
+            # Check max retry limit
+            if self._consecutive_failures >= self._max_reconnect_attempts:
+                logger.critical(
+                    f"Max reconnection attempts ({self._max_reconnect_attempts}) "
+                    "exceeded. Stopping WebSocket client.",
+                )
+                self._running = False
+                break
+
+            # Check circuit breaker
+            if not await self._circuit_breaker.should_allow_request():
+                circuit_state = await self._circuit_breaker.get_state()
+                logger.warning(
+                    f"Circuit breaker is {circuit_state.value}, skipping connection attempt",
+                )
+                delay = self._backoff.next_delay()
+                await asyncio.sleep(delay)
+                continue
+
             try:
                 await self._connect_and_listen()
+                # If we reach here, connection was successful but closed gracefully
+                await self._on_connection_success()
             except Exception as e:
                 logger.error(f"WebSocket connection error: {e}")
+                await self._on_connection_failure(e)
 
-            if self._running:
-                logger.info(f"Reconnecting in {self.reconnect_interval} seconds...")
-                await asyncio.sleep(self.reconnect_interval)
+                if self._running:
+                    delay = self._backoff.next_delay()
+                    logger.info(
+                        f"Reconnecting in {delay:.1f}s "
+                        f"(attempt {self._consecutive_failures}/{self._max_reconnect_attempts})...",
+                    )
+                    await asyncio.sleep(delay)
+
+    async def _on_connection_success(self) -> None:
+        """Handle successful connection: reset backoff and circuit breaker."""
+        self._consecutive_failures = 0
+        self._backoff.reset()
+        await self._circuit_breaker.record_success()
+        logger.info("Connection successful, resilience counters reset")
+
+    async def _on_connection_failure(self, error: Exception) -> None:
+        """Handle connection failure: record to circuit breaker, increment counter."""
+        self._consecutive_failures += 1
+        await self._circuit_breaker.record_failure()
+        logger.warning(
+            "Connection failed (%d/%d): %s",
+            self._consecutive_failures,
+            self._max_reconnect_attempts,
+            error,
+        )
 
     async def _connect_and_listen(self) -> None:
         """Connect to WebSocket and listen for messages"""
         try:
-            # Build WebSocket URL using Binance combined stream format
-            if self._subscriptions:
-                url = build_combined_stream_url(
-                    self.base_url, sorted(self._subscriptions),
-                )
-            else:
-                # Use a dummy stream for initial connection
-                url = build_combined_stream_url(self.base_url, ["btcusdt@ticker"])
+            url = self.base_url
 
             logger.info(f"Connecting to WebSocket: {url[:100]}...")
 
@@ -273,18 +416,26 @@ class BinanceWebSocketClient:
                 self._websocket = websocket
                 logger.info("WebSocket connected successfully")
 
+                # Mark connection as successful
+                await self._on_connection_success()
+
                 # Subscribe to streams if we have any
                 if self._subscriptions:
                     await self._resubscribe_all()
 
                 # Listen for messages
+                msg_count = 0
                 async for message in websocket:
+                    msg_count += 1
+                    self._mark_message_received(datetime.now(UTC))
+                    if msg_count <= 3 or msg_count % 50 == 0:
+                        logger.info(f"WS msg #{msg_count} received (len={len(message)})")
                     try:
                         await self._handle_message(message)
                     except Exception as e:
                         logger.error(f"Error handling message: {e}")
 
-        except (ConnectionClosed, InvalidStatusCode) as e:
+        except (ConnectionClosed, InvalidStatus) as e:
             logger.warning(f"WebSocket connection closed: {e}")
             raise
         except Exception as e:
@@ -295,18 +446,24 @@ class BinanceWebSocketClient:
         """Handle incoming WebSocket message"""
         try:
             data = json.loads(message)
-
-            # Handle array of ticker data (all market tickers)
-            if isinstance(data, list):
-                for item in data:
-                    await self._route_message(item)
-            else:
-                await self._route_message(data)
-
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode JSON message: {e}")
-        except Exception as e:
-            logger.error(f"Error processing message: {e}")
+            return
+
+        # Handle array of ticker data (all market tickers)
+        if isinstance(data, list):
+            for item in data:
+                try:
+                    unwrapped = unwrap_combined_stream_message(item)
+                    await self._route_message(unwrapped)
+                except Exception:
+                    logger.exception("Error processing list item")
+        else:
+            try:
+                unwrapped = unwrap_combined_stream_message(data)
+                await self._route_message(unwrapped)
+            except Exception:
+                logger.exception("Error processing message")
 
     async def _route_message(self, data: dict[str, Any]) -> None:
         """Route message to appropriate handler"""
@@ -319,26 +476,71 @@ class BinanceWebSocketClient:
                 else:
                     logger.debug(f"No handler for event type: {event_type}")
             else:
+                if self._maybe_handle_subscribe_response(data):
+                    return
                 logger.debug(f"Message without event type: {data}")
 
         except Exception as e:
             logger.error(f"Error routing message: {e}")
 
+    def _maybe_handle_subscribe_response(self, data: dict[str, Any]) -> bool:
+        """Handle Binance SUBSCRIBE/UNSUBSCRIBE ack/error responses.
+
+        Returns True if the message was recognized and handled.
+        """
+        if "id" not in data:
+            return False
+        if "result" not in data and "error" not in data:
+            return False
+
+        now = datetime.now(UTC)
+        response_id = data.get("id")
+        if isinstance(response_id, int):
+            self._last_subscribe_response_id = response_id
+
+        error = data.get("error")
+        if error is not None:
+            self._last_subscribe_error_at = now
+            self._last_subscribe_error = json.dumps(error, default=str)[:500]
+            logger.warning("WS subscription response error (id=%s): %s", response_id, error)
+            return True
+
+        # Success response is typically {"result": null, "id": 1}
+        self._last_subscribe_ok_at = now
+        self._last_subscribe_error_at = None
+        self._last_subscribe_error = None
+        logger.info("WS subscription response ok (id=%s)", response_id)
+        return True
+
     async def _handle_kline_message(self, data: dict[str, Any]) -> None:
         """Handle kline/candlestick message"""
         try:
             kline_data = data["k"]
+            symbol = kline_data.get("s", "?")
+            timeframe = kline_data.get("i", "?")
+            is_closed = kline_data.get("x", False)
+
+            # Track ANY kline message (open or closed) for freshness detection
+            now = datetime.now(UTC)
+            self._last_kline_at = now
 
             # Only process closed candles (k.x == true)
-            if not kline_data.get("x", False):
+            if not is_closed:
                 return
 
+            # Track closed klines specifically for gap-fill triggering
+            self._last_closed_kline_at = now
+
+            logger.info(f"Received CLOSED candle: {symbol} {timeframe}")
+
             # Parse candle data
+            open_time = datetime.fromtimestamp(kline_data["t"] / 1000, tz=UTC)
             candle = Candle(
+                venue="SPOT",
                 symbol=kline_data["s"],
                 timeframe=TimeFrame(kline_data["i"]),
-                open_time=datetime.fromtimestamp(kline_data["t"] / 1000),
-                close_time=datetime.fromtimestamp(kline_data["T"] / 1000),
+                open_time=open_time,
+                close_time=datetime.fromtimestamp(kline_data["T"] / 1000, tz=UTC),
                 open_price=Decimal(kline_data["o"]),
                 high_price=Decimal(kline_data["h"]),
                 low_price=Decimal(kline_data["l"]),
@@ -348,6 +550,7 @@ class BinanceWebSocketClient:
                 trades=int(kline_data["n"]),
                 taker_buy_base_volume=Decimal(kline_data["V"]),
                 taker_buy_quote_volume=Decimal(kline_data["Q"]),
+                bar_index=bar_index_from_open_time(open_time, TimeFrame(kline_data["i"])),
             )
 
             # Create and publish candle update event
@@ -358,10 +561,13 @@ class BinanceWebSocketClient:
                 candle=candle,
             )
 
-            await self._event_bus.publish(event)
+            published = await self._event_bus.publish(event)
 
-            logger.debug(
-                f"Published CLOSED candle update for {candle.symbol} {candle.timeframe}",
+            logger.info(
+                "Published candle event: %s %s (published=%s)",
+                candle.symbol,
+                candle.timeframe,
+                published,
             )
 
         except Exception as e:
@@ -459,22 +665,124 @@ class BinanceWebSocketClient:
         """Get current subscriptions"""
         return list(self._subscriptions)
 
+    def _mark_message_received(self, at: datetime) -> None:
+        self._last_message_at = at
+        self._message_times.append(at)
+
+    def _last_message_ago_seconds(self, now: datetime) -> float | None:
+        if self._last_message_at is None:
+            return None
+        return (now - self._last_message_at).total_seconds()
+
+    def _is_stale(self, now: datetime) -> bool:
+        ago = self._last_message_ago_seconds(now)
+        if ago is None:
+            return True
+        return ago > self._stale_threshold_seconds
+
+    def _last_kline_ago_seconds(self, now: datetime) -> float | None:
+        """Seconds since last kline message (any, open or closed)."""
+        if self._last_kline_at is None:
+            return None
+        return (now - self._last_kline_at).total_seconds()
+
+    def _last_closed_kline_ago_seconds(self, now: datetime) -> float | None:
+        """Seconds since last closed kline (k.x == true)."""
+        if self._last_closed_kline_at is None:
+            return None
+        return (now - self._last_closed_kline_at).total_seconds()
+
+    async def _watchdog_loop(self) -> None:
+        while self._running:
+            await asyncio.sleep(self._watchdog_interval_seconds)
+
+            if not self._is_websocket_open():
+                continue
+
+            now = datetime.now(UTC)
+            if self._is_stale(now):
+                logger.warning(
+                    "WebSocket stale: no messages for %ss; forcing reconnect",
+                    self._last_message_ago_seconds(now),
+                )
+                if self._websocket is not None:
+                    with contextlib.suppress(Exception):
+                        await self._websocket.close()
+
+    async def _ping_keepalive_loop(self) -> None:
+        """Send periodic ping frames to keep the connection alive.
+
+        NAT/firewalls may silently drop idle connections. Sending ping frames
+        every 30 seconds prevents this and detects dead connections faster.
+        """
+        while self._running:
+            await asyncio.sleep(self._ping_keepalive_interval)
+
+            if not self._is_websocket_open():
+                continue
+
+            try:
+                await self._websocket.ping()
+                logger.debug("Sent keepalive ping")
+            except Exception as e:
+                logger.warning("Keepalive ping failed: %s; forcing reconnect", e)
+                if self._websocket is not None:
+                    with contextlib.suppress(Exception):
+                        await self._websocket.close()
+
     def is_connected(self) -> bool:
         """Check if WebSocket is connected"""
-        return self._websocket is not None and not self._websocket.closed
+        return self._is_websocket_open() and not self._is_stale(datetime.now(UTC))
+
+    def _ago_seconds(self, ts: datetime | None, now: datetime) -> float | None:
+        if ts is None:
+            return None
+        return (now - ts).total_seconds()
 
     async def health_check(self) -> dict[str, Any]:
-        """Get health status"""
+        """Get health status including resilience metrics."""
+        circuit_state = await self._circuit_breaker.get_state()
+        now = datetime.now(UTC)
+        last_ago = self._last_message_ago_seconds(now)
+        cutoff = now - timedelta(minutes=1)
+        messages_per_minute = sum(1 for t in self._message_times if t >= cutoff)
+        open_ = self._is_websocket_open()
+        stale = self._is_stale(now) if open_ else False
+        kline_subscriptions = sum(1 for s in self._subscriptions if "@kline_" in s)
+        ticker_subscriptions = sum(
+            1 for s in self._subscriptions if s.endswith("@ticker") or s == "!ticker@arr"
+        )
         return {
             "connected": self.is_connected(),
+            "open": open_,
             "subscriptions": len(self._subscriptions),
+            "kline_subscriptions": kline_subscriptions,
+            "ticker_subscriptions": ticker_subscriptions,
             "symbols": len(self._symbols),
             "timeframes": len(self._timeframes),
             "running": self._running,
+            "stale": stale,
+            "last_message_ago_seconds": last_ago,
+            "messages_per_minute": messages_per_minute,
+            # Kline-specific freshness (for detecting "tickers alive, klines dead")
+            "last_kline_ago_seconds": self._last_kline_ago_seconds(now),
+            "last_closed_kline_ago_seconds": self._last_closed_kline_ago_seconds(now),
+            # Subscription response diagnostics (SUBSCRIBE ack/error)
+            "last_subscribe_ok_ago_seconds": self._ago_seconds(self._last_subscribe_ok_at, now),
+            "last_subscribe_error_ago_seconds": self._ago_seconds(
+                self._last_subscribe_error_at,
+                now,
+            ),
+            "last_subscribe_error": self._last_subscribe_error,
+            # Resilience metrics
+            "consecutive_failures": self._consecutive_failures,
+            "circuit_state": circuit_state.value,
+            "backoff_attempt": self._backoff.current_attempt,
+            "max_reconnect_attempts": self._max_reconnect_attempts,
         }
 
 
-def get_ws_connector():
+def get_ws_connector() -> "Callable[..., Any]":
     """Return the WebSocket connector callable.
 
     Allows tests to inject a fake connector without importing external modules.

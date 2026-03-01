@@ -46,6 +46,7 @@ class MockSignalGenerator:
             low_price = min(open_price, close_price) * (1 - abs(np.random.normal(0, 0.0002)))
 
             candle = Candle(
+                venue="spot",
                 symbol=self.symbol,
                 timeframe=self.timeframe,
                 open_time=base_time + timedelta(minutes=15 * i),
@@ -63,18 +64,24 @@ class MockSignalGenerator:
             candles.append(candle)
 
             # Update base price for next candle
-            self.base_price = float(close_price)
+            self.base_price = float(close_price)  # type: ignore[assignment]
 
         return candles
 
     def generate_signal(self) -> RetestSignal:
         """Generate a mock retest signal."""
-        return RetestSignal(
+        level_price = Decimal(str(self.base_price * 0.98))
+        stop_loss = level_price * Decimal("0.99")
+        take_profit = level_price * Decimal("1.01")
+        return RetestSignal(  # type: ignore[call-arg]
             timestamp=datetime.now(),
             symbol=self.symbol,
             timeframe=self.timeframe,
             retest_type="support_retest",
-            level_price=Decimal(str(self.base_price * 0.98)),
+            level_price=level_price,
+            direction="BUY",
+            stop_loss=stop_loss,
+            take_profit=take_profit,
             level_strength=3,
             level_touches=4,
             approach_angle=35.5,
@@ -88,7 +95,7 @@ class MockSignalGenerator:
             time_at_level=120,
             confluence_score=0.85,
             confluence_factors=["EMA_support", "volume_spike", "trend_alignment"],
-            success_probability=0.75,
+            success_probability=0.75,  # type: ignore[arg-type]
             metadata={
                 "ema20": float(self.base_price * 0.985),
                 "ema50": float(self.base_price * 0.975),
@@ -104,7 +111,7 @@ class MockBrowserPool:
     def __init__(self, pool_size: int = 3):
         self.pool_size = pool_size
         self.active_browsers = 0
-        self.queue = asyncio.Queue(maxsize=pool_size)
+        self.queue: asyncio.Queue[object] = asyncio.Queue(maxsize=pool_size)
         self.initialized = False
 
     async def initialize(self):

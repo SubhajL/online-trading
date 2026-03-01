@@ -44,6 +44,7 @@ describe('usePositions', () => {
   })
 
   test('fetches positions from trading endpoint successfully', async () => {
+    const mockRefetch = vi.fn()
     vi.mocked(useApiCache).mockReturnValue({
       data: mockPositions,
       loading: false,

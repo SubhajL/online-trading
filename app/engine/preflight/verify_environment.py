@@ -31,9 +31,20 @@ OPTIONAL_ENV_VARS = {
     "ROUTER_URL": {"min_length": 10},
 }
 
+# Risk parameters with mandatory bounds
+RISK_ENV_VARS = {
+    "RISK_PER_TRADE_PCT": {"type": "float", "min": 0.001, "max": 0.05},
+    "MAX_DAILY_LOSS_PCT": {"type": "float", "min": 0.01, "max": 0.10},
+    "MAX_POSITION_SIZE": {"type": "float", "min": 0.0001, "max": 100000},
+}
+
 # Service ports to check
 SERVICE_PORTS = {
-    "postgres": {"host_env": "POSTGRES_HOST", "port_env": "POSTGRES_PORT", "default_port": 5432},
+    "postgres": {
+        "host_env": "POSTGRES_HOST",
+        "port_env": "POSTGRES_PORT",
+        "default_port": 5432,
+    },
     "redis": {"host_env": "REDIS_HOST", "port_env": "REDIS_PORT", "default_port": 6379},
 }
 
@@ -60,18 +71,18 @@ def check_required_env_vars() -> CheckResult:
             continue
 
         # Validate value
-        if "type" in rules and rules["type"] == "int":
+        if "type" in rules and rules["type"] == "int":  # type: ignore[index, operator]
             try:
                 int_val = int(value)
-                if "min" in rules and int_val < rules["min"]:
-                    invalid[var_name] = f"Value {int_val} is below minimum {rules['min']}"
-                if "max" in rules and int_val > rules["max"]:
-                    invalid[var_name] = f"Value {int_val} is above maximum {rules['max']}"
+                if "min" in rules and int_val < rules["min"]:  # type: ignore[index, operator]
+                    invalid[var_name] = f"Value {int_val} is below minimum {rules['min']}"  # type: ignore[index]
+                if "max" in rules and int_val > rules["max"]:  # type: ignore[index, operator]
+                    invalid[var_name] = f"Value {int_val} is above maximum {rules['max']}"  # type: ignore[index]
             except ValueError:
                 invalid[var_name] = f"Expected integer, got '{value}'"
 
-        if "min_length" in rules and len(value) < rules["min_length"]:
-            invalid[var_name] = f"Too short (min {rules['min_length']} chars)"
+        if "min_length" in rules and len(value) < rules["min_length"]:  # type: ignore[index, operator]
+            invalid[var_name] = f"Too short (min {rules['min_length']} chars)"  # type: ignore[index]
 
     # Check optional variables
     for var_name, rules in OPTIONAL_ENV_VARS.items():
@@ -109,14 +120,64 @@ def check_required_env_vars() -> CheckResult:
     )
 
 
+def check_risk_parameters() -> CheckResult:
+    """Verify risk parameters are set and within safe bounds.
+
+    If any risk env var is missing or out of bounds, returns FAILED to prevent
+    the engine from starting with permissive defaults.
+    """
+    missing = []
+    invalid = {}
+
+    for var_name, rules in RISK_ENV_VARS.items():
+        value = os.environ.get(var_name, "")
+
+        if not value:
+            missing.append(var_name)
+            continue
+
+        try:
+            float_val = float(value)
+        except ValueError:
+            invalid[var_name] = f"Expected float, got '{value}'"
+            continue
+
+        if float_val < rules["min"]:  # type: ignore[operator]
+            invalid[var_name] = f"Value {float_val} below minimum {rules['min']}"
+        elif float_val > rules["max"]:  # type: ignore[operator]
+            invalid[var_name] = f"Value {float_val} above maximum {rules['max']}"
+
+    details: dict[str, Any] = {
+        "total_checked": len(RISK_ENV_VARS),
+        "missing": missing,
+        "invalid": invalid,
+    }
+
+    if missing or invalid:
+        return CheckResult(
+            status=CheckStatus.FAILED,
+            message=(
+                f"Risk parameters not configured safely: "
+                f"{len(missing)} missing, {len(invalid)} invalid"
+            ),
+            details=details,
+        )
+
+    return CheckResult(
+        status=CheckStatus.PASSED,
+        message="All risk parameters are within safe bounds",
+        details=details,
+    )
+
+
 def check_port_availability() -> CheckResult:
     """Ensure required ports are available or already bound to expected services."""
     port_status = {}
     all_ok = True
 
     for service_name, config in SERVICE_PORTS.items():
-        host = os.environ.get(config["host_env"], "localhost")
-        port = int(os.environ.get(config["port_env"], config["default_port"]))
+        host = os.environ.get(config["host_env"], "localhost")  # type: ignore[call-overload]
+        port = int(os.environ.get(config["port_env"], config["default_port"]))  # type: ignore[call-overload]
 
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

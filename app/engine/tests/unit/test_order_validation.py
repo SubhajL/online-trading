@@ -242,6 +242,7 @@ class TestOrderFormatterIntegration:
 
         # Decision from engine
         decision = TradingDecision(
+            venue="SPOT",
             symbol="BTCUSDT",
             action="BUY",
             entry_price=Decimal("50234.5678"),

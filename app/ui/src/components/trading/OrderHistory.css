@@ -81,37 +81,43 @@
   overflow-x: auto;
 }
 
-.table-header {
-  display: grid;
-  grid-template-columns: 100px 140px 100px 80px 60px 80px 80px 80px 100px 120px 80px;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-5);
+.order-history-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+}
+
+.order-history-table thead {
   background-color: var(--color-surface-base);
   border-bottom: 1px solid var(--color-border-subtle);
-  font-size: var(--font-size-xs);
+}
+
+.order-history-table th {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.order-row {
-  display: grid;
-  grid-template-columns: 100px 140px 100px 80px 60px 80px 80px 80px 100px 120px 80px;
-  gap: var(--space-3);
-  align-items: center;
-  padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--color-border-subtle);
-  font-size: var(--font-size-xs);
+.order-history-table td {
+  padding: var(--space-3) var(--space-4);
   color: var(--color-text-secondary);
-  transition: background-color var(--duration-base) var(--easing-default);
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: middle;
 }
 
-.order-row:hover {
+.order-history-table tbody tr:hover {
   background-color: var(--color-surface-hover);
 }
 
-.order-row:last-child {
+.order-history-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.order-time-cell {
+  white-space: nowrap;
 }
 
 .order-id {
@@ -249,15 +255,9 @@
 }
 
 /* Mobile responsive */
-@media (max-width: 1200px) {
-  .order-history-table {
-    display: block;
-    overflow-x: scroll;
-  }
-
-  .table-header,
-  .order-row {
-    min-width: 900px;
+@media (max-width: 768px) {
+  .order-history-table table {
+    min-width: 500px;
   }
 }
 

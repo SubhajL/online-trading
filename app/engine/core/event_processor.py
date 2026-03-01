@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from app.engine.core.keyed_executor import KeyedExecutor
 from app.engine.core.subscription_manager import EventSubscription
 from app.engine.models import BaseEvent
 from app.engine.resilience.thread_safe_circuit_breaker import (
@@ -94,6 +95,10 @@ class EventProcessor:
         # Circuit breakers per subscriber
         self._circuit_breakers: dict[str, CircuitBreaker] = {}
 
+        # Keyed executors per subscriber (for stateful handlers)
+        self._keyed_executors: dict[str, KeyedExecutor] = {}
+        self._keyed_executors_lock = asyncio.Lock()
+
         # Semaphore for concurrency control
         self._concurrency_semaphore = asyncio.Semaphore(
             self._config.max_concurrent_handlers,
@@ -153,7 +158,7 @@ class EventProcessor:
                     await circuit_breaker.record_success()
 
                 return True, subscription, None
-            except Exception as exc:  # noqa: BLE001 - we reclassify below
+            except Exception as exc:
                 # Record failure to circuit breaker
                 if self._config.circuit_breaker_enabled:
                     circuit_breaker = await self._get_circuit_breaker(
@@ -171,7 +176,7 @@ class EventProcessor:
                 tg = None  # Py<3.11 safeguard; not expected in this env
 
             if tg is not None:
-                async with tg:  # type: ignore[attr-defined]
+                async with tg:
                     for sub in sorted_subscriptions:
                         if not sub.is_active:
                             continue
@@ -195,9 +200,7 @@ class EventProcessor:
                 successful_handlers += 1
             else:
                 failed_handlers += 1
-                error_type = (
-                    type(exc).__name__ if exc is not None else "ProcessingError"
-                )
+                error_type = type(exc).__name__ if exc is not None else "ProcessingError"
                 error_message = str(exc) if exc is not None else "Unknown error"
                 if error_message == "CircuitBreakerOpen":
                     error_type = "CircuitBreakerOpen"
@@ -271,9 +274,33 @@ class EventProcessor:
         Returns:
             Handler result
         """
-        if asyncio.iscoroutinefunction(subscription.handler):
-            return await subscription.handler(event)
-        return subscription.handler(event)
+
+        async def _invoke() -> Any:
+            if asyncio.iscoroutinefunction(subscription.handler):
+                return await subscription.handler(event)
+            return subscription.handler(event)
+
+        if not getattr(subscription, "serialize_by_key", False):
+            return await _invoke()
+
+        key_extractor = getattr(subscription, "key_extractor", None)
+        if key_extractor is None:
+            tf = getattr(event, "timeframe", None)
+            key = f"{event.symbol}:{tf.value}" if tf is not None else str(event.symbol)
+        else:
+            key = key_extractor(event)
+
+        executor = await self._get_keyed_executor(subscription.subscriber_id)
+        return await executor.run(key, _invoke)
+
+    async def _get_keyed_executor(self, subscriber_id: str) -> KeyedExecutor:
+        async with self._keyed_executors_lock:
+            existing = self._keyed_executors.get(subscriber_id)
+            if existing is not None:
+                return existing
+            ex = KeyedExecutor()
+            self._keyed_executors[subscriber_id] = ex
+            return ex
 
     async def _get_circuit_breaker(self, subscriber_id: str) -> CircuitBreaker:
         """

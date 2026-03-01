@@ -135,12 +135,14 @@ describe('OrdersService', () => {
       });
       expect(result).toHaveLength(3);
       expect(result[0]).toMatchObject({
-        id: '1',
+        orderId: '1',
         clientOrderId: 'client-123',
         symbol: 'BTCUSDT',
         side: 'BUY',
         type: 'LIMIT',
         status: 'FILLED',
+        executedQuantity: 0.5,
+        avgPrice: 45000,
       });
     });
 

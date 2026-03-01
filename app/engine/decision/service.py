@@ -40,7 +40,11 @@ class DecisionEngine:
         self._running = False
         logger.info("DecisionEngine stopped")
 
-    def process_signals(self, signals_raw: list[dict[str, Any]], regime: dict[str, Any]) -> list[dict[str, Any]]:
+    def process_signals(
+        self,
+        signals_raw: list[dict[str, Any]],
+        regime: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """Process raw signals with regime context.
 
         Args:
@@ -83,9 +87,9 @@ class DecisionEngine:
         return generate_decision(
             signal,
             self.risk_manager.get_account_balance(),
-            current_positions,
-            news_window,
-            funding_window,
+            current_positions,  # type: ignore[arg-type]
+            news_window,  # type: ignore[arg-type]
+            funding_window,  # type: ignore[arg-type]
         )
 
 

@@ -57,18 +57,22 @@ class ManualThaiSignalValidator:
         validation_result = await self.validator.validate_signal(signal)
 
         # Log for history
-        self.validation_log.append({
-            "time": datetime.now(),
-            "signal": signal,
-            "result": validation_result,
-        })
+        self.validation_log.append(
+            {
+                "time": datetime.now(),
+                "signal": signal,
+                "result": validation_result,
+            },
+        )
 
         # Prepare response
         return {
             "parsed": {
                 "symbol": signal.symbol,
                 "direction": signal.direction,
-                "entry": str(signal.entry_price) if signal.entry_price > 0 else "Manual entry needed",
+                "entry": str(signal.entry_price)
+                if signal.entry_price > 0
+                else "Manual entry needed",
                 "sl": str(signal.stop_loss) if signal.stop_loss > 0 else "Not specified",
                 "tps": [str(tp) for tp in signal.take_profits],
                 "timeframe": signal.reasoning.split()[2] if "Signal" in signal.reasoning else "H4",
@@ -83,7 +87,9 @@ class ManualThaiSignalValidator:
                     "SMC Pattern": "✅" if validation_result.smc_pattern_match else "❌",
                 },
             },
-            "recommendation": self._get_thai_recommendation(validation_result.overall_score),
+            "recommendation": self._get_thai_recommendation(
+                validation_result.overall_score,
+            ),
             "your_system": self._format_system_signal(validation_result.our_signal),
         }
 
@@ -144,8 +150,7 @@ class ManualThaiSignalValidator:
     def get_validation_summary(self) -> dict:
         """Get summary of today's validations"""
         today_logs = [
-            log for log in self.validation_log
-            if log["time"].date() == datetime.now().date()
+            log for log in self.validation_log if log["time"].date() == datetime.now().date()
         ]
 
         if not today_logs:
@@ -193,12 +198,13 @@ async def interactive_validator():
 
     # Mock system API for demo
     from app.engine import TradingSystemAPI
+
     system_api = TradingSystemAPI()
 
     validator = ManualThaiSignalValidator(system_api)
 
     while True:
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         user_input = input("Enter signal (or command): ").strip()
 
         if user_input.lower() == "quit":
@@ -244,7 +250,8 @@ async def interactive_validator():
 # Quick validation function for scripts
 async def quick_validate(signal_text: str):
     """Quick validation for use in scripts"""
-    from app.engine import TradingSystemAPI
+    from app.engine import TradingSystemAPI  # type: ignore[attr-defined]
+
     system_api = TradingSystemAPI()
 
     validator = ManualThaiSignalValidator(system_api)

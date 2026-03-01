@@ -18,12 +18,13 @@ from app.engine.models import (
     CandleUpdateEvent, FeaturesCalculatedEvent
 )
 from app.engine.features.feature_service import FeatureService
-from app.engine.smc.smc_service import SMCService
+from app.engine.smc.engine import SMCEngine
 
 
 def create_test_candle(symbol="BTCUSDT", price_offset=0):
     """Create a valid test candle."""
     return Candle(
+        venue="SPOT",
         symbol=symbol,
         timeframe=TimeFrame.M5,
         open_time=datetime.now(),
@@ -65,14 +66,14 @@ class TestServiceStartStop:
         await asyncio.sleep(0.1)  # Give time for cleanup
 
     @pytest.mark.asyncio
-    async def test_smc_service_lifecycle(self):
-        """SMC service should start, run, and stop cleanly."""
+    async def test_smc_engine_lifecycle(self):
+        """SMC engine should start, run, and stop cleanly."""
         # Set up event bus
         bus = create_event_bus()
         set_event_bus(bus)
 
         # Create service
-        service = SMCService()
+        service = SMCEngine()
 
         # Start service
         await service.start()
@@ -110,7 +111,7 @@ class TestServiceStartStop:
         set_event_bus(bus)
 
         feature_service = FeatureService()
-        smc_service = SMCService()
+        smc_service = SMCEngine()
 
         # Start both services concurrently
         await asyncio.gather(
@@ -153,6 +154,7 @@ class TestEventSubscription:
 
         # Create test candle event
         candle = Candle(
+            venue="SPOT",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M5,
             open_time=datetime.now(),
@@ -191,6 +193,7 @@ class TestEventSubscription:
         # Need to send at least 3 candles (max of our periods)
         for i in range(3):
             candle = Candle(
+                venue="SPOT",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M5,
                 open_time=datetime.now(),

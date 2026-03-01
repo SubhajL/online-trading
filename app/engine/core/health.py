@@ -290,9 +290,7 @@ def aggregate_health_status(components: list[ComponentHealth]) -> HealthCheck:
     if unhealthy:
         overall_status = HealthStatus.UNHEALTHY
         problem_components = unhealthy + degraded
-        message = (
-            f"Components unhealthy: {', '.join(c.name for c in problem_components)}"
-        )
+        message = f"Components unhealthy: {', '.join(c.name for c in problem_components)}"
     elif degraded:
         overall_status = HealthStatus.DEGRADED
         message = f"Components degraded: {', '.join(c.name for c in degraded)}"
@@ -385,7 +383,7 @@ async def build_system_health(services: dict[str, Any]) -> HealthCheck:
     if router is not None:
         try:
             components.append(await check_router_client_health(router))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             components.append(
                 ComponentHealth(
                     name="router",
@@ -406,7 +404,7 @@ async def build_system_health(services: dict[str, Any]) -> HealthCheck:
     if binance_client is not None:
         try:
             components.append(await check_binance_client_health(binance_client))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             components.append(
                 ComponentHealth(
                     name="binance",
@@ -422,7 +420,7 @@ async def build_system_health(services: dict[str, Any]) -> HealthCheck:
     if redis_adapter is not None:
         try:
             components.append(await check_redis_adapter_health(redis_adapter))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             components.append(
                 ComponentHealth(
                     name="redis",
@@ -463,7 +461,7 @@ async def check_router_client_health(router_client: Any) -> ComponentHealth:
             else (HealthStatus.DEGRADED if half_open > 0 else HealthStatus.HEALTHY)
         )
         message = f"router breakers open={open_count} half_open={half_open}"
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         status = HealthStatus.DEGRADED
         message = f"router metrics error: {e!s}"
     latency = (time.time() - start) * 1000
@@ -492,7 +490,7 @@ async def check_binance_client_health(binance_client: Any) -> ComponentHealth:
             else (HealthStatus.DEGRADED if half_open > 0 else HealthStatus.HEALTHY)
         )
         message = f"binance breakers open={open_count} half_open={half_open}"
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         status = HealthStatus.DEGRADED
         message = f"binance metrics error: {e!s}"
     latency = (time.time() - start) * 1000
@@ -514,24 +512,16 @@ async def check_redis_adapter_health(redis_adapter: Any) -> ComponentHealth:
         status = (
             HealthStatus.HEALTHY
             if status_str == "healthy"
-            else (
-                HealthStatus.DEGRADED
-                if status_str == "degraded"
-                else HealthStatus.UNHEALTHY
-            )
+            else (HealthStatus.DEGRADED if status_str == "degraded" else HealthStatus.UNHEALTHY)
         )
-        message = (
-            "Redis operational"
-            if status == HealthStatus.HEALTHY
-            else f"Redis {status.value}"
-        )
+        message = "Redis operational" if status == HealthStatus.HEALTHY else f"Redis {status.value}"
         details = {
             "database_size": stats.get("database_size", 0),
             "connected_clients": stats.get("connected_clients", 0),
             "memory_usage": stats.get("memory_usage", "unknown"),
             "total_commands_processed": stats.get("total_commands_processed", 0),
         }
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         status = HealthStatus.DEGRADED
         message = f"redis metrics error: {e!s}"
         details = {}

@@ -11,11 +11,11 @@ from decimal import Decimal
 import logging
 from typing import Any
 
-from ..bus import get_event_bus
-from ..models import (
-    BaseEvent,
+from app.engine.bus import get_event_bus
+from app.engine.models import (
     Candle,
     CandleUpdateEvent,
+    EventType,
     PivotPoint,
     RetestSignal,
     RetestSignalEvent,
@@ -23,6 +23,15 @@ from ..models import (
 )
 
 logger = logging.getLogger(__name__)
+
+MAX_RECENT_CANDLES = 50
+MIN_RECENT_CANDLES = 5
+MAX_LEVELS_PER_SYMBOL = 20
+MAX_PREVIOUS_TESTS_BEFORE_PENALTY = 2
+FRESH_LEVEL_MAX_AGE_HOURS = 24
+FRESH_LEVEL_CONFLUENCE_HOURS = 48
+MIN_VOLATILITY_CANDLES = 2
+VOLATILITY_WINDOW = 5
 
 
 class RetestAnalyzer:
@@ -68,7 +77,7 @@ class RetestAnalyzer:
         self._subscription_id = await self._event_bus.subscribe(
             subscriber_id="retest_analyzer",
             handler=self._handle_candle_update,
-            event_types=[BaseEvent.EventType.CANDLE_UPDATE],
+            event_types=[EventType.CANDLE_UPDATE],
             priority=3,
         )
 
@@ -94,15 +103,15 @@ class RetestAnalyzer:
 
             # Store recent candles
             if symbol not in self._recent_candles:
-                self._recent_candles[symbol] = deque(maxlen=50)
+                self._recent_candles[symbol] = deque(maxlen=MAX_RECENT_CANDLES)
 
             self._recent_candles[symbol].append(candle)
 
             # Analyze for retests
             await self._analyze_retests(symbol, candle)
 
-        except Exception as e:
-            logger.error(f"Error handling candle update: {e}")
+        except Exception:
+            logger.exception("Error handling candle update")
 
     async def _analyze_retests(self, symbol: str, current_candle: Candle) -> None:
         """Analyze current candle for retest opportunities"""
@@ -113,7 +122,7 @@ class RetestAnalyzer:
             levels = self._key_levels[symbol]
             recent_candles = list(self._recent_candles.get(symbol, []))
 
-            if len(recent_candles) < 5:
+            if len(recent_candles) < MIN_RECENT_CANDLES:
                 return
 
             for level in levels:
@@ -126,8 +135,8 @@ class RetestAnalyzer:
                 if retest_signal:
                     await self._publish_retest_signal(retest_signal)
 
-        except Exception as e:
-            logger.error(f"Error analyzing retests: {e}")
+        except Exception:
+            logger.exception("Error analyzing retests")
 
     def _check_level_retest(
         self,
@@ -146,81 +155,82 @@ class RetestAnalyzer:
                 return None
 
             # Check for proper retest behavior
-            if level_type == "support":
-                # For support retest, look for bounce
-                if (
-                    current_candle.low_price <= level_price
-                    and current_candle.close_price > level_price
-                ):
-                    volume_confirmation = self._check_volume_confirmation(
-                        current_candle,
-                        recent_candles,
-                    )
+            if level_type == "support" and (
+                current_candle.low_price <= level_price and current_candle.close_price > level_price
+            ):
+                volume_confirmation = self._check_volume_confirmation(
+                    current_candle,
+                    recent_candles,
+                )
 
-                    success_probability = self._calculate_success_probability(
-                        level,
-                        current_candle,
-                        recent_candles,
-                        "support",
-                    )
+                success_probability = self._calculate_success_probability(
+                    level,
+                    current_candle,
+                    recent_candles,
+                )
 
-                    confluence_factors = self._get_confluence_factors(
-                        level,
-                        current_candle,
-                        recent_candles,
-                    )
+                confluence_factors = self._get_confluence_factors(
+                    level,
+                    current_candle,
+                    recent_candles,
+                )
 
-                    return RetestSignal(
-                        symbol=current_candle.symbol,
-                        timeframe=current_candle.timeframe,
-                        timestamp=current_candle.close_time,
-                        level_price=level_price,
-                        retest_type="support_retest",
-                        success_probability=success_probability,
-                        volume_confirmation=volume_confirmation,
-                        confluence_factors=confluence_factors,
-                    )
+                stop_distance = level_price * Decimal("0.002")
+                return RetestSignal(
+                    venue=current_candle.venue,
+                    symbol=current_candle.symbol,
+                    timeframe=current_candle.timeframe,
+                    timestamp=current_candle.close_time,
+                    level_price=level_price,
+                    direction="BUY",
+                    stop_loss=level_price - stop_distance,
+                    take_profit=level_price + (stop_distance * Decimal("1.5")),
+                    retest_type="support_retest",
+                    success_probability=success_probability,
+                    volume_confirmation=volume_confirmation,
+                    confluence_factors=confluence_factors,
+                )
 
-            elif level_type == "resistance":
-                # For resistance retest, look for rejection
-                if (
-                    current_candle.high_price >= level_price
-                    and current_candle.close_price < level_price
-                ):
-                    volume_confirmation = self._check_volume_confirmation(
-                        current_candle,
-                        recent_candles,
-                    )
+            if level_type == "resistance" and (
+                current_candle.high_price >= level_price
+                and current_candle.close_price < level_price
+            ):
+                volume_confirmation = self._check_volume_confirmation(
+                    current_candle,
+                    recent_candles,
+                )
 
-                    success_probability = self._calculate_success_probability(
-                        level,
-                        current_candle,
-                        recent_candles,
-                        "resistance",
-                    )
+                success_probability = self._calculate_success_probability(
+                    level,
+                    current_candle,
+                    recent_candles,
+                )
 
-                    confluence_factors = self._get_confluence_factors(
-                        level,
-                        current_candle,
-                        recent_candles,
-                    )
+                confluence_factors = self._get_confluence_factors(
+                    level,
+                    current_candle,
+                    recent_candles,
+                )
 
-                    return RetestSignal(
-                        symbol=current_candle.symbol,
-                        timeframe=current_candle.timeframe,
-                        timestamp=current_candle.close_time,
-                        level_price=level_price,
-                        retest_type="resistance_retest",
-                        success_probability=success_probability,
-                        volume_confirmation=volume_confirmation,
-                        confluence_factors=confluence_factors,
-                    )
+                stop_distance = level_price * Decimal("0.002")
+                return RetestSignal(
+                    venue=current_candle.venue,
+                    symbol=current_candle.symbol,
+                    timeframe=current_candle.timeframe,
+                    timestamp=current_candle.close_time,
+                    level_price=level_price,
+                    direction="SELL",
+                    stop_loss=level_price + stop_distance,
+                    take_profit=level_price - (stop_distance * Decimal("1.5")),
+                    retest_type="resistance_retest",
+                    success_probability=success_probability,
+                    volume_confirmation=volume_confirmation,
+                    confluence_factors=confluence_factors,
+                )
 
-            return None
-
-        except Exception as e:
-            logger.error(f"Error checking level retest: {e}")
-            return None
+        except Exception:
+            logger.exception("Error checking level retest")
+        return None
 
     def _check_volume_confirmation(
         self,
@@ -229,27 +239,28 @@ class RetestAnalyzer:
     ) -> bool:
         """Check if volume confirms the retest"""
         try:
-            if len(recent_candles) < 5:
+            if len(recent_candles) < MIN_RECENT_CANDLES:
                 return False
 
             # Calculate average volume
             avg_volume = sum(c.volume for c in recent_candles[-5:]) / 5
 
             # Check if current volume is above average
-            volume_ratio = float(current_candle.volume / avg_volume)
+            volume_ratio = float(current_candle.volume / Decimal(str(avg_volume)))
 
             return volume_ratio >= self.min_volume_ratio
 
-        except Exception as e:
-            logger.error(f"Error checking volume confirmation: {e}")
+        except Exception:
+            logger.exception("Error checking volume confirmation")
             return False
+        else:
+            return volume_ratio >= self.min_volume_ratio
 
     def _calculate_success_probability(
         self,
         level: dict[Any, Any],
         current_candle: Candle,
         recent_candles: list[Candle],
-        level_type: str,
     ) -> Decimal:
         """Calculate probability of successful retest"""
         try:
@@ -262,14 +273,14 @@ class RetestAnalyzer:
 
             # Adjust based on number of previous tests
             previous_tests = level.get("test_count", 0)
-            if previous_tests > 2:
+            if previous_tests > MAX_PREVIOUS_TESTS_BEFORE_PENALTY:
                 base_probability -= Decimal("0.1")  # Weaker after multiple tests
 
             # Adjust based on time since level creation
             level_age_hours = (
                 current_candle.close_time - level["created_at"]
             ).total_seconds() / 3600
-            if level_age_hours < 24:
+            if level_age_hours < FRESH_LEVEL_MAX_AGE_HOURS:
                 base_probability += Decimal("0.1")  # Fresh levels more reliable
 
             # Adjust based on market volatility
@@ -280,30 +291,28 @@ class RetestAnalyzer:
             # Ensure probability stays within bounds
             return max(Decimal("0.1"), min(Decimal("0.9"), base_probability))
 
-        except Exception as e:
-            logger.error(f"Error calculating success probability: {e}")
+        except Exception:
+            logger.exception("Error calculating success probability")
             return Decimal("0.5")
 
     def _calculate_recent_volatility(self, candles: list[Candle]) -> Decimal:
         """Calculate recent volatility measure"""
         try:
-            if len(candles) < 2:
+            if len(candles) < MIN_VOLATILITY_CANDLES:
                 return Decimal(0)
 
             # Simple volatility based on price range
-            recent = candles[-5:] if len(candles) >= 5 else candles
+            recent = candles[-VOLATILITY_WINDOW:] if len(candles) >= VOLATILITY_WINDOW else candles
             ranges = []
 
             for candle in recent:
-                price_range = (
-                    candle.high_price - candle.low_price
-                ) / candle.close_price
+                price_range = (candle.high_price - candle.low_price) / candle.close_price
                 ranges.append(price_range)
 
-            return sum(ranges) / len(ranges)
+            return Decimal(str(sum(ranges) / len(ranges)))
 
-        except Exception as e:
-            logger.error(f"Error calculating volatility: {e}")
+        except Exception:
+            logger.exception("Error calculating volatility")
             return Decimal("0.02")
 
     def _get_confluence_factors(
@@ -324,27 +333,21 @@ class RetestAnalyzer:
             level_age_hours = (
                 current_candle.close_time - level["created_at"]
             ).total_seconds() / 3600
-            if level_age_hours < 48:  # Fresh level
+            if level_age_hours < FRESH_LEVEL_CONFLUENCE_HOURS:  # Fresh level
                 factors.append("fresh_level")
 
             # Wick confirmation
             if level["type"] == "support":
-                if (
-                    current_candle.low_price
-                    < level["price"]
-                    < current_candle.close_price
-                ):
+                if current_candle.low_price < level["price"] < current_candle.close_price:
                     factors.append("wick_rejection")
-            elif (
-                current_candle.close_price < level["price"] < current_candle.high_price
-            ):
+            elif current_candle.close_price < level["price"] < current_candle.high_price:
                 factors.append("wick_rejection")
 
             # Multiple timeframe confluence (simplified)
             factors.append("multi_timeframe")
 
-        except Exception as e:
-            logger.error(f"Error getting confluence factors: {e}")
+        except Exception:
+            logger.exception("Error getting confluence factors")
 
         return factors
 
@@ -361,12 +364,15 @@ class RetestAnalyzer:
             await self._event_bus.publish(event, priority=6)
 
             logger.info(
-                f"Published retest signal: {signal.symbol} {signal.retest_type} "
-                f"at {signal.level_price} (probability: {signal.success_probability})",
+                "Published retest signal: %s %s at %s (probability: %s)",
+                signal.symbol,
+                signal.retest_type,
+                signal.level_price,
+                signal.success_probability,
             )
 
-        except Exception as e:
-            logger.error(f"Error publishing retest signal: {e}")
+        except Exception:
+            logger.exception("Error publishing retest signal")
 
     def add_key_level(
         self,
@@ -392,13 +398,13 @@ class RetestAnalyzer:
             self._key_levels[symbol].append(level)
 
             # Keep only recent levels
-            if len(self._key_levels[symbol]) > 20:
-                self._key_levels[symbol] = self._key_levels[symbol][-20:]
+            if len(self._key_levels[symbol]) > MAX_LEVELS_PER_SYMBOL:
+                self._key_levels[symbol] = self._key_levels[symbol][-MAX_LEVELS_PER_SYMBOL:]
 
-            logger.debug(f"Added key level: {symbol} {level_type} at {price}")
+            logger.debug("Added key level: %s %s at %s", symbol, level_type, price)
 
-        except Exception as e:
-            logger.error(f"Error adding key level: {e}")
+        except Exception:
+            logger.exception("Error adding key level")
 
     def add_zone_for_retest(self, zone: SupplyDemandZone) -> None:
         """Add a supply/demand zone to track for retests"""
@@ -420,8 +426,8 @@ class RetestAnalyzer:
                 created_at=zone.created_at,
             )
 
-        except Exception as e:
-            logger.error(f"Error adding zone for retest: {e}")
+        except Exception:
+            logger.exception("Error adding zone for retest")
 
     def add_pivot_levels(self, pivots: list[PivotPoint]) -> None:
         """Add pivot points as key levels to track"""
@@ -437,8 +443,8 @@ class RetestAnalyzer:
                     created_at=pivot.timestamp,
                 )
 
-        except Exception as e:
-            logger.error(f"Error adding pivot levels: {e}")
+        except Exception:
+            logger.exception("Error adding pivot levels")
 
     async def health_check(self) -> dict[Any, Any]:
         """Health check for retest analyzer"""
@@ -446,7 +452,5 @@ class RetestAnalyzer:
             "running": self._running,
             "tracked_symbols": len(self._key_levels),
             "total_levels": sum(len(levels) for levels in self._key_levels.values()),
-            "recent_candles": sum(
-                len(candles) for candles in self._recent_candles.values()
-            ),
+            "recent_candles": sum(len(candles) for candles in self._recent_candles.values()),
         }

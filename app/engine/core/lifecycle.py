@@ -68,10 +68,7 @@ class ShutdownCoordinator:
     def get_shutdown_order(self) -> list[str]:
         """Calculate safe shutdown order based on dependencies."""
         # Build dependency graph
-        deps = {
-            name: set(comp.get("dependencies", []))
-            for name, comp in self.components.items()
-        }
+        deps = {name: set(comp.get("dependencies", [])) for name, comp in self.components.items()}
 
         # Topological sort (reverse for shutdown)
         order = []
@@ -92,10 +89,7 @@ class ShutdownCoordinator:
 
     def get_parallel_groups(self) -> list[list[str]]:
         """Group components that can shut down in parallel."""
-        deps = {
-            name: set(comp.get("dependencies", []))
-            for name, comp in self.components.items()
-        }
+        deps = {name: set(comp.get("dependencies", [])) for name, comp in self.components.items()}
 
         groups = []
         remaining = set(self.components.keys())
@@ -150,16 +144,15 @@ class StartupHealthChecker:
         start_time = time.time()
         retry_count = 0
 
-        while retry_count < self.max_retries:
+        while True:
             # Check all dependencies
-            unhealthy = []
+            unhealthy: list[str] = []
             for name, dep in self.dependencies.items():
                 if not dep.get("healthy", False):
                     unhealthy.append(name)
                     dep["retry_count"] = dep.get("retry_count", 0) + 1
 
             if not unhealthy:
-                # All healthy
                 return {
                     "ready": True,
                     "retry_count": retry_count,
@@ -167,7 +160,6 @@ class StartupHealthChecker:
                     "timed_out": False,
                 }
 
-            # Check timeout
             if (time.time() - start_time) > timeout_seconds:
                 return {
                     "ready": False,
@@ -176,13 +168,13 @@ class StartupHealthChecker:
                     "timed_out": True,
                 }
 
-            # Wait and retry
+            if retry_count >= self.max_retries:
+                break
+
             time.sleep(self.retry_delay_seconds)
             retry_count += 1
 
-        # Check if we exceeded timeout even after retries
         timed_out = (time.time() - start_time) > timeout_seconds
-
         return {
             "ready": False,
             "retry_count": retry_count,

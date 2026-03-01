@@ -1,11 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CONTRACT_TOPICS } from '../contracts/topics';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import {
   RouterClientService,
   OrderRequest,
   OrderResponse,
 } from '../router-client/router-client.service';
+import type { EmergencyCloseScope } from './dto/emergency-close.dto';
+import { OrderRepository } from '../orders/repositories/order.repository';
+import type { OrderType as EntityOrderType, OrderStatus } from '../orders/entities/order-entity';
+import { generateClientOrderId, mapRouterErrorToHttpException } from './mappers/order.mapper';
 
 export interface Position {
   symbol: string;
@@ -26,6 +31,9 @@ export interface DecisionEvent {
   venue: 'SPOT' | 'USD_M';
   type: 'MARKET' | 'LIMIT';
   price?: number;
+  entry?: number;
+  stopLoss?: number;
+  takeProfit?: number;
   confidence: number;
   timestamp?: number;
 }
@@ -39,8 +47,23 @@ export interface OrderUpdateEvent {
   timestamp?: number;
 }
 
+// Map request order types to entity order types
+function mapOrderType(requestType: string): EntityOrderType {
+  const typeMap: Record<string, EntityOrderType> = {
+    MARKET: 'MARKET',
+    LIMIT: 'LIMIT',
+    STOP: 'STOP_LOSS',
+    STOP_MARKET: 'STOP_LOSS',
+    STOP_LOSS: 'STOP_LOSS',
+    STOP_LOSS_LIMIT: 'STOP_LOSS_LIMIT',
+    TAKE_PROFIT: 'TAKE_PROFIT',
+    TAKE_PROFIT_LIMIT: 'TAKE_PROFIT_LIMIT',
+  };
+  return typeMap[requestType] || 'MARKET';
+}
+
 @Injectable()
-export class TradingService {
+export class TradingService implements OnModuleInit {
   private readonly logger = new Logger(TradingService.name);
   private readonly positions = new Map<string, Position>();
   private readonly activeOrders = new Map<string, OrderResponse>();
@@ -50,47 +73,86 @@ export class TradingService {
     private readonly engineClient: EngineClientService,
     private readonly routerClient: RouterClientService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly orderRepository: OrderRepository,
   ) {
     this.subscribeToEngineEvents();
   }
 
+  async onModuleInit(): Promise<void> {
+    const activeOrders = await this.orderRepository.findActiveOrders();
+    for (const order of activeOrders) {
+      this.activeOrders.set(order.orderId, {
+        orderId: order.orderId,
+        status: order.status,
+        symbol: order.symbol,
+        side: order.side,
+        type: order.type,
+        quantity: order.quantity,
+        price: order.price ?? undefined,
+        executedQty: order.filledQuantity,
+        venue: order.venue,
+      });
+    }
+    this.logger.log(`Recovered ${activeOrders.length} active orders from database`);
+  }
+
   private subscribeToEngineEvents() {
     // Subscribe to decision events from engine
-    this.engineClient.subscribe('decision.v1', (event: DecisionEvent) => {
-      this.eventEmitter.emit('decision.received', event);
+    this.engineClient.subscribe(CONTRACT_TOPICS.decisionV1, (event: DecisionEvent) => {
+      this.eventEmitter.emit(CONTRACT_TOPICS.decisionV1, event);
       this.handleDecisionEvent(event);
     });
 
     // Subscribe to order update events
-    this.engineClient.subscribe('order_update.v1', (event: OrderUpdateEvent) => {
-      this.eventEmitter.emit('order.updated', event);
+    this.engineClient.subscribe(CONTRACT_TOPICS.orderUpdateV1, (event: OrderUpdateEvent) => {
+      this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, event);
       this.handleOrderUpdate(event);
     });
   }
 
   async placeOrder(request: OrderRequest): Promise<OrderResponse> {
+    const clientOrderId = generateClientOrderId();
+    const now = new Date();
+
     try {
       this.logger.log(`Placing order: ${JSON.stringify(request)}`);
 
       const response = await this.routerClient.placeOrder(request);
 
-      // Track the active order
+      // Save order to database so it appears on /trades and /history pages
+      await this.orderRepository.save({
+        orderId: response.orderId,
+        clientOrderId,
+        symbol: request.symbol,
+        side: request.side,
+        type: mapOrderType(request.type),
+        quantity: request.quantity,
+        price: request.price || null,
+        status: response.status as OrderStatus,
+        venue: request.venue || 'SPOT',
+        timeInForce: request.timeInForce || 'GTC',
+        filledQuantity: response.executedQty || 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Track the active order in memory
       this.activeOrders.set(response.orderId, response);
 
-      // Emit order placed event
-      this.eventEmitter.emit('order.placed', response);
+      // Emit order update event (multi-tab sync via WebSocket)
+      this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, response);
 
       return response;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to place order: ${errorMessage}`);
 
-      this.eventEmitter.emit('order.failed', {
+      this.eventEmitter.emit(CONTRACT_TOPICS.orderFailedV1, {
         request,
         error: errorMessage,
       });
 
-      throw error;
+      throw mapRouterErrorToHttpException(error);
     }
   }
 
@@ -108,8 +170,8 @@ export class TradingService {
     // Remove from active orders
     this.activeOrders.delete(orderId);
 
-    // Emit order canceled event
-    this.eventEmitter.emit('order.canceled', response);
+    // Emit order update event
+    this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, response);
 
     return response;
   }
@@ -125,17 +187,89 @@ export class TradingService {
   async setAutoTrading(enabled: boolean): Promise<void> {
     this.autoTrading = enabled;
     this.logger.log(`Auto trading ${enabled ? 'enabled' : 'disabled'}`);
-    this.eventEmitter.emit('autoTrading.changed', { enabled });
+    this.eventEmitter.emit(CONTRACT_TOPICS.autoTradingV1, { enabled });
   }
 
   isAutoTradingEnabled(): boolean {
     return this.autoTrading;
   }
 
+  async emergencyClose(
+    scope: EmergencyCloseScope,
+    stopEngine: boolean = false,
+  ): Promise<{ success: boolean; closedCount: number }> {
+    this.logger.warn(`Emergency close triggered: scope=${scope}, stopEngine=${stopEngine}`);
+
+    let closedCount = 0;
+
+    try {
+      // Close positions based on scope
+      if (scope === 'ALL' || scope === 'SPOT') {
+        const spotResult = await this.routerClient.closeAllPositions({
+          is_futures: false,
+        });
+        if (spotResult.success) {
+          closedCount += 1; // Router doesn't return count, so we estimate
+        }
+      }
+
+      if (scope === 'ALL' || scope === 'FUTURES') {
+        const futuresResult = await this.routerClient.closeAllPositions({
+          is_futures: true,
+        });
+        if (futuresResult.success) {
+          closedCount += 1;
+        }
+      }
+
+      // Clear local position cache
+      if (scope === 'ALL') {
+        this.positions.clear();
+      } else {
+        // Clear only positions for the specified venue
+        const venueToFilter = scope === 'SPOT' ? 'SPOT' : 'USD_M';
+        for (const [key, position] of this.positions) {
+          if (position.venue === venueToFilter) {
+            this.positions.delete(key);
+          }
+        }
+      }
+
+      // Clear active orders
+      this.activeOrders.clear();
+
+      // Optionally stop auto trading
+      if (stopEngine) {
+        await this.setAutoTrading(false);
+      }
+
+      this.eventEmitter.emit('emergency.close', {
+        scope,
+        closedCount,
+        stopEngine,
+        timestamp: Date.now(),
+      });
+
+      this.logger.log(`Emergency close completed: closedCount=${closedCount}`);
+      return { success: true, closedCount };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Emergency close failed: ${errorMessage}`);
+
+      this.eventEmitter.emit('emergency.close.failed', {
+        scope,
+        error: errorMessage,
+        timestamp: Date.now(),
+      });
+
+      throw error;
+    }
+  }
+
   async handleDecisionEvent(decision: DecisionEvent): Promise<void> {
     if (!this.autoTrading) {
       this.logger.log(`Skipping decision - auto trading disabled`);
-      this.eventEmitter.emit('decision.skipped', {
+      this.eventEmitter.emit(CONTRACT_TOPICS.decisionSkippedV1, {
         reason: 'Auto trading disabled',
         decision,
       });
@@ -156,7 +290,7 @@ export class TradingService {
       await this.placeOrder(orderRequest);
     } catch (error) {
       this.logger.error(`Failed to execute decision: ${error}`);
-      this.eventEmitter.emit('decision.failed', {
+      this.eventEmitter.emit(CONTRACT_TOPICS.decisionFailedV1, {
         decision,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -201,7 +335,7 @@ export class TradingService {
         currentPrice: executedPrice,
         pnl: 0,
         pnlPercent: 0,
-        venue: (order as any).venue || 'SPOT',
+        venue: order.venue || 'SPOT',
         timestamp: Date.now(),
       };
       this.positions.set(key, position);
@@ -225,6 +359,6 @@ export class TradingService {
       }
     }
 
-    this.eventEmitter.emit('position.updated', this.positions.get(key));
+    this.eventEmitter.emit(CONTRACT_TOPICS.positionUpdateV1, this.positions.get(key));
   }
 }

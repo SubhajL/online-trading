@@ -77,7 +77,7 @@ async def test_clear_cache_large_keyset_chunking(monkeypatch: pytest.MonkeyPatch
 
     adapter = RedisAdapter()
     adapter._redis = fake  # type: ignore[assignment]
-    adapter._initialized = True  # type: ignore[assignment]
+    adapter._initialized = True
 
     # Expect chunked deletion (default batch_size expected ~1000 after impl)
     # Call with prefix to avoid flushdb path
@@ -101,7 +101,7 @@ async def test_mset_round_trip_normalization() -> None:
     fake = _FakeRedisStore()
     adapter = RedisAdapter()
     adapter._redis = fake  # type: ignore[assignment]
-    adapter._initialized = True  # type: ignore[assignment]
+    adapter._initialized = True
 
     # Mixed values
     pairs = {

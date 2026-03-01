@@ -35,7 +35,7 @@ describe('getWebSocketUrl', () => {
     const originalEnv = process.env.NEXT_PUBLIC_WS_URL
     delete process.env.NEXT_PUBLIC_WS_URL
 
-    expect(getWebSocketUrl()).toBe('ws://localhost:3000')
+    expect(getWebSocketUrl()).toBe('ws://localhost:3001/trading')
 
     process.env.NEXT_PUBLIC_WS_URL = originalEnv
   })

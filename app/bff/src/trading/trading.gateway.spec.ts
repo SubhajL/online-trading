@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { CommandBus } from '@nestjs/cqrs';
+import { CONTRACT_TOPICS } from '../contracts/topics';
 
 describe('TradingGateway', () => {
   let gateway: TradingGateway;
@@ -183,9 +184,9 @@ describe('TradingGateway', () => {
         status: 'FILLED',
       };
 
-      // Get the callback registered for order.placed event
+      // Get the callback registered for order_update.v1 event
       const eventCallback = mockEventEmitter.on.mock.calls.find(
-        (call) => call[0] === 'order.placed',
+        (call) => call[0] === CONTRACT_TOPICS.orderUpdateV1,
       )?.[1];
 
       expect(eventCallback).toBeDefined();
@@ -194,7 +195,7 @@ describe('TradingGateway', () => {
       eventCallback(orderEvent);
 
       expect(mockServer.to).toHaveBeenCalledWith('trading');
-      expect(mockServer.emit).toHaveBeenCalledWith('order.placed', orderEvent);
+      expect(mockServer.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderEvent);
     });
 
     it('should forward position update events', () => {
@@ -205,9 +206,9 @@ describe('TradingGateway', () => {
         pnl: 50,
       };
 
-      // Get the callback registered for position.updated event
+      // Get the callback registered for position_update.v1 event
       const eventCallback = mockEventEmitter.on.mock.calls.find(
-        (call) => call[0] === 'position.updated',
+        (call) => call[0] === CONTRACT_TOPICS.positionUpdateV1,
       )?.[1];
 
       expect(eventCallback).toBeDefined();
@@ -216,7 +217,7 @@ describe('TradingGateway', () => {
       eventCallback(positionEvent);
 
       expect(mockServer.to).toHaveBeenCalledWith('trading');
-      expect(mockServer.emit).toHaveBeenCalledWith('position.updated', positionEvent);
+      expect(mockServer.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.positionUpdateV1, positionEvent);
     });
 
     it('should forward auto trading status changes', () => {
@@ -224,9 +225,9 @@ describe('TradingGateway', () => {
         enabled: true,
       };
 
-      // Get the callback registered for autoTrading.changed event
+      // Get the callback registered for auto_trading.v1 event
       const eventCallback = mockEventEmitter.on.mock.calls.find(
-        (call) => call[0] === 'autoTrading.changed',
+        (call) => call[0] === CONTRACT_TOPICS.autoTradingV1,
       )?.[1];
 
       expect(eventCallback).toBeDefined();
@@ -235,7 +236,7 @@ describe('TradingGateway', () => {
       eventCallback(autoTradingEvent);
 
       expect(mockServer.to).toHaveBeenCalledWith('trading');
-      expect(mockServer.emit).toHaveBeenCalledWith('autoTrading.changed', autoTradingEvent);
+      expect(mockServer.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.autoTradingV1, autoTradingEvent);
     });
   });
 

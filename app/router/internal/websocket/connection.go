@@ -208,8 +208,7 @@ func (c *Connection) Connect(ctx context.Context) error {
 		c.pongMu.Lock()
 		c.lastPongTime = time.Now()
 		c.pongMu.Unlock()
-		conn.SetReadDeadline(time.Now().Add(c.readTimeout))
-		return nil
+		return conn.SetReadDeadline(time.Now().Add(c.readTimeout))
 	})
 
 	// Initialize pong time
@@ -218,7 +217,11 @@ func (c *Connection) Connect(ctx context.Context) error {
 	c.pongMu.Unlock()
 
 	// Set initial read deadline
-	conn.SetReadDeadline(time.Now().Add(c.readTimeout))
+	if err := conn.SetReadDeadline(time.Now().Add(c.readTimeout)); err != nil {
+		_ = conn.Close()
+		c.setState(StateDisconnected)
+		return err
+	}
 
 	c.setState(StateConnected)
 
@@ -252,7 +255,9 @@ func (c *Connection) Send(ctx context.Context, data []byte) error {
 	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
 		deadline = ctxDeadline
 	}
-	conn.SetWriteDeadline(deadline)
+	if err := conn.SetWriteDeadline(deadline); err != nil {
+		return err
+	}
 
 	// Write message - SetWriteDeadline will handle timeout
 	err := conn.WriteMessage(websocket.TextMessage, data)
@@ -300,7 +305,10 @@ func (c *Connection) Close() error {
 
 		go func() {
 			c.writeMu.Lock()
-			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			_ = conn.WriteMessage(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+			)
 			c.writeMu.Unlock()
 			done <- true
 		}()
@@ -312,7 +320,7 @@ func (c *Connection) Close() error {
 		}
 		cancel()
 
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	// Wait for goroutines to finish
@@ -379,7 +387,11 @@ func (c *Connection) startPingLoop() {
 
 			// Send ping (thread-safe)
 			c.writeMu.Lock()
-			conn.SetWriteDeadline(time.Now().Add(c.writeTimeout))
+			if err := conn.SetWriteDeadline(time.Now().Add(c.writeTimeout)); err != nil {
+				c.writeMu.Unlock()
+				c.handleConnectionError(err)
+				return
+			}
 			err := conn.WriteMessage(websocket.PingMessage, nil)
 			c.writeMu.Unlock()
 

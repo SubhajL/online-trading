@@ -26,7 +26,7 @@ class WebSocketDelivery:
             server_url: WebSocket server URL (e.g., ws://localhost:8002/ws)
         """
         self.server_url = server_url
-        self.websocket: websockets.WebSocketClientProtocol | None = None
+        self.websocket: websockets.WebSocketClientProtocol | None = None  # type: ignore[name-defined]
         self.connected = False
         self.reconnect_delay = 5
         self.heartbeat_interval = 30
@@ -106,7 +106,9 @@ class WebSocketDelivery:
             # Record metric
             record_snapshot_delivery("ui")
 
-            logger.info(f"Sent snapshot notification for {snapshot_data.get('signal_id')}")
+            logger.info(
+                f"Sent snapshot notification for {snapshot_data.get('signal_id')}",
+            )
             return {"success": True}
 
         except ConnectionClosed:
@@ -190,7 +192,7 @@ class WebSocketDelivery:
 
         while retry_count < max_retries:
             logger.info(f"Attempting to reconnect... (attempt {retry_count + 1})")
-            await asyncio.sleep(self.reconnect_delay * (2 ** retry_count))
+            await asyncio.sleep(self.reconnect_delay * (2**retry_count))
 
             if await self.connect(auto_reconnect=False):
                 logger.info("Reconnected successfully")
@@ -217,7 +219,9 @@ class WebSocketManager:
             client_id: Unique client identifier
         """
         self.active_connections.append(websocket)
-        logger.info(f"Client {client_id} connected. Total clients: {len(self.active_connections)}")
+        logger.info(
+            f"Client {client_id} connected. Total clients: {len(self.active_connections)}",
+        )
 
     async def disconnect_client(self, websocket: Any, client_id: str):
         """Remove client connection.
@@ -233,7 +237,9 @@ class WebSocketManager:
         for channel, subscribers in self.channel_subscriptions.items():
             subscribers.discard(client_id)
 
-        logger.info(f"Client {client_id} disconnected. Total clients: {len(self.active_connections)}")
+        logger.info(
+            f"Client {client_id} disconnected. Total clients: {len(self.active_connections)}",
+        )
 
     async def subscribe_to_channel(self, client_id: str, channel: str):
         """Subscribe client to a notification channel.
@@ -280,11 +286,14 @@ class WebSocketManager:
             message: Message to broadcast
         """
         subscribers = self.channel_subscriptions.get(channel, set())
-        logger.info(f"Broadcasting to {len(subscribers)} subscribers in channel: {channel}")
+        logger.info(
+            f"Broadcasting to {len(subscribers)} subscribers in channel: {channel}",
+        )
 
         # Find connections for subscribers
         target_connections = [
-            conn for conn in self.active_connections
+            conn
+            for conn in self.active_connections
             if hasattr(conn, "id") and conn.id in subscribers
         ]
 

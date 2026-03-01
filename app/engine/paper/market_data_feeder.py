@@ -61,7 +61,8 @@ class MarketDataFeeder:
                     key = f"{symbol}_{timeframe.value}"
 
                     dataset = create_dataset(
-                        self.data_source, **self.data_source_kwargs,
+                        self.data_source,
+                        **self.data_source_kwargs,
                     )
                     streaming_dataset = StreamingDataset(dataset)
                     self.datasets[key] = streaming_dataset
@@ -80,7 +81,10 @@ class MarketDataFeeder:
             raise
 
     async def start_historical_feed(
-        self, start_date: datetime, end_date: datetime, speed_multiplier: float = 1.0,
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        speed_multiplier: float = 1.0,
     ):
         """Start historical data feed for testing"""
         if self.is_running:
@@ -95,7 +99,11 @@ class MarketDataFeeder:
                 for timeframe in self.timeframes:
                     task = asyncio.create_task(
                         self._stream_historical_candles(
-                            symbol, timeframe, start_date, end_date, speed_multiplier,
+                            symbol,
+                            timeframe,
+                            start_date,
+                            end_date,
+                            speed_multiplier,
                         ),
                     )
                     self.tasks.append(task)
@@ -108,7 +116,10 @@ class MarketDataFeeder:
             raise
 
     async def _stream_candles(
-        self, symbol: str, timeframe: TimeFrame, streaming_dataset: StreamingDataset,
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+        streaming_dataset: StreamingDataset,
     ):
         """Stream live candles for a symbol/timeframe"""
         logger.info(f"Starting live stream for {symbol} {timeframe.value}")

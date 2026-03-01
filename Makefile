@@ -17,7 +17,7 @@ SHELL := /bin/bash
 
 # Project configuration
 PROJECT_NAME := online-trading-platform
-PYTHON_VERSION := 3.13
+PYTHON_VERSION := 3.11
 NODE_VERSION := 18
 GO_VERSION := 1.21
 
@@ -61,11 +61,17 @@ setup: setup-python setup-node setup-go setup-git-hooks ## Complete development 
 .PHONY: setup-python
 setup-python: ## Setup Python environment for engine
 	@echo "$(BLUE)🐍 Setting up Python environment...$(RESET)"
+	@ACTUAL_PY=$$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"); \
+	if [ "$$ACTUAL_PY" != "$(PYTHON_VERSION)" ]; then \
+		echo "$(RED)ERROR: Python $(PYTHON_VERSION) required, found $$ACTUAL_PY$(RESET)"; \
+		echo "Install Python $(PYTHON_VERSION) via pyenv: pyenv install $(PYTHON_VERSION) && pyenv local $(PYTHON_VERSION)"; \
+		exit 1; \
+	fi
 	@cd $(ENGINE_DIR) && \
-		python -m venv .venv && \
+		python3 -m venv .venv && \
 		source .venv/bin/activate && \
 		pip install --upgrade pip && \
-		pip install -e ".[dev]"
+		pip install -r requirements-dev.txt
 	@echo "$(GREEN)✅ Python environment ready$(RESET)"
 
 .PHONY: setup-node
@@ -107,20 +113,21 @@ dev: ## Start all services in development mode
 .PHONY: dev-engine
 dev-engine: ## Start Python engine in development mode
 	@echo "$(BLUE)🐍 Starting Python engine...$(RESET)"
-	@cd $(ENGINE_DIR) && \
-		source .venv/bin/activate && \
-		uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	@set -a && source .env 2>/dev/null; set +a && \
+		source $(ENGINE_DIR)/.venv/bin/activate && \
+		PYTHONPATH=. uvicorn app.engine.main:app --reload --host 0.0.0.0 --port 8000
 
 .PHONY: dev-router
 dev-router: ## Start Go router in development mode
 	@echo "$(BLUE)🔧 Starting Go router...$(RESET)"
 	@cd $(ROUTER_DIR) && \
-		go run main.go
+		PORT=8001 go run cmd/router/main.go
 
 .PHONY: dev-bff
 dev-bff: ## Start NestJS BFF in development mode
 	@echo "$(BLUE)📱 Starting NestJS BFF...$(RESET)"
-	@cd $(BFF_DIR) && \
+	@set -a && source .env 2>/dev/null; set +a && \
+		cd $(BFF_DIR) && \
 		pnpm run start:dev
 
 .PHONY: dev-ui
@@ -289,7 +296,18 @@ lint-engine: ## Run Python linting
 	@cd $(ENGINE_DIR) && \
 		source .venv/bin/activate && \
 		ruff check . && \
-		mypy .
+		python -m mypy --config-file mypy.ini --follow-imports=skip \
+			main.py \
+			decision/decision_publisher.py \
+			execution/router_execution_subscriber.py \
+			adapters/alert/alert_subscriber.py \
+			adapters/alert/signal_emitter.py \
+			retest/engine.py \
+			adapters/db/timescale_adapter.py \
+			adapters/db/migrations.py \
+			adapters/db/connection_pool.py \
+			core/signal_cooldown.py \
+			core/zone_identity.py
 
 .PHONY: lint-router
 lint-router: ## Run Go linting
@@ -356,7 +374,7 @@ db-migrate: ## Run database migrations
 	@echo "$(BLUE)🗄️  Running database migrations...$(RESET)"
 	@cd $(ENGINE_DIR) && \
 		source .venv/bin/activate && \
-		alembic upgrade head
+		PYTHONPATH=../.. python scripts/migrate_db.py
 
 .PHONY: db-migrate-create
 db-migrate-create: ## Create new database migration
@@ -579,6 +597,102 @@ contracts: ## Generate typed models from JSONSchema contracts
 	@echo "$(BLUE)📝 Generating contract models from JSONSchema...$(RESET)"
 	@python3 scripts/codegen_contracts.py
 	@echo "$(GREEN)✅ Contract generation complete$(RESET)"
+
+# ==================================================================================
+# Paper Trading
+# ==================================================================================
+
+.PHONY: paper-live
+paper-live: ## Run live paper trading with testnet WebSocket
+	@echo "$(BLUE)📄 Starting live paper trading...$(RESET)"
+	@source venv/bin/activate && \
+		RUN_LIVE_PAPER_TRADING=1 PYTHONPATH=. python -m app.engine.paper.live_harness
+
+.PHONY: paper-compare-live
+paper-compare-live: ## Run paper trading + Captain signal comparison
+	@echo "$(BLUE)📊 Starting paper trading with Captain comparison...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/live_paper_vs_captain.py --source captain
+
+.PHONY: paper-test
+paper-test: ## Run paper trading unit tests
+	@echo "$(BLUE)🧪 Running paper trading tests...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python -m pytest \
+			app/engine/tests/unit/paper/ \
+			-v --tb=short --no-cov
+
+.PHONY: paper-test-live
+paper-test-live: ## Run live paper trading integration tests (requires RUN_LIVE_PAPER_TRADING=1)
+	@echo "$(BLUE)🌐 Running live paper trading tests...$(RESET)"
+	@source venv/bin/activate && \
+		RUN_LIVE_PAPER_TRADING=1 PYTHONPATH=. python -m pytest \
+			app/engine/tests/integration/test_live_paper_trading.py \
+			-v --tb=short --no-cov
+
+# ==================================================================================
+# Captain Trading Benchmark
+# ==================================================================================
+
+# Captain benchmark configuration (can be overridden)
+CAPTAIN_LIMIT ?= 100
+CAPTAIN_HOURS ?= 168
+CAPTAIN_PRESET ?= moderate
+CAPTAIN_SOURCE ?= captain
+
+.PHONY: captain-ingest
+captain-ingest: ## Ingest Captain Trading signals from Telegram
+	@echo "$(BLUE)📥 Ingesting Captain Trading signals...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_ingest.py --limit $(CAPTAIN_LIMIT) --source $(CAPTAIN_SOURCE)
+
+.PHONY: captain-listen
+captain-listen: ## Listen for live Captain Trading signals
+	@echo "$(BLUE)📡 Listening for live Captain Trading signals...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_ingest.py --listen
+
+.PHONY: captain-validate
+captain-validate: ## Validate Captain signals against internal data
+	@echo "$(BLUE)✅ Validating Captain Trading signals...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_validate.py --hours $(CAPTAIN_HOURS) --source $(CAPTAIN_SOURCE)
+
+.PHONY: captain-report
+captain-report: ## Generate Captain benchmark report
+	@echo "$(BLUE)📊 Generating Captain benchmark report...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_report.py --hours $(CAPTAIN_HOURS) --outcomes --json
+
+.PHONY: captain-sweep
+captain-sweep: ## Run robustness sweep on Captain signals
+	@echo "$(BLUE)🔬 Running robustness sweep...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python scripts/captain_benchmark_report.py --hours $(CAPTAIN_HOURS) --outcomes --sweep --sweep-preset $(CAPTAIN_PRESET) --json
+
+.PHONY: captain-benchmark
+captain-benchmark: captain-validate captain-report ## Run full Captain benchmark pipeline
+	@echo "$(GREEN)✅ Captain benchmark complete. See reports/captain_benchmark_*.json$(RESET)"
+
+.PHONY: captain-full
+captain-full: captain-validate captain-sweep ## Run full benchmark with robustness sweep
+	@echo "$(GREEN)✅ Captain full benchmark with sweep complete$(RESET)"
+
+.PHONY: captain-test
+captain-test: ## Run Captain benchmark unit tests
+	@echo "$(BLUE)🧪 Running Captain benchmark tests...$(RESET)"
+	@source venv/bin/activate && \
+		PYTHONPATH=. python -m pytest \
+			app/engine/tests/unit/test_captain_*.py \
+			app/engine/tests/unit/test_benchmark_*.py \
+			app/engine/tests/unit/test_validation_snapshot.py \
+			app/engine/tests/unit/test_fill_model.py \
+			app/engine/tests/unit/test_robustness_sweeps.py \
+			app/engine/tests/unit/test_outcome_comparison.py \
+			app/engine/tests/unit/test_outcome_eval.py \
+			app/engine/tests/unit/test_alert_subscriber.py \
+			app/engine/tests/unit/test_telegram_alerts.py \
+			-v --tb=short
 
 # Prevent make from interpreting file names as targets
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | awk -F':' '{print $$1}')

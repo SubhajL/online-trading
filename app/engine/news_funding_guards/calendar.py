@@ -53,7 +53,7 @@ async def load_calendar_events(
 
 def parse_csv_events(file_path: Path) -> list[EconomicEvent]:
     """Parse events from CSV file."""
-    events = []
+    events: list[EconomicEvent] = []
 
     if not file_path.exists():
         logger.warning(f"Calendar CSV file not found: {file_path}")
@@ -133,17 +133,17 @@ class CalendarManager:
         try:
             if self.source_type == "csv":
                 self._events = await load_calendar_events(
-                    self.csv_path, source_type="csv",
+                    self.csv_path,
+                    source_type="csv",
                 )
             elif self.source_type == "google_sheets":
                 self._events = await load_calendar_events(
-                    self.google_sheets_id, source_type="google_sheets",
+                    self.google_sheets_id,
+                    source_type="google_sheets",
                 )
 
             # Filter for tracked event types
-            self._events = [
-                e for e in self._events if e.event_type in self.tracked_events
-            ]
+            self._events = [e for e in self._events if e.event_type in self.tracked_events]
 
             # Filter for high impact
             if self.config.get("high_impact_only", True):
@@ -164,9 +164,7 @@ class CalendarManager:
             await self.load_events()
             return
 
-        age_hours = (
-            datetime.now(UTC) - self._last_loaded
-        ).total_seconds() / 3600
+        age_hours = (datetime.now(UTC) - self._last_loaded).total_seconds() / 3600
         if age_hours > max_age_hours:
             await self.load_events()
 
@@ -179,9 +177,7 @@ class CalendarManager:
         cutoff_time = current_time + timedelta(hours=hours_ahead)
 
         upcoming = [
-            event
-            for event in self._events
-            if current_time <= event.timestamp <= cutoff_time
+            event for event in self._events if current_time <= event.timestamp <= cutoff_time
         ]
 
         # Sort by timestamp

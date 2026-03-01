@@ -405,27 +405,19 @@ class TechnicalIndicatorsCalculator:
             # Calculate EMAs
             if 9 in ema_periods:
                 ema_9_values = cls.ema(close_prices, 9)
-                indicators.ema_9 = (
-                    ema_9_values[-1] if ema_9_values[-1] is not None else None
-                )
+                indicators.ema_9 = ema_9_values[-1] if ema_9_values[-1] is not None else None
 
             if 21 in ema_periods:
                 ema_21_values = cls.ema(close_prices, 21)
-                indicators.ema_21 = (
-                    ema_21_values[-1] if ema_21_values[-1] is not None else None
-                )
+                indicators.ema_21 = ema_21_values[-1] if ema_21_values[-1] is not None else None
 
             if 50 in ema_periods:
                 ema_50_values = cls.ema(close_prices, 50)
-                indicators.ema_50 = (
-                    ema_50_values[-1] if ema_50_values[-1] is not None else None
-                )
+                indicators.ema_50 = ema_50_values[-1] if ema_50_values[-1] is not None else None
 
             if 200 in ema_periods:
                 ema_200_values = cls.ema(close_prices, 200)
-                indicators.ema_200 = (
-                    ema_200_values[-1] if ema_200_values[-1] is not None else None
-                )
+                indicators.ema_200 = ema_200_values[-1] if ema_200_values[-1] is not None else None
 
             # Calculate RSI
             rsi_values = cls.rsi(close_prices, rsi_period)
@@ -439,12 +431,8 @@ class TechnicalIndicatorsCalculator:
                 macd_params[2],
             )
             indicators.macd_line = macd_line[-1] if macd_line[-1] is not None else None
-            indicators.macd_signal = (
-                signal_line[-1] if signal_line[-1] is not None else None
-            )
-            indicators.macd_histogram = (
-                histogram[-1] if histogram[-1] is not None else None
-            )
+            indicators.macd_signal = signal_line[-1] if signal_line[-1] is not None else None
+            indicators.macd_histogram = histogram[-1] if histogram[-1] is not None else None
 
             # Calculate ATR
             atr_values = cls.atr(candles, atr_period)
@@ -457,9 +445,7 @@ class TechnicalIndicatorsCalculator:
                 bb_std_dev,
             )
             indicators.bb_upper = upper_band[-1] if upper_band[-1] is not None else None
-            indicators.bb_middle = (
-                middle_band[-1] if middle_band[-1] is not None else None
-            )
+            indicators.bb_middle = middle_band[-1] if middle_band[-1] is not None else None
             indicators.bb_lower = lower_band[-1] if lower_band[-1] is not None else None
 
             # Calculate BB width and percent
@@ -511,7 +497,10 @@ def calculate_macd(
 ) -> tuple[list[Decimal | None], list[Decimal | None], list[Decimal | None]]:
     """Calculate MACD"""
     return TechnicalIndicatorsCalculator.macd(
-        values, fast_period, slow_period, signal_period,
+        values,
+        fast_period,
+        slow_period,
+        signal_period,
     )
 
 

@@ -47,11 +47,7 @@ class PluginManager:
 
                 # Find plugin classes
                 for name, obj in inspect.getmembers(module):
-                    if (
-                        inspect.isclass(obj)
-                        and issubclass(obj, BasePlugin)
-                        and obj != BasePlugin
-                    ):
+                    if inspect.isclass(obj) and issubclass(obj, BasePlugin) and obj != BasePlugin:
                         await self.register_plugin(obj)
 
             except Exception as e:

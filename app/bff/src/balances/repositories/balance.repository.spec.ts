@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { BalanceRepository } from './balance.repository';
 import { BalanceEntity } from '../entities/balance-entity';
 import { Repository } from 'typeorm';
+import { Venue } from '../dto/get-balances.dto';
 
 describe('BalanceRepository', () => {
   let balanceRepository: BalanceRepository;
@@ -86,7 +87,7 @@ describe('BalanceRepository', () => {
 
       mockQueryBuilder.getMany.mockResolvedValue(mockBalances);
 
-      const result = await balanceRepository.findAll('USD_M');
+      const result = await balanceRepository.findAll(Venue.USD_M);
 
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('balance.venue = :venue', {
         venue: 'USD_M',

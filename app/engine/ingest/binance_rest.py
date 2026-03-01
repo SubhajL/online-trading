@@ -28,6 +28,7 @@ from ..resilience.thread_safe_circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
 )
+from .bar_index import bar_index_from_open_time
 
 logger = logging.getLogger(__name__)
 
@@ -112,9 +113,7 @@ class BinanceRestClient:
 
             # Remove timestamps older than 1 minute
             cutoff = now - 60
-            self._request_timestamps = [
-                ts for ts in self._request_timestamps if ts > cutoff
-            ]
+            self._request_timestamps = [ts for ts in self._request_timestamps if ts > cutoff]
 
             # Check if we're at the rate limit
             if len(self._request_timestamps) >= self.rate_limit_per_minute:
@@ -260,14 +259,10 @@ class BinanceRestClient:
                 "consecutive_failures": stats.consecutive_failures,
                 "consecutive_successes": stats.consecutive_successes,
                 "last_failure_time": (
-                    stats.last_failure_time.isoformat()
-                    if stats.last_failure_time
-                    else None
+                    stats.last_failure_time.isoformat() if stats.last_failure_time else None
                 ),
                 "last_success_time": (
-                    stats.last_success_time.isoformat()
-                    if stats.last_success_time
-                    else None
+                    stats.last_success_time.isoformat() if stats.last_success_time else None
                 ),
             }
         return metrics
@@ -342,11 +337,13 @@ class BinanceRestClient:
 
         candles = []
         for kline in data:
+            open_time = datetime.fromtimestamp(int(kline[0]) / 1000, tz=UTC)
             candle = Candle(
+                venue="SPOT",
                 symbol=symbol,
                 timeframe=timeframe,
-                open_time=datetime.fromtimestamp(kline[0] / 1000),
-                close_time=datetime.fromtimestamp(kline[6] / 1000),
+                open_time=open_time,
+                close_time=datetime.fromtimestamp(int(kline[6]) / 1000, tz=UTC),
                 open_price=Decimal(kline[1]),
                 high_price=Decimal(kline[2]),
                 low_price=Decimal(kline[3]),
@@ -356,6 +353,7 @@ class BinanceRestClient:
                 trades=int(kline[8]),
                 taker_buy_base_volume=Decimal(kline[9]),
                 taker_buy_quote_volume=Decimal(kline[10]),
+                bar_index=bar_index_from_open_time(open_time, timeframe),
             )
             candles.append(candle)
 
@@ -437,7 +435,7 @@ class BinanceRestClient:
     async def get_open_orders(
         self,
         symbol: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> Any:
         """Get open orders"""
         params = {}
         if symbol:
@@ -454,9 +452,9 @@ class BinanceRestClient:
         symbol: str,
         limit: int = 500,
         order_id: int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> Any:
         """Get all orders for a symbol"""
-        params = {"symbol": symbol, "limit": limit}
+        params: dict[str, Any] = {"symbol": symbol, "limit": limit}
         if order_id:
             params["orderId"] = order_id
         return await self._make_request("GET", "/api/v3/allOrders", params, signed=True)
@@ -506,7 +504,7 @@ class BinanceRestClient:
         params = {"symbol": symbol, "orderId": order_id}
         return await self._make_request("DELETE", "/api/v3/order", params, signed=True)
 
-    async def cancel_all_orders(self, symbol: str) -> list[dict[str, Any]]:
+    async def cancel_all_orders(self, symbol: str) -> Any:
         """Cancel all open orders for a symbol"""
         params = {"symbol": symbol}
         return await self._make_request(

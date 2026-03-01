@@ -50,7 +50,11 @@ class CandleDataset:
         """Get list of available symbols."""
         raise NotImplementedError
 
-    def get_date_range(self, symbol: str, timeframe: TimeFrame) -> tuple[datetime, datetime]:
+    def get_date_range(
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         raise NotImplementedError
 
@@ -115,16 +119,19 @@ class TimescaleDataset(CandleDataset):
                     ORDER BY open_time ASC
                 """)
 
-                result = session.execute(query, {
-                    "symbol": symbol,
-                    "timeframe": timeframe.value,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                })
+                result = session.execute(
+                    query,
+                    {
+                        "symbol": symbol,
+                        "timeframe": timeframe.value,
+                        "start_time": start_time,
+                        "end_time": end_time,
+                    },
+                )
 
                 candles = []
                 for row in result:
-                    candle = Candle(
+                    candle = Candle(  # type: ignore[call-arg]
                         symbol=row.symbol,
                         timeframe=TimeFrame(row.tf),
                         open_time=row.open_time,
@@ -141,7 +148,9 @@ class TimescaleDataset(CandleDataset):
                     )
                     candles.append(candle)
 
-                logger.info(f"Loaded {len(candles)} candles for {symbol} {timeframe.value}")
+                logger.info(
+                    f"Loaded {len(candles)} candles for {symbol} {timeframe.value}",
+                )
                 return candles
 
         except Exception as e:
@@ -152,21 +161,30 @@ class TimescaleDataset(CandleDataset):
         """Get list of available symbols."""
         try:
             with self.Session() as session:
-                result = session.execute(text("SELECT DISTINCT symbol FROM candles ORDER BY symbol"))
+                result = session.execute(
+                    text("SELECT DISTINCT symbol FROM candles ORDER BY symbol"),
+                )
                 return [row[0] for row in result]
         except Exception as e:
             logger.error(f"Error getting symbols: {e}")
             return []
 
-    def get_date_range(self, symbol: str, timeframe: TimeFrame) -> tuple[datetime, datetime]:
+    def get_date_range(
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         try:
             with self.Session() as session:
-                result = session.execute(text("""
+                result = session.execute(
+                    text("""
                     SELECT MIN(open_time), MAX(open_time)
                     FROM candles
                     WHERE symbol = :symbol AND tf = :timeframe
-                """), {"symbol": symbol, "timeframe": timeframe.value})
+                """),
+                    {"symbol": symbol, "timeframe": timeframe.value},
+                )
 
                 row = result.first()
                 if row and row[0] and row[1]:
@@ -247,13 +265,19 @@ class CSVDataset(CandleDataset):
 
                     try:
                         # Try ISO format first
-                        open_time = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                        open_time = datetime.fromisoformat(
+                            timestamp_str.replace("Z", "+00:00"),
+                        )
                     except ValueError:
                         # Try Unix timestamp
                         try:
-                            open_time = datetime.fromtimestamp(int(timestamp_str) / 1000)
+                            open_time = datetime.fromtimestamp(
+                                int(timestamp_str) / 1000,
+                            )
                         except ValueError:
-                            logger.warning(f"Could not parse timestamp: {timestamp_str}")
+                            logger.warning(
+                                f"Could not parse timestamp: {timestamp_str}",
+                            )
                             continue
 
                     # Filter by date range
@@ -263,7 +287,7 @@ class CSVDataset(CandleDataset):
                     # Calculate close time (approximate)
                     close_time = self._calculate_close_time(open_time, timeframe)
 
-                    candle = Candle(
+                    candle = Candle(  # type: ignore[call-arg]
                         symbol=symbol,
                         timeframe=timeframe,
                         open_time=open_time,
@@ -276,7 +300,9 @@ class CSVDataset(CandleDataset):
                         quote_volume=Decimal(row.get("quote_volume", "0")),
                         trades=int(row.get("trades", "0")),
                         taker_buy_base_volume=Decimal(row.get("taker_buy_volume", "0")),
-                        taker_buy_quote_volume=Decimal(row.get("taker_buy_quote_volume", "0")),
+                        taker_buy_quote_volume=Decimal(
+                            row.get("taker_buy_quote_volume", "0"),
+                        ),
                     )
                     candles.append(candle)
 
@@ -287,7 +313,11 @@ class CSVDataset(CandleDataset):
             logger.error(f"Error loading CSV file {csv_path}: {e}")
             return []
 
-    def _calculate_close_time(self, open_time: datetime, timeframe: TimeFrame) -> datetime:
+    def _calculate_close_time(
+        self,
+        open_time: datetime,
+        timeframe: TimeFrame,
+    ) -> datetime:
         """
         Calculate close time based on open time and timeframe.
 
@@ -327,7 +357,11 @@ class CSVDataset(CandleDataset):
 
         return sorted(list(symbols))
 
-    def get_date_range(self, symbol: str, timeframe: TimeFrame) -> tuple[datetime, datetime]:
+    def get_date_range(
+        self,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> tuple[datetime, datetime]:
         """Get available date range for symbol."""
         csv_path = self._get_csv_path(symbol, timeframe)
 
@@ -347,15 +381,21 @@ class CSVDataset(CandleDataset):
                 last_row = rows[-1]
 
                 # Parse timestamps
-                first_time_str = first_row.get("timestamp") or first_row.get("open_time")
+                first_time_str = first_row.get("timestamp") or first_row.get(
+                    "open_time",
+                )
                 last_time_str = last_row.get("timestamp") or last_row.get("open_time")
 
                 if not first_time_str or not last_time_str:
                     return datetime(2020, 1, 1), datetime.now()
 
                 try:
-                    first_time = datetime.fromisoformat(first_time_str.replace("Z", "+00:00"))
-                    last_time = datetime.fromisoformat(last_time_str.replace("Z", "+00:00"))
+                    first_time = datetime.fromisoformat(
+                        first_time_str.replace("Z", "+00:00"),
+                    )
+                    last_time = datetime.fromisoformat(
+                        last_time_str.replace("Z", "+00:00"),
+                    )
                 except ValueError:
                     # Try Unix timestamp
                     first_time = datetime.fromtimestamp(int(first_time_str) / 1000)
@@ -401,7 +441,10 @@ class StreamingDataset:
             end_time: End time
         """
         self.current_candles = self.dataset.load_candles(
-            symbol, timeframe, start_time, end_time,
+            symbol,
+            timeframe,
+            start_time,
+            end_time,
         )
         self.current_index = 0
         logger.info(f"Started streaming {len(self.current_candles)} candles")
@@ -473,8 +516,16 @@ def export_candles_to_csv(
     """
     with open(output_path, "w", newline="") as file:
         fieldnames = [
-            "timestamp", "open", "high", "low", "close", "volume",
-            "quote_volume", "trades", "taker_buy_volume", "taker_buy_quote_volume",
+            "timestamp",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "quote_volume",
+            "trades",
+            "taker_buy_volume",
+            "taker_buy_quote_volume",
         ]
 
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -483,17 +534,19 @@ def export_candles_to_csv(
             writer.writeheader()
 
         for candle in candles:
-            writer.writerow({
-                "timestamp": candle.open_time.isoformat(),
-                "open": str(candle.open_price),
-                "high": str(candle.high_price),
-                "low": str(candle.low_price),
-                "close": str(candle.close_price),
-                "volume": str(candle.volume),
-                "quote_volume": str(candle.quote_volume),
-                "trades": candle.trades,
-                "taker_buy_volume": str(candle.taker_buy_base_volume),
-                "taker_buy_quote_volume": str(candle.taker_buy_quote_volume),
-            })
+            writer.writerow(
+                {
+                    "timestamp": candle.open_time.isoformat(),
+                    "open": str(candle.open_price),
+                    "high": str(candle.high_price),
+                    "low": str(candle.low_price),
+                    "close": str(candle.close_price),
+                    "volume": str(candle.volume),
+                    "quote_volume": str(candle.quote_volume),
+                    "trades": candle.trades,
+                    "taker_buy_volume": str(candle.taker_buy_base_volume),
+                    "taker_buy_quote_volume": str(candle.taker_buy_quote_volume),
+                },
+            )
 
     logger.info(f"Exported {len(candles)} candles to {output_path}")

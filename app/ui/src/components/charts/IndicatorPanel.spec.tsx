@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IndicatorPanel } from './IndicatorPanel'
 import type { IndicatorType } from '@/types'
@@ -122,7 +122,6 @@ describe('IndicatorPanel', () => {
 
   describe('interactions', () => {
     it('should call onToggleIndicator when checkbox clicked', async () => {
-      const user = userEvent.setup()
       render(
         <IndicatorPanel
           activeIndicators={[]}
@@ -132,7 +131,7 @@ describe('IndicatorPanel', () => {
       )
 
       const emaCheckbox = screen.getByLabelText('EMA')
-      await user.click(emaCheckbox)
+      fireEvent.click(emaCheckbox)
 
       expect(mockOnToggleIndicator).toHaveBeenCalledWith('EMA')
     })

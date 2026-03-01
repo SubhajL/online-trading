@@ -376,7 +376,10 @@ export function getSpinnerStyles(
 // New helpers
 export type IconSize = 'sm' | 'md' | 'lg'
 
-export function getIconSizeStyles(size: IconSize, tokens: DesignTokens): {
+export function getIconSizeStyles(
+  size: IconSize,
+  tokens: DesignTokens,
+): {
   width: string
   height: string
 } {
@@ -417,7 +420,10 @@ export function getPanelHeaderStyles(tokens: DesignTokens): {
   }
 }
 
-export function getPanelItemStyles(isActive: boolean, tokens: DesignTokens): {
+export function getPanelItemStyles(
+  isActive: boolean,
+  tokens: DesignTokens,
+): {
   display: 'flex'
   alignItems: 'center'
   padding: string
@@ -571,7 +577,10 @@ export function getPageHeadingStyles(tokens: DesignTokens): {
   }
 }
 
-export function getTabButtonStyles(isActive: boolean, tokens: DesignTokens): {
+export function getTabButtonStyles(
+  isActive: boolean,
+  tokens: DesignTokens,
+): {
   backgroundColor: string
   color: string
   padding: string

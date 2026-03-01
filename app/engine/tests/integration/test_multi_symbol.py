@@ -7,17 +7,17 @@ Tests system behavior with multiple trading symbols running concurrently.
 import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import List, Dict, Any
 import json
+from typing import Any, Dict, List
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.engine.models import Candle, TimeFrame
 from app.engine.monitoring.metrics import (
     record_candle_processed,
-    record_signal_generated,
     record_order_placed,
+    record_signal_generated,
 )
 
 
@@ -146,6 +146,7 @@ class MultiSymbolTestFramework:
         close_price = open_price * Decimal("1.0005")
 
         return Candle(
+            venue="spot",
             symbol=symbol,
             timeframe=timeframe,
             open_time=base_time + timedelta(minutes=15 * index),
@@ -306,39 +307,26 @@ class TestMultiSymbolIntegration:
         await framework.setup()
 
         try:
-            # Track processing times
-            processing_times = {symbol: [] for symbol in framework.symbols}
-
-            async def timed_handler(event):
-                start = asyncio.get_event_loop().time()
-                await framework._handle_candle(event)
-                elapsed = asyncio.get_event_loop().time() - start
-
-                symbol = event["data"]["symbol"]
-                processing_times[symbol].append(elapsed)
-
-            # Replace handler
-            await framework.event_bus.unsubscribe("candles.v1", framework._handle_candle)
-            await framework.event_bus.subscribe("candles.v1", timed_handler)
-
             # Run test with high load
             await framework.run_multi_symbol_test(duration_seconds=5)
 
-            # Calculate fairness (coefficient of variation)
-            avg_times = [
-                sum(times) / len(times) if times else 0
-                for times in processing_times.values()
+            # Each symbol publishes count=20 per timeframe and we have 2 timeframes.
+            expected_candles_per_symbol = 20 * len(framework.timeframes)
+            candle_counts = [
+                framework.processing_stats[symbol]["candles"] for symbol in framework.symbols
             ]
 
-            if avg_times and sum(avg_times) > 0:
-                mean_time = sum(avg_times) / len(avg_times)
-                variance = sum((t - mean_time) ** 2 for t in avg_times) / len(avg_times)
-                cv = (variance ** 0.5) / mean_time if mean_time > 0 else 0
+            assert all(
+                count == expected_candles_per_symbol for count in candle_counts
+            ), f"Unexpected candle counts: {dict(zip(framework.symbols, candle_counts))}"
 
-                # CV should be low (< 0.3) for fair distribution
-                assert cv < 0.3, f"Unfair load distribution: CV={cv:.2f}"
-
-                print(f"\nLoad distribution CV: {cv:.2f} (lower is better)")
+            # Calculate fairness (coefficient of variation) over counts.
+            mean_count = sum(candle_counts) / len(candle_counts)
+            variance = (
+                sum((c - mean_count) ** 2 for c in candle_counts) / len(candle_counts)
+            )
+            cv = (variance**0.5) / mean_count if mean_count > 0 else 0
+            assert cv < 0.05, f"Unfair load distribution: CV={cv:.2f}"
 
         finally:
             await framework.teardown()
@@ -461,7 +449,7 @@ class TestMultiSymbolPerformance:
             final_memory = process.memory_info().rss / 1024 / 1024  # MB
             memory_increase = final_memory - baseline_memory
 
-            print(f"\nMemory usage:")
+            print("\nMemory usage:")
             print(f"  Baseline: {baseline_memory:.1f} MB")
             print(f"  Final: {final_memory:.1f} MB")
             print(f"  Increase: {memory_increase:.1f} MB")
@@ -510,7 +498,7 @@ def generate_multi_symbol_report():
     for category, result in report["test_coverage"].items():
         print(f"- {result}")
 
-    print(f"\nReport saved to: multi_symbol_test_report.json")
+    print("\nReport saved to: multi_symbol_test_report.json")
 
 
 if __name__ == "__main__":

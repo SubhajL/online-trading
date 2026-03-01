@@ -14,14 +14,18 @@ class AwaitFixer:
             return content
 
         lines = content.split("\n")
-        result_lines = []
+        result_lines: list[str] = []
         counter = 1
 
         for i, line in enumerate(lines):
             # Check for await on Redis operations
             if "await" in line and "_redis" in line:
                 modified = AwaitFixer._fix_redis_await(
-                    line, lines, i, result_lines, counter,
+                    line,
+                    lines,
+                    i,
+                    result_lines,
+                    counter,
                 )
                 if modified:
                     counter += 1
@@ -57,9 +61,7 @@ class AwaitFixer:
             redis_call = match.group(3)
             result_lines.append(f"{spaces}_result{suffix} = {redis_call}")
             has_await = f"hasattr(_result{suffix}, '__await__')"
-            await_expr = (
-                f"await _result{suffix} if {has_await} else _result{suffix}"
-            )
+            await_expr = f"await _result{suffix} if {has_await} else _result{suffix}"
             result_lines.append(f"{spaces}{var_name} = {await_expr}")
             return True
 
@@ -72,9 +74,7 @@ class AwaitFixer:
             redis_call = match.group(2)
             result_lines.append(f"{spaces}_result{suffix} = {redis_call}")
             has_await = f"hasattr(_result{suffix}, '__await__')"
-            await_expr = (
-                f"await _result{suffix} if {has_await} else _result{suffix}"
-            )
+            await_expr = f"await _result{suffix} if {has_await} else _result{suffix}"
             result_lines.append(f"{spaces}{await_expr}")
             return True
 
@@ -88,9 +88,7 @@ class AwaitFixer:
             redis_call = match.group(3)
             result_lines.append(f"{spaces}_result{suffix} = {redis_call}")
             has_await = f"hasattr(_result{suffix}, '__await__')"
-            await_expr = (
-                f"await _result{suffix} if {has_await} else _result{suffix}"
-            )
+            await_expr = f"await _result{suffix} if {has_await} else _result{suffix}"
             result_lines.append(f"{spaces}_awaited{suffix} = {await_expr}")
             result_lines.append(f"{spaces}{prefix}(_awaited{suffix})")
             return True

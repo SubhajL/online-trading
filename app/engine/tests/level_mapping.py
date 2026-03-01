@@ -1,7 +1,7 @@
 """Map existing tests to appropriate test levels."""
 
-import re
 from pathlib import Path
+import re
 from typing import Dict, List
 
 
@@ -97,18 +97,28 @@ def categorize_existing_tests() -> Dict[int, List[str]]:
     Returns:
         Dictionary mapping level number to list of test file paths
     """
-    categorized = {0: [], 1: [], 2: [], 3: [], 4: []}
+    categorized: dict[int, list[str]] = {0: [], 1: [], 2: [], 3: [], 4: []}
 
     # Find all test files
     test_root = Path("app/engine/tests")
-    test_files = []
+    test_files: list[Path] = []
 
     # Use rglob to find all test files recursively
     for pattern in ["test_*.py", "*_test.py"]:
         test_files.extend(test_root.rglob(pattern))
 
-    # Process each test file
+    # De-duplicate in case a file matches multiple patterns (e.g. `test_foo_test.py`) or
+    # a mocked rglob returns the same list for both patterns.
+    unique_test_files: list[Path] = []
+    seen: set[Path] = set()
     for test_file in test_files:
+        if test_file in seen:
+            continue
+        seen.add(test_file)
+        unique_test_files.append(test_file)
+
+    # Process each test file
+    for test_file in unique_test_files:
         # Skip __init__.py and non-test helper files
         if test_file.name == "__init__.py" or test_file.name == "conftest.py":
             continue

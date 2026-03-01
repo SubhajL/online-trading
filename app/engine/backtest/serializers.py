@@ -23,7 +23,9 @@ class ResultSerializer:
     """
 
     def __init__(
-        self, database_url: str | None = None, s3_config: dict | None = None,
+        self,
+        database_url: str | None = None,
+        s3_config: dict | None = None,
     ):
         """
         Initialize result serializer.
@@ -225,7 +227,10 @@ class ResultSerializer:
             return None
 
     def upload_to_s3(
-        self, local_path: str, s3_key: str, bucket: str | None = None,
+        self,
+        local_path: str,
+        s3_key: str,
+        bucket: str | None = None,
     ) -> bool:
         """
         Upload file to S3/MinIO.
@@ -275,7 +280,7 @@ class ResultSerializer:
                     s3_key = f"{s3_prefix}/{relative_path}".replace("\\", "/")
 
                     try:
-                        self.s3_client.upload_file(str(file_path), bucket, s3_key)
+                        self.s3_client.upload_file(str(file_path), bucket, s3_key)  # type: ignore[attr-defined]
                         success_count += 1
                     except Exception as e:
                         logger.error(f"Failed to upload {file_path}: {e}")
@@ -417,11 +422,15 @@ class ResultSerializer:
         # Save to database
         if save_to_db and self.database_url:
             report_id = self.save_to_database(
-                result, symbol, timeframe, start_date, end_date,
+                result,
+                symbol,
+                timeframe,
+                start_date,
+                end_date,
             )
             if report_id:
                 status["database"] = True
-                status["report_id"] = report_id
+                status["report_id"] = report_id  # type: ignore[assignment]
 
         # Upload to S3
         if upload_to_s3 and result.artifacts_path and self.s3_client:

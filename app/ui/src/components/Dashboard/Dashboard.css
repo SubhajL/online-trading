@@ -1,7 +1,7 @@
 .dashboard {
   min-height: 100vh;
   background-color: var(--color-surface-base);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
 }
 
 .dashboard-header {
@@ -9,15 +9,42 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--space-6) var(--space-7);
-  background-color: var(--color-surface-raised);
+  background: linear-gradient(135deg, var(--color-surface-raised) 0%, hsl(220, 20%, 11%) 100%);
   border-bottom: 1px solid var(--color-border-subtle);
+  position: relative;
+}
+
+/* Accent line under header */
+.dashboard-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--color-success-500),
+    var(--color-primary-500),
+    var(--color-warning-500)
+  );
+  opacity: 0.5;
 }
 
 .dashboard-header h1 {
   margin: 0;
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Trading icon accent */
+.dashboard-header h1::before {
+  content: '📊';
+  font-size: var(--font-size-xl);
 }
 
 .auto-trading-status {
@@ -28,6 +55,7 @@
   background-color: var(--color-surface-base);
   border-radius: var(--radius-lg);
   font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border-subtle);
 }
 
 .status-indicator {
@@ -36,11 +64,15 @@
   font-weight: var(--font-weight-semibold);
   background-color: var(--color-surface-overlay);
   color: var(--color-text-muted);
+  text-transform: uppercase;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.5px;
 }
 
 .status-indicator.active {
-  background-color: rgba(38, 166, 154, 0.2);
-  color: var(--color-text-success);
+  background: linear-gradient(135deg, var(--color-success-700), var(--color-success-600));
+  color: white;
+  box-shadow: 0 0 12px var(--nav-active-shadow);
 }
 
 /* Metrics Grid */
@@ -71,6 +103,19 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  position: relative;
+}
+
+/* Chart header accent */
+.chart-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-success-500), var(--color-error-400));
+  z-index: 1;
 }
 
 .volume-chart-container {
@@ -92,6 +137,31 @@
   background-color: var(--color-surface-raised);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Order form accent - buy/sell colors */
+.order-form-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-success-500), var(--color-error-400));
+}
+
+/* Positions accent */
+.positions-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-warning-500);
+  opacity: 0.7;
 }
 
 /* Bottom Section */
@@ -107,6 +177,32 @@
   background-color: var(--color-surface-raised);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Balance accent - blue for money */
+.balance-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-info-500);
+  opacity: 0.7;
+}
+
+/* History accent - primary color */
+.history-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-primary-500);
+  opacity: 0.7;
 }
 
 /* Error State */

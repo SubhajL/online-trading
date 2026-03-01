@@ -1,18 +1,53 @@
 'use client'
 
-import { Header } from '@/components/Layout/Header'
-import { Sidebar } from '@/components/Layout/Sidebar'
-import { PageShell } from '@/components/Layout/PageShell'
 import { useState, useMemo } from 'react'
+import { AppShell } from '@/components/shell'
 import { useOrders } from '@/hooks/useOrders'
-import { mapStatusToClassName } from '@/utils/cssHelpers'
-import styles from './trades.module.css'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
+import { PageHeader } from '@/components/common/PageHeader'
+
+type FilterValue = 'all' | 'open' | 'filled' | 'canceled'
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (status) {
+    case 'NEW':
+    case 'PARTIALLY_FILLED':
+      return 'default'
+    case 'FILLED':
+      return 'secondary'
+    case 'CANCELED':
+    case 'REJECTED':
+    case 'EXPIRED':
+      return 'destructive'
+    default:
+      return 'outline'
+  }
+}
 
 export default function TradesPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'open' | 'filled' | 'canceled'>('all')
-
-  // Use real API hook - fetch all orders without status filter
+  const [filter, setFilter] = useState<FilterValue>('all')
   const { orders, loading, error, cancelOrder } = useOrders({})
 
   const filteredOrders = useMemo(() => {
@@ -40,119 +75,157 @@ export default function TradesPage() {
     [orders],
   )
 
-  const handleCancelOrder = async (orderId: string) => {
+  const handleCancelOrder = async (orderId: string, symbol: string, venue: 'SPOT' | 'USD_M') => {
     try {
-      await cancelOrder(orderId)
-      console.warn('Order canceled successfully:', orderId)
-    } catch (error) {
-      console.error('Failed to cancel order:', error)
+      await cancelOrder(orderId, symbol, venue)
+    } catch (err) {
+      console.error('Failed to cancel order:', err)
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
   return (
-    <PageShell skipLinkTarget="trades-content" maxWidth="xl">
-      <Header userName="Trader" onLogout={() => console.warn('TODO: Implement logout')} />
+    <AppShell>
+      <div className="flex flex-col gap-8">
+        <PageHeader title="Active Trades" />
 
-      <div style={{ display: 'flex', flex: 1 }}>
-        <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+        {error && (
+          <Card className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950">
+            <CardContent className="flex items-center gap-3 p-4">
+              <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-destructive">Failed to load trades</p>
+                <p className="text-xs text-slate-400 mt-1">{error}. Try refreshing the page.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        <main id="main-content" tabIndex={-1} style={{ flex: 1, padding: '1rem' }}>
-          <h1 className={styles.pageTitle}>Active Trades</h1>
-
-          {error && (
-            <div className={styles.errorMessage}>
-              <p>Failed to load trades: {error}</p>
-            </div>
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Card
+                key={i}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm"
+              >
+                <CardContent className="p-5">
+                  <Skeleton className="h-3 w-20 mb-2" />
+                  <Skeleton className="h-7 w-16" />
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <>
+              {[
+                { label: 'Total Trades', value: stats.totalTrades },
+                { label: 'Open Orders', value: stats.openOrders },
+                { label: 'Filled Orders', value: stats.filledOrders },
+                { label: 'Canceled Orders', value: stats.canceledOrders },
+              ].map(stat => (
+                <Card
+                  key={stat.label}
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-md transition-all duration-200"
+                >
+                  <CardContent className="p-5">
+                    <p className="text-xs text-slate-400 uppercase tracking-wide">{stat.label}</p>
+                    <p className="text-xl font-bold font-mono mt-1">{stat.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </>
           )}
+        </div>
 
-          <div className={styles.tradesSummary}>
-            <div className={styles.statCard}>
-              <span className={styles.statLabel}>Total Trades</span>
-              <span className={styles.statValue}>{stats.totalTrades}</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statLabel}>Open Orders</span>
-              <span className={styles.statValue}>{stats.openOrders}</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statLabel}>Filled Orders</span>
-              <span className={styles.statValue}>{stats.filledOrders}</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statLabel}>Canceled Orders</span>
-              <span className={styles.statValue}>{stats.canceledOrders}</span>
-            </div>
-          </div>
+        {/* Filter Tabs */}
+        <Tabs value={filter} onValueChange={v => setFilter(v as FilterValue)}>
+          <TabsList>
+            <TabsTrigger value="all">All ({stats.totalTrades})</TabsTrigger>
+            <TabsTrigger value="open">Open ({stats.openOrders})</TabsTrigger>
+            <TabsTrigger value="filled">Filled ({stats.filledOrders})</TabsTrigger>
+            <TabsTrigger value="canceled">Canceled ({stats.canceledOrders})</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-          <div className={styles.tradesControls}>
-            <div className={styles.filterTabs}>
-              <button
-                className={`${styles.filterTab} ${filter === 'all' ? styles.active : ''}`}
-                onClick={() => setFilter('all')}
-              >
-                All ({stats.totalTrades})
-              </button>
-              <button
-                className={`${styles.filterTab} ${filter === 'open' ? styles.active : ''}`}
-                onClick={() => setFilter('open')}
-              >
-                Open ({stats.openOrders})
-              </button>
-              <button
-                className={`${styles.filterTab} ${filter === 'filled' ? styles.active : ''}`}
-                onClick={() => setFilter('filled')}
-              >
-                Filled ({stats.filledOrders})
-              </button>
-              <button
-                className={`${styles.filterTab} ${filter === 'canceled' ? styles.active : ''}`}
-                onClick={() => setFilter('canceled')}
-              >
-                Canceled ({stats.canceledOrders})
-              </button>
-            </div>
-          </div>
-
-          <div className={styles.tradesTableContainer}>
+        {/* Orders Table */}
+        <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+          <CardContent className="p-0">
             {loading ? (
-              <p className={styles.loadingMessage}>Loading trades...</p>
+              <div className="p-5 space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
             ) : filteredOrders.length === 0 ? (
-              <p className={styles.emptyMessage}>No trades found</p>
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <MaterialIcon name="list" size="xl" className="text-slate-300" />
+                <p className="text-lg font-medium text-slate-600 dark:text-slate-400">
+                  No trades found
+                </p>
+                <p className="text-sm text-slate-400">
+                  {filter !== 'all'
+                    ? 'Try changing the filter to see more trades.'
+                    : 'Orders will appear here once you start trading.'}
+                </p>
+              </div>
             ) : (
-              <table className={styles.tradesTable}>
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Symbol</th>
-                    <th>Type</th>
-                    <th>Side</th>
-                    <th>Price</th>
-                    <th>Quantity</th>
-                    <th>Filled</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
+                      Time
+                    </TableHead>
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
+                      Symbol
+                    </TableHead>
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
+                      Type
+                    </TableHead>
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
+                      Side
+                    </TableHead>
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide text-right">
+                      Price
+                    </TableHead>
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide text-right">
+                      Quantity
+                    </TableHead>
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide text-right">
+                      Filled
+                    </TableHead>
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
+                      Action
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredOrders.map(order => (
-                    <tr key={order.orderId}>
-                      <td>{formatDate(order.createdAt)}</td>
-                      <td>{order.symbol}</td>
-                      <td>{order.type}</td>
-                      <td className={order.side === 'BUY' ? styles.buy : styles.sell}>
-                        {order.side}
-                      </td>
-                      <td>
+                    <TableRow
+                      key={order.orderId}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-fast"
+                    >
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
+                        {formatDate(order.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{order.symbol}</TableCell>
+                      <TableCell className="text-sm text-slate-600 dark:text-slate-400">
+                        {order.type}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={order.side === 'BUY' ? 'default' : 'destructive'}
+                          className={
+                            order.side === 'BUY'
+                              ? 'bg-success/15 text-success border-success/30'
+                              : 'bg-destructive/15 text-destructive border-destructive/30'
+                          }
+                        >
+                          {order.side}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-sm">
                         {order.type === 'MARKET'
                           ? 'Market'
                           : order.avgPrice && order.status === 'FILLED'
@@ -160,34 +233,36 @@ export default function TradesPage() {
                             : order.price
                               ? `$${order.price.toFixed(2)}`
                               : '-'}
-                      </td>
-                      <td>{order.quantity}</td>
-                      <td>{order.executedQuantity || 0}</td>
-                      <td>
-                        <span
-                          className={`${styles.status} ${styles[mapStatusToClassName(order.status)] || ''}`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-sm">
+                        {order.quantity}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-sm">
+                        {order.executedQuantity || 0}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(order.status)}>{order.status}</Badge>
+                      </TableCell>
+                      <TableCell>
                         {(order.status === 'NEW' || order.status === 'PARTIALLY_FILLED') && (
                           <button
-                            className={styles.cancelBtn}
-                            onClick={() => handleCancelOrder(String(order.orderId))}
+                            className="text-xs text-destructive hover:text-destructive/80 font-medium transition-colors duration-fast active:scale-[0.98]"
+                            onClick={() =>
+                              handleCancelOrder(String(order.orderId), order.symbol, order.venue)
+                            }
                           >
                             Cancel
                           </button>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )}
-          </div>
-        </main>
+          </CardContent>
+        </Card>
       </div>
-    </PageShell>
+    </AppShell>
   )
 }

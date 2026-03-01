@@ -59,12 +59,6 @@ func createTestnetClient(t *testing.T) *Client {
 	return client
 }
 
-// createTestnetFuturesClient creates a real futures testnet client
-func createTestnetFuturesClient(t *testing.T) *Client {
-	t.Skip("Futures testnet not implemented yet")
-	return nil
-}
-
 // TestTestnetConnection verifies we can connect to testnet
 func TestTestnetConnection(t *testing.T) {
 	client := createTestnetClient(t)

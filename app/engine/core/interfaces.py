@@ -3,6 +3,9 @@ Interfaces and protocols for event bus dependency injection.
 Defines contracts for all major components.
 """
 
+from collections.abc import Callable
+from datetime import datetime
+from decimal import Decimal
 from typing import Any, Protocol
 
 from app.engine.core.event_processor import (
@@ -23,6 +26,9 @@ class SubscriptionManagerInterface(Protocol):
         event_types: list[EventType] | None = None,
         priority: int | None = None,
         max_retries: int | None = None,
+        *,
+        serialize_by_key: bool = False,
+        key_extractor: Callable[[BaseEvent], str] | None = None,
     ) -> str:
         """Add a new subscription and return subscription ID."""
         ...
@@ -97,6 +103,9 @@ class EventBusInterface(Protocol):
         event_types: list[EventType] | None = None,
         priority: int = 0,
         max_retries: int = 3,
+        *,
+        serialize_by_key: bool = False,
+        key_extractor: Callable[[BaseEvent], str] | None = None,
     ) -> str:
         """Subscribe to events and return subscription ID."""
         ...
@@ -126,6 +135,18 @@ class EventBusInterface(Protocol):
         ...
 
 
+class DatabaseAdapterInterface(Protocol):
+    """Protocol for database adapter implementations used by IngestService."""
+
+    async def insert_candle(self, candle: Any) -> bool:
+        """Insert a single candle. Returns True if inserted, False if duplicate."""
+        ...
+
+    async def insert_candles_batch(self, candles: list[Any]) -> int:
+        """Insert multiple candles in a batch. Returns count of inserted rows."""
+        ...
+
+
 class ClockInterface(Protocol):
     """Protocol for clock implementations."""
 
@@ -136,6 +157,15 @@ class ClockInterface(Protocol):
     async def sleep(self, seconds: float) -> None:
         """Sleep for given seconds."""
         ...
+
+
+class RiskSnapshotDBAdapter(Protocol):
+    """Protocol for DB adapter used by build_risk_snapshot."""
+
+    async def get_latest_equity_sample(self) -> tuple[Decimal, datetime] | None: ...
+    async def get_equity_sample_at_or_after(self, dt: datetime) -> Decimal | None: ...
+    async def get_peak_equity_since(self, dt: datetime) -> Decimal | None: ...
+    async def get_active_positions(self, venue: str) -> list[dict[str, Any]]: ...
 
 
 class CircuitBreakerInterface(Protocol):

@@ -13,51 +13,17 @@ import { EngineClientService } from '../engine-client/engine-client.service';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+import type {
+  CandlesV1,
+  FeaturesV1,
+  SignalsRawV1,
+  SmcEventsV1,
+  ZonesV1,
+} from '@/contracts/gen/index';
 
 interface SubscriptionData {
   symbol: string;
   timeframe: string;
-}
-
-interface CandleData {
-  symbol: string;
-  timeframe: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  closeTime: number;
-}
-
-interface FeatureData {
-  symbol: string;
-  timeframe: string;
-  ema20?: number;
-  ema50?: number;
-  rsi?: number;
-  macd?: {
-    macd: number;
-    signal: number;
-    histogram: number;
-  };
-  atr?: number;
-  bb?: {
-    upper: number;
-    middle: number;
-    lower: number;
-  };
-}
-
-interface SignalData {
-  symbol: string;
-  timeframe: string;
-  type: 'BUY' | 'SELL';
-  entry: number;
-  stopLoss: number;
-  takeProfit: number;
-  confidence: number;
-  timestamp?: number;
 }
 
 @WebSocketGateway({
@@ -82,24 +48,24 @@ export class MarketDataGateway implements OnGatewayInit, OnGatewayConnection, On
     this.logger.log('MarketData WebSocket Gateway initialized');
 
     // Subscribe to engine events
-    this.engineClient.subscribe('candles.v1', (data: CandleData) => {
-      this.handleCandleData(data);
+    this.engineClient.subscribe('candles.v1', (data: CandlesV1) => {
+      this.handleCandlesV1(data);
     });
 
-    this.engineClient.subscribe('features.v1', (data: FeatureData) => {
-      this.handleFeatureData(data);
+    this.engineClient.subscribe('features.v1', (data: FeaturesV1) => {
+      this.handleFeaturesV1(data);
     });
 
-    this.engineClient.subscribe('signals_raw.v1', (data: SignalData) => {
-      this.handleSignalData(data);
+    this.engineClient.subscribe('signals_raw.v1', (data: SignalsRawV1) => {
+      this.handleSignalsRawV1(data);
     });
 
-    this.engineClient.subscribe('smc_events.v1', (data: any) => {
-      this.handleSmcData(data);
+    this.engineClient.subscribe('smc_events.v1', (data: SmcEventsV1) => {
+      this.handleSmcEventsV1(data);
     });
 
-    this.engineClient.subscribe('zones.v1', (data: any) => {
-      this.handleZoneData(data);
+    this.engineClient.subscribe('zones.v1', (data: ZonesV1) => {
+      this.handleZonesV1(data);
     });
   }
 
@@ -184,32 +150,28 @@ export class MarketDataGateway implements OnGatewayInit, OnGatewayConnection, On
     return { subscriptions };
   }
 
-  private handleCandleData(data: CandleData) {
+  private handleCandlesV1(data: CandlesV1) {
     const room = `market:${data.symbol}:${data.timeframe}`;
-    this.server.to(room).emit('candle', data);
+    this.server.to(room).emit('candles.v1', data);
   }
 
-  private handleFeatureData(data: FeatureData) {
+  private handleFeaturesV1(data: FeaturesV1) {
     const room = `market:${data.symbol}:${data.timeframe}`;
-    this.server.to(room).emit('features', data);
+    this.server.to(room).emit('features.v1', data);
   }
 
-  private handleSignalData(data: SignalData) {
+  private handleSignalsRawV1(data: SignalsRawV1) {
     const room = `market:${data.symbol}:${data.timeframe}`;
-    this.server.to(room).emit('signal', data);
+    this.server.to(room).emit('signals_raw.v1', data);
   }
 
-  private handleSmcData(data: any) {
-    if (data.symbol && data.timeframe) {
-      const room = `market:${data.symbol}:${data.timeframe}`;
-      this.server.to(room).emit('smc', data);
-    }
+  private handleSmcEventsV1(data: SmcEventsV1) {
+    const room = `market:${data.symbol}:${data.timeframe}`;
+    this.server.to(room).emit('smc_events.v1', data);
   }
 
-  private handleZoneData(data: any) {
-    if (data.symbol && data.timeframe) {
-      const room = `market:${data.symbol}:${data.timeframe}`;
-      this.server.to(room).emit('zones', data);
-    }
+  private handleZonesV1(data: ZonesV1) {
+    const room = `market:${data.symbol}:${data.timeframe}`;
+    this.server.to(room).emit('zones.v1', data);
   }
 }

@@ -1,0 +1,343 @@
+.pipeline-health {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.pipeline-health-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.pipeline-health-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Status Badge */
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--color-surface-secondary);
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-indicator.status-healthy {
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+}
+
+.status-indicator.status-degraded {
+  background: var(--color-warning);
+  box-shadow: 0 0 6px var(--color-warning);
+}
+
+.status-indicator.status-unhealthy {
+  background: var(--color-error);
+  box-shadow: 0 0 6px var(--color-error);
+}
+
+.status-text {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Summary Section */
+.pipeline-health-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+  background: var(--color-surface-secondary);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.summary-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.lag-warning {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  border: 1px solid var(--color-warning);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--color-warning);
+}
+
+.warning-icon {
+  font-size: 14px;
+}
+
+/* Symbols Table */
+.symbols-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.symbols-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.symbols-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.symbols-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.symbol-row {
+  transition: background-color 0.15s ease;
+}
+
+.symbol-row:hover {
+  background: var(--color-surface-secondary);
+}
+
+.symbol-row.high-lag {
+  background: color-mix(in srgb, var(--color-error) 5%, var(--color-surface));
+}
+
+.symbol-row.high-lag:hover {
+  background: color-mix(in srgb, var(--color-error) 10%, var(--color-surface));
+}
+
+.symbol-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.symbol-timeframe {
+  color: var(--color-text-muted);
+  font-family: monospace;
+}
+
+.symbol-last-candle {
+  color: var(--color-text-muted);
+  font-family: monospace;
+}
+
+.symbol-lag {
+  font-family: monospace;
+  color: var(--color-text);
+}
+
+.symbol-lag.lag-high {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+/* Last Decision Section */
+.last-decision-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
+
+.last-decision-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.last-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.decision-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.decision-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  min-width: 60px;
+}
+
+.decision-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.decision-action {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.decision-action.action-buy {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success);
+}
+
+.decision-action.action-sell {
+  background: color-mix(in srgb, var(--color-error) 15%, transparent);
+  color: var(--color-error);
+}
+
+.decision-action.action-hold {
+  background: color-mix(in srgb, var(--color-text-muted) 15%, transparent);
+  color: var(--color-text-muted);
+}
+
+.decision-reason {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--color-text);
+  background: var(--color-surface-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.decision-time {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--color-text-muted);
+}
+
+.no-decision {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: 8px 0;
+}
+
+/* Loading State */
+.pipeline-health-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.loading-shimmer {
+  height: 20px;
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    var(--color-surface-secondary) 50%,
+    var(--color-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.loading-shimmer:nth-child(1) {
+  width: 60%;
+}
+
+.loading-shimmer:nth-child(2) {
+  width: 80%;
+}
+
+.loading-shimmer:nth-child(3) {
+  width: 40%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Error State */
+.pipeline-health-error {
+  padding: 16px;
+  text-align: center;
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 5%, var(--color-surface));
+  border-radius: 6px;
+}
+
+/* Empty State */
+.pipeline-health-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .pipeline-health-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .symbols-table {
+    font-size: 12px;
+  }
+
+  .symbols-table th,
+  .symbols-table td {
+    padding: 6px 8px;
+  }
+}
+
+/* Accessibility: reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .loading-shimmer {
+    animation: none;
+  }
+
+  .symbol-row {
+    transition: none;
+  }
+}

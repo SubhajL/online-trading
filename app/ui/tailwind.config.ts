@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -8,17 +9,53 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+      },
       colors: {
-        // Map Tailwind colors to CSS custom properties from tokens.css
+        // shadcn/ui semantic colors (from globals.css)
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+          500: 'hsl(168 76% 40%)',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+
+        // Semantic color tokens
         'chart-bg': 'var(--color-chart-bg)',
         'chart-text': 'var(--color-chart-text)',
         'chart-grid': 'var(--color-chart-grid)',
         success: 'var(--color-success-500)',
         danger: 'var(--color-error-400)',
-        primary: 'var(--color-primary-500)',
-        secondary: 'var(--color-warning-500)',
-
-        // Semantic color tokens
+        warning: 'var(--color-warning-500)',
         surface: {
           base: 'var(--color-surface-base)',
           raised: 'var(--color-surface-raised)',
@@ -35,10 +72,18 @@ const config: Config = {
         },
         border: {
           subtle: 'var(--color-border-subtle)',
-          DEFAULT: 'var(--color-border-default)',
+          DEFAULT: 'hsl(var(--border))',
           strong: 'var(--color-border-strong)',
           focus: 'var(--color-border-focus)',
         },
+
+        // Spec-compatible aliases (Visualization Design Specifications.md)
+        // These enable patterns like dark:bg-surface-dark from the spec
+        'page-dark': 'var(--bg-page-dark)',
+        'surface-dark': 'var(--bg-surface-dark)',
+        'surface-secondary-dark': 'var(--bg-surface-secondary-dark)',
+        'surface-hover-dark': 'var(--bg-surface-hover-dark)',
+        'border-dark-mode': 'var(--border-dark-mode)',
       },
       spacing: {
         // Custom token-based spacing (prefixed to avoid collision with default Tailwind scale)
@@ -53,6 +98,8 @@ const config: Config = {
         'space-8': 'var(--space-8)',
         'space-9': 'var(--space-9)',
         'space-10': 'var(--space-10)',
+        // Additional spacing for header height (72px = 4.5rem)
+        '18': '4.5rem',
       },
       borderRadius: {
         none: 'var(--radius-none)',
@@ -63,6 +110,7 @@ const config: Config = {
       },
       boxShadow: {
         sm: 'var(--shadow-sm)',
+        soft: 'var(--shadow-soft)',
         md: 'var(--shadow-md)',
         lg: 'var(--shadow-lg)',
         xl: 'var(--shadow-xl)',
@@ -112,7 +160,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')],
 }
 
 export default config

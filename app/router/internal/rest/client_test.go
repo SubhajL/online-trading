@@ -81,7 +81,7 @@ func TestClient_GetExchangeInfo(t *testing.T) {
 			assert.Equal(t, "GET", r.Method)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(mockResponse))
+			_, _ = w.Write([]byte(mockResponse))
 		}))
 		defer server.Close()
 
@@ -110,7 +110,7 @@ func TestClient_GetExchangeInfo(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(`{"timezone":"UTC","serverTime":123,"symbols":[]}`))
+			_, _ = w.Write([]byte(`{"timezone":"UTC","serverTime":123,"symbols":[]}`))
 		}))
 		defer server.Close()
 
@@ -179,7 +179,7 @@ func TestClient_GetOrderBook(t *testing.T) {
 			assert.Equal(t, "100", r.URL.Query().Get("limit"))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(mockResponse))
+			_, _ = w.Write([]byte(mockResponse))
 		}))
 		defer server.Close()
 
@@ -225,7 +225,7 @@ func TestClient_GetOrderBook(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(`{"lastUpdateId":123,"bids":[],"asks":[]}`))
+			_, _ = w.Write([]byte(`{"lastUpdateId":123,"bids":[],"asks":[]}`))
 		}))
 		defer server.Close()
 
@@ -267,19 +267,19 @@ func TestClient_GetAccount(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(`{
-				"makerCommission": 10,
-				"takerCommission": 10,
-				"buyerCommission": 0,
-				"sellerCommission": 0,
-				"canTrade": true,
-				"canWithdraw": true,
-				"canDeposit": true,
-				"updateTime": 123456789,
-				"accountType": "SPOT",
-				"balances": [],
-				"permissions": ["SPOT"]
-			}`))
+			_, _ = w.Write([]byte(`{
+					"makerCommission": 10,
+					"takerCommission": 10,
+					"buyerCommission": 0,
+					"sellerCommission": 0,
+					"canTrade": true,
+					"canWithdraw": true,
+					"canDeposit": true,
+					"updateTime": 123456789,
+					"accountType": "SPOT",
+					"balances": [],
+					"permissions": ["SPOT"]
+				}`))
 		}))
 		defer server.Close()
 
@@ -325,7 +325,7 @@ func TestClient_GetAccount(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(mockResponse))
+			_, _ = w.Write([]byte(mockResponse))
 		}))
 		defer server.Close()
 
@@ -456,21 +456,21 @@ func TestClient_PlaceOrder(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(`{
-				"symbol": "BTCUSDT",
-				"orderId": 123456,
-				"clientOrderId": "test-client-id",
-				"transactTime": 1499827319559,
-				"price": "50000.00",
+			_, _ = w.Write([]byte(`{
+					"symbol": "BTCUSDT",
+					"orderId": 123456,
+					"clientOrderId": "test-client-id",
+					"transactTime": 1499827319559,
+					"price": "50000.00",
 				"origQty": "1.00000000",
 				"executedQty": "0.00000000",
 				"cummulativeQuoteQty": "0.00000000",
 				"status": "NEW",
 				"timeInForce": "GTC",
-				"type": "LIMIT",
-				"side": "BUY",
-				"fills": []
-			}`))
+					"type": "LIMIT",
+					"side": "BUY",
+					"fills": []
+				}`))
 		}))
 		defer server.Close()
 
@@ -516,7 +516,7 @@ func TestClient_PlaceOrder(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(400)
-			w.Write([]byte(`{"code":-2010,"msg":"Account has insufficient balance for requested action."}`))
+			_, _ = w.Write([]byte(`{"code":-2010,"msg":"Account has insufficient balance for requested action."}`))
 		}))
 		defer server.Close()
 
@@ -549,7 +549,7 @@ func TestClient_PlaceOrder(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(400)
-			w.Write([]byte(`{"code":-1013,"msg":"Filter failure: MIN_NOTIONAL"}`))
+			_, _ = w.Write([]byte(`{"code":-1013,"msg":"Filter failure: MIN_NOTIONAL"}`))
 		}))
 		defer server.Close()
 
@@ -576,14 +576,14 @@ func TestClient_PlaceOrder(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(`{
-				"symbol": "BTCUSDT",
-				"orderId": 789,
-				"status": "FILLED",
-				"type": "MARKET",
-				"side": "BUY",
-				"fills": [{"price":"50000","qty":"0.001","commission":"0.05","commissionAsset":"BNB","tradeId":123}]
-			}`))
+			_, _ = w.Write([]byte(`{
+					"symbol": "BTCUSDT",
+					"orderId": 789,
+					"status": "FILLED",
+					"type": "MARKET",
+					"side": "BUY",
+					"fills": [{"price":"50000","qty":"0.001","commission":"0.05","commissionAsset":"BNB","tradeId":123}]
+				}`))
 		}))
 		defer server.Close()
 
@@ -631,11 +631,11 @@ func TestClient_CancelOrder(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(`{
-				"symbol": "BTCUSDT",
-				"orderId": 123456,
-				"status": "CANCELED"
-			}`))
+			_, _ = w.Write([]byte(`{
+					"symbol": "BTCUSDT",
+					"orderId": 123456,
+					"status": "CANCELED"
+				}`))
 		}))
 		defer server.Close()
 
@@ -651,7 +651,7 @@ func TestClient_CancelOrder(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(400)
-			w.Write([]byte(`{"code":-2011,"msg":"Unknown order sent."}`))
+			_, _ = w.Write([]byte(`{"code":-2011,"msg":"Unknown order sent."}`))
 		}))
 		defer server.Close()
 
@@ -677,7 +677,7 @@ func TestClient_GetOpenOrders(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(`[]`))
+			_, _ = w.Write([]byte(`[]`))
 		}))
 		defer server.Close()
 
@@ -727,7 +727,7 @@ func TestClient_GetOpenOrders(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(mockResponse))
+			_, _ = w.Write([]byte(mockResponse))
 		}))
 		defer server.Close()
 
@@ -788,7 +788,7 @@ func TestClient_DoRequest(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(`{"success": true}`))
+			_, _ = w.Write([]byte(`{"success": true}`))
 		}))
 		defer server.Close()
 
@@ -845,7 +845,7 @@ func TestClient_DoRequest(t *testing.T) {
 			mu.Unlock()
 
 			w.WriteHeader(200)
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 		}))
 		defer server.Close()
 
@@ -875,7 +875,7 @@ func TestClient_DoRequest(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "test-api-key", r.Header.Get("X-MBX-APIKEY"))
 			w.WriteHeader(200)
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 		}))
 		defer server.Close()
 
@@ -904,7 +904,7 @@ func TestClient_DoRequest(t *testing.T) {
 			}
 
 			w.WriteHeader(200)
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 		}))
 		defer server.Close()
 
@@ -930,7 +930,7 @@ func TestClient_DoRequest(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			receivedParams = r.URL.Query()
 			w.WriteHeader(200)
-			w.Write([]byte(`{}`))
+			_, _ = w.Write([]byte(`{}`))
 		}))
 		defer server.Close()
 
@@ -966,7 +966,7 @@ func TestClient_ConcurrentRequests(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
-			w.Write([]byte(fmt.Sprintf(`{"requestId": %d}`, count)))
+			_, _ = fmt.Fprintf(w, `{"requestId": %d}`, count)
 		}))
 		defer server.Close()
 
@@ -1038,8 +1038,9 @@ func TestClient_ParsesAPIErrors(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tc.responseCode)
-				w.Write([]byte(tc.responseBody))
+				_, _ = w.Write([]byte(tc.responseBody))
 			}))
+			defer server.Close()
 
 			client := NewClient(server.URL, nil)
 			ctx := context.Background()

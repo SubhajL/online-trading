@@ -6,6 +6,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { CONTRACT_TOPICS } from '../contracts/topics';
 
 describe('AlertsGateway', () => {
   let gateway: AlertsGateway;
@@ -36,6 +37,7 @@ describe('AlertsGateway', () => {
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AlertsGateway,
@@ -102,8 +104,14 @@ describe('AlertsGateway', () => {
       expect(eventEmitter.on).toHaveBeenCalledTimes(4);
       expect(eventEmitter.on).toHaveBeenCalledWith('alert.new', expect.any(Function));
       expect(eventEmitter.on).toHaveBeenCalledWith('alert.updated', expect.any(Function));
-      expect(eventEmitter.on).toHaveBeenCalledWith('decision.received', expect.any(Function));
-      expect(eventEmitter.on).toHaveBeenCalledWith('order.updated', expect.any(Function));
+      expect(eventEmitter.on).toHaveBeenCalledWith(
+        CONTRACT_TOPICS.decisionV1,
+        expect.any(Function),
+      );
+      expect(eventEmitter.on).toHaveBeenCalledWith(
+        CONTRACT_TOPICS.orderUpdateV1,
+        expect.any(Function),
+      );
     });
   });
 
@@ -210,9 +218,9 @@ describe('AlertsGateway', () => {
 
       mockAlertsService.create.mockResolvedValue(createdAlert);
 
-      // Get the callback for decision.received
+      // Get the callback for decision.v1
       const decisionCallback = mockEventEmitter.on.mock.calls.find(
-        (call) => call[0] === 'decision.received',
+        (call) => call[0] === CONTRACT_TOPICS.decisionV1,
       )[1];
 
       await decisionCallback(mockDecision);
@@ -245,9 +253,9 @@ describe('AlertsGateway', () => {
 
       mockAlertsService.create.mockResolvedValue(createdAlert);
 
-      // Get the callback for order.updated
+      // Get the callback for order_update.v1
       const orderCallback = mockEventEmitter.on.mock.calls.find(
-        (call) => call[0] === 'order.updated',
+        (call) => call[0] === CONTRACT_TOPICS.orderUpdateV1,
       )[1];
 
       await orderCallback(mockOrderUpdate);

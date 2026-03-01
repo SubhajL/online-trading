@@ -1,182 +1,197 @@
-import { describe, it, expect, beforeAll, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useBalances } from './useBalances'
-import { ApiClient } from '@/services/api.client'
 import { _testOnlyExports } from './useApiCache'
+import type { Balance } from '@/types'
 
 describe('useBalances', () => {
-  let apiClient: ApiClient
+  const sampleBalances: Balance[] = [
+    { asset: 'USDT', free: 1000, locked: 0, total: 1000, venue: 'SPOT', usdValue: 1000 },
+    { asset: 'BTC', free: 0.1, locked: 0, total: 0.1, venue: 'SPOT', usdValue: 4000 },
+    { asset: 'USDT', free: 2000, locked: 0, total: 2000, venue: 'USD_M', usdValue: 2000 },
+  ]
 
-  beforeAll(() => {
-    // Create real API client pointing to BFF
-    apiClient = new ApiClient({
-      baseUrl: 'http://localhost:8002/api',
-      timeout: 30000,
-    })
-  })
-
-  afterEach(() => {
-    // Clear any cache after each test
+  beforeEach(() => {
     _testOnlyExports.cache.clear()
     _testOnlyExports.inFlightRequests.clear()
+    vi.clearAllMocks()
   })
 
-  it('fetches real balances from the API', async () => {
-    const { result } = renderHook(() => useBalances(undefined, apiClient))
+  it('fetches balances from the injected ApiClient', async () => {
+    const get = vi.fn().mockResolvedValue(sampleBalances)
+    const mockClient = { get } as any
 
-    // Initial state
+    const { result } = renderHook(() => useBalances(undefined, mockClient))
+
     expect(result.current.loading).toBe(true)
     expect(result.current.error).toBeNull()
     expect(result.current.balances).toEqual([])
 
-    // Wait for data to load
-    await waitFor(
-      () => {
-        expect(result.current.loading).toBe(false)
-      },
-      { timeout: 10000 },
-    )
-
-    // Verify we got real balance data
-    expect(result.current.error).toBeNull()
-    expect(result.current.balances.length).toBeGreaterThan(0)
-
-    // Verify balance structure
-    const firstBalance = result.current.balances[0]
-    expect(firstBalance).toHaveProperty('asset')
-    expect(firstBalance).toHaveProperty('free')
-    expect(firstBalance).toHaveProperty('locked')
-    expect(firstBalance).toHaveProperty('total')
-    expect(firstBalance).toHaveProperty('venue')
-    expect(firstBalance).toHaveProperty('usdValue')
-
-    // Verify numeric values
-    expect(typeof firstBalance.free).toBe('number')
-    expect(typeof firstBalance.locked).toBe('number')
-    expect(typeof firstBalance.total).toBe('number')
-    expect(typeof firstBalance.usdValue).toBe('number')
-
-    // Verify venue values
-    expect(['SPOT', 'USD_M']).toContain(firstBalance.venue)
-  })
-
-  it('filters balances by venue', async () => {
-    const { result } = renderHook(() => useBalances('SPOT', apiClient))
-
-    await waitFor(
-      () => {
-        expect(result.current.loading).toBe(false)
-      },
-      { timeout: 10000 },
-    )
-
-    expect(result.current.error).toBeNull()
-
-    // All balances should be SPOT venue
-    result.current.balances.forEach(balance => {
-      expect(balance.venue).toBe('SPOT')
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
     })
+
+    expect(get).toHaveBeenCalledWith('/balances', { params: undefined })
+    expect(result.current.error).toBeNull()
+    expect(result.current.balances).toEqual(sampleBalances)
   })
 
-  it('uses cache for subsequent requests', async () => {
-    // First request
-    const { result: result1 } = renderHook(() => useBalances(undefined, apiClient))
+  it('passes venue filter as query param', async () => {
+    const spotBalances = sampleBalances.filter(b => b.venue === 'SPOT')
+    const get = vi.fn().mockResolvedValue(spotBalances)
+    const mockClient = { get } as any
 
-    await waitFor(
-      () => {
-        expect(result1.current.loading).toBe(false)
-      },
-      { timeout: 10000 },
-    )
+    const { result } = renderHook(() => useBalances('SPOT', mockClient))
 
-    const firstCallBalances = result1.current.balances
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
 
-    // Second request should use cache
-    const { result: result2 } = renderHook(() => useBalances(undefined, apiClient))
+    expect(get).toHaveBeenCalledWith('/balances', { params: { venue: 'SPOT' } })
+    expect(result.current.balances).toEqual(spotBalances)
+  })
 
-    // Should immediately have data from cache
+  it('uses cache for subsequent hooks with same key', async () => {
+    const get = vi.fn().mockResolvedValue(sampleBalances)
+    const mockClient = { get } as any
+
+    const { result: result1 } = renderHook(() => useBalances(undefined, mockClient))
+    await waitFor(() => {
+      expect(result1.current.loading).toBe(false)
+    })
+
+    const { result: result2 } = renderHook(() => useBalances(undefined, mockClient))
     expect(result2.current.loading).toBe(false)
-    expect(result2.current.balances).toEqual(firstCallBalances)
+    expect(result2.current.balances).toEqual(sampleBalances)
+    expect(get).toHaveBeenCalledTimes(1)
   })
 
-  it('allows manual refetch', async () => {
-    const { result } = renderHook(() => useBalances(undefined, apiClient))
+  it('refresh triggers refetch', async () => {
+    const get = vi.fn().mockResolvedValueOnce(sampleBalances).mockResolvedValueOnce(sampleBalances)
+    const mockClient = { get } as any
 
-    // Wait for initial load
-    await waitFor(
-      () => {
-        expect(result.current.loading).toBe(false)
-      },
-      { timeout: 10000 },
-    )
-
-    // Refetch
-    act(() => {
-      result.current.refresh()
+    const { result } = renderHook(() => useBalances(undefined, mockClient))
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
     })
 
-    // Should be loading again
-    expect(result.current.loading).toBe(true)
+    await act(async () => {
+      await result.current.refresh()
+    })
 
-    // Wait for refetch to complete
-    await waitFor(
-      () => {
-        expect(result.current.loading).toBe(false)
-      },
-      { timeout: 10000 },
-    )
-
-    // Should have balances (might be same as initial if no changes)
-    expect(result.current.balances.length).toBeGreaterThan(0)
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+    expect(get).toHaveBeenCalledTimes(2)
   })
 
   it('deduplicates concurrent requests', async () => {
-    // Render two hooks at the same time
-    const { result: result1 } = renderHook(() => useBalances(undefined, apiClient))
-    const { result: result2 } = renderHook(() => useBalances(undefined, apiClient))
+    const get = vi.fn().mockResolvedValue(sampleBalances)
+    const mockClient = { get } as any
 
-    // Both should be loading
+    const { result: result1 } = renderHook(() => useBalances(undefined, mockClient))
+    const { result: result2 } = renderHook(() => useBalances(undefined, mockClient))
+
     expect(result1.current.loading).toBe(true)
     expect(result2.current.loading).toBe(true)
 
-    // Wait for both to complete
-    await waitFor(
-      () => {
-        expect(result1.current.loading).toBe(false)
-        expect(result2.current.loading).toBe(false)
-      },
-      { timeout: 10000 },
-    )
-
-    // Both should have the same data
-    expect(result1.current.balances).toEqual(result2.current.balances)
-    expect(result1.current.error).toBeNull()
-    expect(result2.current.error).toBeNull()
-  })
-
-  it('handles API errors gracefully', async () => {
-    // Use a client with wrong URL to trigger error
-    const errorClient = new ApiClient({
-      baseUrl: 'http://localhost:9999/api', // Wrong port
-      timeout: 2000,
+    await waitFor(() => {
+      expect(result1.current.loading).toBe(false)
+      expect(result2.current.loading).toBe(false)
     })
 
-    const { result } = renderHook(() => useBalances(undefined, errorClient))
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(result1.current.balances).toEqual(sampleBalances)
+    expect(result2.current.balances).toEqual(sampleBalances)
+  })
 
-    // Initial state should be loading
-    expect(result.current.loading).toBe(true)
+  it('surfaces ApiClient errors as strings', async () => {
+    const get = vi.fn().mockRejectedValue(new Error('Boom'))
+    const mockClient = { get } as any
 
-    // Wait for error
-    await waitFor(
-      () => {
-        expect(result.current.loading).toBe(false)
-      },
-      { timeout: 5000 },
-    )
+    const { result } = renderHook(() => useBalances(undefined, mockClient))
 
-    // Should have error
-    expect(result.current.error).not.toBeNull()
-    expect(typeof result.current.error).toBe('string')
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
     expect(result.current.balances).toEqual([])
+    expect(result.current.error).toContain('Boom')
+  })
+
+  describe('optimistic updates', () => {
+    const spotBalances: Balance[] = [
+      { asset: 'USDT', free: 10000, locked: 0, total: 10000, venue: 'SPOT' },
+      { asset: 'BTC', free: 0.5, locked: 0, total: 0.5, venue: 'SPOT' },
+    ]
+
+    it('applyOptimistic updates balances immediately for BUY order', async () => {
+      const get = vi.fn().mockResolvedValue(spotBalances)
+      const mockClient = { get } as any
+
+      const { result } = renderHook(() => useBalances('SPOT', mockClient))
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      act(() => {
+        result.current.applyOptimistic(
+          { symbol: 'BTCUSDT', side: 'BUY', type: 'MARKET', quantity: 0.1 },
+          50000,
+        )
+      })
+
+      const usdt = result.current.balances.find(b => b.asset === 'USDT')
+      const btc = result.current.balances.find(b => b.asset === 'BTC')
+      expect(usdt?.free).toBe(5000)
+      expect(btc?.free).toBe(0.6)
+    })
+
+    it('rollback restores snapshot after optimistic apply', async () => {
+      const get = vi.fn().mockResolvedValue(spotBalances)
+      const mockClient = { get } as any
+
+      const { result } = renderHook(() => useBalances('SPOT', mockClient))
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      let token: any
+      act(() => {
+        token = result.current.applyOptimistic(
+          { symbol: 'BTCUSDT', side: 'BUY', type: 'MARKET', quantity: 0.1 },
+          50000,
+        )
+      })
+
+      act(() => {
+        result.current.rollback(token)
+      })
+
+      expect(result.current.balances).toEqual(spotBalances)
+    })
+
+    it('refresh clears optimistic state', async () => {
+      const get = vi.fn().mockResolvedValue(spotBalances)
+      const mockClient = { get } as any
+
+      const { result } = renderHook(() => useBalances('SPOT', mockClient))
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      act(() => {
+        result.current.applyOptimistic(
+          { symbol: 'BTCUSDT', side: 'BUY', type: 'MARKET', quantity: 0.1 },
+          50000,
+        )
+      })
+
+      await act(async () => {
+        await result.current.refresh()
+      })
+
+      expect(result.current.balances).toEqual(spotBalances)
+    })
   })
 })

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 """
 Feature Service
@@ -12,13 +12,18 @@ from datetime import UTC, datetime
 import logging
 
 from ..bus import get_event_bus
+
+if TYPE_CHECKING:
+    from ..adapters.db.timescale_adapter import TimescaleDBAdapter
 from ..models import (
     Candle,
     CandleUpdateEvent,
+    ErrorEvent,
     EventType,
     FeaturesCalculatedEvent,
     TechnicalIndicators,
     TimeFrame,
+    is_realtime_candle_event,
 )
 from .indicators import TechnicalIndicatorsCalculator
 
@@ -39,6 +44,7 @@ class FeatureService:
 
     def __init__(
         self,
+        db_adapter: "TimescaleDBAdapter | None" = None,
         buffer_size: int = 1000,
         ema_periods: list[int] = [9, 21, 50, 200],
         rsi_period: int = 14,
@@ -54,6 +60,7 @@ class FeatureService:
         self.atr_period = atr_period
         self.bb_period = bb_period
         self.bb_std_dev = bb_std_dev
+        self._db_adapter = db_adapter
 
         # Candle buffers: symbol -> timeframe -> deque of candles
         self._candle_buffers: dict[str, dict[TimeFrame, deque[Candle]]] = defaultdict(
@@ -61,8 +68,8 @@ class FeatureService:
         )
 
         # Latest indicators: symbol -> timeframe -> TechnicalIndicators
-        self._latest_indicators: dict[str, dict[TimeFrame, TechnicalIndicators]] = (
-            defaultdict(dict[Any, Any])
+        self._latest_indicators: dict[str, dict[TimeFrame, TechnicalIndicators]] = defaultdict(
+            dict[Any, Any]
         )
 
         self._event_bus = get_event_bus()
@@ -74,8 +81,7 @@ class FeatureService:
         self._last_calculation_time: datetime | None = None
 
         logger.info(
-            f"FeatureService initialized with buffer_size={buffer_size}, "
-            f"EMA periods={ema_periods}",
+            f"FeatureService initialized with buffer_size={buffer_size}, EMA periods={ema_periods}",
         )
 
     async def start(self) -> None:
@@ -92,6 +98,7 @@ class FeatureService:
             handler=self._handle_candle_update,
             event_types=[EventType.CANDLE_UPDATE],
             priority=5,  # High priority for real-time processing
+            serialize_by_key=True,
         )
 
         logger.info("FeatureService started and subscribed to candle updates")
@@ -111,14 +118,27 @@ class FeatureService:
         logger.info("FeatureService stopped")
 
     async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
-        """Handle candle update events"""
+        """Handle candle update events.
+
+        Always adds candles to buffer for indicator calculation context.
+        Only publishes features for REALTIME events to avoid trading on
+        historical data.
+        """
         try:
             candle = event.candle
             symbol = candle.symbol
             timeframe = candle.timeframe
 
-            # Add candle to buffer
+            # Always add candle to buffer for warm-up/context
             self._candle_buffers[symbol][timeframe].append(candle)
+
+            # Only process REALTIME events through the trading pipeline
+            if not is_realtime_candle_event(event.origin):
+                logger.debug(
+                    f"Skipping non-realtime candle for {symbol} {timeframe.value} "
+                    f"(origin={event.origin.value})",
+                )
+                return
 
             # Calculate indicators if we have enough data
             min_required = max(
@@ -130,15 +150,22 @@ class FeatureService:
             )
 
             if len(self._candle_buffers[symbol][timeframe]) >= min_required:
-                await self._calculate_and_publish_indicators(symbol, timeframe)
+                await self._calculate_and_publish_indicators(
+                    venue=candle.venue,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
 
             logger.debug(f"Processed candle update for {symbol} {timeframe.value}")
 
         except Exception as e:
-            logger.error(f"Error handling candle update: {e}")
+            logger.exception("Error handling candle update")
+            await self._emit_error(str(e), "candle_update_failed", symbol=event.symbol)
 
     async def _calculate_and_publish_indicators(
         self,
+        *,
+        venue: str,
         symbol: str,
         timeframe: TimeFrame,
     ) -> None:
@@ -146,6 +173,7 @@ class FeatureService:
         try:
             # Get candles from buffer
             candles = list(self._candle_buffers[symbol][timeframe])
+            latest_candle = candles[-1]
 
             # Calculate indicators
             indicators = TechnicalIndicatorsCalculator.calculate_all_indicators(
@@ -161,12 +189,20 @@ class FeatureService:
             # Store latest indicators
             self._latest_indicators[symbol][timeframe] = indicators
 
+            if self._db_adapter is not None:
+                await self._db_adapter.insert_technical_indicators(venue, indicators)
+
             # Create and publish features calculated event
             event = FeaturesCalculatedEvent(
                 timestamp=datetime.now(UTC),
                 symbol=symbol,
                 timeframe=timeframe,
                 features=indicators,
+                metadata={
+                    "venue": venue,
+                    "open_time": latest_candle.open_time,
+                    "close_time": latest_candle.close_time,
+                },
             )
 
             await self._event_bus.publish(event, priority=5)
@@ -175,12 +211,28 @@ class FeatureService:
             self._calculations_performed += 1
             self._last_calculation_time = datetime.now(UTC)
 
-            logger.debug(f"Published features for {symbol} {timeframe.value}")
+            buffer = self._candle_buffers[symbol][timeframe]
+            logger.info(f"Published features for {symbol} {timeframe.value} (buffer={len(buffer)})")
 
         except Exception as e:
             logger.error(
                 f"Error calculating indicators for {symbol} {timeframe.value}: {e}",
             )
+            await self._emit_error(str(e), "indicator_calculation_failed", symbol=symbol)
+
+    async def _emit_error(self, message: str, error_type: str, symbol: str = "") -> None:
+        try:
+            error_event = ErrorEvent(
+                event_type=EventType.ERROR,
+                timestamp=datetime.now(UTC),
+                symbol=symbol,
+                error_type=error_type,
+                error_message=message,
+                component="feature_service",
+            )
+            await self._event_bus.publish(error_event, priority=7)
+        except Exception:
+            logger.exception("Failed to publish feature service error event")
 
     async def get_latest_indicators(
         self,
@@ -277,7 +329,12 @@ class FeatureService:
             )
 
             if len(buffer) >= min_required:
-                await self._calculate_and_publish_indicators(symbol, timeframe)
+                inferred_venue = buffer[-1].venue if buffer else "SPOT"
+                await self._calculate_and_publish_indicators(
+                    venue=inferred_venue,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
 
             logger.info(f"Added {len(candles)} candles for {symbol} {timeframe.value}")
 
@@ -307,7 +364,12 @@ class FeatureService:
         """Force recalculation of indicators for a symbol and timeframe"""
         try:
             if len(self._candle_buffers[symbol][timeframe]) > 0:
-                await self._calculate_and_publish_indicators(symbol, timeframe)
+                inferred_venue = self._candle_buffers[symbol][timeframe][-1].venue
+                await self._calculate_and_publish_indicators(
+                    venue=inferred_venue,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
                 logger.info(f"Recalculated indicators for {symbol} {timeframe.value}")
             else:
                 logger.warning(f"No candles available for {symbol} {timeframe.value}")
@@ -317,10 +379,7 @@ class FeatureService:
     def clear_buffer(self, symbol: str, timeframe: TimeFrame) -> None:
         """Clear the candle buffer for a symbol and timeframe"""
         self._candle_buffers[symbol][timeframe].clear()
-        if (
-            symbol in self._latest_indicators
-            and timeframe in self._latest_indicators[symbol]
-        ):
+        if symbol in self._latest_indicators and timeframe in self._latest_indicators[symbol]:
             del self._latest_indicators[symbol][timeframe]
         logger.info(f"Cleared buffer for {symbol} {timeframe.value}")
 
@@ -333,9 +392,7 @@ class FeatureService:
     async def health_check(self) -> dict[Any, Any]:
         """Get health status of the feature service"""
         total_symbols = len(self._candle_buffers)
-        total_timeframes = sum(
-            len(tf_dict) for tf_dict in self._candle_buffers.values()
-        )
+        total_timeframes = sum(len(tf_dict) for tf_dict in self._candle_buffers.values())
         total_candles = sum(
             len(buffer)
             for symbol_dict in self._candle_buffers.values()
@@ -350,9 +407,7 @@ class FeatureService:
             "total_candles_buffered": total_candles,
             "calculations_performed": self._calculations_performed,
             "last_calculation": (
-                self._last_calculation_time.isoformat()
-                if self._last_calculation_time
-                else None
+                self._last_calculation_time.isoformat() if self._last_calculation_time else None
             ),
             "configuration": {
                 "buffer_size": self.buffer_size,

@@ -13,7 +13,8 @@ def get_files_with_argument_type_errors():
     """Run mypy and extract files with missing argument type errors"""
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine"],
-        check=False, capture_output=True,
+        check=False,
+        capture_output=True,
         text=True,
     )
 
@@ -57,7 +58,8 @@ def fix_all_argument_type_annotations():
     print("\nVerifying fixes...")
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine", "--no-error-summary"],
-        check=False, capture_output=True,
+        check=False,
+        capture_output=True,
         text=True,
     )
 

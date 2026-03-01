@@ -17,10 +17,9 @@ describe('TradesPage', () => {
     expect(screen.getByText('Active Trades')).toBeInTheDocument()
   })
 
-  test('applies pageShell CSS module class to root div', () => {
-    const { container } = render(<TradesPage />)
-    const rootDiv = container.firstChild as HTMLElement
-    expect(rootDiv.className).toContain('pageShell')
+  test('renders inside AppShell', () => {
+    render(<TradesPage />)
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
   })
 
   test('renders filter tabs with CSS module classes', () => {

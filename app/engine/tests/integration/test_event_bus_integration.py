@@ -18,7 +18,7 @@ class TestEvent(BaseEvent):
     test_data: str
 
     def __init__(self, test_data: str, **kwargs) -> None:
-        super().__init__(
+        super().__init__(  # type: ignore[call-arg]
             event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
             timestamp=kwargs.get("timestamp", datetime.utcnow()),
             symbol=kwargs.get("symbol", "BTCUSDT"),
@@ -41,7 +41,7 @@ class TestEventBusIntegration:
         received_events = []
 
         async def test_handler(event: BaseEvent) -> None:
-            received_events.append(event.test_data)
+            received_events.append(event.test_data)  # type: ignore[attr-defined]
 
         # Subscribe to events
         subscription_id = await event_bus.subscribe(
@@ -294,7 +294,7 @@ class TestEventBusIntegration:
             processing_started.set()
             # Simulate slow processing
             await asyncio.sleep(0.1)
-            processed_events.append(event.test_data)
+            processed_events.append(event.test_data)  # type: ignore[attr-defined]
 
         await event_bus.start()
 

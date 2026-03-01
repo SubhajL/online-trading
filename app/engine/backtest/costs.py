@@ -15,8 +15,8 @@ class CostCalculator:
 
     def __init__(
         self,
-        fee_bps_spot: Decimal = Decimal(10),      # 0.10% for spot
-        fee_bps_futures: Decimal = Decimal(4),    # 0.04% for futures
+        fee_bps_spot: Decimal = Decimal(10),  # 0.10% for spot
+        fee_bps_futures: Decimal = Decimal(4),  # 0.04% for futures
         funding_model: str = "disabled",
     ):
         """
@@ -60,7 +60,11 @@ class CostCalculator:
 
         return notional * base_rate
 
-    def calculate_fill_fee(self, fill: BacktestFill, is_futures: bool = False) -> Decimal:
+    def calculate_fill_fee(
+        self,
+        fill: BacktestFill,
+        is_futures: bool = False,
+    ) -> Decimal:
         """
         Calculate fee for a specific fill.
 
@@ -167,9 +171,11 @@ class CostCalculator:
             microsecond=0,
         )
 
-        return (timestamp.hour in funding_hours and
-                timestamp.minute == 0 and
-                position_opened_at < current_funding_time)
+        return (
+            timestamp.hour in funding_hours
+            and timestamp.minute == 0
+            and position_opened_at < current_funding_time
+        )
 
     def calculate_total_trade_cost(
         self,
@@ -206,13 +212,11 @@ class CostCalculator:
             costs["exit_fee"] = self.calculate_fill_fee(exit_fill, is_futures)
             costs["exit_slippage"] = exit_fill.slippage
 
-        costs["total_fees"] = costs["entry_fee"] + costs["exit_fee"]
-        costs["total_slippage"] = costs["entry_slippage"] + costs["exit_slippage"]
-        costs["total_cost"] = (costs["total_fees"] +
-                              costs["total_slippage"] +
-                              costs["total_funding"])
+        costs["total_fees"] = costs["entry_fee"] + costs["exit_fee"]  # type: ignore[assignment]
+        costs["total_slippage"] = costs["entry_slippage"] + costs["exit_slippage"]  # type: ignore[assignment]
+        costs["total_cost"] = costs["total_fees"] + costs["total_slippage"] + costs["total_funding"]  # type: ignore[assignment]
 
-        return costs
+        return costs  # type: ignore[return-value]
 
     def calculate_breakeven_price(
         self,

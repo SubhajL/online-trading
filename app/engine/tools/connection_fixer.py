@@ -19,7 +19,7 @@ def detect_connection_patterns(content: str) -> list[dict[str, Any]]:
     """
     patterns: list[dict[str, Any]] = []
     lines = content.split("\n")
-    norm = [l.expandtabs(4) for l in lines]
+    norm = [line.expandtabs(4) for line in lines]
 
     # Account for leading blank line in test fixtures
     leading_blank_offset = 1 if (len(norm) > 0 and norm[0].strip() == "") else 0
@@ -28,7 +28,8 @@ def detect_connection_patterns(content: str) -> list[dict[str, Any]]:
     for i, line in enumerate(norm):
         if line.strip() == "@asynccontextmanager" and i + 1 < len(norm):
             m = re.match(
-                r"^\s*async\s+def\s+(\w+)\(.*\)\s*->\s*None\s*:\s*$", norm[i + 1],
+                r"^\s*async\s+def\s+(\w+)\(.*\)\s*->\s*None\s*:\s*$",
+                norm[i + 1],
             )
             if m:
                 patterns.append(
@@ -224,9 +225,14 @@ def add_connection_type_hints(arg: Any) -> Any:
         original = p.read_text()
         modified = _add_connection_type_hints_to_code(original)
         # For file-based flow, normalize inline comments to '# type: asyncpg.Connection'
-        modified = re.sub(r"#\s*\w+\s*:\s*asyncpg\.Connection", "# type: asyncpg.Connection", modified)
+        modified = re.sub(
+            r"#\s*\w+\s*:\s*asyncpg\.Connection",
+            "# type: asyncpg.Connection",
+            modified,
+        )
         if modified == original:
             return 0
+
         # Count added inline connection annotations per-line to avoid double-counting substrings
         def _count_annot_lines(s: str) -> int:
             cnt = 0
@@ -234,6 +240,7 @@ def add_connection_type_hints(arg: Any) -> Any:
                 if re.search(r"#\s*(type|\w+)\s*:\s*asyncpg\.Connection\b", ln):
                     cnt += 1
             return cnt
+
         before = _count_annot_lines(original)
         after = _count_annot_lines(modified)
         p.write_text(modified)

@@ -62,11 +62,17 @@ class ChartGenerator:
         fig, ax = plt.subplots(figsize=self.figsize)
 
         # Plot equity curve
-        ax.plot(timestamps, equity_values, linewidth=2, color="#2E86C1", label="Equity")
+        ax.plot(timestamps, equity_values, linewidth=2, color="#2E86C1", label="Equity")  # type: ignore[arg-type]
 
         # Add horizontal line for starting balance
         initial_balance = equity_values[0]
-        ax.axhline(y=initial_balance, color="gray", linestyle="--", alpha=0.7, label="Initial Balance")
+        ax.axhline(
+            y=initial_balance,
+            color="gray",
+            linestyle="--",
+            alpha=0.7,
+            label="Initial Balance",
+        )
 
         # Formatting
         ax.set_title(title, fontsize=16, fontweight="bold")
@@ -88,8 +94,15 @@ class ChartGenerator:
         total_return = (final_equity - initial_balance) / initial_balance * 100
 
         stats_text = f"Initial: ${initial_balance:,.0f}\nFinal: ${final_equity:,.0f}\nReturn: {total_return:.2f}%"
-        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=10,
-                verticalalignment="top", bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+        ax.text(
+            0.02,
+            0.98,
+            stats_text,
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment="top",
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        )
 
         plt.tight_layout()
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -117,14 +130,23 @@ class ChartGenerator:
 
         # Extract data
         timestamps = [item[0] for item in drawdown_curve]
-        drawdown_values = [float(item[1]) * -100 for item in drawdown_curve]  # Convert to negative percentages
+        drawdown_values = [
+            float(item[1]) * -100 for item in drawdown_curve
+        ]  # Convert to negative percentages
 
         # Create figure
         fig, ax = plt.subplots(figsize=self.figsize)
 
         # Plot drawdown
-        ax.fill_between(timestamps, drawdown_values, 0, alpha=0.7, color="#E74C3C", label="Drawdown")
-        ax.plot(timestamps, drawdown_values, linewidth=1, color="#C0392B")
+        ax.fill_between(
+            timestamps,  # type: ignore[arg-type]
+            drawdown_values,
+            0,
+            alpha=0.7,
+            color="#E74C3C",
+            label="Drawdown",
+        )
+        ax.plot(timestamps, drawdown_values, linewidth=1, color="#C0392B")  # type: ignore[arg-type]
 
         # Formatting
         ax.set_title(title, fontsize=16, fontweight="bold")
@@ -144,8 +166,15 @@ class ChartGenerator:
         # Add statistics
         max_dd = min(drawdown_values)
         stats_text = f"Max Drawdown: {max_dd:.2f}%"
-        ax.text(0.02, 0.02, stats_text, transform=ax.transAxes, fontsize=10,
-                verticalalignment="bottom", bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+        ax.text(
+            0.02,
+            0.02,
+            stats_text,
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment="bottom",
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        )
 
         plt.tight_layout()
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -179,22 +208,40 @@ class ChartGenerator:
         fig, ax = plt.subplots(figsize=self.figsize)
 
         # Create histogram
-        n, bins_edges, patches = ax.hist(returns_array, bins=bins, alpha=0.7, edgecolor="black")
+        n, bins_edges, patches = ax.hist(
+            returns_array,
+            bins=bins,
+            alpha=0.7,
+            edgecolor="black",
+        )
 
         # Color bars based on positive/negative
-        for i, patch in enumerate(patches):
+        for i, patch in enumerate(patches):  # type: ignore[arg-type]
             if bins_edges[i] < 0:
                 patch.set_facecolor("#E74C3C")  # Red for losses
             else:
                 patch.set_facecolor("#27AE60")  # Green for wins
 
         # Add vertical line at zero
-        ax.axvline(x=0, color="black", linestyle="-", linewidth=2, alpha=0.8, label="Breakeven")
+        ax.axvline(
+            x=0,
+            color="black",
+            linestyle="-",
+            linewidth=2,
+            alpha=0.8,
+            label="Breakeven",
+        )
 
         # Add mean line
         mean_return = returns_array.mean()
-        ax.axvline(x=mean_return, color="blue", linestyle="--", linewidth=2,
-                  alpha=0.8, label=f"Mean: {mean_return:.2f}R")
+        ax.axvline(
+            x=mean_return,
+            color="blue",
+            linestyle="--",
+            linewidth=2,
+            alpha=0.8,
+            label=f"Mean: {mean_return:.2f}R",
+        )
 
         # Formatting
         ax.set_title(title, fontsize=16, fontweight="bold")
@@ -207,14 +254,23 @@ class ChartGenerator:
         std_return = returns_array.std()
         win_rate = (returns_array > 0).sum() / len(returns_array) * 100
 
-        stats_text = (f"Count: {len(returns)}\n"
-                     f"Mean: {mean_return:.2f}R\n"
-                     f"Std: {std_return:.2f}R\n"
-                     f"Win Rate: {win_rate:.1f}%")
+        stats_text = (
+            f"Count: {len(returns)}\n"
+            f"Mean: {mean_return:.2f}R\n"
+            f"Std: {std_return:.2f}R\n"
+            f"Win Rate: {win_rate:.1f}%"
+        )
 
-        ax.text(0.98, 0.98, stats_text, transform=ax.transAxes, fontsize=10,
-                verticalalignment="top", horizontalalignment="right",
-                bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+        ax.text(
+            0.98,
+            0.98,
+            stats_text,
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment="top",
+            horizontalalignment="right",
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        )
 
         plt.tight_layout()
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -257,10 +313,10 @@ class ChartGenerator:
 
         matrix = np.full((len(years_sorted), 12), np.nan)
 
-        for i, year in enumerate(years_sorted):
+        for i, year in enumerate(years_sorted):  # type: ignore[assignment]
             for j in range(1, 13):  # Months 1-12
-                if (year, j) in data_dict:
-                    matrix[i, j-1] = data_dict[(year, j)]
+                if (year, j) in data_dict:  # type: ignore[comparison-overlap]
+                    matrix[i, j - 1] = data_dict[(year, j)]  # type: ignore[index]
 
         # Create figure
         fig, ax = plt.subplots(figsize=(12, max(6, len(years_sorted))))
@@ -270,19 +326,39 @@ class ChartGenerator:
 
         # Set ticks and labels
         ax.set_xticks(range(12))
-        ax.set_xticklabels(["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
+        ax.set_xticklabels(
+            [
+                "Jan",
+                "Feb",
+                "Mar",
+                "Apr",
+                "May",
+                "Jun",
+                "Jul",
+                "Aug",
+                "Sep",
+                "Oct",
+                "Nov",
+                "Dec",
+            ],
+        )
         ax.set_yticks(range(len(years_sorted)))
-        ax.set_yticklabels(years_sorted)
+        ax.set_yticklabels(years_sorted)  # type: ignore[arg-type]
 
         # Add text annotations
         for i in range(len(years_sorted)):
             for j in range(12):
                 if not np.isnan(matrix[i, j]):
                     text = f"{matrix[i, j]:.1f}%"
-                    ax.text(j, i, text, ha="center", va="center",
-                           color="white" if abs(matrix[i, j]) > 5 else "black",
-                           fontweight="bold" if abs(matrix[i, j]) > 3 else "normal")
+                    ax.text(
+                        j,
+                        i,
+                        text,
+                        ha="center",
+                        va="center",
+                        color="white" if abs(matrix[i, j]) > 5 else "black",
+                        fontweight="bold" if abs(matrix[i, j]) > 3 else "normal",
+                    )
 
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax)
@@ -340,7 +416,12 @@ class ChartGenerator:
         # Returns histogram (bottom left)
         if returns:
             returns_array = np.array(returns)
-            n, bins_edges, patches = ax3.hist(returns_array, bins=30, alpha=0.7, edgecolor="black")
+            n, bins_edges, patches = ax3.hist(
+                returns_array,
+                bins=30,
+                alpha=0.7,
+                edgecolor="black",
+            )
 
             # Color bars
             for i, patch in enumerate(patches):
@@ -350,15 +431,28 @@ class ChartGenerator:
                     patch.set_facecolor("#27AE60")
 
             ax3.axvline(x=0, color="black", linestyle="-", linewidth=2, alpha=0.8)
-            ax3.axvline(x=returns_array.mean(), color="blue", linestyle="--", linewidth=2, alpha=0.8)
+            ax3.axvline(
+                x=returns_array.mean(),
+                color="blue",
+                linestyle="--",
+                linewidth=2,
+                alpha=0.8,
+            )
             ax3.set_title("Returns Distribution", fontweight="bold")
             ax3.set_xlabel("Return (R multiples)")
             ax3.set_ylabel("Frequency")
             ax3.grid(True, alpha=0.3)
 
         # Rolling Sharpe (bottom right) - placeholder
-        ax4.text(0.5, 0.5, "Rolling Sharpe\n(Future Enhancement)",
-                ha="center", va="center", transform=ax4.transAxes, fontsize=12)
+        ax4.text(
+            0.5,
+            0.5,
+            "Rolling Sharpe\n(Future Enhancement)",
+            ha="center",
+            va="center",
+            transform=ax4.transAxes,
+            fontsize=12,
+        )
         ax4.set_title("Rolling Sharpe Ratio", fontweight="bold")
 
         plt.suptitle(title, fontsize=18, fontweight="bold")

@@ -12,6 +12,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import type { AuthenticatedRequest } from './interfaces/authenticated-request.interface';
 import { Public } from './decorators/public.decorator';
 import { Roles } from './decorators/roles.decorator';
 
@@ -28,13 +29,13 @@ export class AuthController {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.authService.login(user);
+    return this.authService.login(user, loginDto.rememberMe ?? true);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  async getProfile(@Request() req: any) {
-    return this.authService.getProfile(req.user.id);
+  async getProfile(@Request() req: AuthenticatedRequest) {
+    return this.authService.getProfile(req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

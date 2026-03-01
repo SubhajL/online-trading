@@ -17,12 +17,14 @@ from .verify_environment import (
     check_file_permissions,
     check_port_availability,
     check_required_env_vars,
+    check_risk_parameters,
 )
 
 # Define check order and names
 PREFLIGHT_CHECKS = [
     # Environment checks first
     ("environment", check_required_env_vars),
+    ("risk_parameters", check_risk_parameters),
     ("python_version", check_python_version),
     ("packages", check_python_packages),
     ("system_commands", check_system_commands),
@@ -148,7 +150,9 @@ def generate_preflight_report(results: PreflightResults) -> str:
                 lines.append(f"   Error: {result.details['error']}")
 
             if result.details.get("missing_commands"):
-                lines.append(f"   Missing commands: {', '.join(result.details['missing_commands'])}")
+                lines.append(
+                    f"   Missing commands: {', '.join(result.details['missing_commands'])}",
+                )
 
             if "version_mismatches" in result.details:
                 lines.append("   Version mismatches:")
@@ -164,7 +168,10 @@ def generate_preflight_report(results: PreflightResults) -> str:
         lines.append("RECOMMENDED ACTIONS:")
         lines.append("=" * 60)
 
-        if "environment" in results.checks and results.checks["environment"].status == CheckStatus.FAILED:
+        if (
+            "environment" in results.checks
+            and results.checks["environment"].status == CheckStatus.FAILED
+        ):
             lines.append("\n1. Set missing environment variables in .env file")
             lines.append("   cp .env.example .env")
             lines.append("   # Edit .env and add required values")
@@ -173,7 +180,10 @@ def generate_preflight_report(results: PreflightResults) -> str:
             lines.append("\n2. Install missing Python packages")
             lines.append("   pip install -r app/engine/requirements.txt")
 
-        if "system_commands" in results.checks and results.checks["system_commands"].status == CheckStatus.FAILED:
+        if (
+            "system_commands" in results.checks
+            and results.checks["system_commands"].status == CheckStatus.FAILED
+        ):
             lines.append("\n3. Install missing system commands")
             details = results.checks["system_commands"].details
             if "docker" in details.get("missing_commands", []):

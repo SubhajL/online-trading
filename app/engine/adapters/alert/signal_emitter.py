@@ -1,10 +1,12 @@
 """Emits trading signals with snapshot requirements."""
 
-import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
+from decimal import Decimal
 import logging
-from typing import Any
+from typing import Any, Literal
 import uuid
+
+from app.engine.models import TradingDecision, TradingDecisionEvent
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +18,11 @@ class SignalEmitter:
         self.event_bus = event_bus
         self.bff_client = bff_client
 
-    async def emit_signal(
+    async def emit_signal(  # noqa: PLR0913
         self,
         symbol: str,
         venue: str,
-        side: str,
+        side: Literal["long", "short"],
         entry: float,
         stop_loss: float,
         take_profit: float,
@@ -28,6 +30,7 @@ class SignalEmitter:
         reasons: list[str],
         timeframe: str = "15m",
         decision_time: datetime | None = None,
+        zone: dict[str, Any] | None = None,
     ) -> str:
         """
         Emit a trading signal that will trigger alerts and snapshots.
@@ -35,7 +38,7 @@ class SignalEmitter:
         Args:
             symbol: Trading pair symbol
             venue: Trading venue (SPOT or USD_M)
-            side: Signal side (long or short)
+            side: Signal side ("long" or "short")
             entry: Entry price
             stop_loss: Stop loss price
             take_profit: Take profit price
@@ -49,10 +52,42 @@ class SignalEmitter:
         """
         try:
             signal_id = f"sig_{uuid.uuid4().hex[:12]}"
-            decision_time = decision_time or datetime.now()
+            if decision_time is None:
+                decision_time = datetime.now(UTC)
+            elif decision_time.tzinfo is None:
+                decision_time = decision_time.replace(tzinfo=UTC)
 
-            # Create decision event
-            decision_event = {
+            action = "BUY" if side == "long" else "SELL"
+
+            decision = TradingDecision(
+                venue=venue,
+                symbol=symbol,
+                timestamp=decision_time,
+                action=action,
+                entry_price=Decimal(str(entry)),
+                quantity=Decimal("0.01"),
+                stop_loss=Decimal(str(stop_loss)),
+                take_profit=Decimal(str(take_profit)),
+                confidence=Decimal(str(confidence)),
+                reasoning="; ".join(reasons),
+            )
+
+            event = TradingDecisionEvent(
+                symbol=symbol,
+                timestamp=decision_time,
+                decision=decision,
+                metadata={
+                    "signal_id": signal_id,
+                    "decision_source": "signal_emitter_bypass",
+                    "venue": venue,
+                    "timeframe": timeframe,
+                    **({"zone": zone} if zone is not None else {}),
+                },
+            )
+
+            await self.event_bus.publish(event)
+
+            snapshot_data = {
                 "signal_id": signal_id,
                 "symbol": symbol,
                 "venue": venue,
@@ -60,30 +95,27 @@ class SignalEmitter:
                 "entry_price": entry,
                 "stop_loss": stop_loss,
                 "take_profit": take_profit,
-                "quantity": 0.01,  # Default minimal quantity
                 "confidence": confidence,
                 "reasons": reasons,
                 "timeframe": timeframe,
-                "timestamp": decision_time.isoformat(),
                 "decision_time": decision_time.isoformat(),
             }
-
-            # Publish decision event
-            await self.event_bus.publish("decision.v1", decision_event)
-
-            # Notify BFF to generate snapshot
-            await self._notify_snapshot(decision_event)
+            await self._notify_snapshot(snapshot_data)
 
             logger.info(
-                f"Emitted signal {signal_id}: {side} {symbol} @ {entry} "
-                f"(SL: {stop_loss}, TP: {take_profit})",
+                "Emitted signal %s: %s %s @ %s (SL: %s, TP: %s)",
+                signal_id,
+                side,
+                symbol,
+                entry,
+                stop_loss,
+                take_profit,
             )
-
-            return signal_id
-
-        except Exception as e:
-            logger.error(f"Error emitting signal: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error emitting signal")
             raise
+        else:
+            return signal_id
 
     async def _notify_snapshot(self, decision: dict[str, Any]) -> None:
         """Notify BFF to generate a snapshot for this signal."""
@@ -105,10 +137,10 @@ class SignalEmitter:
             # Call BFF signal alert endpoint
             await self.bff_client.post("/api/signals/alert", payload)
 
-        except Exception as e:
-            logger.error(
-                f"Error notifying snapshot for signal {decision['signal_id']}: {e}",
-                exc_info=True,
+        except Exception:
+            logger.exception(
+                "Error notifying snapshot for signal %s",
+                decision["signal_id"],
             )
             # Don't raise - snapshot is nice to have but shouldn't block signal
 
@@ -119,46 +151,44 @@ class MockBffClient:
     def __init__(self, base_url: str, api_key: str) -> None:
         self.base_url = base_url
         self.api_key = api_key
-        self.posted_signals = []
+        self.posted_signals: list[dict[str, Any]] = []
 
     async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Mock POST request."""
-        self.posted_signals.append({
-            "endpoint": endpoint,
-            "payload": payload,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self.posted_signals.append(
+            {
+                "endpoint": endpoint,
+                "payload": payload,
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
+        )
 
-        logger.info(f"Mock BFF POST to {endpoint}: {payload['signalId']}")
+        logger.info("Mock BFF POST to %s: %s", endpoint, payload["signalId"])
 
         return {
             "success": True,
             "signalId": payload["signalId"],
-            "imageUrl": f"/snapshots/{payload['signalId']}.png",
+            "imageUrl": f"/api/snapshots/{payload['signalId']}.png",
         }
 
 
-async def emit_test_signal():
+async def emit_test_signal() -> None:
     """Emit a test signal for demonstration."""
     from unittest.mock import AsyncMock, Mock
 
-    # Create mock components
     event_bus = Mock(
         publish=AsyncMock(),
         subscribe=AsyncMock(),
     )
     bff_client = MockBffClient("http://localhost:3000", "test-key")
 
-    # Create signal emitter
     emitter = SignalEmitter(event_bus, bff_client)
 
-    # Subscribe to decision events
     async def handle_decision(event: dict[str, Any]) -> None:
-        logger.info(f"Received decision event: {event['signal_id']}")
+        logger.info("Received decision event: %s", event["signal_id"])
 
     await event_bus.subscribe("decision.v1", handle_decision)
 
-    # Emit test signal
     signal_id = await emitter.emit_signal(
         symbol="BTCUSDT",
         venue="SPOT",
@@ -171,14 +201,15 @@ async def emit_test_signal():
         timeframe="15m",
     )
 
-    logger.info(f"Test signal emitted: {signal_id}")
+    logger.info("Test signal emitted: %s", signal_id)
 
-    # Check mock client
     if bff_client.posted_signals:
-        logger.info(f"BFF notified: {bff_client.posted_signals[0]}")
+        logger.info("BFF notified: %s", bff_client.posted_signals[0])
 
 
 if __name__ == "__main__":
+    import asyncio
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

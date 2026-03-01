@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 import signal
 import sys
+from typing import Optional
 
 import uvicorn
 import yaml

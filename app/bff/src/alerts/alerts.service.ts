@@ -37,7 +37,7 @@ export class AlertsService {
 
   async findAll(page: number, limit: number, filters: AlertFilters): Promise<PaginatedAlertsDto> {
     const skip = (page - 1) * limit;
-    const where: any = {};
+    const where: Record<string, unknown> = {};
 
     if (filters.type) where.type = filters.type;
     if (filters.priority) where.priority = filters.priority;

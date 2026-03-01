@@ -4,36 +4,43 @@ Follows T-3: Tests actual database operations.
 Follows T-4: Uses real database connections instead of mocks.
 """
 
-import pytest
 import asyncio
-import asyncpg
-import redis.asyncio as redis
-import os
 from datetime import datetime
-from typing import Dict, Any
+import os
+from urllib.parse import urlparse
+
+import pytest
+import pytest_asyncio
 
 from app.engine.core.database import (
-    DatabaseManager,
-    ConnectionPool,
-    TransactionContext,
-    OptimisticLockMixin,
-    DatabaseConfig,
     ConnectionError,
-    TransactionError,
+    ConnectionPool,
+    DatabaseConfig,
+    DatabaseManager,
     OptimisticLockError,
+    OptimisticLockMixin,
     PoolExhaustionError,
+    TransactionContext,
+    TransactionError,
 )
 
 
 def get_test_db_config() -> DatabaseConfig:
     """Get database config for testing."""
+    postgres_url = os.getenv(
+        "TEST_DATABASE_URL",
+        "postgresql://trading_user:your_secure_password_here@localhost:5432/trading_platform_test",
+    )
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    parsed_redis = urlparse(redis_url)
+    if not parsed_redis.path or parsed_redis.path == "/":
+        redis_url = f"{redis_url.rstrip('/')}/15"
+    else:
+        redis_url = f"{redis_url.rsplit('/', 1)[0]}/15"
+
     return DatabaseConfig(
-        postgres_url=os.getenv(
-            "TEST_POSTGRES_URL", "postgresql://test:test@localhost:5432/test_db"
-        ),
-        redis_url=os.getenv(
-            "TEST_REDIS_URL", "redis://localhost:6379/15"  # Use DB 15 for tests
-        ),
+        postgres_url=postgres_url,
+        redis_url=redis_url,
         pool_size=2,  # Small pool for testing
         max_overflow=2,
         pool_timeout=5,
@@ -42,12 +49,13 @@ def get_test_db_config() -> DatabaseConfig:
 
 
 @pytest.fixture
-async def test_db_config() -> None:
+def test_db_config() -> DatabaseConfig:
     """Fixture for test database configuration."""
+    return get_test_db_config()
 
 
-@pytest.fixture
-async def test_pool(test_db_config) -> None:
+@pytest_asyncio.fixture
+async def test_pool(test_db_config: DatabaseConfig) -> None:  # type: ignore[misc]
     """Fixture for initialized connection pool."""
     pool = ConnectionPool(test_db_config)
     await pool.initialize()
@@ -55,8 +63,8 @@ async def test_pool(test_db_config) -> None:
     await pool.close()
 
 
-@pytest.fixture
-async def test_db_manager(test_db_config) -> None:
+@pytest_asyncio.fixture
+async def test_db_manager(test_db_config: DatabaseConfig) -> None:  # type: ignore[misc]
     """Fixture for initialized database manager."""
     manager = DatabaseManager(test_db_config)
     await manager.initialize()
@@ -64,8 +72,8 @@ async def test_db_manager(test_db_config) -> None:
     await manager.shutdown()
 
 
-@pytest.fixture
-async def setup_test_table(test_pool) -> None:
+@pytest_asyncio.fixture
+async def setup_test_table(test_pool) -> None:  # type: ignore[misc]
     """Create test table for integration tests."""
     async with test_pool.get_postgres_connection() as conn:
         # Drop and recreate test table
@@ -131,9 +139,9 @@ class TestConnectionPoolIntegration:
     async def test_pool_concurrent_connections(self, test_pool) -> None:
         """Test pool handles concurrent connections correctly."""
 
-        async def use_connection(n: int) -> None:
+        async def use_connection(n: int) -> int:
             async with test_pool.get_postgres_connection() as conn:
-                result = await conn.fetchval("SELECT $1::int", n)
+                return int(await conn.fetchval("SELECT $1::int", n))
 
         # Run multiple concurrent connections
         tasks = [use_connection(i) for i in range(10)]
@@ -354,11 +362,12 @@ class TestConcurrencyIntegration:
     async def test_concurrent_transactions(self, test_db_manager, setup_test_table) -> None:
         """Test multiple concurrent transactions work correctly."""
 
-        async def insert_value(value: str) -> None:
+        async def insert_value(value: str) -> str:
             async with test_db_manager.transaction() as tx:
                 await tx.execute("INSERT INTO test_table (value) VALUES ($1)", value)
                 # Small delay to increase chance of overlap
                 await asyncio.sleep(0.01)
+            return value
 
         # Run concurrent transactions
         values = [f"concurrent_{i}" for i in range(10)]
@@ -381,6 +390,7 @@ class TestConcurrencyIntegration:
         config = get_test_db_config()
         config.pool_size = 1  # Very small pool
         config.max_overflow = 0  # No overflow
+        config.pool_timeout = 1  # Fast exhaustion detection
 
         pool = ConnectionPool(config)
         await pool.initialize()

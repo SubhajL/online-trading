@@ -10,14 +10,13 @@ import numpy as np
 import pandas as pd
 
 from ..decision.decision_engine import DecisionEngine
-from ..features.indicators import IndicatorCalculator
+from ..features.indicators import IndicatorCalculator  # type: ignore[attr-defined]
 from ..models import (
     TechnicalIndicators,
     TimeFrame,
     TradingDecision,
     TradingMetrics,
 )
-from ..smc.smc_service import SMCService
 
 
 class BacktestEngine:
@@ -37,7 +36,6 @@ class BacktestEngine:
 
         # Components
         self.indicator_calculator = IndicatorCalculator()
-        self.smc_service = SMCService()
         self.decision_engine = DecisionEngine()
 
         # Results storage
@@ -79,7 +77,12 @@ class BacktestEngine:
                 signal = smc_signals[i]
 
                 # Get current indicators
-                current_indicators = self._get_indicators_at(indicators_df, i)
+                current_indicators = self._get_indicators_at(
+                    indicators_df,
+                    i,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
 
                 # Make trading decision
                 decision = await self._make_decision(
@@ -87,6 +90,8 @@ class BacktestEngine:
                     signal,
                     current_indicators,
                     balance,
+                    venue="BACKTEST",
+                    symbol=symbol,
                 )
 
                 if decision:
@@ -97,9 +102,7 @@ class BacktestEngine:
                         balance -= trade["cost"]
 
             # Record equity
-            total_equity = balance + sum(
-                p["unrealized_pnl"] for p in self.positions.values()
-            )
+            total_equity = balance + sum(p["unrealized_pnl"] for p in self.positions.values())
             self.equity_curve.append((timestamp, total_equity))
 
         # Close remaining positions
@@ -225,7 +228,11 @@ class BacktestEngine:
                 return False
         return True
 
-    def _check_structure_break(self, df: pd.DataFrame, index: int) -> dict[Any, Any] | None:
+    def _check_structure_break(
+        self,
+        df: pd.DataFrame,
+        index: int,
+    ) -> dict[Any, Any] | None:
         """
         Check for market structure break.
         """
@@ -258,14 +265,21 @@ class BacktestEngine:
             return Decimal(str(candle["close"])) - (atr * 2)
         return Decimal(str(candle["close"])) + (atr * 2)
 
-    def _get_indicators_at(self, df: pd.DataFrame, index: int) -> TechnicalIndicators:
+    def _get_indicators_at(
+        self,
+        df: pd.DataFrame,
+        index: int,
+        *,
+        symbol: str,
+        timeframe: TimeFrame,
+    ) -> TechnicalIndicators:
         """
         Get technical indicators at a specific index.
         """
         row = df.iloc[index]
         return TechnicalIndicators(
-            symbol="",
-            timeframe=TimeFrame.M15,
+            symbol=symbol,
+            timeframe=timeframe,
             timestamp=datetime.now(),
             ema_9=Decimal(str(row.get("ema_9", 0))),
             ema_21=Decimal(str(row.get("ema_21", 0))),
@@ -287,6 +301,9 @@ class BacktestEngine:
         signal: dict[Any, Any],
         indicators: TechnicalIndicators,
         balance: Decimal,
+        *,
+        venue: str,
+        symbol: str,
     ) -> TradingDecision | None:
         """
         Make trading decision based on signals and indicators.
@@ -307,18 +324,15 @@ class BacktestEngine:
 
         # Create decision
         return TradingDecision(
-            symbol="",
+            venue=venue,
+            symbol=symbol,
             timestamp=datetime.now(),
             action="BUY" if signal["direction"] == "bullish" else "SELL",
             entry_price=Decimal(str(signal["entry_price"])),
             quantity=position_size,
             stop_loss=signal["stop_loss"],
             take_profit=Decimal(str(signal["entry_price"]))
-            + (
-                stop_distance * 2
-                if signal["direction"] == "bullish"
-                else -stop_distance * 2
-            ),
+            + (stop_distance * 2 if signal["direction"] == "bullish" else -stop_distance * 2),
             confidence=Decimal("0.7"),
             reasoning=f"Structure break {signal['direction']}",
         )

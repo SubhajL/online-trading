@@ -57,7 +57,7 @@ async def test_circuit_breaker_precheck_and_success(monkeypatch):
     br = _FakeBreaker()
     monkeypatch.setattr(processor, "_get_circuit_breaker", lambda _sid: asyncio.Future())
     # Make _get_circuit_breaker return a resolved future to br
-    fut = processor._get_circuit_breaker("worker")  # type: ignore[attr-defined]
+    fut = processor._get_circuit_breaker("worker")
     # Manually set future result for lambda above (simplify)
     # Instead, patch method to regular coroutine
     async def _get_cb(_sid):

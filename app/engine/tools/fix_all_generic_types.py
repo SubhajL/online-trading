@@ -49,7 +49,8 @@ def main():
     # Run mypy
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine", "--show-error-codes"],
-        check=False, capture_output=True,
+        check=False,
+        capture_output=True,
         text=True,
     )
 
@@ -77,7 +78,8 @@ def main():
     print("\nRunning mypy again to verify fixes...")
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine", "--show-error-codes"],
-        check=False, capture_output=True,
+        check=False,
+        capture_output=True,
         text=True,
     )
 

@@ -29,10 +29,10 @@ class BacktestMetrics:
 
 
 def calculate_returns(
-    prices: np.ndarray,  # type: ignore[type-arg]
-    positions: np.ndarray,  # type: ignore[type-arg]
+    prices: np.ndarray,
+    positions: np.ndarray,
     fees: float = 0.001,
-) -> np.ndarray:  # type: ignore[type-arg]
+) -> np.ndarray:
     """
     Computes vectorized returns including fees using numpy broadcasting.
     Handles both long/short positions correctly.
@@ -64,7 +64,7 @@ def calculate_returns(
     return returns
 
 
-def calculate_sharpe_ratio(returns: np.ndarray, periods_per_year: int = 252) -> float:  # type: ignore[type-arg]
+def calculate_sharpe_ratio(returns: np.ndarray, periods_per_year: int = 252) -> float:
     """
     Computes annualized Sharpe ratio using vectorized stddev.
     Handles edge cases like zero variance or single return.
@@ -89,7 +89,7 @@ def calculate_sharpe_ratio(returns: np.ndarray, periods_per_year: int = 252) -> 
     return float(sharpe)
 
 
-def calculate_max_drawdown(equity_curve: np.ndarray) -> tuple[float, int, int]:  # type: ignore[type-arg]
+def calculate_max_drawdown(equity_curve: np.ndarray) -> tuple[float, int, int]:
     """
     Finds maximum drawdown using vectorized cummax operation.
     Returns drawdown percentage and peak/trough indices.
@@ -115,14 +115,14 @@ def calculate_max_drawdown(equity_curve: np.ndarray) -> tuple[float, int, int]: 
     # Find the peak before the trough
     peak_idx = int(np.argmax(equity_curve[: max_dd_idx + 1]))
 
-    return max_dd, peak_idx, max_dd_idx
+    return max_dd, peak_idx, max_dd_idx  # type: ignore[return-value]
 
 
 def apply_signal_vectorized(
-    signals: np.ndarray,  # type: ignore[type-arg]
-    prices: np.ndarray,  # type: ignore[type-arg]
-    position_sizer: Callable[[np.ndarray, np.ndarray], np.ndarray],  # type: ignore[type-arg]
-) -> np.ndarray:  # type: ignore[type-arg]
+    signals: np.ndarray,
+    prices: np.ndarray,
+    position_sizer: Callable[[np.ndarray, np.ndarray], np.ndarray],
+) -> np.ndarray:
     """
     Applies trading signals to generate position array.
     Vectorizes position sizing logic.
@@ -135,7 +135,7 @@ def apply_signal_vectorized(
     positions = position_sizer(signals, prices)
 
     # Validate shape and type strictly (no legacy coercions)
-    if not isinstance(positions, np.ndarray):  # type: ignore[unreachable]
+    if not isinstance(positions, np.ndarray):
         raise ValueError("position_sizer must return a numpy ndarray")
     if positions.shape != signals.shape:
         raise ValueError(
@@ -150,8 +150,8 @@ def apply_signal_vectorized(
 
 
 def calculate_metrics_vectorized(
-    returns: np.ndarray,  # type: ignore[type-arg]
-    equity: np.ndarray,  # type: ignore[type-arg]
+    returns: np.ndarray,
+    equity: np.ndarray,
 ) -> BacktestMetrics:
     """
     Computes all backtest metrics in single vectorized pass.

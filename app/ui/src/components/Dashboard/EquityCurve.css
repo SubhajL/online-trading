@@ -1,0 +1,198 @@
+.equity-curve {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.equity-curve-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.equity-curve-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.equity-curve-title-section h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.equity-curve-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.current-equity {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.equity-change {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.equity-change-percent {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.equity-change.positive,
+.equity-change-percent.positive {
+  color: var(--color-success);
+}
+
+.equity-change.negative,
+.equity-change-percent.negative {
+  color: var(--color-error);
+}
+
+.equity-change.neutral,
+.equity-change-percent.neutral {
+  color: var(--color-text-muted);
+}
+
+/* Time Range Selector */
+.time-range-selector {
+  display: flex;
+  gap: 4px;
+  background: var(--color-surface-secondary);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.time-range-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.time-range-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.time-range-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.time-range-btn.active {
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Chart Container */
+.equity-chart-container {
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Loading State */
+.equity-curve-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 0;
+}
+
+.skeleton-line {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  animation: skeleton-pulse 1.5s infinite;
+}
+
+.skeleton-line:nth-child(1) {
+  width: 100%;
+  transform: translateY(40px);
+}
+
+.skeleton-line:nth-child(2) {
+  width: 100%;
+  transform: translateY(20px);
+}
+
+.skeleton-line:nth-child(3) {
+  width: 100%;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Error State */
+.equity-curve-error {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 5%, var(--color-surface));
+  border-radius: 6px;
+}
+
+/* Empty State */
+.equity-curve-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .equity-curve-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .equity-curve-summary {
+    order: 2;
+  }
+
+  .time-range-selector {
+    order: 1;
+    align-self: flex-start;
+  }
+
+  .current-equity {
+    font-size: 20px;
+  }
+}
+
+/* Accessibility: reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+  }
+
+  .time-range-btn {
+    transition: none;
+  }
+}

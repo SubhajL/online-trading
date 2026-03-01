@@ -2,7 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TradingService } from './trading.service';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import { RouterClientService } from '../router-client/router-client.service';
+import { OrderRepository } from '../orders/repositories/order.repository';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CONTRACT_TOPICS } from '../contracts/topics';
 
 describe('TradingService', () => {
   let service: TradingService;
@@ -18,11 +20,19 @@ describe('TradingService', () => {
     placeOrder: jest.fn(),
     getOrderStatus: jest.fn(),
     cancelOrder: jest.fn(),
+    closeAllPositions: jest.fn(),
   };
 
   const mockEventEmitter = {
     emit: jest.fn(),
     on: jest.fn(),
+  };
+
+  const mockOrderRepository = {
+    save: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+    findActiveOrders: jest.fn().mockResolvedValue([]),
   };
 
   beforeEach(async () => {
@@ -42,6 +52,10 @@ describe('TradingService', () => {
         {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
+        },
+        {
+          provide: OrderRepository,
+          useValue: mockOrderRepository,
         },
       ],
     }).compile();
@@ -80,7 +94,7 @@ describe('TradingService', () => {
 
       expect(result).toEqual(orderResponse);
       expect(routerClient.placeOrder).toHaveBeenCalledWith(orderRequest);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.placed', orderResponse);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderResponse);
     });
 
     it('should place a limit order with price', async () => {
@@ -108,7 +122,7 @@ describe('TradingService', () => {
       const result = await service.placeOrder(orderRequest);
 
       expect(result).toEqual(orderResponse);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.placed', orderResponse);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderResponse);
     });
 
     it('should handle order placement errors', async () => {
@@ -124,7 +138,7 @@ describe('TradingService', () => {
       mockRouterClientService.placeOrder.mockRejectedValue(error);
 
       await expect(service.placeOrder(orderRequest)).rejects.toThrow('Insufficient balance');
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.failed', {
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderFailedV1, {
         request: orderRequest,
         error: 'Insufficient balance',
       });
@@ -169,7 +183,7 @@ describe('TradingService', () => {
 
       expect(result).toEqual(cancelResponse);
       expect(routerClient.cancelOrder).toHaveBeenCalledWith(orderId, symbol, venue);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.canceled', cancelResponse);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, cancelResponse);
     });
   });
 
@@ -217,7 +231,7 @@ describe('TradingService', () => {
       // Simulate decision event
       subscribeCallback(decisionEvent);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith('decision.received', decisionEvent);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.decisionV1, decisionEvent);
     });
 
     it('should handle order update events from engine', () => {
@@ -239,7 +253,7 @@ describe('TradingService', () => {
       // Simulate order update event
       subscribeCallback(orderUpdate);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith('order.updated', orderUpdate);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderUpdate);
     });
   });
 
@@ -293,10 +307,89 @@ describe('TradingService', () => {
       await service.handleDecisionEvent(decisionEvent);
 
       expect(routerClient.placeOrder).not.toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith('decision.skipped', {
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.decisionSkippedV1, {
         reason: 'Auto trading disabled',
         decision: decisionEvent,
       });
+    });
+  });
+
+  describe('emergencyClose', () => {
+    it('should close ALL positions (spot and futures)', async () => {
+      mockRouterClientService.closeAllPositions.mockResolvedValue({
+        success: true,
+        message: 'Closed',
+      });
+
+      const result = await service.emergencyClose('ALL');
+
+      expect(result.success).toBe(true);
+      expect(result.closedCount).toBe(2);
+      expect(routerClient.closeAllPositions).toHaveBeenCalledTimes(2);
+      expect(routerClient.closeAllPositions).toHaveBeenCalledWith({ is_futures: false });
+      expect(routerClient.closeAllPositions).toHaveBeenCalledWith({ is_futures: true });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'emergency.close',
+        expect.objectContaining({
+          scope: 'ALL',
+          closedCount: 2,
+        }),
+      );
+    });
+
+    it('should close SPOT positions only', async () => {
+      mockRouterClientService.closeAllPositions.mockResolvedValue({
+        success: true,
+        message: 'Closed',
+      });
+
+      const result = await service.emergencyClose('SPOT');
+
+      expect(result.success).toBe(true);
+      expect(result.closedCount).toBe(1);
+      expect(routerClient.closeAllPositions).toHaveBeenCalledTimes(1);
+      expect(routerClient.closeAllPositions).toHaveBeenCalledWith({ is_futures: false });
+    });
+
+    it('should close FUTURES positions only', async () => {
+      mockRouterClientService.closeAllPositions.mockResolvedValue({
+        success: true,
+        message: 'Closed',
+      });
+
+      const result = await service.emergencyClose('FUTURES');
+
+      expect(result.success).toBe(true);
+      expect(result.closedCount).toBe(1);
+      expect(routerClient.closeAllPositions).toHaveBeenCalledTimes(1);
+      expect(routerClient.closeAllPositions).toHaveBeenCalledWith({ is_futures: true });
+    });
+
+    it('should stop auto trading when stopEngine is true', async () => {
+      mockRouterClientService.closeAllPositions.mockResolvedValue({
+        success: true,
+        message: 'Closed',
+      });
+
+      await service.setAutoTrading(true);
+      expect(service.isAutoTradingEnabled()).toBe(true);
+
+      await service.emergencyClose('ALL', true);
+
+      expect(service.isAutoTradingEnabled()).toBe(false);
+    });
+
+    it('should emit emergency.close.failed on error', async () => {
+      mockRouterClientService.closeAllPositions.mockRejectedValue(new Error('Network error'));
+
+      await expect(service.emergencyClose('ALL')).rejects.toThrow('Network error');
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'emergency.close.failed',
+        expect.objectContaining({
+          scope: 'ALL',
+          error: 'Network error',
+        }),
+      );
     });
   });
 });

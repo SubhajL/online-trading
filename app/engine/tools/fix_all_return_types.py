@@ -15,7 +15,8 @@ def get_files_with_return_type_errors() -> Any:
     """Run mypy and extract files with missing return type errors"""
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine"],
-        check=False, capture_output=True,
+        check=False,
+        capture_output=True,
         text=True,
     )
 
@@ -59,7 +60,8 @@ def fix_all_return_type_annotations() -> None:
     print("\nVerifying fixes...")
     result = subprocess.run(
         ["python", "-m", "mypy", "app/engine", "--no-error-summary"],
-        check=False, capture_output=True,
+        check=False,
+        capture_output=True,
         text=True,
     )
 

@@ -13,12 +13,13 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	ids := ClientOrderIDs{
 		TakeProfits: make([]string, len(req.TakeProfitPrices)),
 	}
+	plannedIDs := m.plannedClientOrderIDs(req, bracketID)
 
 	// Create error aggregator
 	bracketErr := NewBracketOrderError(bracketID, req.Symbol)
 
 	// 1. Place main order
-	mainOrderID := m.generateClientOrderID(bracketID, "MAIN")
+	mainOrderID := plannedIDs.Main
 	mainOrder := binance.SpotOrderRequest{
 		Symbol:           req.Symbol,
 		Side:             req.Side,
@@ -40,7 +41,7 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	// 2. Place take profit orders (as limit orders)
 	// For spot, we can place these immediately
 	for i, tpPrice := range req.TakeProfitPrices {
-		tpID := m.generateClientOrderID(bracketID, fmt.Sprintf("TP%d", i+1))
+		tpID := plannedIDs.TakeProfits[i]
 
 		// Calculate quantity for this TP (split evenly for simplicity)
 		tpQuantity := req.Quantity.Div(decimal.NewFromInt(int64(len(req.TakeProfitPrices))))
@@ -70,12 +71,12 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	}
 
 	// 3. Place stop loss order using STOP_LOSS_LIMIT
-	slID := m.generateClientOrderID(bracketID, "SL")
+	slID := plannedIDs.StopLoss
 
 	// For STOP_LOSS_LIMIT:
 	// - stopPrice is the trigger price
 	// - price is the limit price (slightly worse than stop to ensure fill)
-	slLimitPrice := req.StopLossPrice
+	var slLimitPrice decimal.Decimal
 	if req.Side == "BUY" {
 		// For long positions, SL sells below stop price
 		slLimitPrice = req.StopLossPrice.Mul(decimal.NewFromFloat(0.995))
@@ -130,12 +131,13 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 	ids := ClientOrderIDs{
 		TakeProfits: make([]string, len(req.TakeProfitPrices)),
 	}
+	plannedIDs := m.plannedClientOrderIDs(req, bracketID)
 
 	// Create error aggregator
 	bracketErr := NewBracketOrderError(bracketID, req.Symbol)
 
 	// 1. Place main order
-	mainOrderID := m.generateClientOrderID(bracketID, "MAIN")
+	mainOrderID := plannedIDs.Main
 	mainOrder := binance.FuturesOrderRequest{
 		Symbol:           req.Symbol,
 		Side:             req.Side,
@@ -157,7 +159,7 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 
 	// 2. Place take profit orders with ReduceOnly
 	for i, tpPrice := range req.TakeProfitPrices {
-		tpID := m.generateClientOrderID(bracketID, fmt.Sprintf("TP%d", i+1))
+		tpID := plannedIDs.TakeProfits[i]
 
 		// Calculate quantity for this TP
 		tpQuantity := req.Quantity.Div(decimal.NewFromInt(int64(len(req.TakeProfitPrices))))
@@ -188,12 +190,12 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 	}
 
 	// 3. Place stop loss order using STOP_MARKET
-	slID := m.generateClientOrderID(bracketID, "SL")
+	slID := plannedIDs.StopLoss
 	slOrder := binance.FuturesOrderRequest{
 		Symbol:           req.Symbol,
 		Side:             getOppositeSide(req.Side),
 		Type:             "STOP_MARKET",
-		Quantity:         req.Quantity,
+		Quantity:         decimal.Zero,
 		StopPrice:        req.StopLossPrice, // Stop trigger price
 		TimeInForce:      "GTC",
 		NewClientOrderID: slID,
@@ -229,6 +231,29 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 	}
 
 	return ids, nil
+}
+
+func (m *Manager) plannedClientOrderIDs(req *PlaceBracketRequest, bracketID string) ClientOrderIDs {
+	if req.ClientOrderIDs != nil {
+		tps := make([]string, len(req.ClientOrderIDs.TakeProfits))
+		copy(tps, req.ClientOrderIDs.TakeProfits)
+		return ClientOrderIDs{
+			Main:        req.ClientOrderIDs.Main,
+			TakeProfits: tps,
+			StopLoss:    req.ClientOrderIDs.StopLoss,
+		}
+	}
+
+	tps := make([]string, len(req.TakeProfitPrices))
+	for i := range req.TakeProfitPrices {
+		tps[i] = m.generateClientOrderID(bracketID, fmt.Sprintf("TP%d", i+1))
+	}
+
+	return ClientOrderIDs{
+		Main:        m.generateClientOrderID(bracketID, "MAIN"),
+		TakeProfits: tps,
+		StopLoss:    m.generateClientOrderID(bracketID, "SL"),
+	}
 }
 
 // getOrderType returns the order type based on price
@@ -290,8 +315,9 @@ func (m *Manager) CloseAllPositions(ctx context.Context, req *CloseAllRequest) e
 
 		// For futures, also close position with market order
 		if req.IsFutures {
-			// In production, check actual position size
-			// For now, skip position closing
+			m.logger.Warn().
+				Str("symbol", symbol).
+				Msg("Close-all futures positions not implemented; canceled orders only")
 		}
 	}
 

@@ -46,7 +46,7 @@ class SimpleBenchmark:
 
         sorted_samples = sorted(self.samples)
         return {
-            "name": self.name,
+            "name": self.name,  # type: ignore[dict-item]
             "samples": len(self.samples),
             "mean_ms": statistics.mean(self.samples) * 1000,
             "median_ms": statistics.median(self.samples) * 1000,
@@ -66,6 +66,7 @@ class TestSimplePerformanceBenchmarks:
 
         # Create test candle
         candle = Candle(
+            venue="spot",
             symbol="BTCUSDT",
             timeframe=TimeFrame.M15,
             open_time=datetime.now() - timedelta(minutes=15),
@@ -114,6 +115,7 @@ class TestSimplePerformanceBenchmarks:
         base_time = datetime.now() - timedelta(hours=24)
         for i in range(100):
             candle = Candle(
+                venue="spot",
                 symbol="BTCUSDT",
                 timeframe=TimeFrame.M15,
                 open_time=base_time + timedelta(minutes=15 * i),

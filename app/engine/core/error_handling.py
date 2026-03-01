@@ -77,7 +77,10 @@ class SubscriptionError(EventBusError):
     """Error related to subscription management."""
 
     def __init__(
-        self, message: str, subscription_id: str | None = None, **kwargs: Any,
+        self,
+        message: str,
+        subscription_id: str | None = None,
+        **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.SUBSCRIPTION
@@ -90,7 +93,10 @@ class ProcessingError(EventBusError):
     """Error during event processing."""
 
     def __init__(
-        self, message: str, event_id: UUID | None = None, **kwargs: Any,
+        self,
+        message: str,
+        event_id: UUID | None = None,
+        **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.PROCESSING
@@ -103,7 +109,10 @@ class QueueError(EventBusError):
     """Error related to queue operations."""
 
     def __init__(
-        self, message: str, queue_size: int | None = None, **kwargs: Any,
+        self,
+        message: str,
+        queue_size: int | None = None,
+        **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.QUEUE
@@ -116,7 +125,10 @@ class ConfigurationError(EventBusError):
     """Error in system configuration."""
 
     def __init__(
-        self, message: str, config_key: str | None = None, **kwargs: Any,
+        self,
+        message: str,
+        config_key: str | None = None,
+        **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.CONFIGURATION
@@ -130,7 +142,10 @@ class TimeoutError(EventBusError):
     """Error due to operation timeout."""
 
     def __init__(
-        self, message: str, timeout_seconds: float | None = None, **kwargs: Any,
+        self,
+        message: str,
+        timeout_seconds: float | None = None,
+        **kwargs: Any,
     ) -> None:
         context = kwargs.get("context", ErrorContext())
         context.category = ErrorCategory.TIMEOUT
@@ -264,9 +279,7 @@ class MetricsErrorHandler(ErrorHandler):
         now = datetime.now(UTC)
         minute_ago = now - timedelta(minutes=1)
 
-        recent_count = sum(
-            1 for ctx in self._stats.recent_errors if ctx.timestamp >= minute_ago
-        )
+        recent_count = sum(1 for ctx in self._stats.recent_errors if ctx.timestamp >= minute_ago)
 
         self._stats.error_rate_per_minute = recent_count
 
@@ -514,7 +527,8 @@ class error_boundary:
                 operation=self.operation,
             )
 
-            await handle_error(exc_val, context)
+            if isinstance(exc_val, Exception):
+                await handle_error(exc_val, context)
 
             if not self.reraise:
                 return True  # Suppress exception
@@ -546,7 +560,7 @@ class error_boundary:
                 eventbus_error = EventBusError(
                     message=str(exc_val),
                     context=context,
-                    cause=exc_val,
+                    cause=exc_val if isinstance(exc_val, Exception) else None,
                 )
 
                 # Use the global error manager's logging handler directly

@@ -7,9 +7,13 @@ for trading data including candles, indicators, signals, and trading events.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
+from decimal import Decimal
+import json
 import logging
-from typing import Any
+import os
+from types import TracebackType
+from typing import Any, NamedTuple
 
 import asyncpg
 from asyncpg import Pool
@@ -24,6 +28,38 @@ from ...models import (
 logger = logging.getLogger(__name__)
 
 
+class PaperEquityComponents(NamedTuple):
+    """Aggregated equity components from paper_positions."""
+
+    total_fees: Decimal
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal
+    total_funding: Decimal
+
+
+def _to_naive_utc(dt: datetime) -> datetime:
+    """Convert datetime to naive UTC for asyncpg TIMESTAMP columns.
+
+    asyncpg requires naive datetimes for TIMESTAMP WITHOUT TIME ZONE columns
+    (which is what the candles table uses for open_time and close_time).
+
+    This helper ensures tz-aware datetimes are converted to UTC then stripped,
+    while naive datetimes pass through unchanged (assumed to already be UTC).
+
+    Args:
+        dt: datetime that may or may not have tzinfo. Naive datetimes are
+            assumed to already be in UTC.
+
+    Returns:
+        Naive datetime in UTC
+    """
+    if dt.tzinfo is None:
+        return dt
+    # Convert to UTC then strip timezone
+    utc_dt = dt.astimezone(timezone.utc)
+    return utc_dt.replace(tzinfo=None)
+
+
 class TimescaleDBAdapter:
     """
     TimescaleDB adapter for storing and retrieving trading time-series data.
@@ -36,7 +72,7 @@ class TimescaleDBAdapter:
     - Automatic data retention policies
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         host: str,
         port: int,
@@ -65,7 +101,10 @@ class TimescaleDBAdapter:
         logger.info(f"TimescaleDBAdapter configured for {host}:{port}/{database}")
 
     async def initialize(self) -> None:
-        """Initialize the database connection pool and create tables"""
+        """Initialize the database connection pools.
+
+        Schema is managed by SQL migrations (one-shot migrate), not by runtime auto-DDL.
+        """
         if self._initialized:
             return
 
@@ -98,10 +137,7 @@ class TimescaleDBAdapter:
                 statement_cache_size=1000,
             )
 
-            # Create tables and hypertables
-            await self._create_tables()
-            await self._create_hypertables()
-            await self._create_indexes()
+            await self._ensure_migrations_applied()
 
             self._initialized = True
             logger.info("TimescaleDB adapter initialized successfully")
@@ -109,6 +145,22 @@ class TimescaleDBAdapter:
         except Exception as e:
             logger.error(f"Error initializing TimescaleDB adapter: {e}")
             raise
+
+    async def _ensure_migrations_applied(self) -> None:
+        async with self.get_connection() as conn:
+            schema_exists = await conn.fetchval(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.schemata
+                    WHERE schema_name = '_migration'
+                )
+                """,
+            )
+            if not schema_exists:
+                raise RuntimeError(
+                    "Database schema is not migrated. "
+                    "Run `app/engine/scripts/migrate_db.py` before starting services.",
+                )
 
     async def close(self) -> None:
         """Close the database connection pool"""
@@ -148,252 +200,23 @@ class TimescaleDBAdapter:
             yield connection
 
     # ============================================================================
-    # Table Creation and Management
-    # ============================================================================
-
-    async def _create_tables(self) -> None:
-        """Create all required tables"""
-        async with self.get_connection() as conn:
-            # Candles table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS candles (
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    timeframe VARCHAR(5) NOT NULL,
-                    open_price DECIMAL(20,8) NOT NULL,
-                    high_price DECIMAL(20,8) NOT NULL,
-                    low_price DECIMAL(20,8) NOT NULL,
-                    close_price DECIMAL(20,8) NOT NULL,
-                    volume DECIMAL(20,8) NOT NULL,
-                    quote_volume DECIMAL(20,8) NOT NULL,
-                    trades INTEGER NOT NULL,
-                    taker_buy_base_volume DECIMAL(20,8) NOT NULL,
-                    taker_buy_quote_volume DECIMAL(20,8) NOT NULL,
-                    UNIQUE(timestamp, symbol, timeframe)
-                );
-            """,
-            )
-
-            # Technical indicators table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS technical_indicators (
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    timeframe VARCHAR(5) NOT NULL,
-                    ema_9 DECIMAL(20,8),
-                    ema_21 DECIMAL(20,8),
-                    ema_50 DECIMAL(20,8),
-                    ema_200 DECIMAL(20,8),
-                    rsi_14 DECIMAL(10,6),
-                    macd_line DECIMAL(20,8),
-                    macd_signal DECIMAL(20,8),
-                    macd_histogram DECIMAL(20,8),
-                    atr_14 DECIMAL(20,8),
-                    bb_upper DECIMAL(20,8),
-                    bb_middle DECIMAL(20,8),
-                    bb_lower DECIMAL(20,8),
-                    bb_width DECIMAL(10,6),
-                    bb_percent DECIMAL(10,6),
-                    UNIQUE(timestamp, symbol, timeframe)
-                );
-            """,
-            )
-
-            # SMC signals table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS smc_signals (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    timeframe VARCHAR(5) NOT NULL,
-                    signal_type VARCHAR(50) NOT NULL,
-                    direction VARCHAR(4) NOT NULL,
-                    entry_price DECIMAL(20,8) NOT NULL,
-                    stop_loss DECIMAL(20,8),
-                    take_profit DECIMAL(20,8),
-                    confidence DECIMAL(4,3) NOT NULL,
-                    reasoning TEXT,
-                    zone_id UUID,
-                    zone_type VARCHAR(30),
-                    zone_top_price DECIMAL(20,8),
-                    zone_bottom_price DECIMAL(20,8),
-                    is_active BOOLEAN DEFAULT TRUE,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """,
-            )
-
-            # Trading decisions table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS trading_decisions (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    action VARCHAR(10) NOT NULL,
-                    entry_price DECIMAL(20,8),
-                    quantity DECIMAL(20,8),
-                    order_type VARCHAR(20),
-                    stop_loss DECIMAL(20,8),
-                    take_profit DECIMAL(20,8),
-                    confidence DECIMAL(4,3) NOT NULL,
-                    reasoning TEXT,
-                    risk_reward_ratio DECIMAL(10,4),
-                    market_regime VARCHAR(20),
-                    news_sentiment VARCHAR(20),
-                    funding_rate_impact DECIMAL(10,6),
-                    volatility_filter BOOLEAN,
-                    is_executed BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """,
-            )
-
-            # Orders table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS orders (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    client_order_id VARCHAR(50) UNIQUE NOT NULL,
-                    symbol VARCHAR(20) NOT NULL,
-                    side VARCHAR(4) NOT NULL,
-                    type VARCHAR(20) NOT NULL,
-                    quantity DECIMAL(20,8) NOT NULL,
-                    price DECIMAL(20,8),
-                    stop_price DECIMAL(20,8),
-                    time_in_force VARCHAR(10) DEFAULT 'GTC',
-                    status VARCHAR(20) DEFAULT 'NEW',
-                    filled_quantity DECIMAL(20,8) DEFAULT 0,
-                    average_fill_price DECIMAL(20,8),
-                    decision_id UUID,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """,
-            )
-
-            # Positions table
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS positions (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    symbol VARCHAR(20) NOT NULL,
-                    side VARCHAR(4) NOT NULL,
-                    size DECIMAL(20,8) NOT NULL,
-                    entry_price DECIMAL(20,8) NOT NULL,
-                    current_price DECIMAL(20,8) NOT NULL,
-                    unrealized_pnl DECIMAL(20,8) NOT NULL,
-                    realized_pnl DECIMAL(20,8) DEFAULT 0,
-                    margin_used DECIMAL(20,8) NOT NULL,
-                    leverage DECIMAL(10,2) DEFAULT 1,
-                    stop_loss DECIMAL(20,8),
-                    take_profit DECIMAL(20,8),
-                    decision_id UUID,
-                    opened_at TIMESTAMPTZ NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT NOW(),
-                    closed_at TIMESTAMPTZ,
-                    is_active BOOLEAN DEFAULT TRUE
-                );
-            """,
-            )
-
-            # Events table for audit trail (with composite primary key for hypertable)
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS events (
-                    id UUID DEFAULT gen_random_uuid(),
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    event_type VARCHAR(50) NOT NULL,
-                    symbol VARCHAR(20),
-                    timeframe VARCHAR(5),
-                    event_data JSONB,
-                    metadata JSONB,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    PRIMARY KEY (timestamp, id)
-                );
-            """,
-            )
-
-    async def _create_hypertables(self) -> None:
-        """Create TimescaleDB hypertables for time-series data"""
-        async with self.get_connection() as conn:
-            try:
-                # Create hypertables (only if not already created)
-                hypertables = [
-                    ("candles", "timestamp"),
-                    ("technical_indicators", "timestamp"),
-                    ("events", "timestamp"),
-                ]
-
-                for table_name, time_column in hypertables:
-                    try:
-                        await conn.execute(
-                            f"""
-                            SELECT create_hypertable('{table_name}', '{time_column}',
-                                                    if_not_exists => TRUE);
-                        """,
-                        )
-                        logger.info(f"Created hypertable for {table_name}")
-                    except Exception as e:
-                        if "already a hypertable" not in str(e):
-                            logger.warning(
-                                f"Error creating hypertable for {table_name}: {e}",
-                            )
-
-            except Exception as e:
-                logger.error(f"Error creating hypertables: {e}")
-
-    async def _create_indexes(self) -> None:
-        """Create indexes for better query performance"""
-        async with self.get_connection() as conn:
-            indexes = [
-                # Candles indexes
-                "CREATE INDEX IF NOT EXISTS idx_candles_symbol_timeframe ON candles (symbol, timeframe, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_candles_timestamp ON candles (timestamp DESC);",
-                # Technical indicators indexes
-                "CREATE INDEX IF NOT EXISTS idx_indicators_symbol_timeframe ON technical_indicators (symbol, timeframe, timestamp DESC);",
-                # SMC signals indexes
-                "CREATE INDEX IF NOT EXISTS idx_smc_signals_symbol_timestamp ON smc_signals (symbol, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_smc_signals_active ON smc_signals (is_active, timestamp DESC);",
-                # Trading decisions indexes
-                "CREATE INDEX IF NOT EXISTS idx_decisions_symbol_timestamp ON trading_decisions (symbol, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_decisions_executed ON trading_decisions (is_executed, timestamp DESC);",
-                # Orders indexes
-                "CREATE INDEX IF NOT EXISTS idx_orders_symbol_status ON orders (symbol, status, created_at DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_orders_decision ON orders (decision_id);",
-                # Positions indexes
-                "CREATE INDEX IF NOT EXISTS idx_positions_symbol_active ON positions (symbol, is_active, opened_at DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_positions_decision ON positions (decision_id);",
-                # Events indexes
-                "CREATE INDEX IF NOT EXISTS idx_events_type_timestamp ON events (event_type, timestamp DESC);",
-                "CREATE INDEX IF NOT EXISTS idx_events_symbol ON events (symbol, timestamp DESC) WHERE symbol IS NOT NULL;",
-            ]
-
-            for index_sql in indexes:
-                try:
-                    await conn.execute(index_sql)
-                except Exception as e:
-                    logger.warning(f"Error creating index: {e}")
-
-    # ============================================================================
     # Candle Data Operations
     # ============================================================================
 
     async def insert_candle(self, candle: Candle) -> bool:
-        """Insert a single candle"""
+        """Insert a single candle using the canonical schema (db/migrations)."""
         try:
             async with self.get_write_connection() as conn:
                 await conn.execute(
                     """
                     INSERT INTO candles (
-                        timestamp, symbol, timeframe, open_price, high_price, low_price,
-                        close_price, volume, quote_volume, trades,
+                        venue, symbol, timeframe, open_time, close_time,
+                        open_price, high_price, low_price, close_price,
+                        volume, quote_volume, trades,
                         taker_buy_base_volume, taker_buy_quote_volume
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                    ON CONFLICT (timestamp, symbol, timeframe) DO UPDATE SET
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                    ON CONFLICT (venue, symbol, timeframe, open_time) DO UPDATE SET
+                        close_time = EXCLUDED.close_time,
                         open_price = EXCLUDED.open_price,
                         high_price = EXCLUDED.high_price,
                         low_price = EXCLUDED.low_price,
@@ -404,9 +227,11 @@ class TimescaleDBAdapter:
                         taker_buy_base_volume = EXCLUDED.taker_buy_base_volume,
                         taker_buy_quote_volume = EXCLUDED.taker_buy_quote_volume
                 """,
-                    candle.open_time,
+                    candle.venue,
                     candle.symbol,
                     candle.timeframe.value,
+                    _to_naive_utc(candle.open_time),
+                    _to_naive_utc(candle.close_time),
                     candle.open_price,
                     candle.high_price,
                     candle.low_price,
@@ -439,9 +264,11 @@ class TimescaleDBAdapter:
             async with self.get_write_connection() as conn:
                 records = [
                     (
-                        c.open_time,
+                        c.venue,
                         c.symbol,
                         c.timeframe.value,
+                        _to_naive_utc(c.open_time),
+                        _to_naive_utc(c.close_time),
                         c.open_price,
                         c.high_price,
                         c.low_price,
@@ -458,11 +285,12 @@ class TimescaleDBAdapter:
                 await conn.executemany(
                     """
                     INSERT INTO candles (
-                        timestamp, symbol, timeframe, open_price, high_price, low_price,
-                        close_price, volume, quote_volume, trades,
+                        venue, symbol, timeframe, open_time, close_time,
+                        open_price, high_price, low_price, close_price,
+                        volume, quote_volume, trades,
                         taker_buy_base_volume, taker_buy_quote_volume
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                    ON CONFLICT (timestamp, symbol, timeframe) DO NOTHING
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                    ON CONFLICT (venue, symbol, timeframe, open_time) DO NOTHING
                 """,
                     records,
                 )
@@ -473,14 +301,256 @@ class TimescaleDBAdapter:
             logger.error(f"Error inserting candles batch: {e}")
             return 0
 
+    # ============================================================================
+    # External Captain Benchmark Operations
+    # ============================================================================
+
+    async def upsert_external_telegram_message(  # noqa: PLR0913
+        self,
+        *,
+        source: str,
+        chat_id: int,
+        message_id: int,
+        grouped_id: int | None,
+        timestamp: datetime,
+        text: str | None,
+        has_photo: bool,
+        photo_path: str | None,
+        raw_json: dict[str, Any] | None,
+    ) -> None:
+        """Insert or update a raw external Telegram message record."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO external_telegram_messages (
+                    source,
+                    chat_id,
+                    message_id,
+                    grouped_id,
+                    timestamp,
+                    text,
+                    has_photo,
+                    photo_path,
+                    raw_json,
+                    updated_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+                ON CONFLICT (source, chat_id, message_id)
+                DO UPDATE SET
+                    grouped_id = EXCLUDED.grouped_id,
+                    timestamp = EXCLUDED.timestamp,
+                    text = EXCLUDED.text,
+                    has_photo = EXCLUDED.has_photo,
+                    photo_path = EXCLUDED.photo_path,
+                    raw_json = EXCLUDED.raw_json,
+                    updated_at = NOW();
+            """,
+                source,
+                chat_id,
+                message_id,
+                grouped_id,
+                timestamp,
+                text,
+                has_photo,
+                photo_path,
+                json.dumps(raw_json) if raw_json else None,
+            )
+
+    async def upsert_external_telegram_signal(  # noqa: PLR0913
+        self,
+        *,
+        source: str,
+        chat_id: int,
+        message_id: int,
+        timestamp: datetime,
+        kind: str,
+        strategy: str | None,
+        symbol: str | None,
+        timeframe: str | None,
+        direction: str | None,
+        entry_price: str | None,
+        stop_loss: str | None,
+        take_profits: list[str] | None,
+        parse_confidence: float | None,
+        parse_sources: list[str] | None,
+        ocr_raw_text: str | None,
+    ) -> None:
+        """Insert or update a parsed external Telegram signal."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO external_telegram_signals (
+                    source,
+                    chat_id,
+                    message_id,
+                    timestamp,
+                    kind,
+                    strategy,
+                    symbol,
+                    timeframe,
+                    direction,
+                    entry_price,
+                    stop_loss,
+                    take_profits,
+                    parse_confidence,
+                    parse_sources,
+                    ocr_raw_text,
+                    updated_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+                ON CONFLICT (source, chat_id, message_id)
+                DO UPDATE SET
+                    timestamp = EXCLUDED.timestamp,
+                    kind = EXCLUDED.kind,
+                    strategy = EXCLUDED.strategy,
+                    symbol = EXCLUDED.symbol,
+                    timeframe = EXCLUDED.timeframe,
+                    direction = EXCLUDED.direction,
+                    entry_price = EXCLUDED.entry_price,
+                    stop_loss = EXCLUDED.stop_loss,
+                    take_profits = EXCLUDED.take_profits,
+                    parse_confidence = EXCLUDED.parse_confidence,
+                    parse_sources = EXCLUDED.parse_sources,
+                    ocr_raw_text = EXCLUDED.ocr_raw_text,
+                    updated_at = NOW();
+            """,
+                source,
+                chat_id,
+                message_id,
+                timestamp,
+                kind,
+                strategy,
+                symbol,
+                timeframe,
+                direction,
+                entry_price,
+                stop_loss,
+                take_profits,
+                parse_confidence,
+                parse_sources,
+                ocr_raw_text,
+            )
+
+    async def upsert_external_telegram_signal_validation(  # noqa: PLR0913
+        self,
+        *,
+        source: str,
+        chat_id: int,
+        message_id: int,
+        timestamp: datetime,
+        internal_kind: str | None,
+        internal_id: str | None,
+        internal_timestamp: datetime | None,
+        score: float,
+        breakdown: dict[str, Any] | None,
+    ) -> None:
+        """Insert or update agreement scoring for an external Telegram signal."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO external_telegram_signal_validations (
+                    source,
+                    chat_id,
+                    message_id,
+                    timestamp,
+                    internal_kind,
+                    internal_id,
+                    internal_timestamp,
+                    score,
+                    breakdown,
+                    updated_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+                ON CONFLICT (source, chat_id, message_id)
+                DO UPDATE SET
+                    timestamp = EXCLUDED.timestamp,
+                    internal_kind = EXCLUDED.internal_kind,
+                    internal_id = EXCLUDED.internal_id,
+                    internal_timestamp = EXCLUDED.internal_timestamp,
+                    score = EXCLUDED.score,
+                    breakdown = EXCLUDED.breakdown,
+                    updated_at = NOW();
+            """,
+                source,
+                chat_id,
+                message_id,
+                timestamp,
+                internal_kind,
+                internal_id,
+                internal_timestamp,
+                score,
+                json.dumps(breakdown) if breakdown is not None else None,
+            )
+
+    async def get_external_telegram_signals(
+        self,
+        *,
+        source: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000,
+    ) -> list[dict[Any, Any]]:
+        """Get external Telegram signals for a source and time window."""
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT *
+                    FROM external_telegram_signals
+                    WHERE source = $1
+                      AND timestamp >= $2
+                      AND timestamp <= $3
+                    ORDER BY timestamp DESC
+                    LIMIT $4
+                """,
+                    source,
+                    start_time,
+                    end_time,
+                    limit,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving external telegram signals: {e}")
+            return []
+
+    async def get_external_telegram_signal_validations(
+        self,
+        *,
+        source: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000,
+    ) -> list[dict[Any, Any]]:
+        """Get external signal validations for a source and time window."""
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT *
+                    FROM external_telegram_signal_validations
+                    WHERE source = $1
+                      AND timestamp >= $2
+                      AND timestamp <= $3
+                    ORDER BY timestamp DESC
+                    LIMIT $4
+                """,
+                    source,
+                    start_time,
+                    end_time,
+                    limit,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving external telegram validations: {e}")
+            return []
+
     async def insert_candles_copy(self, candles: list[Candle]) -> int:
         """Insert multiple candles using COPY for high throughput."""
         try:
             async with self.get_write_connection() as conn:
                 columns = [
-                    "timestamp",
+                    "venue",
                     "symbol",
                     "timeframe",
+                    "open_time",
+                    "close_time",
                     "open_price",
                     "high_price",
                     "low_price",
@@ -493,18 +563,20 @@ class TimescaleDBAdapter:
                 ]
                 records = [
                     (
-                        c.open_time,
+                        c.venue,
                         c.symbol,
                         c.timeframe.value,
-                        str(c.open_price),
-                        str(c.high_price),
-                        str(c.low_price),
-                        str(c.close_price),
-                        str(c.volume),
-                        str(c.quote_volume),
+                        _to_naive_utc(c.open_time),
+                        _to_naive_utc(c.close_time),
+                        c.open_price,
+                        c.high_price,
+                        c.low_price,
+                        c.close_price,
+                        c.volume,
+                        c.quote_volume,
                         int(c.trades),
-                        str(c.taker_buy_base_volume),
-                        str(c.taker_buy_quote_volume),
+                        c.taker_buy_base_volume,
+                        c.taker_buy_quote_volume,
                     )
                     for c in candles
                 ]
@@ -524,6 +596,7 @@ class TimescaleDBAdapter:
         self,
         symbol: str,
         timeframe: TimeFrame,
+        venue: str | None = None,
     ) -> Candle | None:
         """
         Get the latest candle for a symbol and timeframe.
@@ -531,53 +604,78 @@ class TimescaleDBAdapter:
         Args:
             symbol: Trading symbol
             timeframe: Candle timeframe
+            venue: Trading venue (optional for backward compatibility)
 
         Returns:
             Latest candle or None if no data
         """
-        candles = await self.get_candles(symbol=symbol, timeframe=timeframe, limit=1)
+        candles = await self.get_candles(
+            symbol=symbol,
+            timeframe=timeframe,
+            venue=venue,
+            limit=1,
+        )
         return candles[0] if candles else None
 
-    async def get_candles(
+    async def get_candles(  # noqa: PLR0913
         self,
         symbol: str,
         timeframe: TimeFrame,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 1000,
+        venue: str | None = None,
     ) -> list[Candle]:
-        """Retrieve candles for a symbol and timeframe"""
+        """Retrieve candles for a symbol and timeframe."""
         try:
             async with self.get_read_connection() as conn:
                 query = """
-                    SELECT timestamp, symbol, timeframe, open_price, high_price, low_price,
-                           close_price, volume, quote_volume, trades,
-                           taker_buy_base_volume, taker_buy_quote_volume
+                    SELECT
+                        venue,
+                        symbol,
+                        timeframe,
+                        open_time,
+                        close_time,
+                        open_price,
+                        high_price,
+                        low_price,
+                        close_price,
+                        volume,
+                        quote_volume,
+                        trades,
+                        taker_buy_base_volume,
+                        taker_buy_quote_volume
                     FROM candles
                     WHERE symbol = $1 AND timeframe = $2
                 """
-                params = [symbol, timeframe.value]
+                params: list[Any] = [symbol, timeframe.value]
+
+                if venue:
+                    query += " AND venue = $" + str(len(params) + 1)
+                    params.append(venue)
 
                 if start_time:
-                    query += " AND timestamp >= $" + str(len(params) + 1)
+                    query += " AND open_time >= $" + str(len(params) + 1)
                     params.append(start_time)
 
                 if end_time:
-                    query += " AND timestamp <= $" + str(len(params) + 1)
+                    query += " AND open_time <= $" + str(len(params) + 1)
                     params.append(end_time)
 
-                query += " ORDER BY timestamp DESC LIMIT $" + str(len(params) + 1)
+                query += " ORDER BY open_time DESC LIMIT $" + str(len(params) + 1)
                 params.append(limit)
 
                 rows = await conn.fetch(query, *params)
 
                 candles = []
                 for row in rows:
+                    tf = TimeFrame(row["timeframe"])
                     candle = Candle(
+                        venue=row["venue"],
                         symbol=row["symbol"],
-                        timeframe=TimeFrame(row["timeframe"]),
-                        open_time=row["timestamp"],
-                        close_time=row["timestamp"],  # Simplified
+                        timeframe=tf,
+                        open_time=row["open_time"],
+                        close_time=row["close_time"],
                         open_price=row["open_price"],
                         high_price=row["high_price"],
                         low_price=row["low_price"],
@@ -602,19 +700,24 @@ class TimescaleDBAdapter:
 
     async def insert_technical_indicators(
         self,
+        venue: str,
         indicators: TechnicalIndicators,
     ) -> bool:
-        """Insert technical indicators"""
+        """Insert technical indicators into the canonical indicators table."""
         try:
             async with self.get_connection() as conn:
                 await conn.execute(
                     """
-                    INSERT INTO technical_indicators (
-                        timestamp, symbol, timeframe, ema_9, ema_21, ema_50, ema_200,
+                    INSERT INTO indicators (
+                        venue, symbol, timeframe, timestamp,
+                        ema_9, ema_21, ema_50, ema_200,
                         rsi_14, macd_line, macd_signal, macd_histogram, atr_14,
                         bb_upper, bb_middle, bb_lower, bb_width, bb_percent
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-                    ON CONFLICT (timestamp, symbol, timeframe) DO UPDATE SET
+                    ) VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                        $10, $11, $12, $13, $14, $15, $16, $17, $18
+                    )
+                    ON CONFLICT (venue, symbol, timeframe, timestamp) DO UPDATE SET
                         ema_9 = EXCLUDED.ema_9,
                         ema_21 = EXCLUDED.ema_21,
                         ema_50 = EXCLUDED.ema_50,
@@ -630,9 +733,10 @@ class TimescaleDBAdapter:
                         bb_width = EXCLUDED.bb_width,
                         bb_percent = EXCLUDED.bb_percent
                 """,
-                    indicators.timestamp,
+                    venue,
                     indicators.symbol,
                     indicators.timeframe.value,
+                    indicators.timestamp,
                     indicators.ema_9,
                     indicators.ema_21,
                     indicators.ema_50,
@@ -665,10 +769,13 @@ class TimescaleDBAdapter:
                 await conn.execute(
                     """
                     INSERT INTO trading_decisions (
-                        id, timestamp, symbol, action, entry_price, quantity, order_type,
+                        decision_id, timestamp, symbol, action, entry_price, quantity, order_type,
                         stop_loss, take_profit, confidence, reasoning, risk_reward_ratio,
-                        market_regime, news_sentiment, funding_rate_impact, volatility_filter
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                        market_regime, news_sentiment, funding_rate_impact, volatility_filter, venue
+                    ) VALUES (
+                        $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                        $10, $11, $12, $13, $14, $15, $16, $17
+                    )
                 """,
                     decision.decision_id,
                     decision.timestamp,
@@ -686,6 +793,7 @@ class TimescaleDBAdapter:
                     decision.news_sentiment,
                     decision.funding_rate_impact,
                     decision.volatility_filter,
+                    decision.venue,
                 )
                 return True
 
@@ -704,7 +812,7 @@ class TimescaleDBAdapter:
                 query = """
                     SELECT * FROM trading_decisions
                 """
-                params = []
+                params: list[Any] = []
 
                 if symbol:
                     query += " WHERE symbol = $1"
@@ -720,9 +828,515 @@ class TimescaleDBAdapter:
             logger.error(f"Error retrieving recent decisions: {e}")
             return []
 
+    async def get_trading_decisions_in_window(
+        self,
+        *,
+        symbol: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000,
+    ) -> list[dict[Any, Any]]:
+        """Get trading decisions for a symbol in a time window."""
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT *
+                    FROM trading_decisions
+                    WHERE symbol = $1
+                      AND timestamp >= $2
+                      AND timestamp <= $3
+                    ORDER BY timestamp DESC
+                    LIMIT $4
+                """,
+                    symbol,
+                    start_time,
+                    end_time,
+                    limit,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving trading decisions: {e}")
+            return []
+
+    async def get_trading_decision_by_id(
+        self,
+        decision_id: str,
+    ) -> dict[Any, Any] | None:
+        """Get a single trading decision by its ID."""
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT *
+                    FROM trading_decisions
+                    WHERE decision_id = $1::uuid
+                """,
+                    decision_id,
+                )
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Error retrieving trading decision by id: {e}")
+            return None
+
+    async def get_smc_signals_in_window(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 1000,
+    ) -> list[dict[Any, Any]]:
+        """Get SMC signals for a symbol/timeframe in a time window."""
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT *
+                    FROM smc_signals
+                    WHERE symbol = $1
+                      AND timeframe = $2
+                      AND timestamp >= $3
+                      AND timestamp <= $4
+                    ORDER BY timestamp DESC
+                    LIMIT $5
+                """,
+                    symbol,
+                    timeframe,
+                    start_time,
+                    end_time,
+                    limit,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving smc signals: {e}")
+            return []
+
+    # ============================================================================
+    # Validation Snapshots
+    # ============================================================================
+
+    async def get_active_zones_at_time(
+        self,
+        *,
+        symbol: str,
+        timestamp: datetime,
+        lookback_bars: int = 100,
+        max_zones: int = 20,
+    ) -> list[dict[Any, Any]]:
+        """Get active zones valid at the given timestamp.
+
+        Returns zones created before timestamp that are still active
+        (not invalidated) at that time.
+        """
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT
+                        zone_id::text as zone_id,
+                        zone_type,
+                        top_price,
+                        bottom_price,
+                        strength,
+                        is_active,
+                        created_at
+                    FROM zones
+                    WHERE symbol = $1
+                      AND created_at <= $2
+                      AND (is_active = TRUE OR invalidated_at > $2)
+                    ORDER BY strength DESC, created_at DESC
+                    LIMIT LEAST($3, $4)
+                """,
+                    symbol,
+                    timestamp,
+                    max_zones,
+                    lookback_bars,
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving zones at time: {e}")
+            return []
+
+    async def get_structure_events_at_time(
+        self,
+        *,
+        symbol: str,
+        timeframe: str | None,
+        timestamp: datetime,
+        lookback_bars: int = 50,
+        max_events: int = 30,
+    ) -> list[dict[Any, Any]]:
+        """Get SMC structure events (CHOCH/BOS) near the given timestamp.
+
+        Returns events within lookback window before timestamp.
+        """
+        try:
+            async with self.get_read_connection() as conn:
+                if timeframe:
+                    rows = await conn.fetch(
+                        """
+                            SELECT
+                                venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text
+                                    as event_id,
+                                event_type,
+                                timestamp,
+                                trend_direction as direction,
+                                price
+                        FROM smc_events
+                        WHERE symbol = $1
+                          AND timeframe = $2
+                          AND timestamp <= $3
+                        ORDER BY timestamp DESC
+                        LIMIT LEAST($4, $5)
+                    """,
+                        symbol,
+                        timeframe,
+                        timestamp,
+                        max_events,
+                        lookback_bars,
+                    )
+                else:
+                    rows = await conn.fetch(
+                        """
+                            SELECT
+                                venue || '-' || symbol || '-' || timeframe || '-' || timestamp::text
+                                    as event_id,
+                                event_type,
+                                timestamp,
+                                trend_direction as direction,
+                                price
+                        FROM smc_events
+                        WHERE symbol = $1
+                          AND timestamp <= $2
+                        ORDER BY timestamp DESC
+                        LIMIT LEAST($3, $4)
+                    """,
+                        symbol,
+                        timestamp,
+                        max_events,
+                        lookback_bars,
+                    )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving structure events: {e}")
+            return []
+
+    async def upsert_benchmark_validation_snapshot(  # noqa: PLR0913
+        self,
+        *,
+        source: str,
+        chat_id: int,
+        message_id: int,
+        validated_at: datetime,
+        symbol: str,
+        timeframe: str | None,
+        payload: dict[Any, Any],
+    ) -> str | None:
+        """Insert or update a benchmark validation snapshot.
+
+        Returns the snapshot_id on success, None on failure.
+        """
+        import json
+        from uuid import uuid4
+
+        try:
+            async with self.get_connection() as conn:
+                snapshot_id = str(uuid4())
+                snapshot_version = payload.get("version", 1)
+
+                await conn.execute(
+                    """
+                    INSERT INTO benchmark_validation_snapshots (
+                        id, source, chat_id, message_id, validated_at,
+                        symbol, timeframe, snapshot_version, payload
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+                    ON CONFLICT (source, chat_id, message_id, validated_at, snapshot_version)
+                    DO UPDATE SET
+                        symbol = EXCLUDED.symbol,
+                        timeframe = EXCLUDED.timeframe,
+                        payload = EXCLUDED.payload
+                """,
+                    snapshot_id,
+                    source,
+                    chat_id,
+                    message_id,
+                    validated_at,
+                    symbol,
+                    timeframe,
+                    snapshot_version,
+                    json.dumps(payload),
+                )
+                return snapshot_id
+        except Exception as e:
+            logger.error(f"Error upserting validation snapshot: {e}")
+            return None
+
+    async def get_benchmark_validation_snapshot(
+        self,
+        snapshot_id: str,
+    ) -> dict[Any, Any] | None:
+        """Fetch a single validation snapshot by ID."""
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        id::text as snapshot_id,
+                        source,
+                        chat_id,
+                        message_id,
+                        validated_at,
+                        symbol,
+                        timeframe,
+                        snapshot_version,
+                        payload,
+                        created_at
+                    FROM benchmark_validation_snapshots
+                    WHERE id = $1::uuid
+                """,
+                    snapshot_id,
+                )
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Error retrieving validation snapshot: {e}")
+            return None
+
+    async def get_benchmark_validation_snapshots(
+        self,
+        *,
+        source: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+    ) -> list[dict[Any, Any]]:
+        """Fetch validation snapshots in a time range."""
+        try:
+            async with self.get_read_connection() as conn:
+                # Build query dynamically based on filters
+                conditions = []
+                params: list[Any] = []
+                param_idx = 1
+
+                if source:
+                    conditions.append(f"source = ${param_idx}")
+                    params.append(source)
+                    param_idx += 1
+
+                if start_time:
+                    conditions.append(f"validated_at >= ${param_idx}")
+                    params.append(start_time)
+                    param_idx += 1
+
+                if end_time:
+                    conditions.append(f"validated_at <= ${param_idx}")
+                    params.append(end_time)
+                    param_idx += 1
+
+                where_clause = " AND ".join(conditions) if conditions else "TRUE"
+                params.append(limit)
+
+                query = f"""
+                    SELECT
+                        id::text as snapshot_id,
+                        source,
+                        chat_id,
+                        message_id,
+                        validated_at,
+                        symbol,
+                        timeframe,
+                        snapshot_version,
+                        payload,
+                        created_at
+                    FROM benchmark_validation_snapshots
+                    WHERE {where_clause}
+                    ORDER BY validated_at DESC
+                    LIMIT ${param_idx}
+                """  # noqa: S608
+
+                rows = await conn.fetch(query, *params)
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error retrieving validation snapshots: {e}")
+            return []
+
+    # ============================================================================
+    # SMC Events (smc_events.v1 contract)
+    # ============================================================================
+
+    async def insert_smc_event_v1(self, payload: dict[str, Any]) -> None:
+        """Insert an SMC event into smc_events_v1 using contract schema shape."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO smc_events_v1 (
+                    venue, symbol, timeframe, event_time,
+                    event_type, direction, price_level,
+                    previous_pivot_price, previous_pivot_time,
+                    broken_pivot_price, broken_pivot_time,
+                    version
+                ) VALUES (
+                    $1, $2, $3, $4,
+                    $5, $6, $7,
+                    $8, $9,
+                    $10, $11,
+                    $12
+                )
+                ON CONFLICT DO NOTHING
+                """,
+                payload["venue"],
+                payload["symbol"],
+                payload["timeframe"],
+                datetime.fromisoformat(payload["event_time"].replace("Z", "+00:00")),
+                payload["event_type"].upper(),
+                payload["direction"],
+                Decimal(payload["price_level"]),
+                Decimal(payload["previous_pivot_price"]),
+                datetime.fromisoformat(
+                    payload["previous_pivot_time"].replace("Z", "+00:00"),
+                ),
+                Decimal(payload["broken_pivot_price"]),
+                datetime.fromisoformat(
+                    payload["broken_pivot_time"].replace("Z", "+00:00"),
+                ),
+                payload.get("version", "1.0.0"),
+            )
+
     # ============================================================================
     # Health and Maintenance
     # ============================================================================
+
+    async def get_latest_equity_sample(self) -> tuple[Decimal, datetime] | None:
+        """Return latest equity sample as (equity, timestamp)."""
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT equity, timestamp
+                      FROM equity_samples
+                  ORDER BY timestamp DESC
+                     LIMIT 1
+                    """,
+                )
+                if row is None:
+                    return None
+                return row["equity"], row["timestamp"]
+        except Exception:
+            logger.exception("Error retrieving latest equity sample")
+            return None
+
+    async def insert_equity_sample(self, equity: Decimal, timestamp: datetime) -> bool:
+        """Insert an equity sample row."""
+        try:
+            async with self.get_write_connection() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO equity_samples (timestamp, equity)
+                    VALUES ($1, $2)
+                    """,
+                    timestamp,
+                    equity,
+                )
+            return True
+        except Exception:
+            logger.exception("Error inserting equity sample")
+            return False
+
+    async def get_equity_sample_at_or_after(self, timestamp: datetime) -> Decimal | None:
+        """Return equity from the first sample at/after timestamp."""
+        try:
+            async with self.get_read_connection() as conn:
+                value = await conn.fetchval(
+                    """
+                    SELECT equity
+                      FROM equity_samples
+                     WHERE timestamp >= $1
+                  ORDER BY timestamp ASC
+                     LIMIT 1
+                    """,
+                    timestamp,
+                )
+                return value
+        except Exception:
+            logger.exception("Error retrieving equity sample at/after %s", timestamp)
+            return None
+
+    async def get_peak_equity_since(self, timestamp: datetime) -> Decimal | None:
+        """Return MAX(equity) since timestamp (inclusive)."""
+        try:
+            async with self.get_read_connection() as conn:
+                value = await conn.fetchval(
+                    """
+                    SELECT MAX(equity)
+                      FROM equity_samples
+                     WHERE timestamp >= $1
+                    """,
+                    timestamp,
+                )
+                return value
+        except Exception:
+            logger.exception("Error retrieving peak equity since %s", timestamp)
+            return None
+
+    async def get_paper_equity_components(self) -> PaperEquityComponents:
+        """Return aggregated equity components from paper_positions.
+
+        Returns:
+            PaperEquityComponents with total_fees, realized_pnl, unrealized_pnl, total_funding.
+            All values are Decimal, with COALESCE to zero for NULL/empty rows.
+        """
+        zero = PaperEquityComponents(
+            total_fees=Decimal("0"),
+            realized_pnl=Decimal("0"),
+            unrealized_pnl=Decimal("0"),
+            total_funding=Decimal("0"),
+        )
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        COALESCE(SUM(total_fees), 0) AS total_fees,
+                        COALESCE(SUM(realized_pnl), 0) AS realized_pnl,
+                        COALESCE(SUM(unrealized_pnl), 0) AS unrealized_pnl,
+                        COALESCE(SUM(total_funding), 0) AS total_funding
+                    FROM paper_positions
+                    """,
+                )
+                if row is None:
+                    return zero
+                return PaperEquityComponents(
+                    total_fees=Decimal(str(row["total_fees"])),
+                    realized_pnl=Decimal(str(row["realized_pnl"])),
+                    unrealized_pnl=Decimal(str(row["unrealized_pnl"])),
+                    total_funding=Decimal(str(row["total_funding"])),
+                )
+        except Exception:
+            logger.exception("Error retrieving paper equity components")
+            return zero
+
+    async def get_active_positions(self, venue: str) -> list[dict[str, Any]]:
+        """Return active positions for venue.
+
+        Minimal columns are returned for exposure calculations.
+        """
+        try:
+            async with self.get_read_connection() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT symbol, size, current_price
+                      FROM positions
+                     WHERE venue = $1
+                       AND is_active = TRUE
+                       AND size > 0
+                    """,
+                    venue,
+                )
+                return [dict(row) for row in rows]
+        except Exception:
+            logger.exception("Error retrieving active positions for venue=%s", venue)
+            return []
 
     async def health_check(self) -> dict[str, Any]:
         """Perform a health check on the database"""
@@ -739,11 +1353,23 @@ class TimescaleDBAdapter:
                 )
 
                 # Get table stats
+                # Note: PostgreSQL 16+ uses 'relname' instead of 'tablename' in pg_stat_user_tables
                 stats_result = await conn.fetch(
                     """
-                    SELECT schemaname, tablename, n_tup_ins as inserts, n_tup_upd as updates
+                    SELECT
+                        schemaname,
+                        relname as tablename,
+                        n_tup_ins as inserts,
+                        n_tup_upd as updates
                     FROM pg_stat_user_tables
-                    WHERE tablename IN ('candles', 'technical_indicators', 'trading_decisions', 'orders', 'positions')
+                    WHERE relname IN (
+                        'candles',
+                        'indicators',
+                        'trading_decisions',
+                        'orders',
+                        'positions',
+                        'smc_signals'
+                    )
                 """,
                 )
 
@@ -779,8 +1405,8 @@ class TimescaleDBAdapter:
                 candle_counts = await conn.fetch(
                     """
                     SELECT symbol, timeframe, COUNT(*) as count,
-                           MIN(timestamp) as oldest,
-                           MAX(timestamp) as newest
+                           MIN(open_time) as oldest,
+                           MAX(open_time) as newest
                     FROM candles
                     GROUP BY symbol, timeframe
                     ORDER BY symbol, timeframe
@@ -791,9 +1417,21 @@ class TimescaleDBAdapter:
                 recent_activity = await conn.fetchrow(
                     """
                     SELECT
-                        (SELECT COUNT(*) FROM candles WHERE timestamp > NOW() - INTERVAL '1 hour') as candles_last_hour,
-                        (SELECT COUNT(*) FROM technical_indicators WHERE timestamp > NOW() - INTERVAL '1 hour') as indicators_last_hour,
-                        (SELECT COUNT(*) FROM trading_decisions WHERE created_at > NOW() - INTERVAL '1 hour') as decisions_last_hour
+                        (
+                            SELECT COUNT(*)
+                            FROM candles
+                            WHERE open_time > NOW() - INTERVAL '1 hour'
+                        ) as candles_last_hour,
+                        (
+                            SELECT COUNT(*)
+                            FROM indicators
+                            WHERE timestamp > NOW() - INTERVAL '1 hour'
+                        ) as indicators_last_hour,
+                        (
+                            SELECT COUNT(*)
+                            FROM trading_decisions
+                            WHERE created_at > NOW() - INTERVAL '1 hour'
+                        ) as decisions_last_hour
                 """,
                 )
 
@@ -848,6 +1486,11 @@ class TimescaleDBAdapter:
         """Async context manager entry"""
         await self.initialize()
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit"""
         await self.close()

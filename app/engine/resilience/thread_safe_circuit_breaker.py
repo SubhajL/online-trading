@@ -91,7 +91,7 @@ class CircuitBreaker:
             if self._state == CircuitBreakerState.OPEN:
                 # Check if we should transition to half-open
                 self._check_timeout()
-                return self._state == CircuitBreakerState.HALF_OPEN
+                return self._state == CircuitBreakerState.HALF_OPEN  # type: ignore[comparison-overlap]
 
             if self._state == CircuitBreakerState.HALF_OPEN:
                 # Allow limited requests in half-open
@@ -171,9 +171,7 @@ class CircuitBreaker:
         """
         if self._state == CircuitBreakerState.OPEN:
             if self._last_state_change_time:
-                elapsed = (
-                    self._clock.now() - self._last_state_change_time
-                ).total_seconds()
+                elapsed = (self._clock.now() - self._last_state_change_time).total_seconds()
                 if elapsed >= self._config.timeout_seconds:
                     self._transition_to_half_open()
 

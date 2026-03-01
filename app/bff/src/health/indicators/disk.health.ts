@@ -30,7 +30,7 @@ export class DiskHealthIndicator extends HealthIndicator {
       });
 
       if (!isHealthy) {
-        (result[key] as any).status = 'degraded';
+        (result[key] as Record<string, unknown>).status = 'degraded';
         result[key].message = `Low disk space: ${Math.round(usedPercent)}% used`;
       } else if (usedPercent > 80) {
         result[key].message = `Disk space usage high: ${Math.round(usedPercent)}%`;

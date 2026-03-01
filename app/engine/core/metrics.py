@@ -5,6 +5,7 @@ Provides thread-safe metrics collection with Prometheus export support.
 """
 
 from collections import defaultdict
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -162,8 +163,8 @@ class Histogram:
             5,
             10,
         ]
-        self._buckets: dict[tuple[tuple[str, str], ...], dict[float, int]] = (
-            defaultdict(lambda: dict.fromkeys(self.buckets + [float("inf")], 0))
+        self._buckets: dict[tuple[tuple[str, str], ...], dict[float, int]] = defaultdict(
+            lambda: dict.fromkeys(self.buckets + [float("inf")], 0)
         )
         self._sums: dict[tuple[tuple[str, str], ...], float] = defaultdict(float)
         self._counts: dict[tuple[tuple[str, str], ...], int] = defaultdict(int)
@@ -215,9 +216,7 @@ class Histogram:
                 # Add bucket metrics
                 for bucket in self.buckets + [float("inf")]:
                     bucket_labels = labels.copy()
-                    bucket_labels["le"] = (
-                        str(bucket) if bucket != float("inf") else "+Inf"
-                    )
+                    bucket_labels["le"] = str(bucket) if bucket != float("inf") else "+Inf"
                     metrics.append(
                         Metric(
                             name=f"{self.name}_bucket",
@@ -315,11 +314,7 @@ class PrometheusExporter:
 
                 # Add TYPE line
                 metric_type = first_metric.type.value
-                if (
-                    name.endswith("_bucket")
-                    or name.endswith("_count")
-                    or name.endswith("_sum")
-                ):
+                if name.endswith("_bucket") or name.endswith("_count") or name.endswith("_sum"):
                     metric_type = "counter"
                 lines.append(f"# TYPE {name} {metric_type}")
 
@@ -341,9 +336,7 @@ class PrometheusExporter:
         label_pairs = []
         for key, value in sorted(labels.items()):
             # Escape special characters
-            escaped_value = (
-                value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-            )
+            escaped_value = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
             label_pairs.append(f'{key}="{escaped_value}"')
 
         return ",".join(label_pairs)
@@ -391,7 +384,7 @@ class MetricsCollector:
         self,
         histogram: Histogram,
         labels: dict[str, str] | None = None,
-    ) -> None:
+    ) -> Generator[None, None, None]:
         """Context manager to record operation duration."""
         start = time.time()
         try:
@@ -435,7 +428,9 @@ def create_histogram(
 
 
 @contextmanager
-def record_duration(histogram: Histogram, labels: dict[str, str] | None = None) -> None:
+def record_duration(
+    histogram: Histogram, labels: dict[str, str] | None = None
+) -> Generator[None, None, None]:
     """Record operation duration."""
     with metrics_collector.record_duration(histogram, labels):
         yield

@@ -5,7 +5,16 @@ from decimal import Decimal
 import numpy as np
 
 from ..models import Candle
-from ..smc_types import Pivot, SwingType
+from ..smc_types import Pivot, PivotMethod, SwingType
+
+# Re-export PivotMethod for backward compatibility
+__all__ = [
+    "PivotMethod",
+    "detect_n_bar_pivots",
+    "detect_zigzag_pivots",
+    "detect_zigzag_pivots_np",
+    "classify_pivot_relationship",
+]
 
 
 def detect_n_bar_pivots(candles: list[Candle], n: int = 3) -> list[Pivot]:
@@ -58,7 +67,8 @@ def detect_n_bar_pivots(candles: list[Candle], n: int = 3) -> list[Pivot]:
                 min_excl = np.inf
             else:
                 min_excl = min(
-                    np.min(win_lows[: i - w_start]), np.min(win_lows[i - w_start + 1 :]),
+                    np.min(win_lows[: i - w_start]),
+                    np.min(win_lows[i - w_start + 1 :]),
                 )
             if lows[i] <= min_excl:
                 pivots.append(
@@ -223,14 +233,14 @@ def detect_zigzag_pivots_np(
 
     for i in range(1, n):
         h = highs[i]
-        l = lows[i]
+        low = lows[i]
 
         if last_pivot_is_high is None:
             if h > current_high:
                 current_high = h
                 current_high_idx = i
-            if l < current_low:
-                current_low = l
+            if low < current_low:
+                current_low = low
                 current_low_idx = i
 
             if (current_high - current_low) >= min_rev:
@@ -247,7 +257,7 @@ def detect_zigzag_pivots_np(
                         ),
                     )
                     last_pivot_is_high = False
-                    current_low = l
+                    current_low = low
                     current_low_idx = i
                 else:
                     c = candles[current_high_idx]
@@ -265,8 +275,8 @@ def detect_zigzag_pivots_np(
                     current_high_idx = i
 
         elif last_pivot_is_high:
-            if l < current_low:
-                current_low = l
+            if low < current_low:
+                current_low = low
                 current_low_idx = i
             if h > current_high:
                 # Enough down move?
@@ -293,7 +303,7 @@ def detect_zigzag_pivots_np(
             if h > current_high:
                 current_high = h
                 current_high_idx = i
-            if l < current_low:
+            if low < current_low:
                 last_low_price = float(pivots[-1].price) if pivots else current_low
                 if (current_high - last_low_price) >= min_rev:
                     c = candles[current_high_idx]
@@ -307,10 +317,10 @@ def detect_zigzag_pivots_np(
                         ),
                     )
                     last_pivot_is_high = True
-                    current_low = l
+                    current_low = low
                     current_low_idx = i
                 else:
-                    current_low = l
+                    current_low = low
                     current_low_idx = i
 
     return pivots

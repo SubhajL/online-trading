@@ -28,7 +28,7 @@ export class RedisHealthIndicator extends HealthIndicator {
 
       // Check for high latency
       if (latency > 50) {
-        (result[key] as any).status = 'degraded';
+        (result[key] as Record<string, unknown>).status = 'degraded';
         result[key].message = `Redis responsive but high latency: ${latency}ms`;
       } else {
         result[key].message = 'Redis is healthy';

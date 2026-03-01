@@ -1,6 +1,7 @@
 -- Enable TimescaleDB extension
 -- This must be run as superuser and will enable TimescaleDB for the current database
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Show TimescaleDB version info
 SELECT default_version, installed_version FROM pg_available_extensions WHERE name = 'timescaledb';

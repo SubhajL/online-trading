@@ -24,29 +24,60 @@ def main():
     parser = argparse.ArgumentParser(description="Walk-Forward Optimization Runner")
 
     # Basic parameters
-    parser.add_argument("--symbol", required=True, help="Trading symbol (e.g., BTCUSDT)")
+    parser.add_argument(
+        "--symbol",
+        required=True,
+        help="Trading symbol (e.g., BTCUSDT)",
+    )
     parser.add_argument("--tf", required=True, help="Timeframe (e.g., 15m, 1h)")
     parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end", required=True, help="End date (YYYY-MM-DD)")
     parser.add_argument("--config", required=True, help="Path to config.yaml")
 
     # WFO specific parameters
-    parser.add_argument("--train-days", type=int, default=90, help="Training period length (days)")
-    parser.add_argument("--test-days", type=int, default=30, help="Testing period length (days)")
-    parser.add_argument("--step-days", type=int, default=30, help="Step size between windows (days)")
+    parser.add_argument(
+        "--train-days",
+        type=int,
+        default=90,
+        help="Training period length (days)",
+    )
+    parser.add_argument(
+        "--test-days",
+        type=int,
+        default=30,
+        help="Testing period length (days)",
+    )
+    parser.add_argument(
+        "--step-days",
+        type=int,
+        default=30,
+        help="Step size between windows (days)",
+    )
 
     # Optimization parameters
-    parser.add_argument("--param-ranges", required=True, help="JSON file with parameter ranges")
+    parser.add_argument(
+        "--param-ranges",
+        required=True,
+        help="JSON file with parameter ranges",
+    )
     parser.add_argument("--balance", type=float, default=10000, help="Initial balance")
 
     # Data source
-    parser.add_argument("--data-source", default="timescale",
-                       choices=["timescale", "csv"], help="Data source")
+    parser.add_argument(
+        "--data-source",
+        default="timescale",
+        choices=["timescale", "csv"],
+        help="Data source",
+    )
     parser.add_argument("--data-dir", help="Data directory for CSV source")
     parser.add_argument("--database-url", help="Database URL for TimescaleDB")
 
     # Output
-    parser.add_argument("--output-dir", default="artifacts/wfo", help="Output directory")
+    parser.add_argument(
+        "--output-dir",
+        default="artifacts/wfo",
+        help="Output directory",
+    )
     parser.add_argument("--max-workers", type=int, help="Maximum parallel workers")
 
     args = parser.parse_args()
@@ -113,16 +144,21 @@ def main():
 
         # Save results
         artifacts_path = runner.save_wfo_results(
-            result, args.symbol, args.tf, args.start, args.end, args.output_dir,
+            result,
+            args.symbol,
+            args.tf,
+            args.start,
+            args.end,
+            args.output_dir,
         )
 
         # Print summary
         test_metrics = result.get_test_only_metrics()
         summary = result.optimization_summary
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("WALK-FORWARD OPTIMIZATION COMPLETED")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Results saved to: {artifacts_path}")
         print("\nOut-of-Sample Performance (Test Data Only):")
         print(f"  Total Return: {test_metrics.total_pnl_pct:.2f}%")
@@ -138,12 +174,14 @@ def main():
         print(f"  Total Windows: {summary.get('total_windows', 0)}")
         print(f"  Avg Test Return: {summary.get('avg_test_return', 0):.2f}%")
         print(f"  Std Test Return: {summary.get('std_test_return', 0):.2f}%")
-        print(f"  Win Rate: {summary.get('win_rate', 0)*100:.1f}%")
+        print(f"  Win Rate: {summary.get('win_rate', 0) * 100:.1f}%")
         print(f"  Overfitting Ratio: {summary.get('overfitting_ratio', 0):.2f}")
 
         print("\nParameter Stability:")
         for param, stability in result.parameter_stability.items():
-            status = "STABLE" if stability >= 0.8 else "MODERATE" if stability >= 0.6 else "UNSTABLE"
+            status = (
+                "STABLE" if stability >= 0.8 else "MODERATE" if stability >= 0.6 else "UNSTABLE"
+            )
             print(f"  {param}: {stability:.3f} ({status})")
 
         # Cleanup temporary config

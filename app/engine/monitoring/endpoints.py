@@ -118,7 +118,12 @@ def create_metrics_endpoints() -> APIRouter:
     return router
 
 
-def setup_health_monitoring(app: Any, database_url: str, redis_url: str, event_bus: Any) -> tuple[HealthChecker, ReadinessChecker]:
+def setup_health_monitoring(
+    app: Any,
+    database_url: str,
+    redis_url: str,
+    event_bus: Any,
+) -> tuple[HealthChecker, ReadinessChecker]:
     """Setup health monitoring for the application"""
     from app.engine.monitoring.health import (
         HealthChecker,
@@ -151,14 +156,14 @@ def setup_health_monitoring(app: Any, database_url: str, redis_url: str, event_b
         try:
             result = await check_db()
             return bool(result.status != "unhealthy")
-        except:
+        except Exception:
             return False
 
     async def redis_ready() -> bool:
         try:
             result = await check_redis()
             return bool(result.status != "unhealthy")
-        except:
+        except Exception:
             return False
 
     readiness_checker.register_check("database", db_ready, required=True)

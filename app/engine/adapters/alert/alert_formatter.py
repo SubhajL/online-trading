@@ -11,20 +11,31 @@ class AlertFormatter:
         """Format a trading decision into an alert message."""
         symbol = decision["symbol"]
         side = decision["side"]
+        timeframe = decision.get("timeframe")
+        signal_id = decision.get("signal_id")
+        zone = decision.get("zone")
         entry = decision["entry_price"]
         sl = decision["stop_loss"]
         tp = decision["take_profit"]
         quantity = decision["quantity"]
         confidence = decision["confidence"]
         reasons = decision.get("reasons", [])
+        is_order_placed = decision.get("is_order_placed", False)
 
-        # Determine emoji and side text
-        if side == "long":
-            emoji = "🟢"
-            side_text = "LONG"
+        # Determine emoji and side text based on order placement status
+        direction = "LONG" if side == "long" else "SHORT"
+
+        if is_order_placed:
+            # Order was actually placed - show confirmation
+            emoji = "✅"
+            side_text = f"{direction} ORDER PLACED"
+        elif side == "long":
+            # Signal only (no execution) - show signal indicator
+            emoji = "📊"
+            side_text = f"{direction} SIGNAL"
         else:
-            emoji = "🔴"
-            side_text = "SHORT"
+            emoji = "📉"
+            side_text = f"{direction} SIGNAL"
 
         # Calculate percentage changes
         sl_pct = self._calculate_pct_change(entry, sl)
@@ -36,18 +47,43 @@ class AlertFormatter:
         # Build message
         lines = [
             f"{emoji} {side_text}: {symbol}",
-            f"Entry: {self._format_currency(entry)}",
-            f"SL: {self._format_currency(sl)} ({sl_pct:+.2f}%)",
-            f"TP: {self._format_currency(tp)} ({tp_pct:+.2f}%)",
-            f"Size: {quantity} {base_currency}",
-            f"Confidence: {int(confidence * 100)}%",
         ]
+
+        if isinstance(timeframe, str) and timeframe:
+            lines.append(f"TF: {timeframe}")
+
+        if isinstance(signal_id, str) and signal_id:
+            lines.append(f"Signal: {signal_id}")
+
+        if isinstance(zone, dict):
+            zone_type = zone.get("zone_type")
+            top_price = zone.get("top_price")
+            bottom_price = zone.get("bottom_price")
+            if (
+                isinstance(zone_type, str)
+                and isinstance(top_price, Decimal)
+                and isinstance(bottom_price, Decimal)
+            ):
+                lines.append(
+                    "Zone: "
+                    f"{zone_type} [{self._format_currency(bottom_price)} - "
+                    f"{self._format_currency(top_price)}]",
+                )
+
+        lines.extend(
+            [
+                f"Entry: {self._format_currency(entry)}",
+                f"SL: {self._format_currency(sl)} ({sl_pct:+.2f}%)",
+                f"TP: {self._format_currency(tp)} ({tp_pct:+.2f}%)",
+                f"Size: {quantity} {base_currency}",
+                f"Confidence: {int(confidence * 100)}%",
+            ],
+        )
 
         if reasons:
             lines.append("")
             lines.append("Reasons:")
-            for reason in reasons:
-                lines.append(f"• {reason}")
+            lines.extend([f"• {reason}" for reason in reasons])
 
         return "\n".join(lines)
 
@@ -58,19 +94,36 @@ class AlertFormatter:
         status = order["status"]
         quantity = order["quantity"]
 
+        normalized_status = (
+            status.lower() if isinstance(status, str) else str(status).lower()
+        ).replace("cancelled", "canceled")
+
         # Status emoji
         status_emoji = {
+            "new": "✅",
             "filled": "✅",
             "partially_filled": "🔄",
-            "cancelled": "❌",
+            "canceled": "❌",
             "rejected": "🚫",
-        }.get(status, "ℹ️")
+        }.get(normalized_status, "ℹ️")  # noqa: RUF001
 
         # Build message
-        lines = [f"{status_emoji} Order {status.title()}"]
+        status_title = (
+            "Accepted"
+            if normalized_status == "new"
+            else normalized_status.replace("_", " ").title()
+        )
+        lines = [f"{status_emoji} Order {status_title}"]
         lines.append(f"{symbol}")
 
-        if status == "filled" and "filled_price" in order:
+        if (
+            normalized_status in {"new", "filled"}
+            and "price" in order
+            and order["price"] is not None
+        ):
+            price = order["price"]
+            lines.append(f"{side.title()} {quantity} @ {self._format_currency(price)}")
+        elif normalized_status == "filled" and "filled_price" in order:
             price = order["filled_price"]
             lines.append(f"{side.title()} {quantity} @ {self._format_currency(price)}")
         else:
@@ -108,17 +161,6 @@ class AlertFormatter:
             return 0.0
         return float((to_price - from_price) / from_price * 100)
 
-    def _format_currency(self, value: Decimal) -> str:
-        """Format a decimal value as currency."""
-        value_float = float(value)
-
-        # For very small values (< 0.01), show more decimals
-        if value_float < 0.01 and value_float > 0:
-            return f"${value_float:.6f}".rstrip("0").rstrip(".")
-
-        # For normal values, use standard currency format
-        return f"${value_float:,.2f}"
-
     def _format_currency(self, value: Decimal, with_sign: bool = False) -> str:
         """Format a decimal value as currency with optional sign."""
         value_float = float(value)
@@ -145,4 +187,42 @@ class AlertFormatter:
             f"Win Rate: {summary['win_rate']:.1%}",
             f"Total P&L: {self._format_currency(summary['total_pnl'], with_sign=True)}",
         ]
+        return "\n".join(lines)
+
+    def format_startup_alert(self, startup: dict[str, Any]) -> str:
+        """Format a startup/warmup complete alert message.
+
+        Args:
+            startup: Dict with phase, symbols, timeframes, candle_counts, duration_seconds
+
+        Returns:
+            Formatted message string for Telegram/LINE.
+        """
+        phase = startup["phase"]
+        symbols = startup["symbols"]
+        timeframes = startup["timeframes"]
+        candle_counts = startup["candle_counts"]
+        duration_seconds = startup["duration_seconds"]
+
+        if phase == "backfill_complete":
+            emoji = "✅"
+            title = "Backfill Complete"
+        else:
+            emoji = "🚀"
+            title = "Realtime Active"
+
+        lines = [f"{emoji} {title}"]
+
+        lines.append(f"Symbols: {', '.join(symbols)}")
+        lines.append(f"Timeframes: {', '.join(timeframes)}")
+
+        if candle_counts:
+            lines.append("")
+            lines.append("Candles loaded:")
+            for symbol, count in candle_counts.items():
+                lines.append(f"  {symbol}: {count:,}")
+
+        if duration_seconds > 0:
+            lines.append(f"Duration: {duration_seconds:.2f}s")
+
         return "\n".join(lines)

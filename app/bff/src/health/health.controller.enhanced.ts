@@ -1,5 +1,11 @@
 import { Controller, Get } from '@nestjs/common';
-import { HealthCheckService, HealthCheck, HttpHealthIndicator, TypeOrmHealthIndicator, HealthIndicatorResult } from '@nestjs/terminus';
+import {
+  HealthCheckService,
+  HealthCheck,
+  HttpHealthIndicator,
+  TypeOrmHealthIndicator,
+  HealthIndicatorResult,
+} from '@nestjs/terminus';
 import { ConfigService } from '@nestjs/config';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import { RedisHealthIndicator } from './indicators/redis.health';
@@ -7,7 +13,7 @@ import { WebSocketHealthIndicator } from './indicators/websocket.health';
 import { DiskHealthIndicator } from './indicators/disk.health';
 
 interface CachedHealth {
-  status: any;
+  status: HealthIndicatorResult;
   timestamp: Date;
 }
 
@@ -259,7 +265,7 @@ export class EnhancedHealthController {
     }
 
     try {
-      const timeoutPromise = new Promise((_, reject) =>
+      const timeoutPromise = new Promise<HealthIndicatorResult>((_, reject) =>
         setTimeout(() => reject(new Error('Health check timeout')), this.HEALTH_CHECK_TIMEOUT_MS),
       );
 

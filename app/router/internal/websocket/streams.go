@@ -352,6 +352,11 @@ func (sm *StreamManager) handleMessage(data []byte) {
 		return
 	}
 
+	// User data streams are not wrapped as combined streams; treat raw payload as data.
+	if len(streamMsg.Data) == 0 {
+		streamMsg.Data = data
+	}
+
 	// Route message based on stream type
 	sm.routeStreamMessage(&streamMsg)
 }
@@ -378,38 +383,45 @@ func (sm *StreamManager) routeStreamMessage(msg *StreamMessage) {
 		if sm.depthHandler != nil {
 			var event DepthUpdateEvent
 			if err := json.Unmarshal(msg.Data, &event); err == nil {
-				sm.depthHandler.HandleDepthUpdate(&event)
+				_ = sm.depthHandler.HandleDepthUpdate(&event)
 			}
 		}
 	case "24hrTicker":
 		if sm.tickerHandler != nil {
 			var event TickerEvent
 			if err := json.Unmarshal(msg.Data, &event); err == nil {
-				sm.tickerHandler.HandleTickerUpdate(&event)
+				_ = sm.tickerHandler.HandleTickerUpdate(&event)
 			}
 		}
 	case "outboundAccountPosition", "outboundAccountInfo":
 		if sm.userHandler != nil {
 			var event AccountUpdateEvent
 			if err := json.Unmarshal(msg.Data, &event); err == nil {
-				sm.userHandler.HandleAccountUpdate(&event)
+				_ = sm.userHandler.HandleAccountUpdate(&event)
 			}
 		}
 	case "executionReport":
 		if sm.userHandler != nil {
 			var event OrderUpdateEvent
 			if err := json.Unmarshal(msg.Data, &event); err == nil {
-				sm.userHandler.HandleOrderUpdate(&event)
+				_ = sm.userHandler.HandleOrderUpdate(&event)
+			}
+		}
+	case "ORDER_TRADE_UPDATE":
+		if sm.userHandler != nil {
+			var event FuturesOrderTradeUpdateEvent
+			if err := json.Unmarshal(msg.Data, &event); err == nil {
+				_ = sm.userHandler.HandleFuturesOrderTradeUpdate(&event)
 			}
 		}
 	case "listenKeyExpired":
 		if sm.userHandler != nil {
-			sm.userHandler.HandleListenKeyExpired()
+			_ = sm.userHandler.HandleListenKeyExpired()
 		}
 	default:
 		// Use generic event handler for unknown event types
 		if sm.eventHandler != nil {
-			sm.eventHandler.HandleEvent(eventType, msg.Data)
+			_ = sm.eventHandler.HandleEvent(eventType, msg.Data)
 		}
 	}
 }
@@ -458,6 +470,6 @@ func (sm *StreamManager) handleReconnection() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		sm.SubscribeMultiple(ctx, activeStreams)
+		_ = sm.SubscribeMultiple(ctx, activeStreams)
 	}
 }

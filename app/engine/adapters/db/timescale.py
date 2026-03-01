@@ -69,8 +69,16 @@ async def upsert_candle(candle: Candle) -> bool:
             taker_buy_quote_volume = EXCLUDED.taker_buy_quote_volume
         """
     try:
-        ot = (candle.open_time.replace(tzinfo=UTC).timestamp() if candle.open_time.tzinfo is None else candle.open_time.timestamp())
-        ct = (candle.close_time.replace(tzinfo=UTC).timestamp() if candle.close_time.tzinfo is None else candle.close_time.timestamp())
+        ot = (
+            candle.open_time.replace(tzinfo=UTC).timestamp()
+            if candle.open_time.tzinfo is None
+            else candle.open_time.timestamp()
+        )
+        ct = (
+            candle.close_time.replace(tzinfo=UTC).timestamp()
+            if candle.close_time.tzinfo is None
+            else candle.close_time.timestamp()
+        )
         async with acquire_connection() as conn:
             await conn.execute(
                 query,
@@ -281,12 +289,12 @@ async def upsert_order(order: dict[str, Any]) -> bool:
             $8,
             $9,
             COALESCE($10, 'NEW'),
-            COALESCE($11, 0),
+            COALESCE($11::numeric, 0::numeric),
             $12,
             COALESCE($13, NOW()),
             $14,
             $15,
-            COALESCE($16, 0),
+            COALESCE($16::numeric, 0::numeric),
             $17,
             $18
         )
@@ -331,9 +339,7 @@ async def get_active_positions(symbol: str | None = None) -> list[dict[str, Any]
     if symbol:
         where.append("symbol = $2")
         params.append(symbol)
-    query = (
-        f"SELECT * FROM positions WHERE {' AND '.join(where)} ORDER BY opened_at DESC"
-    )
+    query = f"SELECT * FROM positions WHERE {' AND '.join(where)} ORDER BY opened_at DESC"
     async with acquire_connection() as conn:
         rows = await conn.fetch(query, *params)
     return [dict(r) if not isinstance(r, dict) else r for r in rows]

@@ -107,10 +107,10 @@ class TestCheckDatabaseSchema:
     """Test database schema verification."""
 
     @pytest.mark.asyncio
-    @patch("asyncpg.create_pool")
+    @patch("asyncpg.create_pool", new_callable=AsyncMock)
     async def test_schema_exists(self, mock_create_pool):
         """Should pass when all required tables exist."""
-        mock_pool = AsyncMock()
+        mock_pool = MagicMock()
         mock_conn = AsyncMock()
 
         # Mock successful queries
@@ -121,11 +121,22 @@ class TestCheckDatabaseSchema:
         ]
         mock_conn.fetch.return_value = [
             {"table_name": "candles"},
+            {"table_name": "indicators"},
+            {"table_name": "swings"},
+            {"table_name": "smc_events"},
+            {"table_name": "zones"},
             {"table_name": "orders"},
             {"table_name": "positions"},
+            {"table_name": "balances"},
+            {"table_name": "reports"},
+            {"table_name": "alert_snapshots"},
         ]
 
-        mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+        acquire_ctx = AsyncMock()
+        acquire_ctx.__aenter__ = AsyncMock(return_value=mock_conn)
+        acquire_ctx.__aexit__ = AsyncMock(return_value=None)
+        mock_pool.acquire = MagicMock(return_value=acquire_ctx)
+        mock_pool.close = AsyncMock()
         mock_create_pool.return_value = mock_pool
 
         result = await check_database_schema()
@@ -134,10 +145,10 @@ class TestCheckDatabaseSchema:
         assert "Database schema is properly configured" in result.message
 
     @pytest.mark.asyncio
-    @patch("asyncpg.create_pool")
+    @patch("asyncpg.create_pool", new_callable=AsyncMock)
     async def test_missing_tables(self, mock_create_pool):
         """Should fail when required tables are missing."""
-        mock_pool = AsyncMock()
+        mock_pool = MagicMock()
         mock_conn = AsyncMock()
 
         # Return only some tables
@@ -145,17 +156,21 @@ class TestCheckDatabaseSchema:
             {"table_name": "candles"},
         ]
 
-        mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+        acquire_ctx = AsyncMock()
+        acquire_ctx.__aenter__ = AsyncMock(return_value=mock_conn)
+        acquire_ctx.__aexit__ = AsyncMock(return_value=None)
+        mock_pool.acquire = MagicMock(return_value=acquire_ctx)
+        mock_pool.close = AsyncMock()
         mock_create_pool.return_value = mock_pool
 
         result = await check_database_schema()
 
         assert result.status == CheckStatus.FAILED
-        assert "missing_tables" in result.details
-        assert len(result.details["missing_tables"]) > 0
+        assert "missing_required" in result.details
+        assert len(result.details["missing_required"]) > 0
 
     @pytest.mark.asyncio
-    @patch("asyncpg.create_pool")
+    @patch("asyncpg.create_pool", new_callable=AsyncMock)
     async def test_database_connection_failure(self, mock_create_pool):
         """Should fail when cannot connect to database."""
         mock_create_pool.side_effect = Exception("Connection refused")
@@ -171,7 +186,7 @@ class TestVerifyServiceConnectivity:
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.get")
-    @patch("aioredis.from_url")
+    @patch("redis.asyncio.from_url")
     @patch("asyncpg.connect")
     async def test_all_services_reachable(self, mock_pg, mock_redis, mock_get):
         """Should pass when all services are reachable."""
@@ -194,7 +209,7 @@ class TestVerifyServiceConnectivity:
 
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.get")
-    @patch("aioredis.from_url")
+    @patch("redis.asyncio.from_url")
     @patch("asyncpg.connect")
     async def test_some_services_unreachable(self, mock_pg, mock_redis, mock_get):
         """Should fail when some services cannot be reached."""
@@ -210,5 +225,6 @@ class TestVerifyServiceConnectivity:
         result = await verify_service_connectivity()
 
         assert result.status == CheckStatus.FAILED
-        assert "unreachable_services" in result.details
-        assert "redis" in result.details["unreachable_services"]
+        assert "unreachable_required" in result.details
+        assert "redis" in result.details["unreachable_required"]
+        assert "router" in result.details["unreachable_required"]

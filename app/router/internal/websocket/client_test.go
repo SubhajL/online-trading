@@ -40,7 +40,7 @@ func TestClient_NewClient(t *testing.T) {
 func TestClient_Connect(t *testing.T) {
 	t.Run("connects to public streams successfully", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			// Keep connection alive
 			for {
 				if _, _, err := conn.ReadMessage(); err != nil {
@@ -55,7 +55,7 @@ func TestClient_Connect(t *testing.T) {
 
 		err := client.Connect(ctx)
 		require.NoError(t, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		assert.Equal(t, StateConnected, client.State())
 	})
@@ -77,23 +77,29 @@ func TestClient_SubscribeToDepth(t *testing.T) {
 		depthUpdates := make(chan *DepthUpdateEvent, 1)
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			// Handle subscription
 			var req SubscriptionRequest
-			conn.ReadJSON(&req)
+			if err := conn.ReadJSON(&req); err != nil {
+				return
+			}
 			subscriptionReceived <- req
 
 			// Send confirmation
 			resp := SubscriptionResponse{Result: nil, ID: req.ID}
-			conn.WriteJSON(resp)
+			if err := conn.WriteJSON(resp); err != nil {
+				return
+			}
 
 			// Send depth update
 			depthMsg := StreamMessage{
 				Stream: "btcusdt@depth",
 				Data:   json.RawMessage(`{"e":"depthUpdate","s":"BTCUSDT","U":1,"u":2,"b":[["50000","1.0"]],"a":[["51000","2.0"]]}`),
 			}
-			conn.WriteJSON(depthMsg)
+			if err := conn.WriteJSON(depthMsg); err != nil {
+				return
+			}
 
 			// Keep connection alive
 			for {
@@ -109,7 +115,7 @@ func TestClient_SubscribeToDepth(t *testing.T) {
 
 		err := client.Connect(ctx)
 		require.NoError(t, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		err = client.SubscribeToDepth(ctx, "BTCUSDT", func(event *DepthUpdateEvent) error {
 			depthUpdates <- event
@@ -142,22 +148,28 @@ func TestClient_SubscribeToTicker(t *testing.T) {
 		tickerUpdates := make(chan *TickerEvent, 1)
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			// Handle subscription
 			var req SubscriptionRequest
-			conn.ReadJSON(&req)
+			if err := conn.ReadJSON(&req); err != nil {
+				return
+			}
 
 			// Send confirmation
 			resp := SubscriptionResponse{Result: nil, ID: req.ID}
-			conn.WriteJSON(resp)
+			if err := conn.WriteJSON(resp); err != nil {
+				return
+			}
 
 			// Send ticker update
 			tickerMsg := StreamMessage{
 				Stream: "btcusdt@ticker",
 				Data:   json.RawMessage(`{"e":"24hrTicker","s":"BTCUSDT","c":"50000","P":"2.5"}`),
 			}
-			conn.WriteJSON(tickerMsg)
+			if err := conn.WriteJSON(tickerMsg); err != nil {
+				return
+			}
 
 			// Keep connection alive
 			for {
@@ -173,7 +185,7 @@ func TestClient_SubscribeToTicker(t *testing.T) {
 
 		err := client.Connect(ctx)
 		require.NoError(t, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		err = client.SubscribeToTicker(ctx, "BTCUSDT", func(event *TickerEvent) error {
 			tickerUpdates <- event
@@ -198,7 +210,7 @@ func TestClient_SubscribeToUserData(t *testing.T) {
 		orderUpdates := make(chan *OrderUpdateEvent, 1)
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			// User data streams don't need subscription requests
 			// Just send data immediately
@@ -208,14 +220,18 @@ func TestClient_SubscribeToUserData(t *testing.T) {
 				Stream: "test-listen-key",
 				Data:   json.RawMessage(`{"e":"outboundAccountPosition","u":1234,"B":[{"a":"BTC","f":"1.0","l":"0.0"}]}`),
 			}
-			conn.WriteJSON(accountMsg)
+			if err := conn.WriteJSON(accountMsg); err != nil {
+				return
+			}
 
 			// Send order update
 			orderMsg := StreamMessage{
 				Stream: "test-listen-key",
 				Data:   json.RawMessage(`{"e":"executionReport","s":"BTCUSDT","c":"test-order","S":"BUY","X":"FILLED"}`),
 			}
-			conn.WriteJSON(orderMsg)
+			if err := conn.WriteJSON(orderMsg); err != nil {
+				return
+			}
 
 			// Keep connection alive
 			for {
@@ -231,7 +247,7 @@ func TestClient_SubscribeToUserData(t *testing.T) {
 
 		err := client.Connect(ctx)
 		require.NoError(t, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		handler := &UserDataHandler{
 			OnAccountUpdate: func(event *AccountUpdateEvent) error {
@@ -272,16 +288,20 @@ func TestClient_MultipleSubscriptions(t *testing.T) {
 		tickerUpdates := make(chan string, 5)
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			// Handle multiple subscriptions
 			for i := 0; i < 3; i++ {
 				var req SubscriptionRequest
-				conn.ReadJSON(&req)
+				if err := conn.ReadJSON(&req); err != nil {
+					return
+				}
 
 				// Send confirmation
 				resp := SubscriptionResponse{Result: nil, ID: req.ID}
-				conn.WriteJSON(resp)
+				if err := conn.WriteJSON(resp); err != nil {
+					return
+				}
 			}
 
 			// Send test messages
@@ -292,7 +312,9 @@ func TestClient_MultipleSubscriptions(t *testing.T) {
 			}
 
 			for _, msg := range messages {
-				conn.WriteJSON(msg)
+				if err := conn.WriteJSON(msg); err != nil {
+					return
+				}
 				time.Sleep(10 * time.Millisecond)
 			}
 
@@ -310,7 +332,7 @@ func TestClient_MultipleSubscriptions(t *testing.T) {
 
 		err := client.Connect(ctx)
 		require.NoError(t, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		// Subscribe to multiple depth streams
 		err = client.SubscribeToDepth(ctx, "BTCUSDT", func(event *DepthUpdateEvent) error {
@@ -361,7 +383,7 @@ func TestClient_Unsubscribe(t *testing.T) {
 		var mu sync.Mutex
 
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 
 			for {
 				var req SubscriptionRequest
@@ -375,7 +397,7 @@ func TestClient_Unsubscribe(t *testing.T) {
 
 				// Send confirmation
 				resp := SubscriptionResponse{Result: nil, ID: req.ID}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 			}
 		})
 		defer server.Close()
@@ -385,7 +407,7 @@ func TestClient_Unsubscribe(t *testing.T) {
 
 		err := client.Connect(ctx)
 		require.NoError(t, err)
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		// Subscribe
 		err = client.SubscribeToDepth(ctx, "BTCUSDT", func(event *DepthUpdateEvent) error {
@@ -410,7 +432,7 @@ func TestClient_Unsubscribe(t *testing.T) {
 func TestClient_Close(t *testing.T) {
 	t.Run("closes connection and cleans up resources", func(t *testing.T) {
 		server := newMockWebSocketServer(t, func(conn *websocket.Conn) {
-			defer conn.Close()
+			defer func() { _ = conn.Close() }()
 			for {
 				var req SubscriptionRequest
 				if err := conn.ReadJSON(&req); err != nil {
@@ -418,7 +440,7 @@ func TestClient_Close(t *testing.T) {
 				}
 				// Send confirmation
 				resp := SubscriptionResponse{Result: nil, ID: req.ID}
-				conn.WriteJSON(resp)
+				_ = conn.WriteJSON(resp)
 			}
 		})
 		defer server.Close()

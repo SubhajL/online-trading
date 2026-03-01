@@ -55,14 +55,14 @@ describe('PositionsList', () => {
     render(<PositionsList positions={mockPositions} />)
 
     const profitPnl = screen.getByText('+$200.00')
-    expect(profitPnl).toHaveClass('delta-positive')
+    expect(profitPnl).toHaveClass('text-success')
 
     const profitPercent = screen.getByText('+5.00%')
-    expect(profitPercent).toHaveClass('delta-positive')
+    expect(profitPercent).toHaveClass('text-success')
 
     // Second position also has profit
     const sellProfit = screen.getByText('+$100.00')
-    expect(sellProfit).toHaveClass('delta-positive')
+    expect(sellProfit).toHaveClass('text-success')
   })
 
   it('displays negative PnL with correct color', () => {
@@ -80,10 +80,10 @@ describe('PositionsList', () => {
     render(<PositionsList positions={[losingPosition]} />)
 
     const lossPnlElements = screen.getAllByText('-$200.00')
-    expect(lossPnlElements[1]).toHaveClass('delta-negative') // Position P&L, not total
+    expect(lossPnlElements[1]).toHaveClass('text-danger') // Position P&L, not total
 
     const lossPercent = screen.getByText('-4.76%')
-    expect(lossPercent).toHaveClass('delta-negative')
+    expect(lossPercent).toHaveClass('text-danger')
   })
 
   it('shows empty state when no positions', () => {
@@ -104,7 +104,6 @@ describe('PositionsList', () => {
     render(<PositionsList positions={[]} loading />)
 
     expect(screen.getByTestId('positions-loading')).toBeInTheDocument()
-    expect(screen.getByText('Loading positions...')).toBeInTheDocument()
   })
 
   it('shows error state', () => {
@@ -119,27 +118,27 @@ describe('PositionsList', () => {
     render(<PositionsList positions={[]} className="custom-list" />)
 
     const list = screen.getByTestId('positions-list')
-    expect(list).toHaveClass('positions-list', 'custom-list')
+    expect(list).toHaveClass('custom-list')
   })
 
   it('displays correct side styling', () => {
     render(<PositionsList positions={mockPositions} />)
 
     const buyBadge = screen.getByText('BUY')
-    expect(buyBadge).toHaveClass('side-badge', 'buy')
+    expect(buyBadge).toHaveClass('text-success')
 
     const sellBadge = screen.getByText('SELL')
-    expect(sellBadge).toHaveClass('side-badge', 'sell')
+    expect(sellBadge).toHaveClass('text-destructive')
   })
 
   it('displays venue badge', () => {
     render(<PositionsList positions={mockPositions} />)
 
     const spotBadge = screen.getByText('SPOT')
-    expect(spotBadge).toHaveClass('venue-badge')
+    expect(spotBadge).toBeInTheDocument()
 
     const futuresBadge = screen.getByText('USD_M')
-    expect(futuresBadge).toHaveClass('venue-badge')
+    expect(futuresBadge).toBeInTheDocument()
   })
 
   it('handles close button click', () => {

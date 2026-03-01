@@ -100,7 +100,17 @@ type SecurityConfig struct {
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	// Load .env file if it exists
-	godotenv.Load("../../.env")
+	// .env is optional in production; ignore if missing.
+	if err := godotenv.Load("../../.env"); err != nil {
+		// Intentionally ignored (missing .env is expected in many environments).
+		_ = err
+	}
+
+	executionEnv := strings.ToLower(strings.TrimSpace(getEnv("ROUTER_EXECUTION_ENV", "testnet")))
+	testnet, err := parseExecutionEnv(executionEnv)
+	if err != nil {
+		return nil, err
+	}
 
 	config := &Config{
 		Server: ServerConfig{
@@ -130,7 +140,7 @@ func Load() (*Config, error) {
 			WSBaseURL:      getEnv("BINANCE_WS_BASE_URL", "wss://stream.binance.com:9443"),
 			FuturesBaseURL: getEnv("BINANCE_FUTURES_BASE_URL", "https://fapi.binance.com"),
 			FuturesWSURL:   getEnv("BINANCE_FUTURES_WS_URL", "wss://fstream.binance.com"),
-			Testnet:        getEnvAsBool("USE_TESTNET", getEnvAsBool("BINANCE_TESTNET", false)),
+			Testnet:        testnet,
 			Timeout:        getEnvAsDuration("BINANCE_TIMEOUT", "30s"),
 			MaxRetries:     getEnvAsInt("BINANCE_MAX_RETRIES", 3),
 			RetryDelay:     getEnvAsDuration("BINANCE_RETRY_DELAY", "1s"),
@@ -176,6 +186,17 @@ func Load() (*Config, error) {
 	}
 
 	return config, nil
+}
+
+func parseExecutionEnv(raw string) (bool, error) {
+	switch raw {
+	case "testnet":
+		return true, nil
+	case "mainnet":
+		return false, nil
+	default:
+		return false, fmt.Errorf("ROUTER_EXECUTION_ENV must be 'mainnet' or 'testnet'")
+	}
 }
 
 // Validate validates the configuration

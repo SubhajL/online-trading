@@ -2,113 +2,124 @@
 Unit tests for health check script
 """
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-import threading
 from typing import Any
+from urllib.error import URLError
 
 import pytest
 
 from app.engine.scripts.healthcheck import check_health, main
 
 
-class MockHealthHandler(BaseHTTPRequestHandler):
-    """Mock HTTP handler for health endpoint"""
-
-    response_status = 200
-    response_body = {"status": "ok"}
-
-    def do_GET(self) -> None:
-        if self.path == "/health/simple":
-            self.send_response(self.response_status)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(self.response_body).encode())
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def log_message(self, format: str, *args: Any) -> None:
-        # Suppress logs during tests
-        pass
-
-
 class TestCheckHealth:
     """Tests for check_health function"""
 
-    def test_returns_zero_when_service_healthy(self) -> None:
-        # Start mock server
-        server = HTTPServer(("localhost", 18000), MockHealthHandler)
-        MockHealthHandler.response_status = 200
-        MockHealthHandler.response_body = {"status": "ok"}
+    def test_returns_zero_when_service_healthy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Response:
+            status = 200
 
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+            def read(self) -> bytes:
+                return json.dumps({"status": "ok"}).encode()
 
-        try:
-            result = check_health(port=18000)
-            assert result == 0
-        finally:
-            server.shutdown()
+            def __enter__(self) -> "_Response":
+                return self
 
-    def test_returns_one_when_service_unhealthy(self) -> None:
-        # Start mock server with unhealthy response
-        server = HTTPServer(("localhost", 18001), MockHealthHandler)
-        MockHealthHandler.response_status = 200
-        MockHealthHandler.response_body = {"status": "unhealthy"}
+            def __exit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                tb: Any | None,
+            ) -> None:
+                return None
 
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+        monkeypatch.setattr(
+            "app.engine.scripts.healthcheck.urlopen",
+            lambda *_args, **_kwargs: _Response(),
+        )
 
-        try:
-            result = check_health(port=18001)
-            assert result == 1
-        finally:
-            server.shutdown()
+        assert check_health(port=18000) == 0
 
-    def test_returns_one_when_http_error(self) -> None:
-        # Start mock server that returns HTTP 500
-        server = HTTPServer(("localhost", 18002), MockHealthHandler)
-        MockHealthHandler.response_status = 500
-        MockHealthHandler.response_body = {"error": "internal error"}
+    def test_returns_one_when_service_unhealthy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Response:
+            status = 200
 
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+            def read(self) -> bytes:
+                return json.dumps({"status": "unhealthy"}).encode()
 
-        try:
-            result = check_health(port=18002)
-            assert result == 1
-        finally:
-            server.shutdown()
+            def __enter__(self) -> "_Response":
+                return self
 
-    def test_returns_one_when_connection_refused(self) -> None:
-        # Use a port that nothing is listening on
-        result = check_health(port=19999)
+            def __exit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                tb: Any | None,
+            ) -> None:
+                return None
 
-        assert result == 1
+        monkeypatch.setattr(
+            "app.engine.scripts.healthcheck.urlopen",
+            lambda *_args, **_kwargs: _Response(),
+        )
 
-    def test_returns_one_when_invalid_json(self) -> None:
-        # Mock handler that returns invalid JSON
-        class InvalidJsonHandler(MockHealthHandler):
-            def do_GET(self) -> None:
-                if self.path == "/health/simple":
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(b"not valid json")
-                else:
-                    self.send_response(404)
-                    self.end_headers()
+        assert check_health(port=18001) == 1
 
-        server = HTTPServer(("localhost", 18003), InvalidJsonHandler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+    def test_returns_one_when_http_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Response:
+            status = 500
 
-        try:
-            result = check_health(port=18003)
-            assert result == 1
-        finally:
-            server.shutdown()
+            def read(self) -> bytes:
+                return json.dumps({"error": "internal error"}).encode()
+
+            def __enter__(self) -> "_Response":
+                return self
+
+            def __exit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                tb: Any | None,
+            ) -> None:
+                return None
+
+        monkeypatch.setattr(
+            "app.engine.scripts.healthcheck.urlopen",
+            lambda *_args, **_kwargs: _Response(),
+        )
+
+        assert check_health(port=18002) == 1
+
+    def test_returns_one_when_connection_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "app.engine.scripts.healthcheck.urlopen",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(URLError("refused")),
+        )
+        assert check_health(port=19999) == 1
+
+    def test_returns_one_when_invalid_json(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Response:
+            status = 200
+
+            def read(self) -> bytes:
+                return b"not valid json"
+
+            def __enter__(self) -> "_Response":
+                return self
+
+            def __exit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                tb: Any | None,
+            ) -> None:
+                return None
+
+        monkeypatch.setattr(
+            "app.engine.scripts.healthcheck.urlopen",
+            lambda *_args, **_kwargs: _Response(),
+        )
+
+        assert check_health(port=18003) == 1
 
     def test_uses_default_port_8000(self) -> None:
         # Verify function accepts port parameter with default value
@@ -121,19 +132,29 @@ class TestCheckHealth:
 class TestMain:
     """Tests for main function"""
 
-    def test_main_exits_with_check_health_result(self) -> None:
-        # Mock server for testing
-        server = HTTPServer(("localhost", 18004), MockHealthHandler)
-        MockHealthHandler.response_status = 200
-        MockHealthHandler.response_body = {"status": "ok"}
+    def test_main_exits_with_check_health_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Response:
+            status = 200
 
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+            def read(self) -> bytes:
+                return json.dumps({"status": "ok"}).encode()
 
-        try:
-            with pytest.raises(SystemExit) as exc_info:
-                main(port=18004)
+            def __enter__(self) -> "_Response":
+                return self
 
-            assert exc_info.value.code == 0
-        finally:
-            server.shutdown()
+            def __exit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                tb: Any | None,
+            ) -> None:
+                return None
+
+        monkeypatch.setattr(
+            "app.engine.scripts.healthcheck.urlopen",
+            lambda *_args, **_kwargs: _Response(),
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            main(port=18004)
+        assert exc_info.value.code == 0

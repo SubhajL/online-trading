@@ -10,13 +10,38 @@ from typing import Any
 
 # Common generic types that need parameters
 BUILTIN_GENERICS = {"dict", "list", "tuple", "set", "frozenset"}
-TYPING_GENERICS = {"Dict", "List", "Tuple", "Set", "FrozenSet", "Deque", "DefaultDict", "OrderedDict", "Counter"}
+TYPING_GENERICS = {
+    "Dict",
+    "List",
+    "Tuple",
+    "Set",
+    "FrozenSet",
+    "Deque",
+    "DefaultDict",
+    "OrderedDict",
+    "Counter",
+}
 COLLECTIONS_GENERICS = {"deque", "defaultdict", "OrderedDict", "Counter"}
 ASYNCIO_GENERICS = {"Task", "Future", "Queue"}
 QUEUE_GENERICS = {"Queue", "PriorityQueue", "LifoQueue", "SimpleQueue"}
-OTHER_GENERICS = {"Callable", "Optional", "Union", "Type", "Iterable", "Iterator", "Generator"}
+OTHER_GENERICS = {
+    "Callable",
+    "Optional",
+    "Union",
+    "Type",
+    "Iterable",
+    "Iterator",
+    "Generator",
+}
 
-ALL_GENERICS = BUILTIN_GENERICS | TYPING_GENERICS | COLLECTIONS_GENERICS | ASYNCIO_GENERICS | QUEUE_GENERICS | OTHER_GENERICS
+ALL_GENERICS = (
+    BUILTIN_GENERICS
+    | TYPING_GENERICS
+    | COLLECTIONS_GENERICS
+    | ASYNCIO_GENERICS
+    | QUEUE_GENERICS
+    | OTHER_GENERICS
+)
 
 
 def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
@@ -29,7 +54,7 @@ def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
     Returns:
         List of generic types missing parameters with context
     """
-    missing_generics = []
+    missing_generics: list[Any] = []
     lines = code.split("\n")
 
     for line_idx, line in enumerate(lines):
@@ -56,35 +81,47 @@ def detect_missing_generic_parameters(code: str) -> list[dict[str, Any]]:
                     continue
 
                 # Skip if it's a function call (e.g., list(), dict())
-                if match.end() < len(line) and line[match.end():match.end()+1] == "(":
+                if match.end() < len(line) and line[match.end() : match.end() + 1] == "(":
                     continue
 
                 # Determine context (return type, argument, variable annotation, etc.)
                 context = "unknown"
                 within_union = "Union[" in line and match.start() > line.find("Union[")
-                within_optional = "Optional[" in line and match.start() > line.find("Optional[")
+                within_optional = "Optional[" in line and match.start() > line.find(
+                    "Optional[",
+                )
 
                 if "->" in line and match.start() > line.find("->"):
                     context = "return"
-                elif ":" in line[:match.start()] and "=" not in line[:match.start()]:
+                elif ":" in line[: match.start()] and "=" not in line[: match.start()]:
                     context = "argument"
-                elif ":" in line[:match.start()] and "=" in line[match.start():]:
+                elif ":" in line[: match.start()] and "=" in line[match.start() :]:
                     context = "variable"
 
-                missing_generics.append({
-                    "type_name": generic_type,
-                    "line": line_idx,
-                    "column": match.start(),
-                    "context": context,
-                    "within_union": within_union,
-                    "within_optional": within_optional,
-                    "full_line": line,
-                })
+                missing_generics.append(
+                    {
+                        "type_name": generic_type,
+                        "line": line_idx,
+                        "column": match.start(),
+                        "context": context,
+                        "within_union": within_union,
+                        "within_optional": within_optional,
+                        "full_line": line,
+                    },
+                )
 
+    missing_generics.sort(
+        key=lambda item: (item["line"], item["column"], item["type_name"]),
+    )
     return missing_generics
 
 
-def infer_generic_parameters(code: str, type_name: str, function_name: str | None, line_num: int) -> str:
+def infer_generic_parameters(
+    code: str,
+    type_name: str,
+    function_name: str | None,
+    line_num: int,
+) -> str:
     """
     Try to infer the generic parameters based on usage
 
@@ -134,6 +171,7 @@ def infer_generic_parameters(code: str, type_name: str, function_name: str | Non
 
         # For dict/Dict types, try to infer from dict literals
         if type_name.lower() == "dict" and function_name:
+
             class DictInferrer(ast.NodeVisitor):
                 def __init__(self):
                     self.in_target_function = False
@@ -175,6 +213,7 @@ def infer_generic_parameters(code: str, type_name: str, function_name: str | Non
 
         # For list/List types, try to infer from list literals
         elif type_name.lower() == "list" and function_name:
+
             class ListInferrer(ast.NodeVisitor):
                 def __init__(self):
                     self.in_target_function = False
@@ -199,15 +238,16 @@ def infer_generic_parameters(code: str, type_name: str, function_name: str | Non
                                         self.element_types.add("float")
                     self.generic_visit(node)
 
-            inferrer = ListInferrer()
+            inferrer = ListInferrer()  # type: ignore[assignment]
             inferrer.visit(tree)
 
-            if inferrer.element_types:
-                if len(inferrer.element_types) == 1:
-                    return f"[{inferrer.element_types.pop()}]"
+            if inferrer.element_types:  # type: ignore[attr-defined]
+                if len(inferrer.element_types) == 1:  # type: ignore[attr-defined]
+                    return f"[{inferrer.element_types.pop()}]"  # type: ignore[attr-defined]
 
         # For tuple/Tuple types
         elif type_name.lower() == "tuple" and function_name:
+
             class TupleInferrer(ast.NodeVisitor):
                 def __init__(self):
                     self.in_target_function = False
@@ -237,13 +277,13 @@ def infer_generic_parameters(code: str, type_name: str, function_name: str | Non
                                 self.tuple_types = types
                     self.generic_visit(node)
 
-            inferrer = TupleInferrer()
+            inferrer = TupleInferrer()  # type: ignore[assignment]
             inferrer.visit(tree)
 
-            if inferrer.tuple_types:
-                return f'[{", ".join(inferrer.tuple_types)}]'
+            if inferrer.tuple_types:  # type: ignore[attr-defined]
+                return f"[{', '.join(inferrer.tuple_types)}]"  # type: ignore[attr-defined]
 
-    except:
+    except Exception:
         pass
 
     # Return default parameters
@@ -269,7 +309,7 @@ def add_generic_type_parameters(code: str) -> str:
     needs_any = False
 
     # Group by line number and process in reverse order
-    lines_to_process = {}
+    lines_to_process: dict[Any, Any] = {}
     for item in missing:
         line_idx = item["line"]
         if line_idx not in lines_to_process:
@@ -278,7 +318,11 @@ def add_generic_type_parameters(code: str) -> str:
 
     # Process each line with missing generics
     for line_idx in sorted(lines_to_process.keys(), reverse=True):
-        items = sorted(lines_to_process[line_idx], key=lambda x: x["column"], reverse=True)
+        items = sorted(
+            lines_to_process[line_idx],
+            key=lambda x: x["column"],
+            reverse=True,
+        )
         line = modified_lines[line_idx]
 
         for item in items:
@@ -303,7 +347,7 @@ def add_generic_type_parameters(code: str) -> str:
             matches = list(re.finditer(pattern, line))
             for match in reversed(matches):
                 if match.start() == item["column"]:
-                    line = line[:match.end()] + params + line[match.end():]
+                    line = line[: match.end()] + params + line[match.end() :]
                     if "Any" in params:
                         needs_any = True
                     break

@@ -29,8 +29,8 @@ class ChaosScenario:
         self.description = description
         self.start_time = None
         self.end_time = None
-        self.impacts = []
-        self.recoveries = []
+        self.impacts: list[dict[str, object]] = []
+        self.recoveries: list[dict[str, object]] = []
 
     async def inject_failure(self):
         """Inject the failure condition."""

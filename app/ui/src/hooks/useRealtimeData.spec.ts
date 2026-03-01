@@ -1,55 +1,72 @@
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useRealtimeData } from './useRealtimeData'
-import { WebSocketService } from '@/services/websocket.service'
 
-// Mock WebSocketService
-vi.mock('@/services/websocket.service')
+// Mock the singleton module
+const mockOnConnectionStateChange = vi.fn()
+const mockIsConnected = vi.fn()
+const mockOn = vi.fn()
+const mockOff = vi.fn()
+const mockReconnectWithAuth = vi.fn()
+
+vi.mock('@/services/websocket', () => ({
+  websocketService: {
+    isConnected: () => mockIsConnected(),
+    onConnectionStateChange: (callback: (state: unknown) => void) =>
+      mockOnConnectionStateChange(callback),
+    on: (event: string, handler: (data: unknown) => void) => mockOn(event, handler),
+    off: (event: string, handler: (data: unknown) => void) => mockOff(event, handler),
+    reconnectWithAuth: () => mockReconnectWithAuth(),
+  },
+}))
 
 describe('useRealtimeData', () => {
-  let mockWebSocketService: any
+  let connectionStateCallback: ((state: unknown) => void) | null = null
 
   beforeEach(() => {
-    mockWebSocketService = {
-      connect: vi.fn().mockImplementation(async () => {
-        mockWebSocketService.isConnected.mockReturnValue(true)
-      }),
-      disconnect: vi.fn(),
-      subscribe: vi.fn(),
-      unsubscribe: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-      isConnected: vi.fn().mockReturnValue(false),
-    }
-
-    vi.mocked(WebSocketService).mockImplementation(() => mockWebSocketService)
+    mockIsConnected.mockReturnValue(false)
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: false, connecting: true, reconnectAttempts: 0 })
+      return vi.fn()
+    })
+    mockOn.mockClear()
+    mockOff.mockClear()
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    connectionStateCallback = null
   })
 
-  it('connects to WebSocket on mount', async () => {
+  it('subscribes to connection state on mount', () => {
     renderHook(() => useRealtimeData([]))
 
-    await waitFor(() => {
-      expect(mockWebSocketService.connect).toHaveBeenCalled()
-    })
+    expect(mockOnConnectionStateChange).toHaveBeenCalledTimes(1)
   })
 
-  it('disconnects from WebSocket on unmount', async () => {
-    const { unmount } = renderHook(() => useRealtimeData([]))
-
-    await waitFor(() => {
-      expect(mockWebSocketService.connect).toHaveBeenCalled()
+  it('unsubscribes from connection state on unmount', () => {
+    const mockUnsubscribe = vi.fn()
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: false, connecting: true, reconnectAttempts: 0 })
+      return mockUnsubscribe
     })
 
+    const { unmount } = renderHook(() => useRealtimeData([]))
     unmount()
 
-    expect(mockWebSocketService.disconnect).toHaveBeenCalled()
+    expect(mockUnsubscribe).toHaveBeenCalled()
   })
 
-  it('subscribes to specified channels', async () => {
+  it('sets up event handlers when connected', async () => {
+    mockIsConnected.mockReturnValue(true)
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
+    })
+
     const subscriptions = [
       { channel: 'ticker', symbol: 'BTCUSDT' },
       { channel: 'depth', symbol: 'ETHUSDT' },
@@ -58,84 +75,117 @@ describe('useRealtimeData', () => {
     renderHook(() => useRealtimeData(subscriptions))
 
     await waitFor(() => {
-      expect(mockWebSocketService.subscribe).toHaveBeenCalledWith('ticker', {
-        symbol: 'BTCUSDT',
-      })
-      expect(mockWebSocketService.subscribe).toHaveBeenCalledWith('depth', {
-        symbol: 'ETHUSDT',
-      })
+      expect(mockOn).toHaveBeenCalledWith('ticker', expect.any(Function))
+      expect(mockOn).toHaveBeenCalledWith('depth', expect.any(Function))
     })
   })
 
-  it('handles data updates', async () => {
+  it('handles data updates with symbol filtering', async () => {
     const onData = vi.fn()
+    mockIsConnected.mockReturnValue(true)
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
+    })
+
+    let tickerHandler: ((data: unknown) => void) | null = null
+    mockOn.mockImplementation((event: string, handler: (data: unknown) => void) => {
+      if (event === 'ticker') {
+        tickerHandler = handler
+      }
+    })
+
     const subscription = {
       channel: 'ticker',
       symbol: 'BTCUSDT',
       onData,
     }
 
-    // Set up event handler mock
-    mockWebSocketService.on.mockImplementation((event: string, handler: any) => {
-      if (event === 'ticker') {
-        // Simulate data coming in
-        setTimeout(() => {
-          handler({
-            symbol: 'BTCUSDT',
-            price: '42000',
-            volume: '1000',
-          })
-        }, 100)
-      }
-    })
-
     renderHook(() => useRealtimeData([subscription]))
 
     await waitFor(() => {
-      expect(onData).toHaveBeenCalledWith({
-        symbol: 'BTCUSDT',
-        price: '42000',
-        volume: '1000',
-      })
+      expect(tickerHandler).not.toBeNull()
     })
+
+    // Simulate data coming in
+    act(() => {
+      tickerHandler!({ symbol: 'BTCUSDT', price: '42000' })
+      tickerHandler!({ symbol: 'ETHUSDT', price: '2500' }) // Should be filtered out
+    })
+
+    expect(onData).toHaveBeenCalledWith({ symbol: 'BTCUSDT', price: '42000' })
+    expect(onData).not.toHaveBeenCalledWith({ symbol: 'ETHUSDT', price: '2500' })
   })
 
-  it('returns connection state', async () => {
+  it('returns connection state from singleton', async () => {
+    mockIsConnected.mockReturnValue(false)
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: false, connecting: true, reconnectAttempts: 0 })
+      return vi.fn()
+    })
+
     const { result } = renderHook(() => useRealtimeData([]))
 
-    // Initially should be false and loading
     expect(result.current.isConnected).toBe(false)
     expect(result.current.isLoading).toBe(true)
 
-    // Wait for connection to complete
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true)
-      expect(result.current.isLoading).toBe(false)
+    // Simulate connection established
+    act(() => {
+      connectionStateCallback!({ connected: true, connecting: false, reconnectAttempts: 0 })
     })
+
+    expect(result.current.isConnected).toBe(true)
+    expect(result.current.isLoading).toBe(false)
   })
 
-  it('returns error state', async () => {
-    const error = new Error('Connection failed')
-    mockWebSocketService.connect.mockRejectedValueOnce(error)
+  it('sets error on connection loss', async () => {
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
+    })
 
     const { result } = renderHook(() => useRealtimeData([]))
 
-    await waitFor(() => {
-      expect(result.current.error).toEqual(error)
+    expect(result.current.error).toBeNull()
+
+    // Simulate connection lost with reconnect attempts
+    act(() => {
+      connectionStateCallback!({ connected: false, connecting: false, reconnectAttempts: 1 })
     })
+
+    expect(result.current.error).toEqual(new Error('Connection lost'))
   })
 
-  it('returns loading state', async () => {
+  it('clears error on reconnection', async () => {
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: false, connecting: false, reconnectAttempts: 1 })
+      return vi.fn()
+    })
+
     const { result } = renderHook(() => useRealtimeData([]))
 
-    expect(result.current.isLoading).toBe(true)
+    expect(result.current.error).toEqual(new Error('Connection lost'))
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false)
+    // Simulate reconnection
+    act(() => {
+      connectionStateCallback!({ connected: true, connecting: false, reconnectAttempts: 0 })
     })
+
+    expect(result.current.error).toBeNull()
   })
 
   it('handles subscription changes', async () => {
+    mockIsConnected.mockReturnValue(true)
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
+    })
+
     const { rerender } = renderHook(({ subscriptions }) => useRealtimeData(subscriptions), {
       initialProps: {
         subscriptions: [{ channel: 'ticker', symbol: 'BTCUSDT' }],
@@ -143,9 +193,7 @@ describe('useRealtimeData', () => {
     })
 
     await waitFor(() => {
-      expect(mockWebSocketService.subscribe).toHaveBeenCalledWith('ticker', {
-        symbol: 'BTCUSDT',
-      })
+      expect(mockOn).toHaveBeenCalledWith('ticker', expect.any(Function))
     })
 
     // Change subscriptions
@@ -154,16 +202,19 @@ describe('useRealtimeData', () => {
     })
 
     await waitFor(() => {
-      expect(mockWebSocketService.unsubscribe).toHaveBeenCalledWith('ticker', {
-        symbol: 'BTCUSDT',
-      })
-      expect(mockWebSocketService.subscribe).toHaveBeenCalledWith('depth', {
-        symbol: 'ETHUSDT',
-      })
+      expect(mockOff).toHaveBeenCalledWith('ticker', expect.any(Function))
+      expect(mockOn).toHaveBeenCalledWith('depth', expect.any(Function))
     })
   })
 
   it('cleans up event listeners on unmount', async () => {
+    mockIsConnected.mockReturnValue(true)
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
+    })
+
     const subscription = {
       channel: 'ticker',
       symbol: 'BTCUSDT',
@@ -173,107 +224,83 @@ describe('useRealtimeData', () => {
     const { unmount } = renderHook(() => useRealtimeData([subscription]))
 
     await waitFor(() => {
-      expect(mockWebSocketService.on).toHaveBeenCalled()
+      expect(mockOn).toHaveBeenCalled()
     })
 
     unmount()
 
-    expect(mockWebSocketService.off).toHaveBeenCalledWith('ticker', expect.any(Function))
+    expect(mockOff).toHaveBeenCalledWith('ticker', expect.any(Function))
   })
 
-  it('handles multiple subscriptions to same channel', async () => {
+  it('calls reconnectWithAuth on reconnect', async () => {
+    const { result } = renderHook(() => useRealtimeData([]))
+
+    act(() => {
+      result.current.reconnect()
+    })
+
+    expect(mockReconnectWithAuth).toHaveBeenCalled()
+  })
+
+  it('updates local isConnected state on disconnect', async () => {
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
+    })
+
+    const { result } = renderHook(() => useRealtimeData([]))
+
+    expect(result.current.isConnected).toBe(true)
+
+    act(() => {
+      result.current.disconnect()
+    })
+
+    expect(result.current.isConnected).toBe(false)
+  })
+
+  it('handles multiple subscriptions to same channel with different symbols', async () => {
     const onDataBTC = vi.fn()
     const onDataETH = vi.fn()
+
+    mockIsConnected.mockReturnValue(true)
+    mockOnConnectionStateChange.mockImplementation(callback => {
+      connectionStateCallback = callback
+      callback({ connected: true, connecting: false, reconnectAttempts: 0 })
+      return vi.fn()
+    })
+
+    const handlers: ((data: unknown) => void)[] = []
+    mockOn.mockImplementation((_event: string, handler: (data: unknown) => void) => {
+      handlers.push(handler)
+    })
 
     const subscriptions = [
       { channel: 'ticker', symbol: 'BTCUSDT', onData: onDataBTC },
       { channel: 'ticker', symbol: 'ETHUSDT', onData: onDataETH },
     ]
 
-    mockWebSocketService.on.mockImplementation((event: string, handler: any) => {
-      if (event === 'ticker') {
-        setTimeout(() => {
-          handler({ symbol: 'BTCUSDT', price: '42000' })
-          handler({ symbol: 'ETHUSDT', price: '2500' })
-        }, 100)
-      }
-    })
-
     renderHook(() => useRealtimeData(subscriptions))
 
     await waitFor(() => {
-      expect(onDataBTC).toHaveBeenCalledWith({
-        symbol: 'BTCUSDT',
-        price: '42000',
-      })
-      expect(onDataETH).toHaveBeenCalledWith({
-        symbol: 'ETHUSDT',
-        price: '2500',
-      })
-    })
-  })
-
-  it('handles reconnection', async () => {
-    const { result } = renderHook(() => useRealtimeData([]))
-
-    await waitFor(() => {
-      expect(mockWebSocketService.connect).toHaveBeenCalledTimes(1)
+      expect(handlers.length).toBe(2)
     })
 
-    // Simulate reconnect
-    await act(async () => {
-      await result.current.reconnect()
-    })
-
-    expect(mockWebSocketService.disconnect).toHaveBeenCalled()
-    expect(mockWebSocketService.connect).toHaveBeenCalledTimes(2)
-  })
-
-  it('provides manual disconnect method', async () => {
-    const { result } = renderHook(() => useRealtimeData([]))
-
-    await waitFor(() => {
-      expect(mockWebSocketService.connect).toHaveBeenCalled()
-    })
-
+    // Simulate data coming in to all handlers
     act(() => {
-      result.current.disconnect()
-    })
-
-    expect(mockWebSocketService.disconnect).toHaveBeenCalled()
-  })
-
-  it('filters data by symbol when onData provided', async () => {
-    const onDataBTC = vi.fn()
-
-    const subscription = {
-      channel: 'ticker',
-      symbol: 'BTCUSDT',
-      onData: onDataBTC,
-    }
-
-    mockWebSocketService.on.mockImplementation((event: string, handler: any) => {
-      if (event === 'ticker') {
-        setTimeout(() => {
-          // Send data for multiple symbols
-          handler({ symbol: 'BTCUSDT', price: '42000' })
-          handler({ symbol: 'ETHUSDT', price: '2500' })
-        }, 100)
-      }
-    })
-
-    renderHook(() => useRealtimeData([subscription]))
-
-    await waitFor(() => {
-      // Should only receive BTC data
-      expect(onDataBTC).toHaveBeenCalledWith({
-        symbol: 'BTCUSDT',
-        price: '42000',
-      })
-      expect(onDataBTC).not.toHaveBeenCalledWith({
-        symbol: 'ETHUSDT',
-        price: '2500',
+      handlers.forEach(handler => {
+        handler({ symbol: 'BTCUSDT', price: '42000' })
+        handler({ symbol: 'ETHUSDT', price: '2500' })
       })
     })
+
+    // BTC handler should only receive BTC data
+    expect(onDataBTC).toHaveBeenCalledWith({ symbol: 'BTCUSDT', price: '42000' })
+    expect(onDataBTC).not.toHaveBeenCalledWith({ symbol: 'ETHUSDT', price: '2500' })
+
+    // ETH handler should only receive ETH data
+    expect(onDataETH).toHaveBeenCalledWith({ symbol: 'ETHUSDT', price: '2500' })
+    expect(onDataETH).not.toHaveBeenCalledWith({ symbol: 'BTCUSDT', price: '42000' })
   })
 })

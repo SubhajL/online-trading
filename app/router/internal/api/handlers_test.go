@@ -14,6 +14,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"router/internal/orders"
 )
 
@@ -40,6 +41,22 @@ func (m *MockOrderManager) CloseAllPositions(ctx context.Context, req *orders.Cl
 	return args.Error(0)
 }
 
+func (m *MockOrderManager) CancelOpenOrders(ctx context.Context, req *orders.CancelOpenOrdersRequest) (*orders.CancelOpenOrdersResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*orders.CancelOpenOrdersResponse), args.Error(1)
+}
+
+func (m *MockOrderManager) ClosePositions(ctx context.Context, req *orders.ClosePositionsRequest) (*orders.ClosePositionsResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*orders.ClosePositionsResponse), args.Error(1)
+}
+
 func (m *MockOrderManager) ReconcileOrder(ctx context.Context, clientOrderID string) error {
 	args := m.Called(ctx, clientOrderID)
 	return args.Error(0)
@@ -48,7 +65,7 @@ func (m *MockOrderManager) ReconcileOrder(ctx context.Context, clientOrderID str
 func TestHealthzHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -95,7 +112,7 @@ func TestHealthzHandler(t *testing.T) {
 func TestReadyzHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -142,7 +159,7 @@ func TestReadyzHandler(t *testing.T) {
 func TestPlaceBracketHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -293,10 +310,62 @@ func TestPlaceBracketHandler(t *testing.T) {
 	}
 }
 
+type stubIntentPersister struct {
+	called bool
+}
+
+func (s *stubIntentPersister) PersistBracketIntent(
+	_ctx context.Context,
+	_req orders.PlaceBracketRequest,
+	_resp orders.PlaceBracketResponse,
+) error {
+	s.called = true
+	return nil
+}
+
+func TestPlaceBracketHandler_PersistsIntentsWhenConfigured(t *testing.T) {
+	logger := zerolog.Nop()
+	mockManager := new(MockOrderManager)
+	stub := &stubIntentPersister{}
+	handlers := NewHandlers(mockManager, logger, stub)
+
+	mockManager.On("PlaceBracketOrder", mock.Anything, mock.AnythingOfType("*orders.PlaceBracketRequest")).
+		Return(&orders.PlaceBracketResponse{
+			BracketOrderID: "test-bracket-id",
+			Symbol:         "BTCUSDT",
+			Side:           "BUY",
+			Quantity:       decimal.RequireFromString("0.001"),
+			ClientOrderIDs: orders.ClientOrderIDs{
+				Main:        "main-order-id",
+				TakeProfits: []string{"tp1-id"},
+				StopLoss:    "sl-id",
+			},
+		}, nil).Once()
+
+	body := &orders.PlaceBracketRequest{
+		Symbol:           "BTCUSDT",
+		Side:             "BUY",
+		Quantity:         decimal.RequireFromString("0.001"),
+		EntryPrice:       decimal.RequireFromString("50000"),
+		TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("51000")},
+		StopLossPrice:    decimal.RequireFromString("49000"),
+		IsFutures:        true,
+	}
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/place_bracket", bytes.NewReader(raw))
+	w := httptest.NewRecorder()
+	handlers.PlaceBracketHandler(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, stub.called)
+}
+
 func TestCancelHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -385,7 +454,7 @@ func TestCancelHandler(t *testing.T) {
 func TestCloseAllHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger)
+	handlers := NewHandlers(mockManager, logger, nil)
 
 	tests := []struct {
 		name       string
@@ -469,6 +538,194 @@ func TestCloseAllHandler(t *testing.T) {
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				assert.NoError(t, err)
 				assert.Equal(t, "success", response["status"])
+			}
+
+			mockManager.AssertExpectations(t)
+		})
+	}
+}
+
+func TestCancelOpenOrdersHandler(t *testing.T) {
+	logger := zerolog.Nop()
+	mockManager := new(MockOrderManager)
+	handlers := NewHandlers(mockManager, logger, nil)
+
+	tests := []struct {
+		name       string
+		method     string
+		body       interface{}
+		setupMock  func()
+		wantStatus int
+		wantErr    string
+		wantBody   *orders.CancelOpenOrdersResponse
+	}{
+		{
+			name:   "successful cancel open orders",
+			method: http.MethodPost,
+			body: &orders.CancelOpenOrdersRequest{
+				Scope:   orders.EmergencyScopeAll,
+				Symbols: []string{"BTCUSDT", "ETHUSDT"},
+			},
+			setupMock: func() {
+				mockManager.On("CancelOpenOrders", mock.Anything, mock.AnythingOfType("*orders.CancelOpenOrdersRequest")).
+					Return(&orders.CancelOpenOrdersResponse{CanceledOrders: 3}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   &orders.CancelOpenOrdersResponse{CanceledOrders: 3},
+		},
+		{
+			name:       "invalid method",
+			method:     http.MethodGet,
+			setupMock:  func() {},
+			wantStatus: http.StatusMethodNotAllowed,
+			wantErr:    "Method not allowed",
+		},
+		{
+			name:       "invalid request body",
+			method:     http.MethodPost,
+			body:       "invalid json",
+			setupMock:  func() {},
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "Invalid request body",
+		},
+		{
+			name:   "cancel open orders error",
+			method: http.MethodPost,
+			body: &orders.CancelOpenOrdersRequest{
+				Scope: orders.EmergencyScopeFutures,
+			},
+			setupMock: func() {
+				mockManager.On("CancelOpenOrders", mock.Anything, mock.AnythingOfType("*orders.CancelOpenOrdersRequest")).
+					Return(nil, errors.New("futures cancel not supported")).Once()
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "futures cancel not supported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockManager.ExpectedCalls = nil
+			tt.setupMock()
+
+			var body io.Reader
+			if tt.body != nil {
+				data, err := json.Marshal(tt.body)
+				assert.NoError(t, err)
+				body = bytes.NewReader(data)
+			}
+
+			req := httptest.NewRequest(tt.method, "/cancel_open_orders", body)
+			w := httptest.NewRecorder()
+
+			handlers.CancelOpenOrdersHandler(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+
+			if tt.wantErr != "" {
+				var response map[string]string
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantErr, response["error"])
+			} else if tt.wantBody != nil {
+				var response orders.CancelOpenOrdersResponse
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, *tt.wantBody, response)
+			}
+
+			mockManager.AssertExpectations(t)
+		})
+	}
+}
+
+func TestClosePositionsHandler(t *testing.T) {
+	logger := zerolog.Nop()
+	mockManager := new(MockOrderManager)
+	handlers := NewHandlers(mockManager, logger, nil)
+
+	tests := []struct {
+		name       string
+		method     string
+		body       interface{}
+		setupMock  func()
+		wantStatus int
+		wantErr    string
+		wantBody   *orders.ClosePositionsResponse
+	}{
+		{
+			name:   "successful close positions",
+			method: http.MethodPost,
+			body: &orders.ClosePositionsRequest{
+				Scope:   orders.EmergencyScopeFutures,
+				Symbols: []string{"BTCUSDT"},
+			},
+			setupMock: func() {
+				mockManager.On("ClosePositions", mock.Anything, mock.AnythingOfType("*orders.ClosePositionsRequest")).
+					Return(&orders.ClosePositionsResponse{ClosedPositions: 2}, nil).Once()
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   &orders.ClosePositionsResponse{ClosedPositions: 2},
+		},
+		{
+			name:       "invalid method",
+			method:     http.MethodGet,
+			setupMock:  func() {},
+			wantStatus: http.StatusMethodNotAllowed,
+			wantErr:    "Method not allowed",
+		},
+		{
+			name:       "invalid request body",
+			method:     http.MethodPost,
+			body:       "invalid json",
+			setupMock:  func() {},
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "Invalid request body",
+		},
+		{
+			name:   "close positions error",
+			method: http.MethodPost,
+			body: &orders.ClosePositionsRequest{
+				Scope: orders.EmergencyScopeSpot,
+			},
+			setupMock: func() {
+				mockManager.On("ClosePositions", mock.Anything, mock.AnythingOfType("*orders.ClosePositionsRequest")).
+					Return(nil, errors.New("spot close not supported")).Once()
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "spot close not supported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockManager.ExpectedCalls = nil
+			tt.setupMock()
+
+			var body io.Reader
+			if tt.body != nil {
+				data, err := json.Marshal(tt.body)
+				assert.NoError(t, err)
+				body = bytes.NewReader(data)
+			}
+
+			req := httptest.NewRequest(tt.method, "/close_positions", body)
+			w := httptest.NewRecorder()
+
+			handlers.ClosePositionsHandler(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+
+			if tt.wantErr != "" {
+				var response map[string]string
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantErr, response["error"])
+			} else if tt.wantBody != nil {
+				var response orders.ClosePositionsResponse
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, *tt.wantBody, response)
 			}
 
 			mockManager.AssertExpectations(t)

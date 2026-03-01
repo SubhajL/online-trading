@@ -26,6 +26,18 @@ export class AuthService {
       password: '$2b$10$KIKhxW5lMQPC1svPLAcrZeP/oLhV5Dw7F8PTVm08r6oNSJzJl8jGe', // password: admin123
       roles: ['admin', 'operator'],
     },
+    {
+      id: 'user-789',
+      username: 'trader@test.com',
+      password: '$2b$10$PjNyJWip7IMwgE/rC1ZzjOHuH7uopLRUf3Eb82luMGCECjUVyDk8e', // password: Password123
+      roles: ['operator'],
+    },
+    {
+      id: 'user-e2e',
+      username: 'test@example.com',
+      password: '$2b$10$iK0eXWpQ4lzQABLYDjWgg.JG.12RwQFydDw7mUJ21wT7tpJol0xsi', // password: password123
+      roles: ['operator'],
+    },
   ];
 
   constructor(
@@ -49,21 +61,30 @@ export class AuthService {
     return result;
   }
 
-  async login(user: Omit<User, 'password'>): Promise<JwtTokens> {
+  async login(user: Omit<User, 'password'>, rememberMe = true): Promise<JwtTokens> {
     const payload: JwtPayload = {
       sub: user.id,
       username: user.username,
       roles: user.roles,
     };
 
+    // Extended expiry for Remember Me: 30 days vs 24 hours
+    const accessExpiry = rememberMe
+      ? this.configService.get<string>('JWT_REMEMBER_EXPIRATION', '30d')
+      : this.configService.get<string>('JWT_EXPIRATION', '24h');
+
+    const refreshExpiry = rememberMe
+      ? this.configService.get<string>('JWT_REMEMBER_REFRESH_EXPIRATION', '60d')
+      : this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d');
+
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: this.configService.get<string>('JWT_EXPIRATION', '24h'),
+      expiresIn: accessExpiry,
     });
 
     const refreshToken = this.jwtService.sign(
       { sub: user.id, username: user.username },
       {
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d'),
+        expiresIn: refreshExpiry,
       },
     );
 
@@ -95,9 +116,12 @@ export class AuthService {
     }
   }
 
-  async getProfile(
-    userId: string,
-  ): Promise<{ id: string; username: string; roles: string[]; preferences: any }> {
+  async getProfile(userId: string): Promise<{
+    id: string;
+    username: string;
+    roles: string[];
+    preferences: Record<string, unknown>;
+  }> {
     const user = this.users.find((u) => u.id === userId);
     if (!user) {
       throw new UnauthorizedException('User not found');

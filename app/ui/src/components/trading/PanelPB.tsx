@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useBalances } from '@/hooks/useBalances'
 import { useOrders } from '@/hooks/useOrders'
+import { useToast } from '@/context/ToastContext'
 import type { OrderFormValues, OrderSide, OrderType } from '@/types'
 
 type PanelPBProps = {
@@ -16,8 +17,15 @@ const QUICK_AMOUNTS = [
 ]
 
 export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
-  const { balances, loading: balancesLoading, error: balancesError } = useBalances('SPOT')
+  const {
+    balances,
+    loading: balancesLoading,
+    error: balancesError,
+    applyOptimistic,
+    rollback,
+  } = useBalances('SPOT')
   const { placeOrder, loading: orderLoading, error: orderError } = useOrders()
+  const { showSuccess, showError } = useToast()
 
   const [orderForm, setOrderForm] = useState<OrderFormValues>({
     symbol,
@@ -84,9 +92,12 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
 
     if (!validateOrder(order)) return
 
+    const effectivePrice = order.price || price
+    const token = applyOptimistic(order, effectivePrice)
+
     try {
       await placeOrder(order)
-      // Reset form on success
+      showSuccess(`${side} order placed for ${order.quantity} ${symbol}`)
       setOrderForm({
         symbol,
         side: 'BUY',
@@ -95,8 +106,10 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
       })
       setQuantityStr('')
       setValidationError(null)
-    } catch {
-      // Error is handled by the hook
+    } catch (err) {
+      rollback(token)
+      const message = err instanceof Error ? err.message : 'Order failed'
+      showError(message)
     }
   }
 

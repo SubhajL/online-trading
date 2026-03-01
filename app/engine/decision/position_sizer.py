@@ -14,12 +14,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PositionSizeConfig:
     """Configuration for position sizing."""
-    fixed_risk_pct: Decimal = Decimal("0.005")      # 0.5% risk per trade
-    max_position_pct: Decimal = Decimal("0.02")      # 2% max position size
-    atr_multiplier: Decimal = Decimal("1.5")         # ATR multiplier for stops
-    min_position_size: Decimal = Decimal("0.001")    # Minimum position
-    confidence_scaling: bool = True                   # Scale by confidence
-    max_leverage: Decimal = Decimal(3)             # Max leverage for futures
+
+    fixed_risk_pct: Decimal = Decimal("0.005")  # 0.5% risk per trade
+    max_position_pct: Decimal = Decimal("0.02")  # 2% max position size
+    atr_multiplier: Decimal = Decimal("1.5")  # ATR multiplier for stops
+    min_position_size: Decimal = Decimal("0.001")  # Minimum position
+    confidence_scaling: bool = True  # Scale by confidence
+    max_leverage: Decimal = Decimal(3)  # Max leverage for futures
 
 
 class PositionSizer:

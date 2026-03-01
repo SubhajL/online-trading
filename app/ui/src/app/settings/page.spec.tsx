@@ -8,23 +8,26 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
   })
 
-  test('applies pageShell CSS module class to root div', () => {
-    const { container } = render(<SettingsPage />)
-    const rootDiv = container.firstChild as HTMLElement
-    expect(rootDiv.className).toContain('pageShell')
+  test('renders inside AppShell', () => {
+    render(<SettingsPage />)
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
   })
 
-  test('renders settings tabs', () => {
+  test('renders settings sidebar navigation', () => {
     render(<SettingsPage />)
-    expect(screen.getByText('General')).toBeInTheDocument()
-    expect(screen.getByText('Trading')).toBeInTheDocument()
-    expect(screen.getByText('Notifications')).toBeInTheDocument()
+    // Sidebar navigation sections per Spec §6.6
+    expect(screen.getByText('Profile')).toBeInTheDocument()
+    expect(screen.getByText('Security')).toBeInTheDocument()
     expect(screen.getByText('API Keys')).toBeInTheDocument()
+    expect(screen.getByText('Notifications')).toBeInTheDocument()
+    expect(screen.getByText('Trading Preferences')).toBeInTheDocument()
+    expect(screen.getByText('Appearance')).toBeInTheDocument()
+    expect(screen.getByText('Danger Zone')).toBeInTheDocument()
   })
 
   test('renders action buttons', () => {
     render(<SettingsPage />)
     expect(screen.getByText('Save Changes')).toBeInTheDocument()
-    expect(screen.getByText('Cancel')).toBeInTheDocument()
+    expect(screen.getByText('Reset to Defaults')).toBeInTheDocument()
   })
 })

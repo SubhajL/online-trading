@@ -18,6 +18,7 @@ from .health import HealthConfig as BaseHealthConfig
 
 class DependencyStatus(Enum):
     """Status of external service dependencies."""
+
     AVAILABLE = "available"
     DEGRADED = "degraded"
     UNAVAILABLE = "unavailable"
@@ -27,6 +28,7 @@ class DependencyStatus(Enum):
 @dataclass
 class ServiceDependency:
     """Represents an external service dependency."""
+
     service: str
     status: DependencyStatus
     message: str = ""
@@ -39,6 +41,7 @@ class ServiceDependency:
 @dataclass
 class HealthConfig(BaseHealthConfig):
     """Extended health configuration with dependency settings."""
+
     router_url: str = "http://localhost:8080"
     router_health_path: str = "/healthz"
     dependency_timeout: int = 5  # seconds
@@ -50,6 +53,7 @@ class HealthConfig(BaseHealthConfig):
 @dataclass
 class HealthReport:
     """Comprehensive health report including dependencies."""
+
     overall_status: HealthStatus
     message: str
     timestamp: datetime
@@ -79,7 +83,11 @@ class EnhancedHealthChecker:
         """Register an external service dependency."""
         self.dependencies[name] = (health_url, critical)
 
-    async def check_service_dependency(self, service: str, url: str) -> ServiceDependency:
+    async def check_service_dependency(
+        self,
+        service: str,
+        url: str,
+    ) -> ServiceDependency:
         """Check health of an external service dependency."""
         start_time = asyncio.get_event_loop().time()
 
@@ -101,7 +109,11 @@ class EnhancedHealthChecker:
                             message = "Service responded with 200 OK"
                             details = {}
                     else:
-                        status = DependencyStatus.DEGRADED if response.status < 500 else DependencyStatus.UNAVAILABLE
+                        status = (
+                            DependencyStatus.DEGRADED
+                            if response.status < 500
+                            else DependencyStatus.UNAVAILABLE
+                        )
                         message = f"Service returned status {response.status}"
                         details = {"http_status": response.status}
 
@@ -113,7 +125,7 @@ class EnhancedHealthChecker:
                         details=details,
                     )
 
-        except aiohttp.ClientTimeout:
+        except asyncio.TimeoutError:
             return ServiceDependency(
                 service=service,
                 status=DependencyStatus.TIMEOUT,
@@ -173,7 +185,10 @@ class EnhancedHealthChecker:
 
                 # Check for processing lag
                 processing_lag = metrics.get("processing_lag_ms", 0)
-                backlog_size = metrics.get("events_published", 0) - metrics.get("events_processed", 0)
+                backlog_size = metrics.get("events_published", 0) - metrics.get(
+                    "events_processed",
+                    0,
+                )
                 details["backlog_size"] = backlog_size
 
                 if processing_lag > self.config.max_event_processing_lag_ms:
@@ -299,7 +314,7 @@ class EnhancedHealthChecker:
                     details=details,
                 )
             finally:
-                await client.aclose()
+                await client.close()
 
         except Exception as e:
             return ComponentHealth(
@@ -318,11 +333,13 @@ class EnhancedHealthChecker:
                 result = await check_func(*args)
                 component_results[name] = result
                 # Track history
-                self.health_history[name].append({
-                    "timestamp": datetime.now(),
-                    "status": result.status,
-                    "latency_ms": result.latency_ms,
-                })
+                self.health_history[name].append(
+                    {
+                        "timestamp": datetime.now(),
+                        "status": result.status,
+                        "latency_ms": result.latency_ms,
+                    },
+                )
             except Exception as e:
                 component_results[name] = ComponentHealth(
                     name=name,
@@ -351,8 +368,9 @@ class EnhancedHealthChecker:
                 message = "Critical dependency unavailable"
             else:
                 message = "One or more components unhealthy"
-        elif any(s == HealthStatus.DEGRADED for s in all_statuses) or \
-             any(d.status == DependencyStatus.DEGRADED for d in dependency_results.values()):
+        elif any(s == HealthStatus.DEGRADED for s in all_statuses) or any(
+            d.status == DependencyStatus.DEGRADED for d in dependency_results.values()
+        ):
             overall_status = HealthStatus.DEGRADED
             message = "System degraded but operational"
         else:
@@ -361,8 +379,14 @@ class EnhancedHealthChecker:
 
         # Calculate performance metrics
         perf_metrics = {
-            "avg_component_latency_ms": sum(c.latency_ms or 0 for c in component_results.values()) / len(component_results) if component_results else 0,
-            "avg_dependency_latency_ms": sum(d.latency_ms for d in dependency_results.values()) / len(dependency_results) if dependency_results else 0,
+            "avg_component_latency_ms": sum(c.latency_ms or 0 for c in component_results.values())
+            / len(component_results)
+            if component_results
+            else 0,
+            "avg_dependency_latency_ms": sum(d.latency_ms for d in dependency_results.values())
+            / len(dependency_results)
+            if dependency_results
+            else 0,
         }
 
         return HealthReport(
@@ -384,11 +408,13 @@ class EnhancedHealthChecker:
                 try:
                     await asyncio.sleep(self.config.check_interval)
                     result = await check_func(*args)
-                    self.health_history[name].append({
-                        "timestamp": datetime.now(),
-                        "status": result.status,
-                        "latency_ms": result.latency_ms,
-                    })
+                    self.health_history[name].append(
+                        {
+                            "timestamp": datetime.now(),
+                            "status": result.status,
+                            "latency_ms": result.latency_ms,
+                        },
+                    )
                 except asyncio.CancelledError:
                     break
                 except Exception:

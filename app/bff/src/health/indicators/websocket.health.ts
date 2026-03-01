@@ -31,7 +31,7 @@ export class WebSocketHealthIndicator extends HealthIndicator {
       // Check if approaching connection limit
       const connectionPercentage = (connectedClients / maxConnections) * 100;
       if (connectionPercentage >= 90) {
-        (result[key] as any).status = 'degraded';
+        (result[key] as Record<string, unknown>).status = 'degraded';
         result[key].message = 'Approaching WebSocket connection limit';
       } else if (connectionPercentage >= 80) {
         result[key].message = 'WebSocket connections high but within limits';

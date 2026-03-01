@@ -9,24 +9,54 @@ class ConfigImportFixer:
 
     # Model types that should be imported from models, not config
     MODEL_TYPES = {
-        "BaseEvent", "EventType", "Candle", "CandleUpdateEvent",
-        "TimeFrame", "OrderSide", "OrderType", "OrderStatus",
-        "MarketRegime", "PivotPoint", "PivotType", "SMCSignal",
-        "SMCSignalEvent", "SupplyDemandZone", "ZoneType",
-        "RetestSignal", "RetestSignalEvent", "DecisionEvent",
-        "TradingDecision", "Order", "OrderUpdate", "OrderFilledEvent",
-        "Position", "PositionUpdateEvent", "FeaturesCalculatedEvent",
-        "TechnicalIndicators", "MarketCondition", "SignalType",
-        "SignalStrength", "RawSignal", "RawSignalEvent",
-        "RegimeUpdateEvent", "VolatilityRegime",
+        "BaseEvent",
+        "EventType",
+        "Candle",
+        "CandleUpdateEvent",
+        "TimeFrame",
+        "OrderSide",
+        "OrderType",
+        "OrderStatus",
+        "MarketRegime",
+        "PivotPoint",
+        "PivotType",
+        "SMCSignal",
+        "SMCSignalEvent",
+        "SupplyDemandZone",
+        "ZoneType",
+        "RetestSignal",
+        "RetestSignalEvent",
+        "DecisionEvent",
+        "TradingDecision",
+        "Order",
+        "OrderUpdate",
+        "OrderFilledEvent",
+        "Position",
+        "PositionUpdateEvent",
+        "FeaturesCalculatedEvent",
+        "TechnicalIndicators",
+        "MarketCondition",
+        "SignalType",
+        "SignalStrength",
+        "RawSignal",
+        "RawSignalEvent",
+        "RegimeUpdateEvent",
+        "VolatilityRegime",
     }
 
     # Config types that should remain in config
     CONFIG_TYPES = {
-        "EventBusConfig", "DatabaseConfig", "RedisConfig",
-        "IngestConfig", "DecisionConfig", "BacktestConfig",
-        "PaperTradingConfig", "SMCConfig", "FeatureConfig",
-        "AlertConfig", "MonitoringConfig",
+        "EventBusConfig",
+        "DatabaseConfig",
+        "RedisConfig",
+        "IngestConfig",
+        "DecisionConfig",
+        "BacktestConfig",
+        "PaperTradingConfig",
+        "SMCConfig",
+        "FeatureConfig",
+        "AlertConfig",
+        "MonitoringConfig",
     }
 
     @staticmethod
@@ -99,9 +129,13 @@ class ConfigImportFixer:
                             config_imports.append(imp)
 
                     if config_imports:
-                        result_lines.append(f"from ..config import {', '.join(config_imports)}")
+                        result_lines.append(
+                            f"from ..config import {', '.join(config_imports)}",
+                        )
                     if model_imports:
-                        result_lines.append(f"from ..models import {', '.join(model_imports)}")
+                        result_lines.append(
+                            f"from ..models import {', '.join(model_imports)}",
+                        )
 
                 i += 1
             else:
@@ -152,7 +186,9 @@ class ConfigImportFixer:
     @staticmethod
     def fix_all_files(directory: str) -> int:
         """Fix all files with config import errors in a directory."""
-        files_with_errors = ConfigImportFixer.get_files_with_config_import_errors(directory)
+        files_with_errors = ConfigImportFixer.get_files_with_config_import_errors(
+            directory,
+        )
 
         for file_path in files_with_errors:
             print(f"Fixing config imports in {file_path}")

@@ -13,6 +13,7 @@ from app.engine.models import Candle, TimeFrame
 
 def make_candle(symbol: str, t: datetime) -> Candle:
     return Candle(
+        venue="spot",
         symbol=symbol,
         timeframe=TimeFrame.M15,
         open_time=t,
@@ -35,7 +36,7 @@ def test_deque_respects_maxlen_and_evicts_oldest() -> None:
         async def subscribe(self, *args, **kwargs):  # noqa: D401, ANN001
             return "sub-id"
 
-    set_event_bus(_DummyBus())
+    set_event_bus(_DummyBus())  # type: ignore[arg-type]
     svc = FeatureService(buffer_size=5)
     symbol = "BTCUSDT"
     tf = TimeFrame.M15
@@ -43,9 +44,9 @@ def test_deque_respects_maxlen_and_evicts_oldest() -> None:
     # Append 7 candles to a deque with maxlen=5
     for i in range(7):
         c = make_candle(symbol, datetime.utcnow() + timedelta(minutes=i * 15))
-        svc._candle_buffers[symbol][tf].append(c)  # type: ignore[attr-defined]
+        svc._candle_buffers[symbol][tf].append(c)
 
-    buf = svc._candle_buffers[symbol][tf]  # type: ignore[attr-defined]
+    buf = svc._candle_buffers[symbol][tf]
     assert isinstance(buf, deque)
     assert buf.maxlen == 5
     assert len(buf) == 5
@@ -56,15 +57,15 @@ def test_buffers_are_isolated_per_symbol_and_timeframe() -> None:
         async def subscribe(self, *args, **kwargs):  # noqa: D401, ANN001
             return "sub-id"
 
-    set_event_bus(_DummyBus())
+    set_event_bus(_DummyBus())  # type: ignore[arg-type]
     svc = FeatureService(buffer_size=3)
     sym1, sym2 = "BTCUSDT", "ETHUSDT"
     tf1, tf2 = TimeFrame.M15, TimeFrame.H1
 
-    svc._candle_buffers[sym1][tf1].append(make_candle(sym1, datetime.utcnow()))  # type: ignore[attr-defined]
-    svc._candle_buffers[sym2][tf1].append(make_candle(sym2, datetime.utcnow()))  # type: ignore[attr-defined]
-    svc._candle_buffers[sym1][tf2].append(make_candle(sym1, datetime.utcnow()))  # type: ignore[attr-defined]
+    svc._candle_buffers[sym1][tf1].append(make_candle(sym1, datetime.utcnow()))
+    svc._candle_buffers[sym2][tf1].append(make_candle(sym2, datetime.utcnow()))
+    svc._candle_buffers[sym1][tf2].append(make_candle(sym1, datetime.utcnow()))
 
-    assert len(svc._candle_buffers[sym1][tf1]) == 1  # type: ignore[attr-defined]
-    assert len(svc._candle_buffers[sym2][tf1]) == 1  # type: ignore[attr-defined]
-    assert len(svc._candle_buffers[sym1][tf2]) == 1  # type: ignore[attr-defined]
+    assert len(svc._candle_buffers[sym1][tf1]) == 1
+    assert len(svc._candle_buffers[sym2][tf1]) == 1
+    assert len(svc._candle_buffers[sym1][tf2]) == 1

@@ -25,7 +25,7 @@ class TestEvent(BaseEvent):
     test_data: str
 
     def __init__(self, test_data: str, **kwargs) -> None:
-        super().__init__(
+        super().__init__(  # type: ignore[call-arg]
             event_type=kwargs.get("event_type", EventType.CANDLE_UPDATE),
             timestamp=kwargs.get("timestamp", datetime.utcnow()),
             symbol=kwargs.get("symbol", "BTCUSDT"),
@@ -121,6 +121,8 @@ class TestRefactoredEventBus:
             event_types=[EventType.CANDLE_UPDATE],
             priority=5,
             max_retries=3,
+            serialize_by_key=False,
+            key_extractor=None,
         )
 
     @pytest.mark.asyncio
@@ -336,7 +338,7 @@ class TestRefactoredEventBus:
 
         await event_bus.start()
         try:
-            successful_count = await event_bus.publish_many(events)
+            successful_count = await event_bus.publish_many(events)  # type: ignore[arg-type]
 
             assert successful_count == 3
             # All events should be queued

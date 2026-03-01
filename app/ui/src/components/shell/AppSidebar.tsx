@@ -1,0 +1,159 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { isPathActive } from '@/utils/navigation'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { Separator } from '@/components/ui/separator'
+import { MaterialIcon } from '@/components/common/MaterialIcon'
+
+const NAV_ITEMS = [
+  { path: '/', label: 'Dashboard', icon: 'dashboard' },
+  { path: '/trades', label: 'Trades', icon: 'candlestick_chart' },
+  { path: '/portfolio', label: 'Portfolio', icon: 'work' },
+  { path: '/history', label: 'History', icon: 'history' },
+  { path: '/analytics', label: 'Analytics', icon: 'bar_chart' },
+  { path: '/settings', label: 'Settings', icon: 'settings' },
+] as const
+
+type ConnectionState = 'connected' | 'reconnecting' | 'offline'
+
+type AppSidebarProps = {
+  isOpen: boolean
+  onToggle: () => void
+  connectionState?: ConnectionState
+}
+
+function ConnectionIndicator({ state, compact }: { state: ConnectionState; compact: boolean }) {
+  const config = {
+    connected: { color: 'bg-green-500', label: 'Connected' },
+    reconnecting: { color: 'bg-yellow-500 animate-pulse', label: 'Reconnecting' },
+    offline: { color: 'bg-red-500', label: 'Offline' },
+  }
+  const { color, label } = config[state]
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2">
+      <span
+        className={cn('h-2 w-2 rounded-full shrink-0', color)}
+        role="status"
+        aria-label={label}
+      />
+      {!compact && <span className="text-xs text-slate-400 dark:text-slate-300">{label}</span>}
+    </div>
+  )
+}
+
+function SidebarNav({ compact, onNavigate }: { compact: boolean; onNavigate?: () => void }) {
+  const pathname = usePathname()
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <nav className="flex flex-col gap-1 px-2 py-2" aria-label="Main navigation">
+        {NAV_ITEMS.map(item => {
+          const active = isPathActive(pathname, item.path)
+
+          const link = (
+            <Link
+              key={item.path}
+              href={item.path}
+              onClick={onNavigate}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                'min-h-touch hover:bg-slate-50 dark:hover:bg-surface-hover-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus',
+                active
+                  ? 'bg-indigo-50 dark:bg-primary/10 text-indigo-600 dark:text-primary border-l-2 border-indigo-500 dark:border-primary'
+                  : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white',
+                compact && 'justify-center px-2',
+              )}
+            >
+              <MaterialIcon name={item.icon} size="md" />
+              {!compact && <span>{item.label}</span>}
+            </Link>
+          )
+
+          if (compact) {
+            return (
+              <Tooltip key={item.path}>
+                <TooltipTrigger asChild>{link}</TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                  {item.label}
+                </TooltipContent>
+              </Tooltip>
+            )
+          }
+
+          return link
+        })}
+      </nav>
+    </TooltipProvider>
+  )
+}
+
+export function AppSidebar({ isOpen, onToggle, connectionState = 'connected' }: AppSidebarProps) {
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside
+        data-testid="app-sidebar"
+        className={cn(
+          'hidden md:flex flex-col border-r border-slate-100 dark:border-border-dark-mode bg-white dark:bg-surface-dark shadow-[1px_0_8px_rgba(0,0,0,0.03)] transition-all duration-normal',
+          'h-[calc(100vh-3.5rem)] sticky top-14',
+          isOpen ? 'w-[220px]' : 'w-[60px]',
+        )}
+      >
+        <div className="flex items-center justify-end p-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            className="h-8 w-8"
+          >
+            <MaterialIcon name={isOpen ? 'chevron_left' : 'chevron_right'} size="md" />
+          </Button>
+        </div>
+
+        <SidebarNav compact={!isOpen} />
+
+        <div className="mt-auto">
+          <Separator />
+          <ConnectionIndicator state={connectionState} compact={!isOpen} />
+          {isOpen && <div className="px-3 pb-2 text-xs text-slate-300">v1.0.0</div>}
+        </div>
+      </aside>
+    </>
+  )
+}
+
+export function MobileSidebar({
+  connectionState = 'connected',
+  open,
+  onOpenChange,
+}: {
+  connectionState?: ConnectionState
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="left"
+        className="w-[260px] bg-background-light dark:bg-background-dark p-0"
+      >
+        <div className="flex flex-col h-full pt-4">
+          <SidebarNav compact={false} />
+          <div className="mt-auto">
+            <Separator />
+            <ConnectionIndicator state={connectionState} compact={false} />
+            <div className="px-3 pb-4 text-xs text-slate-300">v1.0.0</div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}

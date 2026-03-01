@@ -198,4 +198,144 @@ describe('WebSocketService', () => {
       })
     })
   })
+
+  describe('emitWithAck', () => {
+    it('resolves with response when success is true', async () => {
+      service.connect('ws://localhost:3000')
+      const socket = service['socket'] as any
+      socket.connected = true
+
+      const orderData = { orderId: 'order-123', status: 'NEW' }
+      const response = { success: true, data: orderData }
+
+      socket.timeout = vi.fn().mockReturnValue({
+        emit: vi.fn(
+          (_event: string, _data: unknown, callback: (err: Error | null, res: unknown) => void) => {
+            callback(null, response)
+          },
+        ),
+      })
+
+      const result = await service.emitWithAck('placeOrder', { symbol: 'BTCUSDT' })
+
+      expect(result).toEqual(response)
+      expect(result.data).toEqual(orderData)
+    })
+
+    it('rejects with error when success is false', async () => {
+      service.connect('ws://localhost:3000')
+      const socket = service['socket'] as any
+      socket.connected = true
+
+      const response = { success: false, error: 'Insufficient balance' }
+
+      socket.timeout = vi.fn().mockReturnValue({
+        emit: vi.fn(
+          (_event: string, _data: unknown, callback: (err: Error | null, res: unknown) => void) => {
+            callback(null, response)
+          },
+        ),
+      })
+
+      await expect(service.emitWithAck('placeOrder', { symbol: 'BTCUSDT' })).rejects.toThrow(
+        'Insufficient balance',
+      )
+    })
+
+    it('rejects on socket timeout', async () => {
+      service.connect('ws://localhost:3000')
+      const socket = service['socket'] as any
+      socket.connected = true
+
+      socket.timeout = vi.fn().mockReturnValue({
+        emit: vi.fn(
+          (_event: string, _data: unknown, callback: (err: Error | null, res: unknown) => void) => {
+            callback(new Error('operation has timed out'), null)
+          },
+        ),
+      })
+
+      await expect(service.emitWithAck('placeOrder', { symbol: 'BTCUSDT' }, 1000)).rejects.toThrow(
+        'operation has timed out',
+      )
+    })
+
+    it('throws when socket is not connected', async () => {
+      service.connect('ws://localhost:3000')
+      const socket = service['socket'] as any
+      socket.connected = false
+
+      await expect(service.emitWithAck('placeOrder', { symbol: 'BTCUSDT' })).rejects.toThrow(
+        'WebSocket is not connected',
+      )
+    })
+
+    it('throws when socket is null', async () => {
+      await expect(service.emitWithAck('placeOrder', { symbol: 'BTCUSDT' })).rejects.toThrow(
+        'WebSocket is not connected',
+      )
+    })
+
+    it('uses default timeout of 10000ms', async () => {
+      service.connect('ws://localhost:3000')
+      const socket = service['socket'] as any
+      socket.connected = true
+
+      const response = { success: true, data: {} }
+
+      socket.timeout = vi.fn().mockReturnValue({
+        emit: vi.fn(
+          (_event: string, _data: unknown, callback: (err: Error | null, res: unknown) => void) => {
+            callback(null, response)
+          },
+        ),
+      })
+
+      await service.emitWithAck('placeOrder', { symbol: 'BTCUSDT' })
+
+      expect(socket.timeout).toHaveBeenCalledWith(10000)
+    })
+
+    it('uses custom timeout when provided', async () => {
+      service.connect('ws://localhost:3000')
+      const socket = service['socket'] as any
+      socket.connected = true
+
+      const response = { success: true, data: {} }
+
+      socket.timeout = vi.fn().mockReturnValue({
+        emit: vi.fn(
+          (_event: string, _data: unknown, callback: (err: Error | null, res: unknown) => void) => {
+            callback(null, response)
+          },
+        ),
+      })
+
+      await service.emitWithAck('placeOrder', { symbol: 'BTCUSDT' }, 5000)
+
+      expect(socket.timeout).toHaveBeenCalledWith(5000)
+    })
+  })
+
+  describe('isReady', () => {
+    it('returns true when socket is connected', () => {
+      service.connect('ws://localhost:3000')
+      const socket = service['socket'] as any
+      socket.connected = true
+
+      expect(service.isReady()).toBe(true)
+    })
+
+    it('returns false when socket is not connected', () => {
+      service.connect('ws://localhost:3000')
+      const socket = service['socket'] as any
+      socket.connected = false
+
+      expect(service.isReady()).toBe(false)
+    })
+
+    it('returns false when socket is null', () => {
+      expect(service.isReady()).toBe(false)
+    })
+  })
 })
