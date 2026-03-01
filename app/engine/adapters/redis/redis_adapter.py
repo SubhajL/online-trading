@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import json
 import logging
-from typing import Any, TypeVar
+from typing import Any
 
 import redis.asyncio as redis
 from redis.asyncio import Redis
@@ -20,11 +20,12 @@ from ...models import Candle, TechnicalIndicators, TimeFrame
 
 logger = logging.getLogger(__name__)
 
-_T = TypeVar("_T")
-
-
-async def _await_redis(value: Awaitable[_T]) -> _T:
-    return await value
+async def _await_redis(value: Any) -> Any:
+    # redis-py typing can surface "Awaitable[T] | T" for commands. In practice we
+    # run with the asyncio client; this helper keeps mypy happy and the code robust.
+    if isinstance(value, Awaitable):
+        return await value
+    return value
 
 
 class RedisAdapter:
@@ -127,7 +128,7 @@ class RedisAdapter:
 
             # Test connection
             assert self._redis is not None
-            await self._redis.ping()
+            await _await_redis(self._redis.ping())
 
             self._initialized = True
             logger.info("Redis adapter initialized successfully")
@@ -707,7 +708,7 @@ class RedisAdapter:
         self._ensure_connected()
 
         try:
-            redis_pairs: dict[str | bytes, str] = {}
+            redis_pairs: dict[str, str] = {}
             for key, value in key_value_pairs.items():
                 redis_key = self._build_key(prefix, key)
                 redis_pairs[redis_key] = self._serialize_value(value)
@@ -731,7 +732,7 @@ class RedisAdapter:
 
             # Test ping
             assert self._redis is not None
-            ping_result = await self._redis.ping()
+            ping_result = await _await_redis(self._redis.ping())
 
             # Get Redis info
             info = await self._redis.info()
