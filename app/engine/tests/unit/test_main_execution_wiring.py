@@ -152,6 +152,55 @@ class TestMainExecutionWiring:
 
         assert captured["symbols"] == ["BTCUSDT", "ETHUSDT"]
 
+    async def test_initialize_services_fails_fast_when_trading_symbols_empty(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        main_mod.services.clear()
+
+        def ingest_ctor(**_kwargs: Any) -> _StubAsyncService:
+            return _StubAsyncService()
+
+        bus = _StubEventBus()
+        monkeypatch.setenv("EXECUTION_MODE", "disabled")
+        monkeypatch.setenv("TRADING_SYMBOLS", " , ,  ,")
+        monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+
+        monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
+        monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
+        monkeypatch.setattr(main_mod, "RouterHTTPClient", lambda **_: _StubRouterClient())
+
+        monkeypatch.setattr(main_mod, "IngestService", lambda **kw: ingest_ctor(**kw))
+        monkeypatch.setattr(main_mod, "FeatureService", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "SMCEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
+
+        monkeypatch.setattr(main_mod, "set_event_bus", lambda *_: None)
+        import app.engine.bus as bus_mod
+
+        monkeypatch.setattr(bus_mod, "create_event_bus", lambda: bus)
+
+        cfg = _StubConfig(
+            database=_StubDatabaseCfg(),
+            redis=_StubRedisCfg(),
+            binance=type("BinanceCfg", (), {"api_key": "", "api_secret": "", "testnet": True})(),
+            risk_parameters=type(
+                "RiskParams",
+                (),
+                {
+                    "risk_per_trade": Decimal("0.01"),
+                    "max_position_size": Decimal(1),
+                },
+            )(),
+        )
+
+        with pytest.raises(RuntimeError, match="TRADING_SYMBOLS"):
+            await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
+
     async def test_initialize_services_registers_execution_subscriber_when_enabled(
         self,
         monkeypatch: pytest.MonkeyPatch,

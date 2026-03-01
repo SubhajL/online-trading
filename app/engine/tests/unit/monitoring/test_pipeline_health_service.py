@@ -19,6 +19,10 @@ def _ingest_health(
     ws_connected: bool = True,
     ws_stale: bool = False,
     ws_last_message_ago_seconds: float | None = 10.0,
+    ws_last_connect_error_kind: str | None = None,
+    ws_last_connect_error: str | None = None,
+    ws_last_connect_error_ago_seconds: float | None = None,
+    ws_consecutive_dns_failures: int = 0,
     ws_last_kline_ago_seconds: float | None = None,
     ws_last_closed_kline_ago_seconds: float | None = None,
     consecutive_failures: int = 0,
@@ -32,6 +36,10 @@ def _ingest_health(
             "connected": ws_connected,
             "stale": ws_stale,
             "last_message_ago_seconds": ws_last_message_ago_seconds,
+            "last_connect_error_kind": ws_last_connect_error_kind,
+            "last_connect_error": ws_last_connect_error,
+            "last_connect_error_ago_seconds": ws_last_connect_error_ago_seconds,
+            "consecutive_dns_failures": ws_consecutive_dns_failures,
             "last_kline_ago_seconds": ws_last_kline_ago_seconds,
             "last_closed_kline_ago_seconds": ws_last_closed_kline_ago_seconds,
             "consecutive_failures": consecutive_failures,
@@ -53,6 +61,43 @@ class TestEvaluatePipelineHealth:
 
         assert any(i.key == "websocket_disconnected" for i in issues)
         assert any(i.error_type == "websocket_disconnected" for i in issues)
+
+    def test_ws_disconnected_suppresses_candle_stale_and_includes_summary(self) -> None:
+        """When WS is hard-disconnected, suppress candle_stale spam but include summary details."""
+        now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        thresholds = PipelineHealthThresholds(candle_lag_multiplier=2.0, candle_lag_grace_seconds=0)
+        health = _ingest_health(
+            ws_open=False,
+            ws_connected=False,
+            ws_last_connect_error_kind="dns",
+            ws_last_connect_error="Temporary failure in name resolution",
+            ws_last_connect_error_ago_seconds=15.0,
+            ws_consecutive_dns_failures=3,
+            latest_candle_ago_seconds={
+                "BTCUSDT": {"5m": 1000.0, "15m": 2000.0},
+                "ETHUSDT": {"5m": 900.0},
+            },
+        )
+
+        issues = evaluate_pipeline_health(ingest_health=health, now=now, thresholds=thresholds)
+
+        assert any(i.key == "websocket_disconnected" for i in issues)
+        assert not any(i.key.startswith("candle_stale:") for i in issues)
+
+        ws_issue = next(i for i in issues if i.key == "websocket_disconnected")
+        assert "worst_candles" in ws_issue.details
+        assert ws_issue.details["last_connect_error_kind"] == "dns"
+        assert "Temporary failure" in str(ws_issue.details["last_connect_error"])
+        assert ws_issue.details["last_connect_error_ago_seconds"] == 15.0
+        assert ws_issue.details["consecutive_dns_failures"] == 3
+        worst = ws_issue.details["worst_candles"]
+        assert isinstance(worst, list)
+        assert len(worst) >= 1
+        top = worst[0]
+        assert isinstance(top, dict)
+        assert top["symbol"] == "BTCUSDT"
+        assert top["timeframe"] == "15m"
+        assert top["latest_candle_ago_seconds"] == 2000.0
 
     def test_ws_disconnected_supersedes_stale(self) -> None:
         """When disconnected, should NOT also emit websocket_stale."""

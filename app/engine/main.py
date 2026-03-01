@@ -385,7 +385,6 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         # Initialize risk manager
         risk_manager = RiskManager(config.risk_parameters)
         services["risk_manager"] = risk_manager
-
         from .models import TimeFrame
 
         timeframes = [TimeFrame.M5, TimeFrame.M15, TimeFrame.H1, TimeFrame.H4]
@@ -394,6 +393,11 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
             # Initialize ingest service
             raw_symbols = os.getenv("TRADING_SYMBOLS", "BTCUSDT,ETHUSDT").split(",")
             symbols = [s.strip().upper() for s in raw_symbols if s.strip()]
+            if not symbols:
+                raise RuntimeError(
+                    "TRADING_SYMBOLS resolved to an empty list after sanitization. "
+                    "Set TRADING_SYMBOLS to a comma-separated list like 'BTCUSDT,ETHUSDT'.",
+                )
 
             from .core.breaker_config import binance_breaker_config_from_env
 

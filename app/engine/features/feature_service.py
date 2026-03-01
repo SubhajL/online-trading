@@ -117,6 +117,62 @@ class FeatureService:
 
         logger.info("FeatureService stopped")
 
+    def _upsert_candle_into_buffer(
+        self,
+        *,
+        symbol: str,
+        timeframe: TimeFrame,
+        candle: Candle,
+    ) -> None:
+        buffer = self._candle_buffers[symbol][timeframe]
+        if not buffer:
+            buffer.append(candle)
+            return
+
+        open_time = candle.open_time
+        last_open_time = buffer[-1].open_time
+        if open_time > last_open_time:
+            buffer.append(candle)
+            return
+
+        if open_time == last_open_time:
+            buffer[-1] = candle
+            return
+
+        first_open_time = buffer[0].open_time
+        if open_time < first_open_time:
+            maxlen = buffer.maxlen
+            if maxlen is not None and len(buffer) >= maxlen:
+                return
+            buffer.appendleft(candle)
+            return
+
+        if open_time == first_open_time:
+            buffer[0] = candle
+            return
+
+        items = list(buffer)
+        inserted = False
+        for i, existing in enumerate(items):
+            if existing.open_time == open_time:
+                items[i] = candle
+                inserted = True
+                break
+            if existing.open_time > open_time:
+                items.insert(i, candle)
+                inserted = True
+                break
+
+        if not inserted:
+            items.append(candle)
+
+        maxlen = buffer.maxlen
+        if maxlen is not None and len(items) > maxlen:
+            items = items[-maxlen:]
+
+        buffer.clear()
+        buffer.extend(items)
+
     async def _handle_candle_update(self, event: CandleUpdateEvent) -> None:
         """Handle candle update events.
 
@@ -130,7 +186,7 @@ class FeatureService:
             timeframe = candle.timeframe
 
             # Always add candle to buffer for warm-up/context
-            self._candle_buffers[symbol][timeframe].append(candle)
+            self._upsert_candle_into_buffer(symbol=symbol, timeframe=timeframe, candle=candle)
 
             # Only process REALTIME events through the trading pipeline
             if not is_realtime_candle_event(event.origin):
