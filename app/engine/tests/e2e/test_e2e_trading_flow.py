@@ -1,457 +1,261 @@
 """
-CRITICAL: End-to-End trading flow tests.
+CRITICAL: End-to-end trading flow test.
 
-These tests simulate the complete trading flow from signal detection to order placement:
-1. Candle ingestion → Features calculation → SMC analysis → Signal generation
-2. Decision making with risk management → Order formatting → Router interaction
-3. Position tracking and P&L calculation
+This test validates the live runtime wiring for the most important "money path":
+Retest signal -> DecisionPublisher -> RouterExecutionSubscriber -> router client call.
+
+Indicator + SMC correctness are covered by dedicated unit tests run in CI.
 """
 
-import pytest
+from __future__ import annotations
+
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
+from typing import TYPE_CHECKING, Any
+from unittest.mock import AsyncMock
 
-from app.engine.models import (
-    Candle, TimeFrame, CandleUpdateEvent, FeaturesUpdateEvent,
-    SMCEvent, ZoneEvent, SignalEvent, TradingDecision
+import pytest
+
+from app.engine import bus as bus_module
+from app.engine.decision.decision_publisher import DecisionPublisher
+from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
+from app.engine.execution.router_execution_subscriber import (
+    ExecutionMode,
+    RouterExecutionSubscriber,
 )
-from app.engine.features.indicators import IndicatorCalculator  # type: ignore[attr-defined]
-from app.engine.smc.core import SMCAnalyzer, StructureTracker
-from app.engine.retest.analyzer import RetestAnalyzer
-from app.engine.decision.engine import DecisionEngine  # type: ignore[attr-defined]
-from app.engine.decision.risk_manager import RiskManager, RiskManagerConfig
-from app.engine.decision.position_sizer import PositionSizer, PositionSizeConfig
-from app.engine.decision.order_formatter import OrderFormatter, ExchangeInfo
+from app.engine.models import (
+    ErrorEvent,
+    EventType,
+    RetestSignal,
+    RetestSignalEvent,
+    RiskParameters,
+    TimeFrame,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 
-class TestE2ETradingFlow:
-    """Test complete trading flow from data to orders."""
-
-    @pytest.fixture
-    def mock_event_bus(self):
-        """Create mock event bus for testing."""
-        bus = AsyncMock()
-        bus.publish = AsyncMock()
-        return bus
-
-    @pytest.fixture
-    def candles_for_signal(self):
-        """Generate candles that will produce a trading signal."""
-        candles = []
-        base_time = datetime.now() - timedelta(hours=10)
-
-        # Create uptrend with structure break setup
-        prices = [
-            # Initial downtrend
-            50000, 49800, 49600, 49400, 49200,
-            # Reversal starts (higher low)
-            49300, 49500, 49700, 49900, 50100,
-            # Pullback to form higher low
-            50000, 49850, 49800, 49850, 49900,
-            # Strong move up (BOS)
-            50200, 50400, 50600, 50800, 51000,
-            # Retest of broken zone
-            50900, 50750, 50700, 50650, 50700,  # Current candle retesting
-        ]
-
-        for i, price in enumerate(prices):
-            candle = Candle(
-                venue="spot",
-                symbol="BTCUSDT",
-                timeframe=TimeFrame.M5,
-                open_time=base_time + timedelta(minutes=5*i),
-                close_time=base_time + timedelta(minutes=5*(i+1)),
-                open_price=Decimal(str(price - 50)),
-                high_price=Decimal(str(price + 100)),
-                low_price=Decimal(str(price - 100)),
-                close_price=Decimal(str(price)),
-                volume=Decimal("100"),
-                quote_volume=Decimal("5000000"),
-                trades=1000,
-                taker_buy_base_volume=Decimal("60"),
-                taker_buy_quote_volume=Decimal("3000000"),
-            )
-            candles.append(candle)
-
-        return candles
-
-    @pytest.fixture
-    def indicator_calculator(self):
-        """Create indicator calculator."""
-        return IndicatorCalculator()
-
-    @pytest.fixture
-    def smc_analyzer(self):
-        """Create SMC analyzer."""
-        return SMCAnalyzer()
-
-    @pytest.fixture
-    def structure_tracker(self):
-        """Create structure tracker."""
-        return StructureTracker(
-            symbol="BTCUSDT",
-            timeframe=TimeFrame.M5,
-            lookback_pivots=3
-        )
-
-    @pytest.fixture
-    def risk_manager(self):
-        """Create risk manager with test config."""
-        config = RiskManagerConfig(
-            max_daily_loss_pct=Decimal("0.02"),
-            max_positions=5,
-            max_correlation_positions=3,
-            max_drawdown_pct=Decimal("0.05"),
-            risk_reduction_factor=Decimal("0.5")
-        )
-        return RiskManager(config)
-
-    @pytest.fixture
-    def position_sizer(self):
-        """Create position sizer."""
-        config = PositionSizeConfig(
-            fixed_risk_pct=Decimal("0.005"),
-            max_position_pct=Decimal("0.02"),
-            min_position_size=Decimal("0.0001"),
-            confidence_scale_factor=Decimal("1.0")
-        )
-        return PositionSizer(config)
-
-    @pytest.fixture
-    def order_formatter(self):
-        """Create order formatter with exchange info."""
-        exchange_info = {
-            "BTCUSDT": ExchangeInfo(
-                symbol="BTCUSDT",
-                base_asset="BTC",
-                quote_asset="USDT",
-                price_tick_size=Decimal("0.01"),
-                price_min=Decimal("0.01"),
-                price_max=Decimal("1000000"),
-                qty_step_size=Decimal("0.00001"),
-                qty_min=Decimal("0.0001"),
-                qty_max=Decimal("9000"),
-                min_notional=Decimal("10"),
-            )
-        }
-        return OrderFormatter(exchange_info)
-
-    @pytest.fixture
-    def decision_engine(self, risk_manager, position_sizer, order_formatter):
-        """Create decision engine."""
-        return DecisionEngine(
-            risk_manager=risk_manager,
-            position_sizer=position_sizer,
-            order_formatter=order_formatter,
-            account_balance=Decimal("10000")
-        )
-
-    def test_complete_trading_flow(
-        self,
-        candles_for_signal,
-        indicator_calculator,
-        smc_analyzer,
-        structure_tracker,
-        decision_engine
-    ):
-        """Test complete flow from candles to trading decision."""
-        # Step 1: Calculate indicators for all candles
-        features = []
-        for i in range(len(candles_for_signal)):
-            window = candles_for_signal[max(0, i-200):i+1]  # Get historical window
-
-            if len(window) >= 20:  # Need minimum data for indicators
-                feature = indicator_calculator.calculate_indicators(
-                    symbol="BTCUSDT",
-                    timeframe=TimeFrame.M5,
-                    candles=window
-                )
-                features.append(feature)
-
-        assert len(features) > 0, "Should have calculated features"
-
-        # Step 2: Analyze SMC patterns
-        pivots = smc_analyzer.detect_pivots(candles_for_signal, lookback=3)
-        assert len(pivots) > 0, "Should detect pivots"
-
-        # Track structure
-        smc_events = []
-        zones = []
-
-        for candle in candles_for_signal:
-            # Update structure
-            structure_event = structure_tracker.update(candle)
-            if structure_event:
-                smc_events.append(structure_event)
-
-                # Detect zones from structure breaks
-                if structure_event.event_type in ["BOS", "CHOCH"]:
-                    zone = smc_analyzer.identify_zone_from_break(
-                        candles_for_signal,
-                        structure_event,
-                        lookback_candles=20
-                    )
-                    if zone:
-                        zones.append(zone)
-
-        assert len(smc_events) > 0, "Should detect structure events"
-        assert len(zones) > 0, "Should identify zones"
-
-        # Step 3: Check for retest signals
-        latest_candle = candles_for_signal[-1]
-        latest_features = features[-1] if features else None
-
-        # Find if current price is retesting any zone
-        signal = None
-        for zone in zones:
-            if zone.zone_type == "demand" and zone.is_active:
-                # Check if price is retesting demand zone
-                if (latest_candle.low_price <= zone.high_price and
-                    latest_candle.low_price >= zone.low_price):
-
-                    # Generate buy signal
-                    signal = SignalEvent(
-                        timestamp=datetime.now(),
-                        symbol="BTCUSDT",
-                        timeframe=TimeFrame.M5,
-                        signal_type="BUY",
-                        entry_price=latest_candle.close_price,
-                        stop_loss=zone.low_price - Decimal("50"),  # Below zone
-                        take_profit=latest_candle.close_price + Decimal("400"),  # 1:2 RR
-                        confidence=Decimal("0.85"),
-                        source="zone_retest",
-                        metadata={
-                            "zone_type": "demand",
-                            "zone_strength": "high",
-                            "confluence": ["BOS", "EMA_support", "RSI_oversold"]
-                        }
-                    )
-                    break
-
-        assert signal is not None, "Should generate a signal from zone retest"
-
-        # Step 4: Make trading decision
-        decision = decision_engine.process_signal(signal, latest_features)
-
-        assert decision is not None, "Should make a trading decision"
-        assert decision.action == "BUY"
-        assert decision.quantity > 0
-
-        # Step 5: Format order for exchange
-        order = {
-            "symbol": decision.symbol,
-            "side": decision.action,
-            "type": "LIMIT",
-            "price": decision.entry_price,
-            "quantity": decision.quantity,
-            "stop_loss": decision.stop_loss,
-            "take_profit": decision.take_profit,
-        }
-
-        formatted_order = decision_engine.order_formatter.format_order(order)
-
-        # Verify order meets exchange requirements
-        is_valid, errors = decision_engine.order_formatter.validate_order(formatted_order)
-        assert is_valid, f"Order should be valid: {errors}"
-
-        # Verify risk constraints
-        position_value = formatted_order["quantity"] * formatted_order["price"]
-        account_balance = Decimal("10000")
-        position_pct = position_value / account_balance
-
-        assert position_pct <= Decimal("0.02"), "Position should not exceed 2% of account"
-
-        # Calculate risk
-        risk_amount = formatted_order["quantity"] * abs(
-            formatted_order["price"] - formatted_order["stop_loss"]
-        )
-        risk_pct = risk_amount / account_balance
-
-        assert risk_pct <= Decimal("0.005"), "Risk should not exceed 0.5% of account"
-
-    def test_flow_with_risk_rejection(self, decision_engine, risk_manager):
-        """Test that high-risk signals are rejected."""
-        # Add existing positions to approach risk limit
-        for i in range(4):
-            risk_manager.add_position(f"SYMBOL{i}", "crypto")
-
-        # Create high-risk signal
-        risky_signal = SignalEvent(
-            timestamp=datetime.now(),
-            symbol="BTCUSDT",
-            timeframe=TimeFrame.M5,
-            signal_type="BUY",
-            entry_price=Decimal("50000"),
-            stop_loss=Decimal("45000"),  # 10% stop - too risky
-            take_profit=Decimal("55000"),
-            confidence=Decimal("0.6"),  # Low confidence
-            source="test",
-            metadata={}
-        )
-
-        # Process signal
-        decision = decision_engine.process_signal(risky_signal, None)
-
-        # Should reject due to risk
-        assert decision is None or decision.action == "SKIP"
-
-    def test_flow_with_multiple_timeframes(self):
-        """Test signal generation across multiple timeframes."""
-        timeframes = [TimeFrame.M5, TimeFrame.M15, TimeFrame.H1]
-        signals_by_tf = {}
-
-        for tf in timeframes:
-            # Generate candles for timeframe
-            candles = self._generate_candles_for_timeframe(tf)
-
-            # Calculate indicators
-            calculator = IndicatorCalculator()
-            features = calculator.calculate_indicators(
-                symbol="BTCUSDT",
-                timeframe=tf,
-                candles=candles
-            )
-
-            # Store for multi-timeframe analysis
-            signals_by_tf[tf] = features
-
-        # Verify we can analyze across timeframes
-        assert len(signals_by_tf) == 3
-
-        # Higher timeframe should confirm lower timeframe signals
-        # This is where multi-timeframe confluence would be checked
-
-    def _generate_candles_for_timeframe(self, timeframe: TimeFrame):
-        """Generate test candles for a specific timeframe."""
-        candles = []
-        base_time = datetime.now() - timedelta(hours=24)
-
-        # Determine candle interval based on timeframe
-        if timeframe == TimeFrame.M5:
-            interval = timedelta(minutes=5)
-            count = 100
-        elif timeframe == TimeFrame.M15:
-            interval = timedelta(minutes=15)
-            count = 50
-        else:  # H1
-            interval = timedelta(hours=1)
-            count = 24
-
-        for i in range(count):
-            price = Decimal("50000") + Decimal(str(i * 10))
-            candle = Candle(
-                venue="spot",
-                symbol="BTCUSDT",
-                timeframe=timeframe,
-                open_time=base_time + interval * i,
-                close_time=base_time + interval * (i + 1),
-                open_price=price,
-                high_price=price + Decimal("50"),
-                low_price=price - Decimal("50"),
-                close_price=price + Decimal("20"),
-                volume=Decimal("100"),
-                quote_volume=Decimal("5000000"),
-                trades=1000,
-                taker_buy_base_volume=Decimal("60"),
-                taker_buy_quote_volume=Decimal("3000000"),
-            )
-            candles.append(candle)
-
-        return candles
-
-    @pytest.mark.asyncio
-    async def test_async_event_flow(self, mock_event_bus):
-        """Test async event propagation through the system."""
-        events_received = []
-
-        async def track_event(event):
-            events_received.append(event)
-
-        mock_event_bus.publish.side_effect = track_event
-
-        # Simulate candle event
-        candle = Candle(
-            venue="spot",
-            symbol="BTCUSDT",
-            timeframe=TimeFrame.M5,
-            open_time=datetime.now() - timedelta(minutes=5),
-            close_time=datetime.now(),
-            open_price=Decimal("50000"),
-            high_price=Decimal("50100"),
-            low_price=Decimal("49900"),
-            close_price=Decimal("50050"),
-            volume=Decimal("100"),
-            quote_volume=Decimal("5000000"),
-            trades=1000,
-            taker_buy_base_volume=Decimal("60"),
-            taker_buy_quote_volume=Decimal("3000000"),
-        )
-
-        candle_event = CandleUpdateEvent(
-            timestamp=datetime.now(),
-            symbol="BTCUSDT",
-            timeframe=TimeFrame.M5,
-            candle=candle
-        )
-
-        # Publish candle event
-        await mock_event_bus.publish(candle_event)
-
-        # Verify event was received
-        assert len(events_received) == 1
-        assert isinstance(events_received[0], CandleUpdateEvent)
-
-    def test_paper_trading_flow(self):
-        """Test paper trading execution flow."""
-        from app.engine.paper.broker import PaperBroker, PaperBrokerConfig
-
-        # Create paper broker
-        config = PaperBrokerConfig(
-            initial_balance=Decimal("10000"),
-            maker_fee=Decimal("0.001"),
-            taker_fee=Decimal("0.001"),
-            slippage_bps=10  # 0.1% slippage
-        )
-        broker = PaperBroker(config)
-
-        # Place a paper order
-        order_id = broker.place_order(
-            symbol="BTCUSDT",
-            side="BUY",
-            order_type="LIMIT",
-            price=Decimal("50000"),
-            quantity=Decimal("0.1"),
-            stop_loss=Decimal("49500"),
-            take_profit=Decimal("51000")
-        )
-
-        assert order_id is not None
-
-        # Simulate market movement and fill
-        market_price = Decimal("50000")
-        broker.update_market_price("BTCUSDT", market_price)
-
-        # Check position
-        position = broker.get_position("BTCUSDT")
-        assert position is not None
-        assert position["quantity"] == Decimal("0.1")
-        assert position["entry_price"] == Decimal("50000")
-
-        # Simulate hitting take profit
-        broker.update_market_price("BTCUSDT", Decimal("51000"))
-
-        # Position should be closed
-        position = broker.get_position("BTCUSDT")
-        assert position is None
-
-        # Check P&L
-        stats = broker.get_statistics()
-        assert stats["total_trades"] == 1
-        assert stats["winning_trades"] == 1
-        assert stats["total_pnl"] > 0
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s"])
 pytestmark = pytest.mark.e2e
+
+
+class _InProcBus:
+    def __init__(self) -> None:
+        self._next_id = 1
+        self._subs: dict[str, tuple[list[EventType] | None, Callable[[Any], Awaitable[None]]]] = {}
+
+    async def subscribe(
+        self,
+        subscriber_id: str,
+        handler: object,
+        event_types: list[EventType] | None = None,
+        priority: int = 0,
+        max_retries: int = 0,
+        serialize_by_key: bool = False,
+        key_extractor: object | None = None,
+    ) -> str:
+        _ = subscriber_id, priority, max_retries, serialize_by_key, key_extractor
+        if not callable(handler):
+            raise TypeError("handler must be callable")
+        sub_id = f"sub-{self._next_id}"
+        self._next_id += 1
+        self._subs[sub_id] = (event_types, handler)
+        return sub_id
+
+    async def unsubscribe(self, subscription_id: str) -> bool:
+        self._subs.pop(subscription_id, None)
+        return True
+
+    async def publish(self, event: Any, priority: int = 0) -> bool:
+        _ = priority
+        for event_types, handler in list(self._subs.values()):
+            if event_types is None or getattr(event, "event_type", None) in event_types:
+                await handler(event)
+        return True
+
+
+class _FakeDBAdapter:
+    async def get_latest_equity_sample(self):
+        return Decimal(10_000), datetime.now(UTC)
+
+    async def get_equity_sample_at_or_after(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_peak_equity_since(self, _ts: datetime):
+        return Decimal(10_000)
+
+    async def get_active_positions(self, _venue: str):
+        return []
+
+
+@pytest.mark.asyncio
+async def test_retest_signal_to_router_order() -> None:
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+
+    bus = _InProcBus()
+    previous_bus = getattr(bus_module, "_global_event_bus", None)
+    bus_module.set_event_bus(bus)  # type: ignore[arg-type]
+
+    db_adapter = _FakeDBAdapter()
+    risk = RiskParameters(
+        max_position_size=Decimal("999999"),
+        max_daily_loss=Decimal("1"),
+        max_drawdown=Decimal("1"),
+        risk_per_trade=Decimal("0.005"),
+        max_correlation=Decimal("1"),
+        max_open_positions=100,
+        max_total_exposure_leverage=Decimal("100"),
+        max_symbol_exposure_pct=Decimal("1"),
+        max_position_notional_pct=Decimal("1"),
+        risk_data_max_age_seconds=86400,
+        drawdown_lookback_days=30,
+    )
+
+    decision_publisher = DecisionPublisher(
+        db_adapter=db_adapter,  # type: ignore[arg-type]
+        risk=risk,
+        venue="USD_M",
+    )
+    execution = RouterExecutionSubscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,  # type: ignore[arg-type]
+        risk=risk,
+        venue="USD_M",
+        execution_mode=ExecutionMode.FUTURES_TESTNET,
+        order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
+    )
+
+    try:
+        await decision_publisher.start()
+        await execution.start()
+
+        now = datetime.now(UTC)
+        signal = RetestSignal(
+            venue="USD_M",
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M5,
+            timestamp=now,
+            level_price=Decimal(100),
+            direction="BUY",
+            stop_loss=Decimal(95),
+            take_profit=Decimal(110),
+            retest_type="zone_retest",
+            success_probability=Decimal("0.80"),
+            volume_confirmation=True,
+            confluence_factors=["bos", "rsi_bounce"],
+        )
+        event = RetestSignalEvent(
+            timestamp=now,
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M5,
+            signal=signal,
+            metadata={
+                "zone": {"zone_id": "zone-1", "zone_type": "OB"},
+                "timeframe": "5m",
+            },
+        )
+
+        await bus.publish(event)
+        router_client.place_bracket_order.assert_awaited_once()
+        captured = router_client.place_bracket_order.call_args.args[0]
+
+        assert captured["symbol"] == "BTCUSDT"
+        assert captured["side"] == "BUY"
+        assert captured["metadata"]["decision_source"] == "retest_decision_publisher"
+        assert captured["metadata"]["signal_id"] == str(signal.signal_id)
+    finally:
+        await decision_publisher.stop()
+        await execution.stop()
+        bus_module._global_event_bus = previous_bus
+
+
+@pytest.mark.asyncio
+async def test_retest_signal_risk_rejection_emits_error_and_skips_execution() -> None:
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+
+    bus = _InProcBus()
+    previous_bus = getattr(bus_module, "_global_event_bus", None)
+    bus_module.set_event_bus(bus)  # type: ignore[arg-type]
+
+    errors: list[ErrorEvent] = []
+
+    async def _capture_error(event: ErrorEvent) -> None:
+        errors.append(event)
+
+    await bus.subscribe(
+        subscriber_id="capture_errors",
+        handler=_capture_error,
+        event_types=[EventType.ERROR],
+        priority=0,
+    )
+
+    db_adapter = _FakeDBAdapter()
+    risk = RiskParameters(
+        max_position_size=Decimal("999999"),
+        max_daily_loss=Decimal("1"),
+        max_drawdown=Decimal("1"),
+        risk_per_trade=Decimal("0.005"),
+        max_correlation=Decimal("1"),
+        max_open_positions=100,
+        max_total_exposure_leverage=Decimal("100"),
+        max_symbol_exposure_pct=Decimal("1"),
+        # Force a pretrade rejection in DecisionPublisher/evaluate_pretrade_risk.
+        max_position_notional_pct=Decimal("0.01"),
+        risk_data_max_age_seconds=86400,
+        drawdown_lookback_days=30,
+    )
+
+    decision_publisher = DecisionPublisher(
+        db_adapter=db_adapter,  # type: ignore[arg-type]
+        risk=risk,
+        venue="USD_M",
+    )
+    execution = RouterExecutionSubscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,  # type: ignore[arg-type]
+        risk=risk,
+        venue="USD_M",
+        execution_mode=ExecutionMode.FUTURES_TESTNET,
+        order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
+    )
+
+    try:
+        await decision_publisher.start()
+        await execution.start()
+
+        now = datetime.now(UTC)
+        # Tight stop => large notional ratio => expected to exceed max_position_notional_pct=0.01.
+        signal = RetestSignal(
+            venue="USD_M",
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M5,
+            timestamp=now,
+            level_price=Decimal(100),
+            direction="BUY",
+            stop_loss=Decimal(99),
+            take_profit=Decimal(110),
+            retest_type="zone_retest",
+            success_probability=Decimal("0.80"),
+            volume_confirmation=True,
+            confluence_factors=["bos", "rsi_bounce"],
+        )
+        event = RetestSignalEvent(
+            timestamp=now,
+            symbol="BTCUSDT",
+            timeframe=TimeFrame.M5,
+            signal=signal,
+        )
+
+        await bus.publish(event)
+
+        router_client.place_bracket_order.assert_not_awaited()
+        assert errors, "Expected at least one ErrorEvent"
+        assert errors[-1].error_type == "risk_limit_exceeded"
+    finally:
+        await decision_publisher.stop()
+        await execution.stop()
+        bus_module._global_event_bus = previous_bus

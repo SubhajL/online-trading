@@ -70,15 +70,11 @@ This document summarizes the critical tests implemented for the trading system t
 - ✅ Closed candle filtering (k.x == true)
 
 ### 7. E2E Trading Flow (`test_e2e_trading_flow.py`)
-**Purpose**: Validate complete signal-to-order pipeline
+**Purpose**: Validate the critical runtime wiring for signal-to-order execution
 
 **Key Test Cases**:
-- ✅ Candle → Features → SMC → Signal flow
-- ✅ Decision making with risk constraints
-- ✅ Order formatting for exchange
-- ✅ Multi-timeframe analysis
-- ✅ Paper trading execution
-- ✅ Async event propagation
+- ✅ RetestSignalEvent → TradingDecisionEvent → router bracket order call
+- ✅ Risk-limit rejection emits ErrorEvent and skips execution
 
 ## CI/CD Pipeline
 
