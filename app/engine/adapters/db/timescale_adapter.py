@@ -1226,17 +1226,23 @@ class TimescaleDBAdapter:
             logger.exception("Error retrieving latest equity sample")
             return None
 
-    async def insert_equity_sample(self, equity: Decimal, timestamp: datetime) -> bool:
+    async def insert_equity_sample(
+        self,
+        equity: Decimal,
+        timestamp: datetime,
+        source_timestamp: datetime | None = None,
+    ) -> bool:
         """Insert an equity sample row."""
         try:
             async with self.get_write_connection() as conn:
                 await conn.execute(
                     """
-                    INSERT INTO equity_samples (timestamp, equity)
-                    VALUES ($1, $2)
+                    INSERT INTO equity_samples (timestamp, equity, source_timestamp)
+                    VALUES ($1, $2, $3)
                     """,
                     timestamp,
                     equity,
+                    source_timestamp,
                 )
             return True
         except Exception:

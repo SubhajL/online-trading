@@ -23,10 +23,12 @@ async def test_samples_once_on_start_and_inserts_equity_sample() -> None:
     db_adapter = AsyncMock()
     db_adapter.insert_equity_sample.return_value = True  # type: ignore[attr-defined]
 
+    sample_time = datetime(2026, 2, 6, 12, 5, tzinfo=UTC)
     service = RouterEquitySamplerService(
         db_adapter=db_adapter,
         router_client=router_client,
         config=RouterEquitySamplerConfig(venue="USD_M", poll_interval_seconds=60),
+        now_fn=lambda: sample_time,
     )
 
     await service.start()
@@ -34,5 +36,35 @@ async def test_samples_once_on_start_and_inserts_equity_sample() -> None:
 
     db_adapter.insert_equity_sample.assert_awaited_once_with(
         equity=Decimal("10000"),
-        timestamp=datetime(2026, 2, 6, 12, 0, tzinfo=UTC),
+        timestamp=sample_time,
+        source_timestamp=datetime(2026, 2, 6, 12, 0, tzinfo=UTC),
+    )
+
+
+@pytest.mark.asyncio
+async def test_drops_future_source_timestamp() -> None:
+    router_client = AsyncMock()
+    router_client.get_internal_equity.return_value = (  # type: ignore[attr-defined]
+        Decimal("10000"),
+        datetime(2026, 2, 6, 12, 10, tzinfo=UTC),
+    )
+
+    db_adapter = AsyncMock()
+    db_adapter.insert_equity_sample.return_value = True  # type: ignore[attr-defined]
+
+    sample_time = datetime(2026, 2, 6, 12, 5, tzinfo=UTC)
+    service = RouterEquitySamplerService(
+        db_adapter=db_adapter,
+        router_client=router_client,
+        config=RouterEquitySamplerConfig(venue="USD_M", poll_interval_seconds=60),
+        now_fn=lambda: sample_time,
+    )
+
+    await service.start()
+    await service.stop()
+
+    db_adapter.insert_equity_sample.assert_awaited_once_with(
+        equity=Decimal("10000"),
+        timestamp=sample_time,
+        source_timestamp=None,
     )

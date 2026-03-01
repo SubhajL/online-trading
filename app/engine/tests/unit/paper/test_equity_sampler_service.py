@@ -131,6 +131,7 @@ class TestEquitySamplerServiceSampleOnce:
         db_adapter.insert_equity_sample.assert_awaited_once_with(
             equity=Decimal("10135"),
             timestamp=fixed_time,
+            source_timestamp=fixed_time,
         )
 
     @pytest.mark.asyncio
@@ -158,6 +159,7 @@ class TestEquitySamplerServiceSampleOnce:
         db_adapter.insert_equity_sample.assert_awaited_once_with(
             equity=Decimal("5000"),
             timestamp=fixed_time,
+            source_timestamp=fixed_time,
         )
 
 

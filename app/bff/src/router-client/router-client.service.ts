@@ -186,7 +186,7 @@ export class RouterClientService {
   }
 
   async checkHealth(): Promise<HealthCheckResult> {
-    const url = `${this.baseUrl}/health`;
+    const url = `${this.baseUrl}/healthz`;
 
     try {
       const response = await firstValueFrom(this.httpService.get(url, { timeout: 3000 }));
