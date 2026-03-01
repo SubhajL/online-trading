@@ -14,10 +14,13 @@ from app.engine.execution.router_equity_sampler_service import (
 
 @pytest.mark.asyncio
 async def test_samples_once_on_start_and_inserts_equity_sample() -> None:
+    sample_time = datetime(2026, 3, 1, 11, 0, tzinfo=UTC)
+    source_timestamp = datetime(2026, 2, 6, 12, 0, tzinfo=UTC)
+
     router_client = AsyncMock()
     router_client.get_internal_equity.return_value = (  # type: ignore[attr-defined]
         Decimal("10000"),
-        datetime(2026, 2, 6, 12, 0, tzinfo=UTC),
+        source_timestamp,
     )
 
     db_adapter = AsyncMock()
@@ -27,6 +30,7 @@ async def test_samples_once_on_start_and_inserts_equity_sample() -> None:
         db_adapter=db_adapter,
         router_client=router_client,
         config=RouterEquitySamplerConfig(venue="USD_M", poll_interval_seconds=60),
+        now_fn=lambda: sample_time,
     )
 
     await service.start()
@@ -34,5 +38,6 @@ async def test_samples_once_on_start_and_inserts_equity_sample() -> None:
 
     db_adapter.insert_equity_sample.assert_awaited_once_with(
         equity=Decimal("10000"),
-        timestamp=datetime(2026, 2, 6, 12, 0, tzinfo=UTC),
+        timestamp=sample_time,
+        source_timestamp=source_timestamp,
     )
