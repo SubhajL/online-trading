@@ -183,18 +183,42 @@ def _error_event_to_text(event: ErrorEvent) -> str:
             return
         lines.append(f"{label}: {value}")
 
+    def _append_value(label: str, key: str) -> None:
+        if key not in meta:
+            return
+        value = meta.get(key)
+        if value is None:
+            lines.append(f"{label}: null")
+            return
+        lines.append(f"{label}: {value}")
+
     if meta.get("timeframe"):
         lines.append(f"Timeframe: {meta['timeframe']}")
     if meta.get("latest_candle_ago_seconds") is not None:
         lines.append(f"Age: {meta['latest_candle_ago_seconds']:.0f}s")
     if meta.get("max_allowed_candle_age_seconds") is not None:
         lines.append(f"Max: {meta['max_allowed_candle_age_seconds']:.0f}s")
+
+    _append_value("WS Last Connect Error Kind", "last_connect_error_kind")
+    _append_value("WS Last Connect Error", "last_connect_error")
+    _append_seconds("WS Last Connect Error Age", "last_connect_error_ago_seconds")
+    _append_value("WS Consecutive Failures", "consecutive_failures")
+    _append_value("WS Consecutive DNS Failures", "consecutive_dns_failures")
+
     _append_seconds("WS Kline Age", "last_kline_ago_seconds")
     _append_seconds("WS Closed Kline Age", "last_closed_kline_ago_seconds")
     _append_seconds("WS Last Msg Age", "last_message_ago_seconds")
     _append_seconds("Stale Threshold", "stale_threshold_seconds")
 
     return "\n".join(lines)
+
+
+def _error_event_dedup_key(event: ErrorEvent) -> str:
+    parts = ["error", event.component, event.error_type, event.symbol]
+    timeframe = event.metadata.get("timeframe")
+    if isinstance(timeframe, str) and timeframe:
+        parts.append(timeframe)
+    return ":".join(parts)
 
 
 DEFAULT_ALERT_EVENT_TYPES: list[EventType] = [
@@ -340,6 +364,16 @@ class AlertSubscriber:
 
             if isinstance(event, ErrorEvent):
                 message = _error_event_to_text(event)
+                dedup_key = _error_event_dedup_key(event)
+                send_error = getattr(self.telegram, "send_error_alert", None)
+                if callable(send_error):
+                    result = send_error(message, dedup_key=dedup_key)
+                    import inspect
+
+                    if inspect.isawaitable(result):
+                        await result
+                        return
+
                 await self.telegram._send_alert(message)
                 return
 
