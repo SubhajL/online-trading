@@ -132,6 +132,7 @@ class EquitySamplerService:
             success = await self._db_adapter.insert_equity_sample(
                 equity=equity,
                 timestamp=now,
+                source_timestamp=now,
             )
 
             if success:

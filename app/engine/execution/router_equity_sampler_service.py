@@ -86,12 +86,27 @@ class RouterEquitySamplerService:
             equity, ts = await self._router_client.get_internal_equity(
                 venue=self._config.venue,
             )
+            sample_time = self._now_fn()
+            if sample_time.tzinfo is None:
+                from datetime import UTC
+
+                sample_time = sample_time.replace(tzinfo=UTC)
             if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=self._now_fn().tzinfo)
+                ts = ts.replace(tzinfo=sample_time.tzinfo)
+
+            source_timestamp = ts
+            if ts > sample_time:
+                logger.warning(
+                    "Router equity timestamp in the future (source=%s sample=%s)",
+                    ts,
+                    sample_time,
+                )
+                source_timestamp = None
 
             success = await self._db_adapter.insert_equity_sample(
                 equity=equity,
-                timestamp=ts,
+                timestamp=sample_time,
+                source_timestamp=source_timestamp,
             )
             if not success:
                 logger.warning("Failed to insert router equity sample")
