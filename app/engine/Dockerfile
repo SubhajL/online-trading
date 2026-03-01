@@ -2,13 +2,14 @@
 #
 # NOTE: This Dockerfile is intended to be built with the repository root as context
 # (so it can copy `app/` and `db/migrations/`).
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     build-essential \
+    autotools-dev \
     wget \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -17,6 +18,8 @@ RUN apt-get update && apt-get install -y \
 RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib && \
+    # Refresh config.guess/config.sub for newer arch support (e.g. aarch64).
+    cp /usr/share/misc/config.guess /usr/share/misc/config.sub . && \
     ./configure --prefix=/usr && \
     make && \
     make install && \
@@ -29,7 +32,7 @@ WORKDIR /app
 # Copy requirements and install Python dependencies
 COPY app/engine/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --user -r requirements.txt
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim
@@ -37,17 +40,15 @@ FROM python:3.11-slim
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libgomp1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy TA-Lib library from builder
 COPY --from=builder /usr/lib/libta_lib* /usr/lib/
 COPY --from=builder /usr/include/ta-lib /usr/include/ta-lib
 
-# Copy Python packages from builder
-COPY --from=builder /root/.local /root/.local
-
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
+# Copy Python packages from builder into a system location (works for non-root user)
+COPY --from=builder /install /usr/local
 
 # Set working directory
 WORKDIR /app

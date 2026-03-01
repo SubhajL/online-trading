@@ -389,7 +389,8 @@ jobs:
       - name: Build Engine image
         uses: docker/build-push-action@v5
         with:
-          context: ./app/engine
+          # Engine Dockerfile copies `app/` + `db/`, so it must be built from repo root.
+          context: .
           file: ./app/engine/Dockerfile
           tags: trader-engine:latest
           cache-from: type=gha
