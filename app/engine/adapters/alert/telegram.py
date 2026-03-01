@@ -34,6 +34,13 @@ class TelegramAlertAdapter:
         self.session: aiohttp.ClientSession | None = None
         self.formatter = AlertFormatter()
         self.deduplicator = AlertDeduplicator()
+        self.error_deduplicator = AlertDeduplicator(
+            ttl_seconds=int(os.getenv("TELEGRAM_ERROR_DEDUP_TTL_SECONDS", "300")),
+        )
+        self.startup_deduplicator = AlertDeduplicator(
+            ttl_seconds=int(os.getenv("TELEGRAM_STARTUP_DEDUP_TTL_SECONDS", "3600")),
+            key_prefix="alert:dedup:startup",
+        )
 
         # Rate limiting
         self._message_times: list[datetime] = []
@@ -214,8 +221,19 @@ class TelegramAlertAdapter:
             True if message was sent successfully, False otherwise.
         """
         try:
+            phase = startup_data.get("phase")
+            symbols = startup_data.get("symbols")
+            timeframes = startup_data.get("timeframes")
+            if isinstance(phase, str) and isinstance(symbols, list) and isinstance(timeframes, list):
+                key = f"{phase}:{','.join(sorted(map(str, symbols)))}:{','.join(sorted(map(str, timeframes)))}"
+                if self.startup_deduplicator.is_duplicate(key):
+                    return False
+
             message = self.formatter.format_startup_alert(startup_data)
-            return await self._send_alert(message)
+            sent = await self._send_alert(message)
+            if sent and isinstance(phase, str) and isinstance(symbols, list) and isinstance(timeframes, list):
+                self.startup_deduplicator.add(key)
+            return sent
 
         except Exception:
             logger.exception("Error sending startup alert")
@@ -275,6 +293,16 @@ class TelegramAlertAdapter:
         except Exception:
             logger.exception("Error sending Telegram alert")
             return False
+
+    async def send_error_alert(self, message: str, *, dedup_key: str | None = None) -> bool:
+        """Send an error alert with optional Redis-backed deduplication."""
+        if dedup_key and self.error_deduplicator.is_duplicate(dedup_key):
+            return False
+
+        sent = await self._send_alert(message)
+        if sent and dedup_key:
+            self.error_deduplicator.add(dedup_key)
+        return sent
 
     async def _send_photo_alert(self, image_data: bytes, caption: str) -> bool:
         """Send a photo with caption to Telegram."""
