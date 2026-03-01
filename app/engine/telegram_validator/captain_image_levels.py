@@ -85,8 +85,8 @@ def _normalize_ocr_text(text: str) -> str:
     upper = text.upper()
 
     # Common OCR confusions in numeric contexts.
-    upper = upper.replace("O", "0")
     upper = upper.replace("S TOP", "STOP")
+    upper = re.sub(r"(?<=[0-9.])O|O(?=[0-9.])", "0", upper)
     upper = upper.replace("TP:", "TP ")
     upper = upper.replace("TP1", "TP 1")
     upper = upper.replace("TP2", "TP 2")

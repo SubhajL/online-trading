@@ -19,12 +19,15 @@ class TestCheckRequiredEnvVars:
 
     @patch.dict(os.environ, {
         "BINANCE_API_KEY": "test_api_key_long_enough",
-        "BINANCE_API_SECRET": "test_secret_long_enough",
+        "BINANCE_SECRET_KEY": "test_secret_long_enough",
         "POSTGRES_HOST": "localhost",
         "POSTGRES_PORT": "5432",
         "REDIS_HOST": "localhost",
-        "REDIS_PORT": "6379"
-    })
+        "REDIS_PORT": "6379",
+        "TELEGRAM_BOT_TOKEN": "test_telegram_bot_token_long_enough",
+        "TELEGRAM_CHAT_ID": "123456",
+        "ROUTER_URL": "http://localhost:8080"
+    }, clear=True)
     def test_all_required_vars_present(self):
         """Should pass when all required variables are set."""
         result = check_required_env_vars()
@@ -47,7 +50,7 @@ class TestCheckRequiredEnvVars:
     @patch.dict(os.environ, {
         "BINANCE_API_KEY": "",
         "POSTGRES_PORT": "not_a_number"
-    })
+    }, clear=True)
     def test_invalid_env_var_values(self):
         """Should detect invalid variable values."""
         result = check_required_env_vars()
@@ -58,13 +61,13 @@ class TestCheckRequiredEnvVars:
 
     @patch.dict(os.environ, {
         "BINANCE_API_KEY": "test_api_key_long_enough",
-        "BINANCE_API_SECRET": "test_secret_long_enough",
+        "BINANCE_SECRET_KEY": "test_secret_long_enough",
         "POSTGRES_HOST": "localhost",
         "POSTGRES_PORT": "5432",
         "REDIS_HOST": "localhost",
         "REDIS_PORT": "6379",
         "TELEGRAM_BOT_TOKEN": ""  # Optional but empty
-    })
+    }, clear=True)
     def test_optional_vars_warning(self):
         """Should warn about missing optional variables."""
         result = check_required_env_vars()
