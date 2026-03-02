@@ -139,6 +139,7 @@ services:
     restart: unless-stopped
     environment:
       - ROUTER_PORT=${ROUTER_PORT:-8001}
+      - PORT=${ROUTER_PORT:-8001}
       - ENGINE_URL=http://engine:8000
       - ORDER_UPDATE_URL=http://engine:8000/internal/order_update
       - REDIS_URL=redis://redis:6379/0

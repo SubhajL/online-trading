@@ -181,9 +181,7 @@ class BinanceWebSocketClient:
             },
         )
 
-        logger.info(
-            f"BinanceWebSocketClient initialized with base_url: {self.base_url}",
-        )
+        logger.info("BinanceWebSocketClient initialized")
 
     def _is_websocket_open(self) -> bool:
         """Check if WebSocket connection is open.

@@ -82,7 +82,7 @@ class BinanceRestClient:
         self._endpoint_breaker_cfgs = per_endpoint_breakers_config or {}
         self._breakers: dict[str, CircuitBreaker] = {}
 
-        logger.info(f"BinanceRestClient initialized (testnet: {testnet})")
+        logger.info("BinanceRestClient initialized")
 
     async def __aenter__(self) -> None:
         """Async context manager entry"""
