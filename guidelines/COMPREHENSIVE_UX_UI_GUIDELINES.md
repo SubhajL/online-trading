@@ -670,58 +670,18 @@ These guidelines provide a comprehensive framework for creating exceptional user
 
 For specific implementation examples and code snippets, refer to your project's component library and design system documentation.
 
+## Appendix: SOTA 2025 Addendum (Deltas Only)
 
-# Comprehensive UX/UI Design Guidelines (SOTA 2025 Integrated)
+This appendix is a **supplement** to the main guidelines above. It highlights 2025-era patterns without duplicating the baseline rules.
 
-## 1. Introduction: The Core Philosophy
-This document serves as the authoritative guide for creating professional, accessible, and intelligent interfaces. It combines established UX/UI theory with 2025 state-of-the-art (SOTA) implementations.
+### AI-adaptive experiences (progressive disclosure, never mandatory)
+- AI-driven suggestions must be **non-blocking**, reversible, and always allow a manual path.
+- Treat “AI-processing” as a first-class state distinct from “loading” (clear copy, cancel affordance when applicable).
 
-- **Users First**: Every decision must prioritize user needs.
-- **AI-Adaptive**: Interfaces must proactively anticipate intent using predictive behavioral analysis.
-- **Accessibility by Default**: WCAG 2.2 AA+ compliance is the absolute baseline.
-- **Dimensionality**: Use Glassmorphism and "Liquid Glass" layering to guide hierarchy.
+### Bento-style modular layouts (dense dashboards)
+- Use bento-style panels to compartmentalize complex pages, but keep spacing/radius/shadows **tokenized** and consistent.
+- Ensure mobile collapse preserves reading order and keeps primary actions visible.
 
-## 2. Theoretical Foundations (SOTA Enhanced)
-
-### Nielsen's 10 Usability Heuristics
-1. **Visibility of System Status**: inform users via real-time feedback. For 2025, use AI-driven progress estimations for complex tasks.
-2. **Match Between System and Real World**: Use natural language; avoid jargon.
-3. **User Control and Freedom**: Provide clear "emergency exits" and undo functions.
-4. **Consistency and Standards**: Follow the single design system religiously.
-5. **Error Prevention**: Use smart inputs and client-side validation.
-6. **Recognition Rather Than Recall**: Minimize memory load with visible options and tooltips.
-7. **Flexibility and Efficiency**: Support novice and power users with accelerators/shortcuts.
-8. **Aesthetic and Minimalist Design**: Use **Bento-style modular layouts** to compartmentalize content and prevent overwhelm.
-9. **Help Users Recover from Errors**: Error messages must follow the formula: What happened -> Why -> How to fix.
-10. **Help and Documentation**: Provide searchable, task-focused contextual help.
-
-### Gestalt Principles & SOTA Layout
-- **Proximity & Common Region**: Elements close together or within a shared boundary (like a Bento card) are perceived as related.
-- **Similarity & Continuity**: Maintain visual harmony to guide eye movement, especially in timeline or flow layouts.
-- **Bento-Style Logic**: Inspired by modern Apple/Google designs, segment content into visually distinct containers to improve clarity and mobile-responsive transitions.
-
-### Color Theory & Dimensionality
-- **WCAG Standards**: Normal text (4.5:1), Large/UI (3:1).
-- **60-30-10 Rule**: 60% neutral, 30% brand, 10% accent.
-- **Glassmorphism**: Use translucent layers with background blurs to create depth and focus.
-
-### Typography Systems
-- **Variable Fonts**: Use responsive scales (e.g., Roboto/Inter) with a Golden Ratio (1.618) or Perfect Fourth (1.333) scaling factor.
-- **Readability**: Maintain line-height of 1.5-1.7 and line length of 45-75 characters.
-
-## 3. Practical Implementation
-
-### Spacing & Grid System
-- **8px Base**: Use a consistent 8px grid (4, 8, 12, 16, 24, 32...).
-- **Macro Space**: 64px+ between major sections.
-- **Micro Space**: 4-12px within components.
-
-### Component Patterns & AI Interaction
-- **Component States**: Rest, Hover, Active, Focus, Disabled, Loading, and AI-Processing.
-- **Interaction Design**: Use micro-animations and "springy" physics-informed motion to create a natural feel.
-- **Proactive Assist**: Integrate conversational AI that understands context and emotional tone for hands-free or complex tasks.
-
-## 4. Performance & Pre-Launch Checklists
-- **Critical Path**: Page load < 3s; Time to Interactive < 5s.
-- **Accessibility Check**: Keyboard navigation, screen reader support, alt text, and high-contrast modes.
-- **Consistency**: All colors, fonts, and spacing must be pulled from tokenized sources.
+### Dimensionality (glass / blur)
+- Use translucency only when it **improves hierarchy**; never at the expense of legibility or performance.
+- Maintain the same contrast and accessibility requirements as non-blurred surfaces.
