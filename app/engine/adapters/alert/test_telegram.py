@@ -12,8 +12,8 @@ class TestTelegramAlertAdapter:
     @pytest.fixture
     def mock_deduplicator(self) -> Any:
         dedup = Mock()
-        dedup.is_duplicate = Mock(return_value=False)
-        dedup.add = Mock()
+        dedup.reserve = Mock(return_value=True)
+        dedup.clear = Mock()
         return dedup
 
     @pytest.fixture
@@ -95,17 +95,18 @@ class TestTelegramAlertAdapter:
         }
 
         # Test duplicate
-        mock_deduplicator.is_duplicate.return_value = True
+        mock_deduplicator.reserve.return_value = False
         with patch.object(adapter, "_send_alert") as mock_send:
             await adapter._handle_decision(decision)
             mock_send.assert_not_called()
 
         # Test non-duplicate
-        mock_deduplicator.is_duplicate.return_value = False
+        mock_deduplicator.reserve.return_value = True
         with patch.object(adapter, "_send_alert") as mock_send:
+            mock_send.return_value = True
             await adapter._handle_decision(decision)
             mock_send.assert_called_once()
-            mock_deduplicator.add.assert_called_once()
+            mock_deduplicator.clear.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_handle_order_update(self, adapter: Any, mock_formatter: Any) -> None:

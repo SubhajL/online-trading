@@ -141,12 +141,12 @@ class TelegramAlertAdapter:
     async def _handle_decision(self, event: dict[str, Any]) -> None:
         """Handle trading decision events."""
         try:
-            # Check for duplicate
+            # Reserve dedup key (atomic) to prevent concurrent duplicates
             symbol = event.get("symbol")
             side = event.get("side")
             timestamp = event.get("timestamp", "")
             key = f"decision:{symbol}:{side}:{timestamp}"
-            if self.deduplicator.is_duplicate(key):
+            if not self.deduplicator.reserve(key):
                 logger.debug("Skipping duplicate decision alert: %s", key)
                 return
 
@@ -176,8 +176,8 @@ class TelegramAlertAdapter:
             else:
                 success = snapshot_sent
 
-            if success:
-                self.deduplicator.add(key)
+            if not success:
+                self.deduplicator.clear(key)
 
         except Exception:
             logger.exception("Error handling decision event")
@@ -224,15 +224,16 @@ class TelegramAlertAdapter:
             phase = startup_data.get("phase")
             symbols = startup_data.get("symbols")
             timeframes = startup_data.get("timeframes")
+            key: str | None = None
             if isinstance(phase, str) and isinstance(symbols, list) and isinstance(timeframes, list):
                 key = f"{phase}:{','.join(sorted(map(str, symbols)))}:{','.join(sorted(map(str, timeframes)))}"
-                if self.startup_deduplicator.is_duplicate(key):
+                if not self.startup_deduplicator.reserve(key):
                     return False
 
             message = self.formatter.format_startup_alert(startup_data)
             sent = await self._send_alert(message)
-            if sent and isinstance(phase, str) and isinstance(symbols, list) and isinstance(timeframes, list):
-                self.startup_deduplicator.add(key)
+            if not sent and key is not None:
+                self.startup_deduplicator.clear(key)
             return sent
 
         except Exception:
@@ -296,12 +297,12 @@ class TelegramAlertAdapter:
 
     async def send_error_alert(self, message: str, *, dedup_key: str | None = None) -> bool:
         """Send an error alert with optional Redis-backed deduplication."""
-        if dedup_key and self.error_deduplicator.is_duplicate(dedup_key):
+        if dedup_key and not self.error_deduplicator.reserve(dedup_key):
             return False
 
         sent = await self._send_alert(message)
-        if sent and dedup_key:
-            self.error_deduplicator.add(dedup_key)
+        if not sent and dedup_key:
+            self.error_deduplicator.clear(dedup_key)
         return sent
 
     async def _send_photo_alert(self, image_data: bytes, caption: str) -> bool:

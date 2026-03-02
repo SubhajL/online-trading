@@ -107,6 +107,25 @@ class AlertDeduplicator:
         except Exception as e:
             logger.error(f"Error adding dedup key: {e}")
 
+    def reserve(self, key: str) -> bool:
+        """Atomically reserve a deduplication key.
+
+        Returns True if the key was newly reserved (caller should proceed with sending),
+        or False if the key already existed (caller should treat as duplicate).
+
+        If Redis is unavailable, returns True (fail-open for alert delivery).
+        """
+        if not self.redis_client:
+            return True
+
+        try:
+            full_key = f"{self.key_prefix}:{key}"
+            result = self.redis_client.set(full_key, "1", ex=self.ttl_seconds, nx=True)
+            return result is True
+        except Exception as e:
+            logger.error(f"Error reserving dedup key: {e}")
+            return True
+
     def clear(self, key: str) -> None:
         """Clear a deduplication key."""
         if not self.redis_client:

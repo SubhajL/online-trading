@@ -394,8 +394,6 @@ class BinanceWebSocketClient:
 
             try:
                 await self._connect_and_listen()
-                # If we reach here, connection was successful but closed gracefully
-                await self._on_connection_success()
             except Exception as e:
                 logger.error(f"WebSocket connection error: {e}")
                 kind = await self._on_connection_failure(e)
@@ -541,6 +539,8 @@ class BinanceWebSocketClient:
             data = await queue.get()
             try:
                 await self._route_message(data)
+            except Exception:
+                logger.exception("Dispatch worker error routing message")
             finally:
                 queue.task_done()
 
