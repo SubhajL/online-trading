@@ -112,6 +112,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - ENGINE_PORT=${ENGINE_PORT:-8000}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - ROUTER_URL=${ROUTER_URL:-http://router:8001}
+      - INGEST_ENABLED=${INGEST_ENABLED:-1}
     ports:
       - "${ENGINE_PORT:-8000}:8000"
     depends_on:
@@ -150,7 +152,7 @@ services:
     networks:
       - trading-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8001/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8001/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3

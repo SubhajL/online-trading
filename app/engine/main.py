@@ -159,6 +159,11 @@ def _live_rest_fallback_enabled_from_env() -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+def _ingest_enabled_from_env() -> bool:
+    value = os.getenv("INGEST_ENABLED", "1").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def _signal_emitter_subscriber_enabled_from_env() -> bool:
     """Check if SignalEmitterSubscriber should be enabled.
 
@@ -381,52 +386,56 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         risk_manager = RiskManager(config.risk_parameters)
         services["risk_manager"] = risk_manager
 
-        # Initialize ingest service
-        raw_symbols = os.getenv("TRADING_SYMBOLS", "BTCUSDT,ETHUSDT").split(",")
-        symbols = [s.strip().upper() for s in raw_symbols if s.strip()]
         from .models import TimeFrame
 
         timeframes = [TimeFrame.M5, TimeFrame.M15, TimeFrame.H1, TimeFrame.H4]
 
-        from .core.breaker_config import binance_breaker_config_from_env
+        if _ingest_enabled_from_env():
+            # Initialize ingest service
+            raw_symbols = os.getenv("TRADING_SYMBOLS", "BTCUSDT,ETHUSDT").split(",")
+            symbols = [s.strip().upper() for s in raw_symbols if s.strip()]
 
-        binance_breakers = binance_breaker_config_from_env()
-        ingest_service = IngestService(
-            binance_config={
-                "spot": {
-                    "api_key": config.binance.api_key,
-                    "api_secret": config.binance.api_secret,
+            from .core.breaker_config import binance_breaker_config_from_env
+
+            binance_breakers = binance_breaker_config_from_env()
+            ingest_service = IngestService(
+                binance_config={
+                    "spot": {
+                        "api_key": config.binance.api_key,
+                        "api_secret": config.binance.api_secret,
+                    },
+                    # Optionally extend with futures if present in env/config later
+                    "testnet": config.binance.testnet,
                 },
-                # Optionally extend with futures if present in env/config later
-                "testnet": config.binance.testnet,
-            },
-            symbols=symbols,
-            timeframes=timeframes,
-            binance_breakers_config=binance_breakers if binance_breakers else None,
-            db_adapter=db_adapter,  # For direct DB writes during backfill
-        )
-        services["ingest"] = ingest_service
-
-        if _pipeline_health_alerts_enabled_from_env():
-            from .monitoring.pipeline_health_service import PipelineHealthService
-
-            services["pipeline_health"] = PipelineHealthService(
-                bus=event_bus,
-                ingest_service=ingest_service,
+                symbols=symbols,
+                timeframes=timeframes,
+                binance_breakers_config=binance_breakers if binance_breakers else None,
+                db_adapter=db_adapter,  # For direct DB writes during backfill
             )
+            services["ingest"] = ingest_service
 
-        if _live_rest_fallback_enabled_from_env():
-            from .ingest.live_rest_fallback import LiveRestFallbackService
+            if _pipeline_health_alerts_enabled_from_env():
+                from .monitoring.pipeline_health_service import PipelineHealthService
 
-            if ingest_service.rest_client is not None and ingest_service.ws_client is not None:
-                services["live_rest_fallback"] = LiveRestFallbackService(
+                services["pipeline_health"] = PipelineHealthService(
                     bus=event_bus,
-                    rest_client=ingest_service.rest_client,
-                    ws_client=ingest_service.ws_client,
                     ingest_service=ingest_service,
-                    symbols=symbols,
-                    timeframes=timeframes,
                 )
+
+            if _live_rest_fallback_enabled_from_env():
+                from .ingest.live_rest_fallback import LiveRestFallbackService
+
+                if ingest_service.rest_client is not None and ingest_service.ws_client is not None:
+                    services["live_rest_fallback"] = LiveRestFallbackService(
+                        bus=event_bus,
+                        rest_client=ingest_service.rest_client,
+                        ws_client=ingest_service.ws_client,
+                        ingest_service=ingest_service,
+                        symbols=symbols,
+                        timeframes=timeframes,
+                    )
+        else:
+            logger.warning("Ingest service disabled (INGEST_ENABLED=0)")
 
         # Initialize feature service (and persist indicators via canonical `indicators` table)
         feature_service = FeatureService(db_adapter=db_adapter)
@@ -586,7 +595,11 @@ async def start_services() -> None:
         if "contract_publisher" in services:
             await services["contract_publisher"].start()
             logger.info("Started contract_publisher")
-        await services["ingest"].start()
+        if "ingest" in services:
+            await services["ingest"].start()
+            logger.info("Started ingest")
+        else:
+            logger.info("Skipped ingest start (INGEST_ENABLED=0)")
         await services["features"].start()
         await services["smc"].start()
         await services["retest_engine"].start()
