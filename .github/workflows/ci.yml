@@ -215,7 +215,10 @@ jobs:
 
       - name: Install TypeScript dependencies
         run: |
-          pnpm install
+          cd app/bff
+          pnpm install --frozen-lockfile --ignore-workspace
+          cd ../ui
+          pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Verify BFF contracts scripts
         run: |
@@ -224,10 +227,16 @@ jobs:
 
       - name: Run TypeScript linting
         run: |
+          cd app/bff
+          pnpm lint
+          cd ../ui
           pnpm lint
 
       - name: Run TypeScript type checking
         run: |
+          cd app/bff
+          pnpm build
+          cd ../ui
           pnpm typecheck
 
       - name: Run BFF tests
