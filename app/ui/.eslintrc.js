@@ -11,7 +11,17 @@ module.exports = {
     '@typescript-eslint/consistent-type-imports': 'error',
     '@typescript-eslint/no-explicit-any': 'error',
     'no-console': ['warn', { allow: ['warn', 'error'] }],
-    'prettier/prettier': 'error'
+    'prettier/prettier': [
+      'error',
+      {
+        semi: false,
+        singleQuote: true,
+        tabWidth: 2,
+        trailingComma: 'all',
+        printWidth: 100,
+        arrowParens: 'avoid',
+      },
+    ],
   },
   overrides: [
     {
