@@ -73,8 +73,14 @@ class _StubDBAdapter:
     async def close(self) -> None:
         return None
 
-    async def insert_equity_sample(self, *, equity: Decimal, timestamp: datetime) -> bool:
-        _ = equity, timestamp
+    async def insert_equity_sample(
+        self,
+        *,
+        equity: Decimal,
+        timestamp: datetime,
+        source_timestamp: datetime | None = None,
+    ) -> bool:
+        _ = equity, timestamp, source_timestamp
         return True
 
 
