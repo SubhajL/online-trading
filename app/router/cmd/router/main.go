@@ -174,8 +174,7 @@ func main() {
 	mux.HandleFunc("/close_all", handlers.CloseAllHandler)
 	mux.HandleFunc("/cancel_open_orders", handlers.CancelOpenOrdersHandler)
 	mux.HandleFunc("/close_positions", handlers.ClosePositionsHandler)
-	mux.HandleFunc("/healthz", handlers.HealthzHandler)
-	mux.HandleFunc("/readyz", handlers.ReadyzHandler)
+	api.RegisterHealthRoutes(mux, handlers)
 	equityProvider := api.NewBinanceEquityProvider(spotClient, futuresClient)
 	mux.HandleFunc(
 		"/internal/equity",
