@@ -35,7 +35,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--model claude-opus-4-6 --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"'
+          claude_args: '--model claude-opus-4-6 --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"'
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
@@ -55,5 +55,4 @@ jobs:
             Be concise but thorough. Clearly distinguish blockers from nice-to-haves.
 
             IMPORTANT: You MUST post your review as a PR comment using `gh pr comment`.
-            Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues inline.
             Only post GitHub comments - do not submit review text as messages.
