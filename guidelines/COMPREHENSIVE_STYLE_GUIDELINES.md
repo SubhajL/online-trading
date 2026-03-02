@@ -215,54 +215,21 @@ Define tokens centrally (CSS custom properties, Tailwind theme extensions, or de
 - Version the style guide; update semantic tags (e.g., v1.1) and summarize notable changes.
 - Archive deprecated patterns and provide migration paths to prevent drift.
 
+## Appendix: SOTA 2025 Addendum (Deltas Only)
 
-# Comprehensive Style Guidelines (SOTA 2025 Integrated)
+This appendix is a **supplement** to sections 2–11. It intentionally avoids duplicating tokens, component rules, and checklists already defined above.
 
-## 1. Foundational Principles
-- **Single Source of Truth**: Every design decision—from spacing to shadow opacity—must be tokenized and synced between Figma and code.
-- **Consistency & Scalability**: Reuse components; design with responsive tokens that adapt across all platform breakpoints.
+### Dynamic theming (Material You / role-based colors)
+- If adopting dynamic palettes, map them onto the existing **role tokens** (primary/secondary/accent/status) rather than introducing ad hoc colors.
+- Keep light/dark contrast requirements unchanged (WCAG AA) and validate with real UI surfaces.
 
-## 2. Visual Identity & SOTA Aesthetics
+### Glassmorphism / blurred surfaces (use sparingly)
+- Allowed for **navigation headers** and **modal overlays** only when it improves hierarchy.
+- Maintain legibility (contrast ≥ 4.5:1 for text) and provide a non-blurred fallback for `prefers-reduced-transparency`/performance constraints.
 
-### 2.1 Color Strategy (Material You & Dynamic Theming)
-- **Primary actions**: `primary-600` (#6C5CE7) or dynamic AI-adaptive palettes.
-- **Dark Mode**: Prioritize high-contrast dark modes to reduce eye strain and energy consumption on OLED screens.
-- **Glassmorphism Layering**: Use "Liquid Glass" materials—translucent, dynamic surfaces—to unify navigation and modals.
+### Dashboard composition (bento-style panels)
+- Use bento-style layouts to compartmentalize dense dashboards, but keep **radius/shadows/spacing tokenized** (do not hardcode new radii like “18px”).
+- Ensure responsive collapse rules remain consistent with the 12/8/4 grid guidance.
 
-| Token | Hex | SOTA Usage |
-| --- | --- | --- |
-| `primary-600` | #6C5CE7 | Main CTA, Active States |
-| `accent-500` | #14B8A6 | Links, Data Viz Highlights |
-| `neutral-900` | #111827 | Primary Text |
-| `success-500` | #22C55E | Confirmation States |
-
-### 2.2 Typography & SOTA Scalability
-- **Variable Fonts**: Use Inter or system fonts that dynamically adjust weight for readability.
-- **Scale**: H1 (32px), H2 (24px), Body (16px), Small (14px).
-- **Data Expression**: Use monospaced fonts for technical data values to ensure alignment and clarity.
-
-## 3. Component Standards (SOTA Enhanced)
-
-### 3.1 Buttons & Inputs
-- **Hierarchy**: Primary (solid), Secondary (outline), Tertiary (text), Destructive (error).
-- **Touch Targets**: Minimum 44px for touch-enabled devices.
-- **Validation**: Surface real-time AI-assisted error correction beneath fields.
-
-### 3.2 Modals & Bento-Panels
-- **Container**: White or neutral-100, 16px radius, `--shadow-lg`.
-- **Bento Integration**: Use modular bento-style cards with 18px rounded corners to organize complex dashboards.
-
-### 3.3 Navigation & Layout
-- **Sticky Headers**: Use `--shadow-sm` and background blurs (Glassmorphism) to separate from content.
-- **Responsive Grid**: 12-column (Desktop), 8-column (Tablet), 4-column (Mobile) aligned to the 8px rhythm.
-
-## 4. Interaction & Motion
-- **Timing**: 150ms-300ms duration with physics-informed easing.
-- **Proactive Motion**: Use subtle animations to reinforce spatial relationships and anticipate user next-steps.
-
-## 5. Governance & AI Review
-- **AI Build Checklist**: Verify that all new components consume tokens, meet WCAG 2.2 AA contrast, and maintain 100% resource alignment.
-- **Design-to-Code Bridge**: Use automated sync tools (e.g., GitHub Actions) to catch token drift early.
-
----
-Use this document as the authoritative reference for styling decisions. When exceptions are needed, document rationale and plan for follow-up so the system stays cohesive over time.
+### Data-heavy typography
+- For aligned numeric data (prices, PnL, sizes), consider a **monospace** or tabular-nums style for readability; keep the baseline typography scale unchanged.
