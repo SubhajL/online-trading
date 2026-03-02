@@ -56,7 +56,7 @@ jobs:
         run: |
           curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:8000/health/simple
           curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:8001/healthz
-          curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:8002/health
+          curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:8002/api/health
           curl --fail --retry 60 --retry-delay 2 --retry-all-errors http://localhost:3000/api/health
 
       - name: Dump logs on failure

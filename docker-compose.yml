@@ -165,6 +165,7 @@ services:
     container_name: trading-bff
     restart: unless-stopped
     environment:
+      - PORT=3001
       - BFF_PORT=${BFF_PORT:-8002}
       - ENGINE_URL=http://engine:8000
       - ROUTER_URL=http://router:8001
@@ -180,7 +181,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_key_minimum_32_characters}
       - NODE_ENV=${NODE_ENV:-development}
     ports:
-      - "${BFF_PORT:-8002}:8002"
+      - "${BFF_PORT:-8002}:3001"
     depends_on:
       - engine
       - router
@@ -190,7 +191,13 @@ services:
     networks:
       - trading-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); })",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
