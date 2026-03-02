@@ -127,6 +127,21 @@ describe('AlertsGateway', () => {
         unreadCount: 5,
       });
     });
+
+    it('should disconnect unauthenticated client', async () => {
+      const unauthClient = {
+        ...mockClient,
+        data: { user: undefined },
+        disconnect: jest.fn(),
+      } as any;
+
+      await gateway.handleConnection(unauthClient);
+
+      expect(unauthClient.disconnect).toHaveBeenCalledWith(true);
+      expect(unauthClient.join).not.toHaveBeenCalled();
+      expect(unauthClient.emit).not.toHaveBeenCalled();
+      expect(mockAlertsService.getUnreadCount).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleDisconnect', () => {

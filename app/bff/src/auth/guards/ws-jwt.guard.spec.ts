@@ -74,6 +74,43 @@ describe('WsJwtGuard', () => {
       expect(client.data.user).toEqual(mockPayload);
     });
 
+    it('should fall back to jwt.secret when JWT_SECRET is not set', async () => {
+      const mockPayload: JwtPayload = {
+        sub: 'user-123',
+        username: 'testuser',
+        roles: ['operator'],
+      };
+      const mockToken = 'valid-jwt-token';
+      const fallbackSecret = 'fallback-secret';
+
+      jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+        if (key === 'JWT_SECRET') return undefined;
+        if (key === 'jwt.secret') return fallbackSecret;
+        return undefined;
+      });
+      jest.spyOn(jwtService, 'verifyAsync').mockResolvedValue(mockPayload);
+
+      const context = createMockExecutionContext(mockToken);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(jwtService.verifyAsync).toHaveBeenCalledWith(mockToken, {
+        secret: fallbackSecret,
+      });
+    });
+
+    it('should return false when no secret is configured', async () => {
+      const mockToken = 'valid-jwt-token';
+
+      jest.spyOn(configService, 'get').mockReturnValue(undefined);
+
+      const context = createMockExecutionContext(mockToken);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(false);
+      expect(jwtService.verifyAsync).not.toHaveBeenCalled();
+    });
+
     it('should check query params when no token in handshake auth', async () => {
       const mockPayload: JwtPayload = {
         sub: 'user-123',

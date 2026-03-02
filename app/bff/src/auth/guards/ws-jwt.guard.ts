@@ -27,6 +27,11 @@ export class WsJwtGuard implements CanActivate {
         this.configService.get<string>('JWT_SECRET') ??
         this.configService.get<string>('jwt.secret');
 
+      if (!secret) {
+        this.logger.error('JWT secret is not configured');
+        return false;
+      }
+
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret,
       });
