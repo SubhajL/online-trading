@@ -19,6 +19,9 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
+# Next.js public/ is optional, but Docker COPY from builder requires it to exist
+RUN mkdir -p public
+
 # Build the application
 RUN pnpm run build
 
