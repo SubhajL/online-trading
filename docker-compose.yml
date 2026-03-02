@@ -140,6 +140,7 @@ services:
       - ENGINE_URL=http://engine:8000
       - ORDER_UPDATE_URL=http://engine:8000/internal/order_update
       - REDIS_URL=redis://redis:6379/0
+      - TRADING_MODE=${TRADING_MODE:-paper}
       - ENVIRONMENT=${ENVIRONMENT:-development}
     ports:
       - "${ROUTER_PORT:-8001}:8001"

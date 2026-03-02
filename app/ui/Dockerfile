@@ -31,6 +31,9 @@ FROM node:20-alpine
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
 
+# Install pnpm for runtime start/install
+RUN npm install -g pnpm@9
+
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
@@ -38,12 +41,15 @@ RUN addgroup -g 1001 -S nodejs && \
 # Set working directory
 WORKDIR /app
 
-# Copy production dependencies config
+# Copy package metadata and install production dependencies
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
 
 # Copy built application from builder stage
 COPY --from=builder --chown=nodejs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nodejs:nodejs /app/public ./public
+COPY --from=builder --chown=nodejs:nodejs /app/next.config.js ./next.config.js
 
 # Switch to non-root user
 USER nodejs
