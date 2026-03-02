@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Online Trader Design System Styleboard</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#6363f2",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101022",
+              "surface-dark": "#16162c",
+              "accent": "#14B8A6",
+              "success": "#22C55E",
+              "danger": "#EF4444",
+              "warning": "#F59E0B",
+              "info": "#3B82F6",
+              "border-dark": "#334155",
+              "text-main": "#FFFFFF",
+              "text-sub": "#94A3B8",
+              "text-muted": "#64748B",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"],
+              "mono": ["JetBrains Mono", "monospace"],
+            },
+            borderRadius: {
+              "DEFAULT": "0.5rem",
+              "lg": "12px", 
+              "xl": "18px", 
+              "full": "9999px"
+            },
+            spacing: {
+                '18': '4.5rem',
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        /* Custom scrollbar for data table */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #101022; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
+        
+        .bus-bar-primary {
+            height: 3px;
+            background-color: #6363f2;
+            width: 100%;
+        }
+        
+        .bus-bar-secondary {
+            height: 2px;
+            border-bottom: 2px dashed rgba(148, 163, 184, 0.5); /* #94A3B8 with 50% opacity */
+            width: 100%;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-text-main antialiased selection:bg-primary selection:text-white pb-24">
+<!-- Header Section -->
+<header class="sticky top-0 z-50 border-b border-border-dark bg-[#111122]/95 backdrop-blur-md px-6 py-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-2xl">candlestick_chart</span>
+</div>
+<div>
+<h1 class="text-lg font-bold leading-tight tracking-tight">Online Trader</h1>
+<p class="text-xs font-mono text-text-sub">DS.v2.4 // STYLEBOARD</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/20">Active</span>
+</div>
+</div>
+</header>
+<main class="mx-auto max-w-3xl space-y-8 p-6">
+<!-- ZONE A: Typography & Palette -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 border-b border-border-dark pb-2">
+<span class="material-symbols-outlined text-text-sub text-lg">format_paint</span>
+<h2 class="text-sm font-bold uppercase tracking-widest text-text-sub">Zone A: Foundation</h2>
+</div>
+<div class="grid gap-6 md:grid-cols-2">
+<!-- Typography -->
+<div class="rounded-xl border border-border-dark bg-surface-dark p-5">
+<h3 class="mb-4 text-xs font-semibold uppercase text-text-sub">Typography</h3>
+<div class="space-y-4">
+<div class="flex flex-col">
+<span class="text-3xl font-bold tracking-tight">Inter Display</span>
+<span class="text-xs text-text-muted">Headings &amp; UI Labels</span>
+</div>
+<div class="h-px bg-border-dark"></div>
+<div class="flex flex-col font-mono">
+<span class="text-lg">JetBrains Mono</span>
+<span class="text-sm text-text-sub">123,456.78</span>
+<span class="text-[10px] text-text-muted">Tabular Data &amp; Logic</span>
+</div>
+</div>
+</div>
+<!-- Palette -->
+<div class="rounded-xl border border-border-dark bg-surface-dark p-5">
+<h3 class="mb-4 text-xs font-semibold uppercase text-text-sub">Color Palette</h3>
+<div class="grid grid-cols-3 gap-3">
+<!-- Primary -->
+<div class="group flex flex-col gap-2">
+<div class="aspect-square w-full rounded-lg bg-primary shadow-lg shadow-primary/20"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white">Primary</span>
+<span class="font-mono text-[9px] text-text-sub">#6464F2</span>
+</div>
+</div>
+<!-- Accent -->
+<div class="group flex flex-col gap-2">
+<div class="aspect-square w-full rounded-lg bg-accent shadow-lg shadow-accent/20"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white">Accent</span>
+<span class="font-mono text-[9px] text-text-sub">#14B8A6</span>
+</div>
+</div>
+<!-- Success -->
+<div class="group flex flex-col gap-2">
+<div class="aspect-square w-full rounded-lg bg-success shadow-lg shadow-success/20"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white">Success</span>
+<span class="font-mono text-[9px] text-text-sub">#22C55E</span>
+</div>
+</div>
+<!-- Danger -->
+<div class="group flex flex-col gap-2">
+<div class="aspect-square w-full rounded-lg bg-danger shadow-lg shadow-danger/20"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white">Danger</span>
+<span class="font-mono text-[9px] text-text-sub">#EF4444</span>
+</div>
+</div>
+<!-- Warning -->
+<div class="group flex flex-col gap-2">
+<div class="aspect-square w-full rounded-lg bg-warning shadow-lg shadow-warning/20"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white">Warning</span>
+<span class="font-mono text-[9px] text-text-sub">#F59E0B</span>
+</div>
+</div>
+<!-- Info -->
+<div class="group flex flex-col gap-2">
+<div class="aspect-square w-full rounded-lg bg-info shadow-lg shadow-info/20"></div>
+<div class="flex flex-col">
+<span class="text-[10px] font-bold text-white">Info</span>
+<span class="font-mono text-[9px] text-text-sub">#3B82F6</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ZONE B: Components -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 border-b border-border-dark pb-2">
+<span class="material-symbols-outlined text-text-sub text-lg">widgets</span>
+<h2 class="text-sm font-bold uppercase tracking-widest text-text-sub">Zone B: Components</h2>
+</div>
+<div class="space-y-6 rounded-xl border border-border-dark bg-surface-dark p-6">
+<!-- Buttons -->
+<div class="space-y-3">
+<h3 class="text-xs font-semibold uppercase text-text-sub">Actions (12px Radius)</h3>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary/90 shadow-lg shadow-primary/25">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+                            Execute
+                        </button>
+<button class="flex items-center gap-2 rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white border border-border-dark hover:bg-slate-700 transition">
+<span class="material-symbols-outlined text-[18px]">tune</span>
+                            Settings
+                        </button>
+<button class="flex items-center gap-2 rounded-lg border border-primary/30 bg-transparent px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/5 transition">
+                            Cancel
+                        </button>
+</div>
+</div>
+<!-- Inputs -->
+<div class="space-y-3">
+<h3 class="text-xs font-semibold uppercase text-text-sub">Inputs (Order Ticket)</h3>
+<div class="grid gap-4 sm:grid-cols-2">
+<div class="relative group">
+<label class="mb-1.5 block text-xs font-medium text-text-sub">Limit Price</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted material-symbols-outlined text-[18px]">attach_money</span>
+<input class="w-full rounded-lg border border-border-dark bg-background-dark py-2.5 pl-9 pr-3 font-mono text-sm text-white placeholder-text-muted focus:border-primary focus:ring-1 focus:ring-primary transition-all group-hover:border-slate-600" type="text" value="4,250.00"/>
+</div>
+</div>
+<div class="relative group">
+<label class="mb-1.5 block text-xs font-medium text-text-sub">Quantity</label>
+<div class="relative">
+<input class="w-full rounded-lg border border-border-dark bg-background-dark py-2.5 px-3 font-mono text-sm text-white placeholder-text-muted focus:border-primary focus:ring-1 focus:ring-primary transition-all group-hover:border-slate-600" placeholder="Lot size..." type="text"/>
+<span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-text-muted uppercase">Contracts</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Pills -->
+<div class="space-y-3">
+<h3 class="text-xs font-semibold uppercase text-text-sub">Metadata Pills (999px)</h3>
+<div class="flex flex-wrap gap-2">
+<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[11px] font-bold text-success">
+<span class="h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+                            LIVE
+                        </span>
+<span class="inline-flex items-center rounded-full bg-slate-800 border border-slate-700 px-3 py-1 text-[11px] font-bold text-text-sub">
+                            STALE
+                        </span>
+<span class="inline-flex items-center rounded-full bg-orange-500/10 border border-orange-500/20 px-3 py-1 text-[11px] font-bold text-warning">
+                            BLOCKED
+                        </span>
+<span class="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-3 py-1 text-[11px] font-bold text-info">
+<span class="material-symbols-outlined text-[14px]">done_all</span>
+                            FILLED
+                        </span>
+<span class="inline-flex items-center rounded-full bg-red-500/10 border border-red-500/20 px-3 py-1 text-[11px] font-bold text-danger">
+                            REJECTED
+                        </span>
+</div>
+</div>
+</div>
+</section>
+<!-- ZONE C: Containers -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 border-b border-border-dark pb-2">
+<span class="material-symbols-outlined text-text-sub text-lg">layers</span>
+<h2 class="text-sm font-bold uppercase tracking-widest text-text-sub">Zone C: Containers</h2>
+</div>
+<div class="grid gap-6 md:grid-cols-2">
+<!-- Two-Tone Container -->
+<div class="flex flex-col overflow-hidden rounded-xl border border-border-dark">
+<!-- Solid Header -->
+<div class="flex items-center justify-between bg-slate-800 px-5 py-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-text-sub">wallet</span>
+<span class="text-sm font-bold text-white">Portfolio Summary</span>
+</div>
+<span class="material-symbols-outlined cursor-pointer text-text-muted hover:text-white">more_horiz</span>
+</div>
+<!-- 10% Tint Body -->
+<div class="flex-1 bg-surface-dark/40 p-5 backdrop-blur-sm">
+<div class="mb-2 h-2 w-3/4 rounded bg-slate-700/50"></div>
+<div class="mb-4 h-2 w-1/2 rounded bg-slate-700/50"></div>
+<p class="text-xs text-text-muted">Content area with 10% tint on body background.</p>
+</div>
+</div>
+<!-- Bus Bar System -->
+<div class="flex flex-col justify-center gap-6 rounded-xl border border-border-dark bg-surface-dark p-6">
+<div>
+<div class="mb-2 flex items-center justify-between">
+<span class="text-xs font-mono text-primary">BUS.PRIMARY.SOLID</span>
+<span class="text-[10px] text-text-muted">3px Solid</span>
+</div>
+<div class="bus-bar-primary rounded-full"></div>
+</div>
+<div>
+<div class="mb-2 flex items-center justify-between">
+<span class="text-xs font-mono text-text-sub">BUS.SECONDARY.DASHED</span>
+<span class="text-[10px] text-text-muted">2px Dashed (50% Opacity)</span>
+</div>
+<div class="bus-bar-secondary"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- ZONE D: Data Viz -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 border-b border-border-dark pb-2">
+<span class="material-symbols-outlined text-text-sub text-lg">monitoring</span>
+<h2 class="text-sm font-bold uppercase tracking-widest text-text-sub">Zone D: Data Viz</h2>
+</div>
+<div class="rounded-xl border border-border-dark bg-surface-dark overflow-hidden">
+<!-- Table Header -->
+<div class="border-b border-border-dark bg-slate-800/80 px-4 py-3">
+<div class="flex items-center justify-between">
+<h3 class="text-sm font-bold text-white">Market Watch</h3>
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-[18px] text-text-sub cursor-pointer">filter_list</span>
+<span class="material-symbols-outlined text-[18px] text-text-sub cursor-pointer">download</span>
+</div>
+</div>
+</div>
+<!-- Data Table -->
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left text-sm">
+<thead class="bg-surface-dark text-xs uppercase text-text-sub">
+<tr>
+<th class="sticky top-0 bg-surface-dark px-4 py-3 font-medium" scope="col">Instrument</th>
+<th class="sticky top-0 bg-surface-dark px-4 py-3 text-right font-medium" scope="col">Last</th>
+<th class="sticky top-0 bg-surface-dark px-4 py-3 text-right font-medium" scope="col">Chg%</th>
+<th class="sticky top-0 bg-surface-dark px-4 py-3 text-right font-medium" scope="col">Vol</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-dark/50 font-mono text-xs">
+<tr class="group hover:bg-white/5">
+<td class="px-4 py-3 font-bold text-white group-hover:text-primary">BTC/USD</td>
+<td class="px-4 py-3 text-right text-white">64,230.50</td>
+<td class="px-4 py-3 text-right text-success">+2.4%</td>
+<td class="px-4 py-3 text-right text-text-sub">12.5M</td>
+</tr>
+<tr class="bg-slate-800/20 group hover:bg-white/5">
+<td class="px-4 py-3 font-bold text-white group-hover:text-primary">ETH/USD</td>
+<td class="px-4 py-3 text-right text-white">3,450.12</td>
+<td class="px-4 py-3 text-right text-danger">-0.8%</td>
+<td class="px-4 py-3 text-right text-text-sub">8.2M</td>
+</tr>
+<tr class="group hover:bg-white/5">
+<td class="px-4 py-3 font-bold text-white group-hover:text-primary">SOL/USD</td>
+<td class="px-4 py-3 text-right text-white">145.20</td>
+<td class="px-4 py-3 text-right text-success">+5.1%</td>
+<td class="px-4 py-3 text-right text-text-sub">4.1M</td>
+</tr>
+<tr class="bg-slate-800/20 group hover:bg-white/5">
+<td class="px-4 py-3 font-bold text-white group-hover:text-primary">XRP/USD</td>
+<td class="px-4 py-3 text-right text-white">0.62</td>
+<td class="px-4 py-3 text-right text-text-sub">0.0%</td>
+<td class="px-4 py-3 text-right text-text-sub">1.9M</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Chart Legend Footer -->
+<div class="border-t border-border-dark bg-slate-900/30 px-4 py-3">
+<div class="flex flex-wrap gap-4 text-xs">
+<div class="flex items-center gap-2">
+<div class="h-3 w-3 rounded-sm bg-success"></div>
+<span class="text-text-sub">Bullish Candle</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="h-3 w-3 rounded-sm bg-danger"></div>
+<span class="text-text-sub">Bearish Candle</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px] text-primary">diamond</span>
+<span class="text-text-sub">SMC Event</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Navigation Bar -->
+<div class="fixed bottom-0 z-50 w-full border-t border-border-dark bg-[#191933]">
+<div class="flex gap-2 px-4 pb-3 pt-2">
+<a class="flex flex-1 flex-col items-center justify-end gap-1 rounded-full text-white" href="#">
+<span class="material-symbols-outlined text-2xl" data-weight="fill">palette</span>
+<p class="text-xs font-medium leading-normal tracking-[0.015em]">Styleboard</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-[#9292c9] hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined text-2xl">view_sidebar</span>
+<p class="text-xs font-medium leading-normal tracking-[0.015em]">Components</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-[#9292c9] hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined text-2xl">token</span>
+<p class="text-xs font-medium leading-normal tracking-[0.015em]">Tokens</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-[#9292c9] hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined text-2xl">settings</span>
+<p class="text-xs font-medium leading-normal tracking-[0.015em]">Settings</p>
+</a>
+</div>
+</div>
+</body></html>

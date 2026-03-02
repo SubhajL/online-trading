@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Online Trader Terminal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#6363f2",
+                        "primary-dark": "#4f4fcc",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101022",
+                        "surface-dark": "#1A1A2E",
+                        "border-dark": "#334155",
+                        "success": "#22C55E",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"],
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem", 
+                        "md": "0.75rem", // 12px
+                        "lg": "1.125rem", // 18px
+                        "xl": "1.5rem", 
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        'header': '80px', // Adjusted for mobile landscape feel
+                        'footer': '40px',
+                        'sidebar': '80px', // Icons only on smaller landscape, or full width
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for the terminal feel */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #101022; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6363f2; 
+        }
+        
+        /* Grid overlay for the workspace */
+        .grid-bg {
+            background-size: 40px 40px;
+            background-image:
+                linear-gradient(to right, rgba(51, 65, 85, 0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(51, 65, 85, 0.1) 1px, transparent 1px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display overflow-hidden h-screen w-screen flex flex-col">
+<!-- ZONE A: Header -->
+<header class="h-16 md:h-20 shrink-0 bg-surface-dark border-b border-border-dark flex items-center justify-between px-4 lg:px-6 relative z-20">
+<!-- Logo & Title -->
+<div class="flex items-center gap-3 w-auto md:w-64">
+<div class="flex items-center justify-center size-10 rounded-md bg-primary/20 text-primary">
+<span class="material-symbols-outlined text-[28px]">candlestick_chart</span>
+</div>
+<h1 class="text-lg md:text-xl font-bold tracking-tight text-white hidden sm:block">Online Trader</h1>
+</div>
+<!-- Search Bar -->
+<div class="flex-1 max-w-2xl px-4 hidden md:block">
+<div class="relative group">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="block w-full rounded-md border border-border-dark bg-[#111122] py-2.5 pl-10 pr-12 text-sm text-white placeholder-slate-500 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all" placeholder="Search symbols, orders, or commands..." type="text"/>
+<div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+<kbd class="inline-flex items-center rounded border border-slate-700 px-2 font-sans text-xs font-medium text-slate-400">Ctrl+K</kbd>
+</div>
+</div>
+</div>
+<!-- Right Utility Cluster -->
+<div class="flex items-center gap-3 md:gap-5 justify-end w-auto md:w-64">
+<!-- Status Pill -->
+<div class="flex items-center gap-2 bg-[#111122] border border-border-dark rounded-full px-3 py-1.5">
+<span class="relative flex h-2.5 w-2.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-success"></span>
+</span>
+<span class="text-xs font-semibold text-slate-300 hidden lg:block">Connected</span>
+</div>
+<div class="h-6 w-px bg-border-dark mx-1 hidden sm:block"></div>
+<!-- Actions -->
+<div class="flex items-center gap-2">
+<button class="relative p-2 rounded-md hover:bg-white/5 text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+</span>
+</button>
+<button class="p-2 rounded-md hover:bg-white/5 text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined">help</span>
+</button>
+<button class="ml-2 h-9 w-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-primary font-bold text-sm">
+                    JS
+                </button>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden relative">
+<!-- ZONE B: Sidebar -->
+<nav class="w-16 md:w-20 lg:w-64 bg-surface-dark border-r border-border-dark flex flex-col justify-between py-6 shrink-0 z-10 transition-all duration-300">
+<div class="flex flex-col gap-2 px-2 md:px-3">
+<!-- Nav Item: Active -->
+<a class="group flex items-center gap-3 px-3 py-3 rounded-md bg-primary/10 text-primary border border-primary/20 relative overflow-hidden" href="#">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-md"></div>
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">dashboard</span>
+<span class="text-sm font-semibold hidden lg:block">Dashboard</span>
+</a>
+<!-- Nav Items -->
+<a class="group flex items-center gap-3 px-3 py-3 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">candlestick_chart</span>
+<span class="text-sm font-medium hidden lg:block">Trades</span>
+</a>
+<a class="group flex items-center gap-3 px-3 py-3 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">pie_chart</span>
+<span class="text-sm font-medium hidden lg:block">Portfolio</span>
+</a>
+<a class="group flex items-center gap-3 px-3 py-3 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">history</span>
+<span class="text-sm font-medium hidden lg:block">History</span>
+</a>
+<a class="group flex items-center gap-3 px-3 py-3 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">analytics</span>
+<span class="text-sm font-medium hidden lg:block">Analytics</span>
+</a>
+</div>
+<div class="flex flex-col gap-2 px-2 md:px-3">
+<a class="group flex items-center gap-3 px-3 py-3 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">settings</span>
+<span class="text-sm font-medium hidden lg:block">Settings</span>
+</a>
+<div class="border-t border-border-dark my-1 mx-3"></div>
+<a class="group flex items-center gap-3 px-3 py-3 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-400/5 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">logout</span>
+<span class="text-sm font-medium hidden lg:block">Logout</span>
+</a>
+</div>
+</nav>
+<!-- ZONE C: Main Workspace -->
+<main class="flex-1 relative overflow-y-auto overflow-x-hidden bg-[#101022] grid-bg p-4 md:p-6">
+<!-- Breadcrumbs / Top Actions -->
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-2xl font-bold text-white tracking-tight">Market Overview</h2>
+<div class="flex gap-3">
+<button class="px-4 py-2 bg-surface-dark border border-border-dark text-slate-300 rounded-md text-sm font-medium hover:bg-border-dark hover:text-white transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">tune</span>
+                        Customize Layout
+                    </button>
+<button class="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium shadow-lg shadow-primary/20 hover:bg-primary-dark transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                        New Widget
+                    </button>
+</div>
+</div>
+<!-- Grid Layout Placeholder -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 h-[calc(100%-80px)]">
+<!-- Widget 1: Chart (Large) -->
+<div class="md:col-span-2 lg:col-span-2 xl:col-span-3 row-span-2 bg-surface-dark border border-border-dark rounded-lg flex flex-col shadow-xl overflow-hidden relative group">
+<div class="p-4 border-b border-border-dark flex justify-between items-center bg-[#151525]">
+<div class="flex items-center gap-2">
+<span class="text-white font-semibold">BTC/USD</span>
+<span class="text-xs px-2 py-0.5 rounded bg-primary/20 text-primary">PERP</span>
+</div>
+<div class="flex gap-2">
+<span class="text-xs text-slate-400 font-mono">1H</span>
+<span class="text-xs text-slate-500 font-mono">4H</span>
+<span class="text-xs text-slate-500 font-mono">1D</span>
+</div>
+</div>
+<div class="flex-1 relative bg-gradient-to-b from-[#1A1A2E] to-[#111122] flex items-center justify-center">
+<!-- Abstract Chart Representation -->
+<div class="absolute inset-0 p-6 flex flex-col">
+<div class="flex items-end justify-between h-full gap-1 w-full opacity-60">
+<div class="w-full bg-success/20 rounded-t-sm h-[40%]"></div>
+<div class="w-full bg-red-500/20 rounded-t-sm h-[30%]"></div>
+<div class="w-full bg-success/20 rounded-t-sm h-[55%]"></div>
+<div class="w-full bg-success/20 rounded-t-sm h-[65%]"></div>
+<div class="w-full bg-red-500/20 rounded-t-sm h-[45%]"></div>
+<div class="w-full bg-success/20 rounded-t-sm h-[70%]"></div>
+<div class="w-full bg-success/20 rounded-t-sm h-[85%] relative group-hover:opacity-100 transition-opacity">
+<div class="absolute -top-3 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)]"></div>
+</div>
+<div class="w-full bg-red-500/20 rounded-t-sm h-[60%]"></div>
+</div>
+<!-- Simple SVG Line overlay -->
+<svg class="absolute inset-0 h-full w-full pointer-events-none" preserveaspectratio="none">
+<path class="drop-shadow-[0_0_8px_rgba(99,99,242,0.5)]" d="M 0 300 Q 150 200 300 250 T 600 150 T 900 100" fill="none" stroke="#6363f2" stroke-width="2"></path>
+</svg>
+</div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-700 font-mono text-sm tracking-widest pointer-events-none">NO SIGNAL</div>
+</div>
+</div>
+<!-- Widget 2: Order Book -->
+<div class="md:col-span-1 lg:col-span-1 xl:col-span-1 row-span-2 bg-surface-dark border border-border-dark rounded-lg flex flex-col shadow-xl overflow-hidden">
+<div class="p-3 border-b border-border-dark flex justify-between items-center bg-[#151525]">
+<span class="text-white font-semibold text-sm">Order Book</span>
+<span class="material-symbols-outlined text-slate-500 text-[18px]">more_horiz</span>
+</div>
+<div class="flex-1 p-2 font-mono text-xs overflow-hidden flex flex-col gap-0.5">
+<!-- Asks -->
+<div class="flex justify-between text-red-400 px-2 py-1 hover:bg-white/5 cursor-pointer rounded"><span>42,155.50</span><span class="text-slate-500">0.054</span></div>
+<div class="flex justify-between text-red-400 px-2 py-1 hover:bg-white/5 cursor-pointer rounded"><span>42,154.00</span><span class="text-slate-500">1.200</span></div>
+<div class="flex justify-between text-red-400 px-2 py-1 hover:bg-white/5 cursor-pointer rounded"><span>42,153.50</span><span class="text-slate-500">0.450</span></div>
+<!-- Spread -->
+<div class="py-2 flex items-center justify-center my-1 bg-[#111122] rounded border border-border-dark/50">
+<span class="text-white font-bold text-sm">42,150.00</span>
+<span class="text-[10px] text-slate-500 ml-2">SPREAD 3.5</span>
+</div>
+<!-- Bids -->
+<div class="flex justify-between text-success px-2 py-1 hover:bg-white/5 cursor-pointer rounded"><span>42,148.50</span><span class="text-slate-500">2.100</span></div>
+<div class="flex justify-between text-success px-2 py-1 hover:bg-white/5 cursor-pointer rounded"><span>42,146.00</span><span class="text-slate-500">5.550</span></div>
+<div class="flex justify-between text-success px-2 py-1 hover:bg-white/5 cursor-pointer rounded"><span>42,145.50</span><span class="text-slate-500">0.120</span></div>
+<div class="flex justify-between text-success px-2 py-1 hover:bg-white/5 cursor-pointer rounded opacity-60"><span>42,142.00</span><span class="text-slate-500">0.900</span></div>
+</div>
+</div>
+<!-- Widget 3: Recent Trades -->
+<div class="md:col-span-1 lg:col-span-1 xl:col-span-1 bg-surface-dark border border-border-dark rounded-lg flex flex-col shadow-xl overflow-hidden min-h-[200px]">
+<div class="p-3 border-b border-border-dark flex justify-between items-center bg-[#151525]">
+<span class="text-white font-semibold text-sm">Recent Trades</span>
+</div>
+<div class="flex-1 p-2 font-mono text-xs overflow-hidden flex flex-col gap-0.5">
+<div class="flex justify-between px-2 py-1 border-b border-white/5 pb-1 mb-1 text-slate-500"><span>Price</span><span>Time</span></div>
+<div class="flex justify-between px-2 py-0.5"><span class="text-success">42,150.50</span><span class="text-slate-400">14:02:30</span></div>
+<div class="flex justify-between px-2 py-0.5"><span class="text-red-400">42,149.00</span><span class="text-slate-400">14:02:28</span></div>
+<div class="flex justify-between px-2 py-0.5"><span class="text-red-400">42,148.50</span><span class="text-slate-400">14:02:25</span></div>
+<div class="flex justify-between px-2 py-0.5"><span class="text-success">42,151.00</span><span class="text-slate-400">14:02:21</span></div>
+</div>
+</div>
+<!-- Widget 4: Quick Actions -->
+<div class="md:col-span-1 lg:col-span-1 xl:col-span-1 bg-surface-dark border border-border-dark rounded-lg flex flex-col shadow-xl overflow-hidden min-h-[200px]">
+<div class="p-3 border-b border-border-dark flex justify-between items-center bg-[#151525]">
+<span class="text-white font-semibold text-sm">Quick Execute</span>
+</div>
+<div class="flex-1 p-4 flex flex-col gap-3 justify-center">
+<div class="flex gap-2">
+<input class="w-full bg-[#111122] border border-border-dark rounded p-2 text-white text-sm font-mono focus:border-primary focus:ring-0" placeholder="Qty" type="number"/>
+<select class="bg-[#111122] border border-border-dark rounded p-2 text-white text-sm focus:border-primary focus:ring-0">
+<option>MKT</option>
+<option>LMT</option>
+</select>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-success hover:bg-green-600 text-white font-bold py-2 rounded text-sm transition-colors">BUY</button>
+<button class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded text-sm transition-colors">SELL</button>
+</div>
+</div>
+</div>
+<!-- Widget 5: Analytics Preview -->
+<div class="md:col-span-2 lg:col-span-1 xl:col-span-2 bg-surface-dark border border-border-dark rounded-lg flex flex-col shadow-xl overflow-hidden min-h-[200px]">
+<div class="p-3 border-b border-border-dark flex justify-between items-center bg-[#151525]">
+<span class="text-white font-semibold text-sm">Portfolio Distribution</span>
+</div>
+<div class="flex-1 p-4 flex items-center justify-around">
+<div class="relative w-32 h-32 rounded-full border-[6px] border-[#111122] shadow-[0_0_0_10px_#6363f2] flex items-center justify-center">
+<div class="absolute inset-0 rounded-full border-[6px] border-[#22C55E] clip-path-half" style="clip-path: polygon(0 0, 100% 0, 100% 50%, 0 50%); transform: rotate(45deg);"></div>
+<span class="text-white font-bold text-lg">78%</span>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-2 text-sm text-slate-300">
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<span>Spot Assets</span>
+</div>
+<div class="flex items-center gap-2 text-sm text-slate-300">
+<div class="w-3 h-3 rounded-full bg-success"></div>
+<span>Futures Margin</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- ZONE D: Footer -->
+<footer class="h-10 shrink-0 bg-[#0b0b18] border-t border-border-dark flex items-center justify-between px-4 font-mono text-[11px] md:text-xs text-slate-400 z-30">
+<div class="flex items-center gap-4 md:gap-6 overflow-x-auto no-scrollbar whitespace-nowrap">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-success"></span>
+<span class="font-bold text-slate-300">Engine: ACTIVE</span>
+</div>
+<div class="w-px h-3 bg-slate-700"></div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]">wifi</span>
+<span class="font-bold text-slate-300">WS: CONNECTED</span>
+</div>
+<div class="w-px h-3 bg-slate-700 hidden sm:block"></div>
+<div class="hidden sm:flex items-center gap-2">
+<span class="text-primary">Lag: 12ms</span>
+</div>
+</div>
+<div class="flex items-center gap-4 pl-4 bg-[#0b0b18] shadow-[-10px_0_10px_#0b0b18]">
+<span class="text-slate-500 hidden sm:inline">v2.4.1-stable</span>
+<div class="flex items-center gap-2 text-slate-300">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+<span>Last snapshot: 14:02:31</span>
+</div>
+</div>
+</footer>
+</body></html>

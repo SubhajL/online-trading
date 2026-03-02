@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Online Trader Trade History</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#6363f2",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101022",
+                        "surface-dark": "#1A1A2E",
+                        "accent-teal": "#14B8A6",
+                        "danger-red": "#F43F5E",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"],
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1rem", "2xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased overflow-hidden h-screen flex flex-col">
+<!-- Header -->
+<header class="flex-none px-4 pt-12 pb-4 bg-background-light dark:bg-background-dark z-10 sticky top-0">
+<div class="flex items-center justify-between mb-4">
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Trade History</h1>
+<p class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-1 opacity-70">
+                    REST: GET /orders?status=FILLED
+                </p>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 rounded-full bg-surface-dark/50 hover:bg-surface-dark border border-white/5 transition-colors">
+<span class="material-symbols-outlined text-slate-400" style="font-size: 20px;">search</span>
+</button>
+<button class="relative p-2 rounded-full bg-surface-dark/50 hover:bg-surface-dark border border-white/5 transition-colors">
+<span class="material-symbols-outlined text-slate-400" style="font-size: 20px;">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border border-background-dark"></span>
+</button>
+</div>
+</div>
+<!-- Filter Scroller -->
+<div class="flex gap-2 overflow-x-auto no-scrollbar pb-2 mask-linear-fade">
+<button class="flex-none h-9 px-4 rounded-lg bg-primary text-white text-sm font-medium flex items-center justify-center transition-transform active:scale-95">
+                24H
+            </button>
+<button class="flex-none h-9 px-4 rounded-lg bg-surface-dark border border-white/5 text-slate-400 text-sm font-medium flex items-center justify-center hover:bg-surface-dark/80 transition-colors">
+                7D
+            </button>
+<button class="flex-none h-9 px-4 rounded-lg bg-surface-dark border border-white/5 text-slate-400 text-sm font-medium flex items-center justify-center hover:bg-surface-dark/80 transition-colors">
+                30D
+            </button>
+<button class="flex-none h-9 px-4 rounded-lg bg-surface-dark border border-white/5 text-slate-400 text-sm font-medium flex items-center justify-center hover:bg-surface-dark/80 transition-colors">
+                90D
+            </button>
+<div class="w-[1px] h-6 bg-white/10 self-center mx-1"></div>
+<button class="flex-none h-9 px-3 rounded-lg bg-surface-dark border border-white/5 text-slate-400 flex items-center justify-center gap-1.5 hover:bg-surface-dark/80 transition-colors">
+<span class="material-symbols-outlined" style="font-size: 18px;">filter_list</span>
+<span class="text-xs font-medium uppercase tracking-wide">Filter</span>
+</button>
+</div>
+</header>
+<!-- Main Content: Scrollable List -->
+<main class="flex-1 overflow-y-auto no-scrollbar px-4 pb-24 space-y-3">
+<!-- Summary Stats Card -->
+<div class="p-4 rounded-xl bg-gradient-to-br from-surface-dark to-[#1e1e36] border border-white/5 shadow-lg mb-6">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" style="font-size: 20px;">pie_chart</span>
+<span class="text-sm font-medium text-slate-300">Net Realized P&amp;L (24H)</span>
+</div>
+<div class="px-2 py-0.5 rounded bg-accent-teal/10 border border-accent-teal/20">
+<span class="text-[10px] font-bold text-accent-teal uppercase tracking-wider">Profitable</span>
+</div>
+</div>
+<div class="flex items-end gap-2">
+<h2 class="text-3xl font-bold font-mono text-white tracking-tight">+$1,248.50</h2>
+<span class="text-sm font-mono text-accent-teal mb-1.5 flex items-center">
+<span class="material-symbols-outlined" style="font-size: 16px;">trending_up</span>
+                    4.2%
+                </span>
+</div>
+</div>
+<!-- Section Label -->
+<h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider pl-1 mb-2">Recent Trades</h3>
+<!-- Trade Card 1 (BTC Long) -->
+<div class="group relative bg-surface-dark rounded-xl p-4 border border-white/5 hover:border-primary/30 transition-all active:scale-[0.99] cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-[#F7931A]/10 flex items-center justify-center">
+<!-- Bitcoin Icon Placeholder -->
+<span class="material-symbols-outlined text-[#F7931A]" style="font-size: 24px;">currency_bitcoin</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-bold text-white text-base">BTC/USDT</h4>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/20">LONG</span>
+</div>
+<span class="text-xs text-slate-400 font-mono">10:42:05 • SPOT</span>
+</div>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-accent-teal font-mono">+$320.50</p>
+<span class="text-[10px] text-slate-500 font-medium bg-slate-800/50 px-1.5 py-0.5 rounded">FILLED</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 py-3 border-t border-white/5">
+<div>
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Filled Qty</p>
+<p class="text-sm font-mono text-slate-200">0.045</p>
+</div>
+<div>
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Avg Price</p>
+<p class="text-sm font-mono text-slate-200">64,200.5</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Fee</p>
+<p class="text-sm font-mono text-slate-400">1.25 USDT</p>
+</div>
+</div>
+</div>
+<!-- Trade Card 2 (ETH Short) -->
+<div class="group relative bg-surface-dark rounded-xl p-4 border border-white/5 hover:border-danger-red/30 transition-all active:scale-[0.99] cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-[#627EEA]/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#627EEA]" style="font-size: 24px;">token</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-bold text-white text-base">ETH/USDT</h4>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-danger-red/20 text-danger-red border border-danger-red/20">SHORT</span>
+</div>
+<span class="text-xs text-slate-400 font-mono">09:15:30 • USD-M</span>
+</div>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-danger-red font-mono">-$124.80</p>
+<span class="text-[10px] text-slate-500 font-medium bg-slate-800/50 px-1.5 py-0.5 rounded">FILLED</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 py-3 border-t border-white/5">
+<div>
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Filled Qty</p>
+<p class="text-sm font-mono text-slate-200">2.500</p>
+</div>
+<div>
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Avg Price</p>
+<p class="text-sm font-mono text-slate-200">3,450.2</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Fee</p>
+<p class="text-sm font-mono text-slate-400">4.10 USDT</p>
+</div>
+</div>
+</div>
+<!-- Trade Card 3 (SOL Long) -->
+<div class="group relative bg-surface-dark rounded-xl p-4 border border-white/5 hover:border-primary/30 transition-all active:scale-[0.99] cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-[#9945FF]/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#9945FF]" style="font-size: 24px;">generating_tokens</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-bold text-white text-base">SOL/USDT</h4>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary border border-primary/20">LONG</span>
+</div>
+<span class="text-xs text-slate-400 font-mono">08:42:12 • SPOT</span>
+</div>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-accent-teal font-mono">+$89.00</p>
+<span class="text-[10px] text-slate-500 font-medium bg-slate-800/50 px-1.5 py-0.5 rounded">FILLED</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 py-3 border-t border-white/5">
+<div>
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Filled Qty</p>
+<p class="text-sm font-mono text-slate-200">15.00</p>
+</div>
+<div>
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Avg Price</p>
+<p class="text-sm font-mono text-slate-200">145.20</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-slate-500 uppercase mb-0.5">Fee</p>
+<p class="text-sm font-mono text-slate-400">0.85 USDT</p>
+</div>
+</div>
+</div>
+<!-- Trade Card 4 (XRP Long) -->
+<div class="group relative bg-surface-dark rounded-xl p-4 border border-white/5 hover:border-primary/30 transition-all active:scale-[0.99] cursor-pointer opacity-80">
+<div class="flex justify-between items-start mb-3">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-size: 24px;">cancel</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h4 class="font-bold text-slate-300 text-base">XRP/USDT</h4>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300 border border-slate-600">CANCELLED</span>
+</div>
+<span class="text-xs text-slate-500 font-mono">Yesterday • SPOT</span>
+</div>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-slate-500 font-mono">--</p>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 py-3 border-t border-white/5">
+<div>
+<p class="text-[10px] text-slate-600 uppercase mb-0.5">Filled Qty</p>
+<p class="text-sm font-mono text-slate-500">0.00</p>
+</div>
+<div>
+<p class="text-[10px] text-slate-600 uppercase mb-0.5">Avg Price</p>
+<p class="text-sm font-mono text-slate-500">--</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-slate-600 uppercase mb-0.5">Fee</p>
+<p class="text-sm font-mono text-slate-500">0.00</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Detail Drawer (Simulated as a fixed overlay at bottom, visually appearing as a drawer) -->
+<!-- In a real app, this would be conditionally rendered or a modal -->
+<div class="fixed inset-x-0 bottom-0 z-20 transform translate-y-[calc(100%-60px)] hover:translate-y-0 transition-transform duration-500 ease-spring">
+<!-- Drawer Handle/Header -->
+<div class="bg-surface-dark border-t border-white/10 rounded-t-2xl shadow-2xl shadow-black h-[85vh] flex flex-col">
+<div class="flex-none p-2 flex justify-center cursor-pointer">
+<div class="w-12 h-1.5 bg-slate-700 rounded-full"></div>
+</div>
+<div class="flex-none px-6 pb-4 border-b border-white/5 flex items-center justify-between">
+<div>
+<h3 class="text-lg font-bold text-white">Trade Details</h3>
+<p class="text-xs text-slate-400 font-mono">ID: #99281-XM2</p>
+</div>
+<button class="p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-slate-400">share</span>
+</button>
+</div>
+<!-- Drawer Content -->
+<div class="flex-1 overflow-y-auto p-6 space-y-6">
+<!-- Highlight Grid -->
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-background-dark p-4 rounded-xl border border-white/5">
+<span class="text-xs text-slate-500 uppercase block mb-1">Total P&amp;L</span>
+<span class="text-xl font-bold font-mono text-accent-teal">+$320.50</span>
+</div>
+<div class="bg-background-dark p-4 rounded-xl border border-white/5">
+<span class="text-xs text-slate-500 uppercase block mb-1">Fee (BNB)</span>
+<span class="text-xl font-bold font-mono text-slate-200">0.0021</span>
+</div>
+</div>
+<!-- Timeline -->
+<div>
+<h4 class="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">history</span>
+                        Execution Timeline
+                    </h4>
+<div class="relative pl-4 space-y-6 border-l border-white/10 ml-2">
+<!-- Timeline Item 1 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-accent-teal border-2 border-surface-dark"></div>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-sm text-white font-medium">Order Filled</p>
+<p class="text-xs text-slate-500 font-mono">10:42:05</p>
+</div>
+<div class="text-right">
+<p class="text-xs text-slate-300 font-mono">0.02 BTC @ 64,201</p>
+</div>
+</div>
+</div>
+<!-- Timeline Item 2 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-slate-600 border-2 border-surface-dark"></div>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-sm text-white font-medium">Partial Fill</p>
+<p class="text-xs text-slate-500 font-mono">10:42:02</p>
+</div>
+<div class="text-right">
+<p class="text-xs text-slate-300 font-mono">0.015 BTC @ 64,200</p>
+</div>
+</div>
+</div>
+<!-- Timeline Item 3 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-slate-600 border-2 border-surface-dark"></div>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-sm text-white font-medium">Order Created</p>
+<p class="text-xs text-slate-500 font-mono">10:42:00</p>
+</div>
+<div class="text-right">
+<p class="text-xs text-slate-500 font-mono">Limit / Buy</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Hint to pull up -->
+<div class="absolute bottom-6 left-0 right-0 text-center pointer-events-none opacity-50">
+<p class="text-[10px] text-slate-400 uppercase tracking-widest">Swipe up for details</p>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation Bar -->
+<nav class="flex-none bg-surface-dark border-t border-white/5 pb-6 pt-2 px-6 flex justify-between items-center z-30">
+<a class="flex flex-col items-center gap-1 group" href="#">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-primary transition-colors" style="font-size: 24px;">grid_view</span>
+<span class="text-[10px] font-medium text-slate-500 group-hover:text-primary transition-colors">Dashboard</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-primary transition-colors" style="font-size: 24px;">candlestick_chart</span>
+<span class="text-[10px] font-medium text-slate-500 group-hover:text-primary transition-colors">Trade</span>
+</a>
+<a class="flex flex-col items-center gap-1 relative" href="#">
+<div class="absolute -top-10 bg-primary rounded-full p-3 shadow-lg shadow-primary/30 border-4 border-background-dark transform transition-transform hover:-translate-y-1">
+<span class="material-symbols-outlined text-white" style="font-size: 24px;">history</span>
+</div>
+<span class="text-[10px] font-medium text-white mt-5">History</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-primary transition-colors" style="font-size: 24px;">account_balance_wallet</span>
+<span class="text-[10px] font-medium text-slate-500 group-hover:text-primary transition-colors">Wallet</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-primary transition-colors" style="font-size: 24px;">settings</span>
+<span class="text-[10px] font-medium text-slate-500 group-hover:text-primary transition-colors">Settings</span>
+</a>
+</nav>
+</body></html>

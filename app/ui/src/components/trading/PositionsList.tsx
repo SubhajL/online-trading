@@ -152,7 +152,7 @@ export function PositionsList({
                       <Badge
                         variant="outline"
                         className={
-                          position.side === 'BUY'
+                          position.side === 'LONG'
                             ? 'bg-success/15 text-success border-success/30'
                             : 'bg-destructive/15 text-destructive border-destructive/30'
                         }

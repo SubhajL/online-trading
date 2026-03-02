@@ -1,6 +1,7 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { usePositions } from './usePositions'
+import type { Position } from '@/types'
 
 // Mock the dependencies
 vi.mock('@/services/api', () => ({
@@ -13,13 +14,21 @@ vi.mock('./useApiCache', () => ({
   useApiCache: vi.fn(),
 }))
 
+const mockSubscribe = vi.fn()
+vi.mock('@/services/websocket', () => ({
+  websocketService: {
+    subscribe: (...args: unknown[]) => mockSubscribe(...args),
+  },
+}))
+
 import { useApiCache } from './useApiCache'
+import { apiClient } from '@/services/api'
 
 describe('usePositions', () => {
   const mockPositions: Position[] = [
     {
       symbol: 'BTCUSDT' as any,
-      side: 'BUY',
+      side: 'LONG',
       quantity: 0.1,
       entryPrice: 40000,
       markPrice: 42000,
@@ -29,7 +38,7 @@ describe('usePositions', () => {
     },
     {
       symbol: 'ETHUSDT' as any,
-      side: 'SELL',
+      side: 'SHORT',
       quantity: 2,
       entryPrice: 2500,
       markPrice: 2400,
@@ -41,6 +50,7 @@ describe('usePositions', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSubscribe.mockReturnValue(vi.fn())
   })
 
   test('fetches positions from trading endpoint successfully', async () => {
@@ -58,6 +68,103 @@ describe('usePositions', () => {
     expect(result.current.positions).toEqual(mockPositions)
     expect(result.current.loading).toBe(false)
     expect(result.current.error).toBe(null)
+  })
+
+  test('fetcher parses Position[] response from /trading/positions', async () => {
+    let capturedFetcher: (() => Promise<Position[]>) | null = null
+
+    vi.mocked(useApiCache).mockImplementation((_cacheKey, fetcher) => {
+      capturedFetcher = fetcher
+      return {
+        data: [],
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+        clearCache: vi.fn(),
+      }
+    })
+
+    vi.mocked(apiClient.get).mockResolvedValue(mockPositions)
+
+    renderHook(() => usePositions())
+
+    expect(capturedFetcher).not.toBeNull()
+    const result = await capturedFetcher!()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/trading/positions', { params: undefined })
+    expect(result).toEqual(mockPositions)
+  })
+
+  test('fetcher maps BFF position payload to Position shape', async () => {
+    let capturedFetcher: (() => Promise<Position[]>) | null = null
+    vi.mocked(useApiCache).mockImplementation((_cacheKey, fetcher) => {
+      capturedFetcher = fetcher
+      return {
+        data: [],
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+        clearCache: vi.fn(),
+      }
+    })
+
+    vi.mocked(apiClient.get).mockResolvedValue([
+      {
+        symbol: 'BTCUSDT',
+        side: 'LONG',
+        quantity: 0.5,
+        entryPrice: 50000,
+        currentPrice: 51000,
+        pnl: 500,
+        pnlPercent: 2,
+        venue: 'SPOT',
+        timestamp: 1700000000000,
+      },
+    ])
+
+    renderHook(() => usePositions())
+    expect(capturedFetcher).not.toBeNull()
+    const result = await capturedFetcher!()
+
+    expect(result).toEqual([
+      {
+        symbol: 'BTCUSDT',
+        side: 'LONG',
+        quantity: 0.5,
+        entryPrice: 50000,
+        markPrice: 51000,
+        pnl: 500,
+        pnlPercent: 2,
+        venue: 'SPOT',
+      },
+    ])
+  })
+
+  test('ignores websocket updates when payload is null or undefined', () => {
+    let wsCallback: ((position: Position | null | undefined) => void) | undefined
+    mockSubscribe.mockImplementation((_event: string, callback: typeof wsCallback) => {
+      wsCallback = callback
+      return vi.fn()
+    })
+
+    vi.mocked(useApiCache).mockReturnValue({
+      data: mockPositions,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+      clearCache: vi.fn(),
+    })
+
+    const { result } = renderHook(() => usePositions())
+    expect(result.current.positions).toHaveLength(2)
+
+    act(() => {
+      wsCallback?.(null)
+      wsCallback?.(undefined)
+    })
+
+    expect(result.current.positions).toHaveLength(2)
+    expect(result.current.positions).toEqual(mockPositions)
   })
 
   test('handles empty positions array gracefully', () => {

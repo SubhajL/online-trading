@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Online Trader Settings - API Keys</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#6363f2",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101022",
+                        "card-dark": "#1A1A2E",
+                        "danger": "#EF4444",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"],
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "18px", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* Hide scrollbar for clean mobile look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        /* Custom toggle switch styling */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #6363f2;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #6363f2;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-slate-100 flex flex-col overflow-hidden relative">
+<!-- Status Bar / Top Area Safe Zone -->
+<div class="h-12 w-full shrink-0"></div>
+<!-- Header (Zone A Adapted) -->
+<header class="flex items-center justify-between px-5 pb-4 shrink-0 z-10">
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-card-dark text-slate-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-2xl">arrow_back</span>
+</button>
+<h1 class="text-lg font-bold tracking-tight">API Keys</h1>
+<button class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/20 text-primary hover:bg-primary hover:text-white transition-colors">
+<span class="material-symbols-outlined text-2xl">add</span>
+</button>
+</header>
+<!-- Main Scrollable Content (Zone C Adapted) -->
+<main class="flex-1 overflow-y-auto no-scrollbar px-5 pb-24 space-y-6">
+<!-- Info/Stats Micro-Pills -->
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
+<div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card-dark border border-white/5 whitespace-nowrap">
+<div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+<span class="text-[10px] font-mono font-medium text-slate-400">REST: 24ms</span>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card-dark border border-white/5 whitespace-nowrap">
+<span class="material-symbols-outlined text-[14px] text-slate-400">lock</span>
+<span class="text-[10px] font-mono font-medium text-slate-400">ENCRYPTED</span>
+</div>
+</div>
+<!-- Section: Active Keys -->
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Active Keys</h2>
+<span class="text-xs text-slate-500">2 / 5 Used</span>
+</div>
+<!-- Card 1: Binance Main -->
+<div class="bg-card-dark rounded-lg p-5 shadow-lg border border-white/5 space-y-5 relative overflow-hidden group">
+<!-- Card Background Gradient Accent -->
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[50px] rounded-full pointer-events-none"></div>
+<div class="flex items-start justify-between relative z-10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white">
+<span class="material-symbols-outlined">currency_bitcoin</span>
+</div>
+<div>
+<h3 class="font-bold text-base leading-tight">Binance Main</h3>
+<p class="text-xs text-slate-400 mt-0.5">Created Oct 24, 2023</p>
+</div>
+</div>
+<span class="px-2.5 py-1 rounded-md bg-green-500/10 text-green-500 text-[10px] font-bold tracking-wide uppercase border border-green-500/20">Active</span>
+</div>
+<!-- API Key Field -->
+<div class="relative z-10">
+<label class="text-[10px] font-medium text-slate-500 uppercase mb-1.5 block">API Secret</label>
+<div class="flex items-center gap-2 bg-[#101022] rounded-xl p-1 pr-2 border border-white/5">
+<input class="bg-transparent border-none text-sm font-mono text-slate-300 w-full focus:ring-0 px-3 py-2" disabled="" readonly="" type="password" value="sk_live_51MQs239102"/>
+<button class="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-colors">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-colors">
+<span class="material-symbols-outlined text-[20px]">content_copy</span>
+</button>
+</div>
+</div>
+<!-- Permissions Toggles -->
+<div class="grid grid-cols-1 gap-3 pt-2 border-t border-white/5 relative z-10">
+<!-- Toggle Item: Read -->
+<label class="flex items-center justify-between cursor-pointer group/toggle">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-slate-400 group-hover/toggle:text-white transition-colors">visibility</span>
+<span class="text-sm font-medium text-slate-300 group-hover/toggle:text-white transition-colors">Read</span>
+</div>
+<div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+<input checked="" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-card-dark appearance-none cursor-pointer transition-all duration-300 left-0 checked:left-[1.25rem]" id="toggle1" name="toggle" type="checkbox"/>
+<label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300" for="toggle1"></label>
+</div>
+</label>
+<!-- Toggle Item: Trade -->
+<label class="flex items-center justify-between cursor-pointer group/toggle">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-slate-400 group-hover/toggle:text-white transition-colors">candlestick_chart</span>
+<span class="text-sm font-medium text-slate-300 group-hover/toggle:text-white transition-colors">Trade</span>
+</div>
+<div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+<input checked="" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-card-dark appearance-none cursor-pointer transition-all duration-300 left-0 checked:left-[1.25rem]" id="toggle2" name="toggle" type="checkbox"/>
+<label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300" for="toggle2"></label>
+</div>
+</label>
+<!-- Toggle Item: Withdraw -->
+<label class="flex items-center justify-between cursor-pointer group/toggle">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-slate-400 group-hover/toggle:text-white transition-colors">payments</span>
+<span class="text-sm font-medium text-slate-300 group-hover/toggle:text-white transition-colors">Withdraw</span>
+</div>
+<div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+<input class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-card-dark appearance-none cursor-pointer transition-all duration-300 left-0 checked:left-[1.25rem]" id="toggle3" name="toggle" type="checkbox"/>
+<label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer transition-colors duration-300" for="toggle3"></label>
+</div>
+</label>
+</div>
+</div>
+<!-- Card 2: Trading Bot V2 -->
+<div class="bg-card-dark rounded-lg p-5 shadow-lg border border-white/5 space-y-5 relative overflow-hidden">
+<div class="flex items-start justify-between relative z-10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white">
+<span class="material-symbols-outlined">smart_toy</span>
+</div>
+<div>
+<h3 class="font-bold text-base leading-tight">Trading Bot V2</h3>
+<p class="text-xs text-slate-400 mt-0.5">Created Nov 02, 2023</p>
+</div>
+</div>
+<span class="px-2.5 py-1 rounded-md bg-slate-700/50 text-slate-300 text-[10px] font-bold tracking-wide uppercase border border-white/5">Paused</span>
+</div>
+<!-- API Key Field -->
+<div class="relative z-10">
+<label class="text-[10px] font-medium text-slate-500 uppercase mb-1.5 block">API Secret</label>
+<div class="flex items-center gap-2 bg-[#101022] rounded-xl p-1 pr-2 border border-white/5">
+<input class="bg-transparent border-none text-sm font-mono text-slate-300 w-full focus:ring-0 px-3 py-2" disabled="" readonly="" type="password" value="sk_test_88Xv910029"/>
+<button class="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-colors">
+<span class="material-symbols-outlined text-[20px]">visibility_off</span>
+</button>
+<button class="p-2 hover:bg-white/5 rounded-lg text-slate-400 transition-colors">
+<span class="material-symbols-outlined text-[20px]">content_copy</span>
+</button>
+</div>
+</div>
+<!-- Permissions Toggles -->
+<div class="grid grid-cols-1 gap-3 pt-2 border-t border-white/5 relative z-10">
+<!-- Toggle Item: Read Only -->
+<label class="flex items-center justify-between cursor-pointer group/toggle opacity-60">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-slate-400">visibility</span>
+<span class="text-sm font-medium text-slate-300">Read</span>
+</div>
+<div class="relative inline-block w-10 mr-2 align-middle select-none">
+<input checked="" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 border-card-dark appearance-none cursor-pointer left-[1.25rem]" disabled="" type="checkbox"/>
+<label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-600 cursor-not-allowed"></label>
+</div>
+</label>
+</div>
+</div>
+</div>
+<!-- Danger Zone -->
+<div class="pt-8 pb-4">
+<h2 class="text-sm font-semibold text-danger uppercase tracking-wider mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">warning</span>
+                Danger Zone
+            </h2>
+<div class="bg-danger/10 border border-danger/20 rounded-lg p-5 relative overflow-hidden">
+<!-- Decorative background pattern -->
+<div class="absolute -right-6 -top-6 text-danger/5">
+<span class="material-symbols-outlined text-[120px]">delete_forever</span>
+</div>
+<div class="relative z-10">
+<h3 class="font-bold text-base text-white">Revoke All Keys</h3>
+<p class="text-xs text-danger/80 mt-1 mb-4 leading-relaxed max-w-[80%]">
+                        This action will immediately disable all active API keys. Trading bots and third-party apps will lose access.
+                    </p>
+<button class="w-full flex items-center justify-center gap-2 bg-transparent border border-danger/50 hover:bg-danger/20 text-danger text-sm font-bold py-3 px-4 rounded-xl transition-all">
+<span class="material-symbols-outlined text-lg">block</span>
+                        Revoke All Access
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Fixed Action Area -->
+<div class="fixed bottom-0 left-0 w-full p-5 bg-gradient-to-t from-background-dark via-background-dark to-transparent pointer-events-none z-20">
+<button class="pointer-events-auto w-full bg-primary hover:bg-primary/90 text-white font-bold h-14 rounded-xl shadow-[0_8px_16px_-6px_rgba(99,99,242,0.5)] flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
+<span class="material-symbols-outlined">add_circle</span>
+            Generate New Key
+        </button>
+</div>
+</body></html>

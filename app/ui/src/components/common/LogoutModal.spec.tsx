@@ -6,7 +6,7 @@ import type { Position, Symbol } from '@/types'
 const mockPositions: Position[] = [
   {
     symbol: 'BTCUSDT' as Symbol,
-    side: 'BUY',
+    side: 'LONG',
     quantity: 0.1,
     entryPrice: 40000,
     markPrice: 42000,
@@ -16,7 +16,7 @@ const mockPositions: Position[] = [
   },
   {
     symbol: 'ETHUSDT' as Symbol,
-    side: 'SELL',
+    side: 'SHORT',
     quantity: 2,
     entryPrice: 2500,
     markPrice: 2400,

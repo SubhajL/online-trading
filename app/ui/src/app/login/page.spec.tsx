@@ -137,4 +137,26 @@ describe('LoginPage', () => {
       })
     })
   })
+
+  describe('revamp login declutter', () => {
+    it('renders streamlined revamp UI without decorative wiring clutter', () => {
+      const originalFlag = process.env.NEXT_PUBLIC_UI_REVAMP
+      process.env.NEXT_PUBLIC_UI_REVAMP = '1'
+
+      render(<LoginPage />)
+
+      expect(screen.getByTestId('login-form')).toBeInTheDocument()
+      expect(screen.queryByText('Safety-first execution')).not.toBeInTheDocument()
+      expect(screen.queryByText('SECURE_ROUTING')).not.toBeInTheDocument()
+      expect(screen.queryByText('GUARDS')).not.toBeInTheDocument()
+      expect(screen.queryByText('/auth/login')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', {
+          name: /reset credentials\?/i,
+        }),
+      ).not.toBeInTheDocument()
+
+      process.env.NEXT_PUBLIC_UI_REVAMP = originalFlag
+    })
+  })
 })

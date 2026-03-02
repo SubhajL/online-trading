@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { calculatePnL } from './calculatePnL'
 
 describe('calculatePnL', () => {
-  describe('long positions (BUY)', () => {
+  describe('long positions (LONG)', () => {
     it('calculates profit for price increase', () => {
       const position = {
-        side: 'BUY' as const,
+        side: 'LONG' as const,
         quantity: 0.1,
         entryPrice: 40000,
       }
@@ -18,7 +18,7 @@ describe('calculatePnL', () => {
 
     it('calculates loss for price decrease', () => {
       const position = {
-        side: 'BUY' as const,
+        side: 'LONG' as const,
         quantity: 0.1,
         entryPrice: 40000,
       }
@@ -31,7 +31,7 @@ describe('calculatePnL', () => {
 
     it('calculates zero PnL when price unchanged', () => {
       const position = {
-        side: 'BUY' as const,
+        side: 'LONG' as const,
         quantity: 1,
         entryPrice: 50000,
       }
@@ -44,7 +44,7 @@ describe('calculatePnL', () => {
 
     it('handles large quantities', () => {
       const position = {
-        side: 'BUY' as const,
+        side: 'LONG' as const,
         quantity: 10,
         entryPrice: 40000,
       }
@@ -56,10 +56,10 @@ describe('calculatePnL', () => {
     })
   })
 
-  describe('short positions (SELL)', () => {
+  describe('short positions (SHORT)', () => {
     it('calculates profit for price decrease', () => {
       const position = {
-        side: 'SELL' as const,
+        side: 'SHORT' as const,
         quantity: 1,
         entryPrice: 2500,
       }
@@ -72,7 +72,7 @@ describe('calculatePnL', () => {
 
     it('calculates loss for price increase', () => {
       const position = {
-        side: 'SELL' as const,
+        side: 'SHORT' as const,
         quantity: 1,
         entryPrice: 2500,
       }
@@ -85,7 +85,7 @@ describe('calculatePnL', () => {
 
     it('handles fractional quantities', () => {
       const position = {
-        side: 'SELL' as const,
+        side: 'SHORT' as const,
         quantity: 0.5,
         entryPrice: 100,
       }
@@ -100,7 +100,7 @@ describe('calculatePnL', () => {
   describe('edge cases', () => {
     it('handles very small price differences', () => {
       const position = {
-        side: 'BUY' as const,
+        side: 'LONG' as const,
         quantity: 100,
         entryPrice: 0.001,
       }
@@ -113,7 +113,7 @@ describe('calculatePnL', () => {
 
     it('handles large price values', () => {
       const position = {
-        side: 'BUY' as const,
+        side: 'LONG' as const,
         quantity: 0.001,
         entryPrice: 1000000,
       }
@@ -126,7 +126,7 @@ describe('calculatePnL', () => {
 
     it('handles zero quantity edge case', () => {
       const position = {
-        side: 'BUY' as const,
+        side: 'LONG' as const,
         quantity: 0,
         entryPrice: 100,
       }

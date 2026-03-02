@@ -17,7 +17,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MaterialIcon } from '@/components/common/MaterialIcon'
 import { PageHeader } from '@/components/common/PageHeader'
+import { IntegrationPill } from '@/components/common/IntegrationPill'
 import { cn } from '@/lib/utils'
+import { isUiRevampEnabled } from '@/config/ui-flags'
 
 const NAV_SECTIONS = [
   { id: 'profile', label: 'Profile', icon: 'person' },
@@ -32,7 +34,8 @@ const NAV_SECTIONS = [
 type SectionId = (typeof NAV_SECTIONS)[number]['id']
 
 export default function SettingsPage() {
-  const [activeSection, setActiveSection] = useState<SectionId>('profile')
+  const revamp = isUiRevampEnabled()
+  const [activeSection, setActiveSection] = useState<SectionId>(revamp ? 'api' : 'profile')
   const [settings, setSettings] = useState({
     general: {
       theme: 'dark',
@@ -70,11 +73,25 @@ export default function SettingsPage() {
       },
     }))
   }
+  const sectionCardClass = revamp
+    ? 'bg-[#1A1A2E] border-[#232348] rounded-[18px] text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,0.35)]'
+    : 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft'
 
   return (
     <AppShell>
-      <div className="flex flex-col gap-8">
-        <PageHeader title="Settings" />
+      <div className={revamp ? 'flex flex-col gap-6 text-slate-100' : 'flex flex-col gap-8'}>
+        <PageHeader
+          title="Settings"
+          actions={<IntegrationPill transport="REST" endpoint="/settings/preferences" />}
+        />
+
+        {revamp && (
+          <div className="flex flex-wrap items-center gap-2">
+            <IntegrationPill transport="REST" endpoint="/settings/preferences" />
+            <IntegrationPill transport="REST" endpoint="/settings/api-keys" />
+            <IntegrationPill transport="REST" endpoint="/settings/notifications" />
+          </div>
+        )}
 
         {/* Spec §6.6: Sidebar + Content layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -89,7 +106,9 @@ export default function SettingsPage() {
                     'flex items-center gap-3 px-4 py-3 rounded-xl text-left text-sm font-medium transition-colors',
                     activeSection === section.id
                       ? 'bg-primary/10 text-primary dark:bg-primary/20'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+                      : revamp
+                        ? 'text-slate-400 hover:bg-[#1A1A2E] hover:text-slate-100'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
                     section.id === 'danger' &&
                       activeSection !== 'danger' &&
                       'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30',
@@ -115,7 +134,7 @@ export default function SettingsPage() {
           <div className="lg:col-span-9">
             {/* Profile Section */}
             {activeSection === 'profile' && (
-              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+              <Card className={sectionCardClass}>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                     Profile Settings
@@ -145,7 +164,7 @@ export default function SettingsPage() {
 
             {/* Security Section */}
             {activeSection === 'security' && (
-              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+              <Card className={sectionCardClass}>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                     Security Settings
@@ -188,7 +207,7 @@ export default function SettingsPage() {
               <div className="flex flex-col gap-5">
                 {/* Connection Status */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+                  <Card className={sectionCardClass}>
                     <CardContent className="flex items-center justify-between p-5">
                       <div className="flex items-center gap-3">
                         <MaterialIcon name="shield" size="lg" className="text-slate-400" />
@@ -209,7 +228,7 @@ export default function SettingsPage() {
                       </Badge>
                     </CardContent>
                   </Card>
-                  <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+                  <Card className={sectionCardClass}>
                     <CardContent className="flex items-center justify-between p-5">
                       <div className="flex items-center gap-3">
                         <MaterialIcon name="shield" size="lg" className="text-slate-400" />
@@ -233,7 +252,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Testnet Toggle */}
-                <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+                <Card className={sectionCardClass}>
                   <CardContent className="flex items-center justify-between p-5">
                     <div>
                       <Label htmlFor="testnet">Testnet Mode</Label>
@@ -250,7 +269,7 @@ export default function SettingsPage() {
                 </Card>
 
                 {/* API Keys */}
-                <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+                <Card className={sectionCardClass}>
                   <CardHeader>
                     <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                       <MaterialIcon name="key" size="md" />
@@ -274,7 +293,10 @@ export default function SettingsPage() {
                             type="password"
                             placeholder={field.placeholder}
                             disabled
-                            className="flex-1"
+                            className={cn(
+                              'flex-1',
+                              revamp && 'border-[#323267] bg-[#101022] text-slate-300',
+                            )}
                           />
                           <Button
                             variant="secondary"
@@ -293,7 +315,7 @@ export default function SettingsPage() {
 
             {/* Notifications Section */}
             {activeSection === 'notifications' && (
-              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+              <Card className={sectionCardClass}>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                     Notification Settings
@@ -349,7 +371,7 @@ export default function SettingsPage() {
 
             {/* Trading Preferences Section */}
             {activeSection === 'trading' && (
-              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+              <Card className={sectionCardClass}>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                     Trading Settings
@@ -459,7 +481,7 @@ export default function SettingsPage() {
 
             {/* Appearance Section */}
             {activeSection === 'appearance' && (
-              <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+              <Card className={sectionCardClass}>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                     Appearance Settings
@@ -526,7 +548,13 @@ export default function SettingsPage() {
 
             {/* Danger Zone Section */}
             {activeSection === 'danger' && (
-              <Card className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-red-200 dark:border-red-900 shadow-soft">
+              <Card
+                className={cn(
+                  revamp
+                    ? 'rounded-[18px] border-2 border-red-500/40 bg-[#2a1015] text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,0.35)]'
+                    : 'bg-white dark:bg-slate-900 rounded-2xl border-2 border-red-200 dark:border-red-900 shadow-soft',
+                )}
+              >
                 <CardHeader className="border-b border-red-200 dark:border-red-900">
                   <CardTitle className="text-sm font-medium text-red-500 uppercase tracking-wide flex items-center gap-2">
                     <MaterialIcon name="warning" size="md" />
@@ -573,10 +601,19 @@ export default function SettingsPage() {
 
             {/* Save / Reset Actions */}
             <div className="flex justify-end gap-3 mt-6">
-              <Button variant="secondary" onClick={() => console.warn('TODO: Reset settings')}>
+              <Button
+                variant="secondary"
+                className={cn(
+                  revamp && 'border-[#323267] bg-[#15152a] text-slate-300 hover:bg-[#232348]',
+                )}
+                onClick={() => console.warn('TODO: Reset settings')}
+              >
                 Reset to Defaults
               </Button>
-              <Button onClick={() => console.warn('TODO: Save settings to BFF')}>
+              <Button
+                className={cn(revamp && 'bg-primary text-white hover:bg-primary/90')}
+                onClick={() => console.warn('TODO: Save settings to BFF')}
+              >
                 Save Changes
               </Button>
             </div>

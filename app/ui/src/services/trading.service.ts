@@ -25,6 +25,18 @@ export type AutoTradingStatus = {
   enabled: boolean
 }
 
+type BffPosition = {
+  symbol: Symbol
+  side: Position['side']
+  quantity: number
+  entryPrice: number
+  currentPrice: number
+  pnl: number
+  pnlPercent: number
+  venue: Venue
+  timestamp?: number
+}
+
 export class TradingService {
   constructor(private apiClient: ApiClient) {}
 
@@ -46,7 +58,17 @@ export class TradingService {
   }
 
   async getPositions(): Promise<Position[]> {
-    return this.apiClient.get<Position[]>('/trading/positions')
+    const positions = await this.apiClient.get<BffPosition[]>('/trading/positions')
+    return positions.map(position => ({
+      symbol: position.symbol,
+      side: position.side,
+      quantity: position.quantity,
+      entryPrice: position.entryPrice,
+      markPrice: position.currentPrice,
+      pnl: position.pnl,
+      pnlPercent: position.pnlPercent,
+      venue: position.venue,
+    }))
   }
 
   async cancelOrder(orderId: OrderId, request: CancelOrderRequest): Promise<void> {

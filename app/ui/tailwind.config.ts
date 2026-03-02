@@ -79,10 +79,13 @@ const config: Config = {
 
         // Spec-compatible aliases (Visualization Design Specifications.md)
         // These enable patterns like dark:bg-surface-dark from the spec
+        'background-dark': 'var(--bg-page-dark)',
         'page-dark': 'var(--bg-page-dark)',
         'surface-dark': 'var(--bg-surface-dark)',
+        'card-dark': 'var(--bg-surface-dark)',
         'surface-secondary-dark': 'var(--bg-surface-secondary-dark)',
         'surface-hover-dark': 'var(--bg-surface-hover-dark)',
+        'border-dark': 'var(--border-dark-mode)',
         'border-dark-mode': 'var(--border-dark-mode)',
       },
       spacing: {

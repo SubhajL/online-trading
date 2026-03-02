@@ -15,7 +15,7 @@ Next.js-based frontend for the trading platform with real-time market data visua
 ### Prerequisites
 
 - Node.js 18+ and pnpm
-- Trading platform backend running on port 8080
+- BFF running on port 3001 (`http://localhost:3001/api`)
 
 ### Development
 
@@ -96,7 +96,6 @@ Our UI follows a comprehensive design system with centralized design tokens and 
 
 // Navigation with active states
 import { isPathActive, getNavLinkClassName } from '@/utils/navigation'
-
 ;<Link href="/dashboard" className={getNavLinkClassName(pathname, '/dashboard', 'nav-link')}>
   Dashboard
 </Link>
@@ -148,20 +147,21 @@ E2E tests cover:
 
 ## API Integration
 
-The UI communicates with the backend API at `http://localhost:8080`:
+The UI communicates with BFF at `http://localhost:3001/api`:
 
-- `/api/v1/balances` - Account balances
-- `/api/v1/positions` - Open positions
-- `/api/v1/orders` - Order management
-- WebSocket `/ws` - Real-time market data
+- `/api/dashboard/snapshot` - Dashboard aggregate snapshot
+- `/api/trading/*` - Orders, positions, emergency actions
+- `/api/alerts/*` - Alert history and read state
+- WebSocket namespaces `/trading` and `/alerts` (base URL `ws://localhost:3001`)
 
 ## Environment Variables
 
 Create `.env.local` for local development:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8080
-NEXT_PUBLIC_WS_URL=ws://localhost:8080
+NEXT_PUBLIC_API_URL=http://localhost:3001/api
+NEXT_PUBLIC_WS_URL=ws://localhost:3001
+NEXT_PUBLIC_UI_REVAMP=1
 ```
 
 ## Accessibility

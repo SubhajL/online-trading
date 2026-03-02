@@ -19,7 +19,7 @@ export function PositionDisplay({ position, compact = false, onClose }: Position
   }
 
   const positionValue = position.quantity * position.markPrice
-  const isLong = position.side === 'BUY'
+  const isLong = position.side === 'LONG'
   const isProfit = position.pnl > 0
   const isBreakeven = position.pnl === 0
 

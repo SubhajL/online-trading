@@ -5,6 +5,18 @@ import type { Position, Venue } from '@/types'
 import { useApiCache } from './useApiCache'
 import { websocketService } from '@/services/websocket'
 
+type BffPosition = {
+  symbol: Position['symbol']
+  side: Position['side']
+  quantity: number
+  entryPrice: number
+  currentPrice: number
+  pnl: number
+  pnlPercent: number
+  venue: Venue
+  timestamp?: number
+}
+
 type UsePositionsReturn = {
   positions: Position[]
   loading: boolean
@@ -13,6 +25,23 @@ type UsePositionsReturn = {
   totalValue: number
   totalPnl: number
   positionsByVenue: Record<Venue, Position[]>
+}
+
+function toUiPosition(position: BffPosition | Position): Position {
+  if ('markPrice' in position) {
+    return position
+  }
+
+  return {
+    symbol: position.symbol,
+    side: position.side,
+    quantity: position.quantity,
+    entryPrice: position.entryPrice,
+    markPrice: position.currentPrice,
+    pnl: position.pnl,
+    pnlPercent: position.pnlPercent,
+    venue: position.venue,
+  }
 }
 
 export function usePositions(venue?: Venue, client?: ApiClient): UsePositionsReturn {
@@ -24,10 +53,10 @@ export function usePositions(venue?: Venue, client?: ApiClient): UsePositionsRet
   const fetcher = useMemo(
     () => async () => {
       const params = venue ? { venue } : undefined
-      const data = await apiClientRef.current.get<{ positions: Position[] }>('/trading/positions', {
+      const data = await apiClientRef.current.get<BffPosition[]>('/trading/positions', {
         params,
       })
-      return data.positions
+      return data.map(toUiPosition)
     },
     [venue],
   )
@@ -40,19 +69,32 @@ export function usePositions(venue?: Venue, client?: ApiClient): UsePositionsRet
 
   // Subscribe to WebSocket position updates
   useEffect(() => {
-    const unsubscribe = websocketService.subscribe('position_update.v1', (position: Position) => {
-      setWsPositions(prev => {
-        const updated = new Map(prev)
-        const key = `${position.symbol}-${position.venue}`
+    let unsubscribe = () => {}
+    try {
+      unsubscribe = websocketService.subscribe(
+        'position_update.v1',
+        (position: Position | BffPosition | null | undefined) => {
+          if (!position) {
+            return
+          }
 
-        // If venue filter is active, only update matching positions
-        if (!venue || position.venue === venue) {
-          updated.set(key, position)
-        }
+          const normalizedPosition = toUiPosition(position)
+          setWsPositions(prev => {
+            const updated = new Map(prev)
+            const key = `${normalizedPosition.symbol}-${normalizedPosition.venue}`
 
-        return updated
-      })
-    })
+            // If venue filter is active, only update matching positions
+            if (!venue || normalizedPosition.venue === venue) {
+              updated.set(key, normalizedPosition)
+            }
+
+            return updated
+          })
+        },
+      )
+    } catch {
+      // Fail-open: websocket may not be initialized yet.
+    }
 
     return () => {
       unsubscribe()

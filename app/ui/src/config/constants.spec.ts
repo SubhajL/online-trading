@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getApiUrl, getWebSocketUrl } from './constants'
+import { getApiUrl, getWebSocketUrl, getAlertsWebSocketUrl } from './constants'
 
 describe('getApiUrl', () => {
   it('returns API URL from environment variable when available', () => {
@@ -15,7 +15,7 @@ describe('getApiUrl', () => {
     const originalEnv = process.env.NEXT_PUBLIC_API_URL
     delete process.env.NEXT_PUBLIC_API_URL
 
-    expect(getApiUrl()).toBe('http://localhost:3000/api')
+    expect(getApiUrl()).toBe('http://localhost:3001/api')
 
     process.env.NEXT_PUBLIC_API_URL = originalEnv
   })
@@ -26,7 +26,7 @@ describe('getWebSocketUrl', () => {
     const originalEnv = process.env.NEXT_PUBLIC_WS_URL
     process.env.NEXT_PUBLIC_WS_URL = 'wss://ws.production.com'
 
-    expect(getWebSocketUrl()).toBe('wss://ws.production.com')
+    expect(getWebSocketUrl()).toBe('wss://ws.production.com/trading')
 
     process.env.NEXT_PUBLIC_WS_URL = originalEnv
   })
@@ -36,6 +36,35 @@ describe('getWebSocketUrl', () => {
     delete process.env.NEXT_PUBLIC_WS_URL
 
     expect(getWebSocketUrl()).toBe('ws://localhost:3001/trading')
+
+    process.env.NEXT_PUBLIC_WS_URL = originalEnv
+  })
+
+  it('accepts legacy NEXT_PUBLIC_WS_URL that includes /trading', () => {
+    const originalEnv = process.env.NEXT_PUBLIC_WS_URL
+    process.env.NEXT_PUBLIC_WS_URL = 'ws://localhost:3001/trading'
+
+    expect(getWebSocketUrl()).toBe('ws://localhost:3001/trading')
+
+    process.env.NEXT_PUBLIC_WS_URL = originalEnv
+  })
+})
+
+describe('getAlertsWebSocketUrl', () => {
+  it('returns alerts namespace URL from base', () => {
+    const originalEnv = process.env.NEXT_PUBLIC_WS_URL
+    process.env.NEXT_PUBLIC_WS_URL = 'wss://ws.production.com'
+
+    expect(getAlertsWebSocketUrl()).toBe('wss://ws.production.com/alerts')
+
+    process.env.NEXT_PUBLIC_WS_URL = originalEnv
+  })
+
+  it('accepts legacy NEXT_PUBLIC_WS_URL that includes /alerts', () => {
+    const originalEnv = process.env.NEXT_PUBLIC_WS_URL
+    process.env.NEXT_PUBLIC_WS_URL = 'ws://localhost:3001/alerts'
+
+    expect(getAlertsWebSocketUrl()).toBe('ws://localhost:3001/alerts')
 
     process.env.NEXT_PUBLIC_WS_URL = originalEnv
   })

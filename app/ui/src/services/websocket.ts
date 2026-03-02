@@ -1,10 +1,25 @@
 import { WebSocketService } from './websocket.service'
-import { getWebSocketUrl } from '@/config/constants'
+import { getAlertsWebSocketUrl, getWebSocketUrl } from '@/config/constants'
 
 export type { ConnectionState } from './websocket.service'
-export const websocketService = new WebSocketService()
+export const tradingWebsocketService = new WebSocketService()
+export const alertsWebsocketService = new WebSocketService()
 
-// Initialize connection when the module is imported
-if (typeof window !== 'undefined') {
-  websocketService.connect(getWebSocketUrl())
+// Back-compat: most of the UI expects a single trading socket
+export const websocketService = tradingWebsocketService
+
+export function reconnectAllWebsocketsWithAuth(): void {
+  tradingWebsocketService.reconnectWithAuth()
+  alertsWebsocketService.reconnectWithAuth()
+}
+
+export function initWebsockets(): void {
+  if (typeof window === 'undefined') return
+  tradingWebsocketService.connect(getWebSocketUrl())
+  alertsWebsocketService.connect(getAlertsWebSocketUrl())
+}
+
+export function disconnectWebsockets(): void {
+  tradingWebsocketService.disconnect()
+  alertsWebsocketService.disconnect()
 }

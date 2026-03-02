@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { alertsService } from './alerts.service'
 import { apiClient } from './api'
-import { websocketService } from './websocket'
+import { alertsWebsocketService } from './websocket'
 import type { Alert, AlertFilters, AlertStats } from '@/types/alerts'
 
 vi.mock('./api', () => ({
@@ -14,7 +14,7 @@ vi.mock('./api', () => ({
 }))
 
 vi.mock('./websocket', () => ({
-  websocketService: {
+  alertsWebsocketService: {
     on: vi.fn(),
     emit: vi.fn(),
     off: vi.fn(),
@@ -41,7 +41,7 @@ describe('alertsService', () => {
   describe('getAlerts', () => {
     it('should fetch alerts with default pagination', async () => {
       const mockResponse = {
-        alerts: [mockAlert],
+        data: [mockAlert],
         total: 1,
         page: 1,
         limit: 20,
@@ -62,7 +62,7 @@ describe('alertsService', () => {
         priority: 'high',
         read: false,
       }
-      const mockResponse = { alerts: [mockAlert], total: 1, page: 1, limit: 20 }
+      const mockResponse = { data: [mockAlert], total: 1, page: 1, limit: 20 }
       vi.mocked(apiClient.get).mockResolvedValue(mockResponse)
 
       await alertsService.getAlerts(1, 20, filters)
@@ -154,28 +154,40 @@ describe('alertsService', () => {
   describe('subscribeToAlerts', () => {
     it('should subscribe to alert events', () => {
       const callback = vi.fn()
-      const unsubscribe = vi.fn()
-      vi.mocked(websocketService.subscribe).mockReturnValue(unsubscribe)
+      const unsubscribeAlertNew = vi.fn()
+      vi.mocked(alertsWebsocketService.subscribe).mockReturnValue(unsubscribeAlertNew)
 
       const result = alertsService.subscribeToAlerts(callback)
 
-      expect(websocketService.emit).toHaveBeenCalledWith('alerts:subscribe', {})
-      expect(websocketService.subscribe).toHaveBeenCalledWith('alert.new', callback)
-      expect(result).toBe(unsubscribe)
+      expect(alertsWebsocketService.on).toHaveBeenCalledWith('connect', expect.any(Function))
+      expect(alertsWebsocketService.emit).toHaveBeenCalledWith('alerts:subscribe', {})
+      expect(alertsWebsocketService.subscribe).toHaveBeenCalledWith('alert.new', callback)
+      expect(result).toBeTypeOf('function')
+    })
+
+    it('should not throw when alerts websocket is disconnected', () => {
+      const callback = vi.fn()
+      vi.mocked(alertsWebsocketService.emit).mockImplementation(() => {
+        throw new Error('WebSocket is not connected')
+      })
+      vi.mocked(alertsWebsocketService.subscribe).mockReturnValue(() => {})
+
+      expect(() => alertsService.subscribeToAlerts(callback)).not.toThrow()
+      expect(alertsWebsocketService.emit).toHaveBeenCalledWith('alerts:subscribe', {})
     })
   })
 
   describe('unsubscribeFromAlerts', () => {
-    it('should unsubscribe from alert events', () => {
+    it('is deprecated no-op for backward compatibility', () => {
       alertsService.unsubscribeFromAlerts()
 
-      expect(websocketService.emit).toHaveBeenCalledWith('alerts:unsubscribe', {})
+      expect(alertsWebsocketService.emit).not.toHaveBeenCalled()
     })
   })
 
   describe('searchAlerts', () => {
     it('should search alerts by query', async () => {
-      const mockResults = { alerts: [mockAlert], total: 1 }
+      const mockResults = { data: [mockAlert], total: 1 }
       vi.mocked(apiClient.get).mockResolvedValue(mockResults)
 
       const result = await alertsService.searchAlerts('BTC')
@@ -187,7 +199,7 @@ describe('alertsService', () => {
     })
 
     it('should search with custom limit', async () => {
-      const mockResults = { alerts: [], total: 0 }
+      const mockResults = { data: [], total: 0 }
       vi.mocked(apiClient.get).mockResolvedValue(mockResults)
 
       await alertsService.searchAlerts('ETH', 10)

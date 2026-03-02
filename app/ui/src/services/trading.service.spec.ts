@@ -108,11 +108,30 @@ describe('TradingService', () => {
   })
 
   describe('getPositions', () => {
-    it('fetches current positions', async () => {
-      const mockPositions: Position[] = [
+    it('maps BFF positions to UI position shape', async () => {
+      const bffPositions = [
         {
           symbol: 'BTCUSDT' as Symbol,
-          side: 'BUY',
+          side: 'LONG' as const,
+          quantity: 0.01,
+          entryPrice: 50000,
+          currentPrice: 51000,
+          pnl: 10,
+          pnlPercent: 2,
+          venue: 'USD_M',
+          timestamp: 1700000000000,
+        },
+      ]
+
+      vi.mocked(mockApiClient.get).mockResolvedValueOnce(bffPositions)
+
+      const result = await service.getPositions()
+
+      expect(mockApiClient.get).toHaveBeenCalledWith('/trading/positions')
+      expect(result).toEqual([
+        {
+          symbol: 'BTCUSDT' as Symbol,
+          side: 'LONG',
           quantity: 0.01,
           entryPrice: 50000,
           markPrice: 51000,
@@ -120,14 +139,7 @@ describe('TradingService', () => {
           pnlPercent: 2,
           venue: 'USD_M',
         },
-      ]
-
-      vi.mocked(mockApiClient.get).mockResolvedValueOnce(mockPositions)
-
-      const result = await service.getPositions()
-
-      expect(mockApiClient.get).toHaveBeenCalledWith('/trading/positions')
-      expect(result).toEqual(mockPositions)
+      ] satisfies Position[])
     })
 
     it('handles empty positions', async () => {

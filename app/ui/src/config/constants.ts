@@ -1,10 +1,19 @@
+import { resolveApiEndpoints } from './runtime'
+
 export function getApiUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+  return resolveApiEndpoints().publicApiBase
 }
 
 export function getWebSocketUrl(): string {
-  // BFF WebSocket server with /trading namespace for order operations
-  return process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/trading'
+  // BFF Socket.IO server namespace for trading/market-data + order operations
+  const { websocketBase } = resolveApiEndpoints()
+  return `${websocketBase}/trading`
+}
+
+export function getAlertsWebSocketUrl(): string {
+  // BFF Socket.IO server namespace for realtime alerts
+  const { websocketBase } = resolveApiEndpoints()
+  return `${websocketBase}/alerts`
 }
 
 export const TIMEFRAMES = [

@@ -106,4 +106,13 @@ describe('AppSidebar', () => {
 
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument()
   })
+
+  it('uses lg breakpoint for revamp desktop sidebar', () => {
+    render(<AppSidebar {...defaultProps} variant="revamp" />)
+
+    const sidebar = screen.getByTestId('app-sidebar')
+    expect(sidebar.className).toContain('hidden')
+    expect(sidebar.className).toContain('lg:flex')
+    expect(sidebar.className).not.toContain('md:flex')
+  })
 })

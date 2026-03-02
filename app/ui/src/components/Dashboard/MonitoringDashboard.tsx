@@ -20,6 +20,12 @@ import { AutoTradingStatus } from './AutoTradingStatus'
 import { EmergencyControls } from './EmergencyControls'
 import { PositionsList } from '../trading/PositionsList'
 import { AccountBalance } from '../trading/AccountBalance'
+import { TwoToneCard } from '../common/TwoToneCard'
+import { IntegrationPill } from '../common/IntegrationPill'
+import { BusBar } from '../common/BusBar'
+import { StatusPill } from '../common/StatusPill'
+import { MaterialIcon } from '../common/MaterialIcon'
+import { isUiRevampEnabled } from '@/config/ui-flags'
 
 type MonitoringDashboardProps = {
   guardStatus: GuardStatusResponse | null
@@ -90,6 +96,124 @@ export function MonitoringDashboard({
   balancesLoading,
   className = '',
 }: MonitoringDashboardProps) {
+  const revamp = isUiRevampEnabled()
+  const busActiveCount = guardStatus
+    ? Object.values(guardStatus.guards).filter(guard => guard.status === 'OK').length
+    : 0
+
+  if (revamp) {
+    return (
+      <div className={`flex flex-col gap-6 ${className}`} data-testid="monitoring-dashboard">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+          <div className="md:col-span-3">
+            <TwoToneCard
+              title="Safety & Guards"
+              icon={<MaterialIcon name="shield" size="md" className="text-primary" />}
+              footer={<IntegrationPill transport="REST" endpoint="/dashboard/snapshot" />}
+            >
+              <div className="space-y-4">
+                <BusBar nodes={['API', 'RMS', 'EXEC', 'STL']} activeCount={busActiveCount} />
+                <GuardStatusPanel
+                  status={guardStatus}
+                  loading={guardStatusLoading}
+                  error={guardStatusError}
+                />
+              </div>
+            </TwoToneCard>
+          </div>
+          <div className="md:col-span-6">
+            <TwoToneCard
+              title="Total Exposure"
+              icon={<MaterialIcon name="show_chart" size="md" className="text-primary" />}
+            >
+              <ExposurePanel exposure={exposure} loading={exposureLoading} error={exposureError} />
+            </TwoToneCard>
+          </div>
+          <div className="md:col-span-3">
+            <TwoToneCard
+              title="Emergency"
+              variant="danger"
+              icon={<MaterialIcon name="warning" size="md" className="text-red-300" />}
+              footer={<IntegrationPill transport="REST" endpoint="/trading/emergency-close" />}
+            >
+              <EmergencyControls exposure={exposure} onEmergencyClose={onEmergencyClose} />
+            </TwoToneCard>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-8">
+            <TwoToneCard
+              title="Performance"
+              icon={<MaterialIcon name="bar_chart" size="md" className="text-primary" />}
+              footer={<IntegrationPill transport="REST" endpoint="/dashboard/snapshot" />}
+              bodyClassName="space-y-4"
+            >
+              <TradingKPIs kpis={kpis} loading={kpisLoading} error={kpisError} />
+              <EquityCurve
+                data={equityCurve}
+                loading={equityCurveLoading}
+                error={equityCurveError}
+              />
+            </TwoToneCard>
+          </div>
+          <div className="lg:col-span-4">
+            <TwoToneCard
+              title="System Status"
+              icon={<MaterialIcon name="dns" size="md" className="text-primary" />}
+              actions={
+                <StatusPill
+                  state={connectionStateFromEngine(
+                    engineStatus,
+                    engineStatusLoading,
+                    engineStatusError,
+                  )}
+                />
+              }
+              bodyClassName="space-y-4"
+            >
+              <AutoTradingStatus
+                status={engineStatus}
+                loading={engineStatusLoading}
+                error={engineStatusError}
+                activeSignals={activeSignals}
+                onToggle={onToggleAutoTrading}
+              />
+              <PipelineHealth
+                data={pipelineHealth}
+                loading={pipelineHealthLoading}
+                error={pipelineHealthError}
+              />
+            </TwoToneCard>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-8">
+            <TwoToneCard
+              title="Open Positions"
+              icon={<MaterialIcon name="work" size="md" className="text-primary" />}
+              footer={<IntegrationPill transport="WS" endpoint="/trading" />}
+            >
+              <PositionsList positions={positions} loading={positionsLoading} />
+            </TwoToneCard>
+          </div>
+          <div className="lg:col-span-4">
+            <TwoToneCard
+              title="Balances"
+              icon={
+                <MaterialIcon name="account_balance_wallet" size="md" className="text-primary" />
+              }
+              footer={<IntegrationPill transport="REST" endpoint="/trading/positions" />}
+            >
+              <AccountBalance balances={balances} loading={balancesLoading} />
+            </TwoToneCard>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`flex flex-col gap-6 ${className}`} data-testid="monitoring-dashboard">
       {/* Row 1 — Safety & Guards (Spec §6.1: 3-6-3 columns) */}
@@ -151,4 +275,15 @@ export function MonitoringDashboard({
       </section>
     </div>
   )
+}
+
+function connectionStateFromEngine(
+  engineStatus: EngineStatus | null,
+  loading?: boolean,
+  error?: string,
+): 'connected' | 'reconnecting' | 'offline' {
+  if (loading) return 'reconnecting'
+  if (error || !engineStatus) return 'offline'
+  if (engineStatus.state === 'PAUSED' || engineStatus.state === 'STOPPED') return 'reconnecting'
+  return 'connected'
 }

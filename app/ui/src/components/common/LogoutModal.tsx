@@ -42,7 +42,7 @@ export function LogoutModal({ positions, loading, onCancel, onConfirm }: LogoutM
                 {positions.map((position, idx) => (
                   <div key={`${position.symbol}-${idx}`} className={styles.tableRow}>
                     <span className={styles.symbol}>{position.symbol}</span>
-                    <span className={position.side === 'BUY' ? styles.buy : styles.sell}>
+                    <span className={position.side === 'LONG' ? styles.buy : styles.sell}>
                       {position.side}
                     </span>
                     <span>{position.quantity}</span>
