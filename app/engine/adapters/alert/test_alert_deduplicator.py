@@ -13,6 +13,7 @@ class TestAlertDeduplicator:
         redis = Mock()
         redis.get = Mock(return_value=None)
         redis.setex = Mock()
+        redis.set = Mock(return_value=True)
         redis.delete = Mock()
         return redis
 
@@ -66,6 +67,28 @@ class TestAlertDeduplicator:
         deduplicator.clear(key)
 
         mock_redis.delete.assert_called_once_with(f"alert:dedup:{key}")
+
+    def test_reserve_new_key(self, deduplicator: Any, mock_redis: Any) -> None:
+        key = "test:key:123"
+        mock_redis.set.return_value = True
+
+        result = deduplicator.reserve(key)
+
+        assert result is True
+        mock_redis.set.assert_called_once_with(
+            f"alert:dedup:{key}",
+            "1",
+            ex=60,
+            nx=True,
+        )
+
+    def test_reserve_existing_key(self, deduplicator: Any, mock_redis: Any) -> None:
+        key = "test:key:123"
+        mock_redis.set.return_value = None
+
+        result = deduplicator.reserve(key)
+
+        assert result is False
 
     def test_custom_ttl(self, mock_redis: Any) -> None:
         with patch(
