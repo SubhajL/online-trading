@@ -166,8 +166,10 @@ services:
     restart: unless-stopped
     environment:
       - PORT=3001
-      - BFF_PORT=${BFF_PORT:-8002}
       - ENGINE_URL=http://engine:8000
+      - ENGINE_TYPE=redis
+      - ENGINE_HOST=redis
+      - ENGINE_PORT=6379
       - ROUTER_URL=http://router:8001
       - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-trading_platform}
       - POSTGRES_HOST=postgres
