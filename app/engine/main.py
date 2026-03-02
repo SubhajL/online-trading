@@ -187,14 +187,29 @@ def load_configuration() -> EngineConfig:
     try:
         binance_data_testnet = _binance_data_testnet_from_env()
 
-        # Default configuration - in production, load from environment/config files
-        database_config = DatabaseConfig(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            database=os.getenv("DB_NAME", "trading_engine"),
-            username=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "password"),
-        )
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            import urllib.parse
+
+            parsed = urllib.parse.urlparse(database_url)
+            if parsed.scheme not in {"postgresql", "postgres"}:
+                raise ValueError("DATABASE_URL must be a postgres URL")
+            database_config = DatabaseConfig(
+                host=parsed.hostname or "localhost",
+                port=parsed.port or 5432,
+                database=parsed.path.lstrip("/") or "trading_engine",
+                username=urllib.parse.unquote(parsed.username or "postgres"),
+                password=urllib.parse.unquote(parsed.password or "password"),
+            )
+        else:
+            # Default configuration - in production, load from environment/config files
+            database_config = DatabaseConfig(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=int(os.getenv("DB_PORT", "5432")),
+                database=os.getenv("DB_NAME", "trading_engine"),
+                username=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD", "password"),
+            )
 
         # Parse Redis configuration from URL if provided, otherwise use individual vars
         redis_url = os.getenv("REDIS_URL")
