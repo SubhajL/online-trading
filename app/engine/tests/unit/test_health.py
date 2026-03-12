@@ -4,24 +4,24 @@ Following T-3: Pure logic unit tests without external dependencies.
 Following T-4: Avoiding heavy mocking.
 """
 
-import json
-import pytest
-import time
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+import json
+import time
+from typing import Any, Dict, Optional
+
+import pytest
 
 from app.engine.core.health import (
-    check_database_health,
-    check_redis_health,
-    check_memory_pools_health,
-    check_event_bus_health,
-    aggregate_health_status,
-    create_health_endpoint,
-    HealthStatus,
     ComponentHealth,
     HealthCheck,
+    HealthStatus,
+    aggregate_health_status,
+    check_database_health,
+    check_event_bus_health,
+    check_memory_pools_health,
+    check_redis_health,
+    create_health_endpoint,
 )
-
 from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConfig as CBConfig
 
 
@@ -66,8 +66,8 @@ async def test_health_includes_router_breaker_metrics() -> None:
 
 @pytest.mark.asyncio
 async def test_health_includes_binance_breaker_metrics() -> None:
-    from app.engine.ingest.binance_rest import BinanceRestClient
     from app.engine.core.health import check_binance_client_health
+    from app.engine.ingest.binance_rest import BinanceRestClient
 
     cfg = {"GET:/api/v3/depth": CBConfig(failure_threshold=1, success_threshold=1, timeout_seconds=1)}
     client = BinanceRestClient(api_key="k", api_secret="s", testnet=True, per_endpoint_breakers_config=cfg)

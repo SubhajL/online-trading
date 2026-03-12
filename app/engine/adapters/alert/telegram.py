@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 import logging
 import os
 from typing import Any
@@ -25,10 +26,12 @@ class TelegramAlertAdapter:
         bot_token: str,
         chat_id: str,
         rate_limit_per_minute: int = 30,
+        db_adapter: Any | None = None,
     ) -> None:
         self.bot_token = bot_token
         self.chat_id = chat_id
         self.rate_limit_per_minute = rate_limit_per_minute
+        self.db_adapter = db_adapter
 
         self.base_url = f"https://api.telegram.org/bot{bot_token}"
         self.session: aiohttp.ClientSession | None = None
@@ -44,6 +47,56 @@ class TelegramAlertAdapter:
 
         # Rate limiting
         self._message_times: list[datetime] = []
+
+    def _json_safe(self, value: Any) -> Any:
+        """Convert audit payloads to JSON-safe primitives."""
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, datetime):
+            return value.astimezone(UTC).isoformat()
+        if isinstance(value, dict):
+            return {str(k): self._json_safe(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [self._json_safe(item) for item in value]
+        return value
+
+    async def _record_audit(  # noqa: PLR0913
+        self,
+        *,
+        alert_type: str,
+        delivery_method: str,
+        status: str,
+        reason: str | None = None,
+        dedup_key: str | None = None,
+        telegram_message_id: int | None = None,
+        message_text: str | None = None,
+        response_status: int | None = None,
+        response_body: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Persist one outbound alert audit row when a DB adapter is available."""
+        insert = getattr(self.db_adapter, "insert_outbound_alert_audit", None)
+        if not callable(insert):
+            return
+
+        try:
+            await insert(
+                channel="telegram",
+                alert_type=alert_type,
+                delivery_method=delivery_method,
+                status=status,
+                reason=reason,
+                chat_id=self.chat_id,
+                dedup_key=dedup_key,
+                telegram_message_id=telegram_message_id,
+                message_text=message_text,
+                response_status=response_status,
+                response_body=response_body,
+                payload=self._json_safe(payload) if payload is not None else None,
+                attempted_at=datetime.now(UTC),
+            )
+        except Exception:
+            logger.exception("Failed to persist outbound alert audit")
 
     async def start(self) -> None:
         """Initialize HTTP session for sending Telegram alerts.
@@ -148,6 +201,14 @@ class TelegramAlertAdapter:
             key = f"decision:{symbol}:{side}:{timestamp}"
             if not self.deduplicator.reserve(key):
                 logger.debug("Skipping duplicate decision alert: %s", key)
+                await self._record_audit(
+                    alert_type="decision",
+                    delivery_method="text",
+                    status="skipped",
+                    reason="deduplicated",
+                    dedup_key=key,
+                    payload=event,
+                )
                 return
 
             # Format message
@@ -168,11 +229,19 @@ class TelegramAlertAdapter:
                         snapshot_sent = await self._send_photo_alert(
                             image_data,
                             message,
+                            alert_type="decision",
+                            payload=event,
+                            dedup_key=key,
                         )
 
             # If no snapshot or photo send failed, send text message
             if not snapshot_sent:
-                success = await self._send_alert(message)
+                success = await self._send_alert(
+                    message,
+                    alert_type="decision",
+                    payload=event,
+                    dedup_key=key,
+                )
             else:
                 success = snapshot_sent
 
@@ -197,7 +266,11 @@ class TelegramAlertAdapter:
             event["status"] = normalized_status
 
             message = self.formatter.format_order_update(event)
-            await self._send_alert(message)
+            await self._send_alert(
+                message,
+                alert_type="order_update",
+                payload=event,
+            )
 
         except Exception:
             logger.exception("Error handling order update")
@@ -206,7 +279,11 @@ class TelegramAlertAdapter:
         """Handle risk guard alerts."""
         try:
             message = self.formatter.format_guard_alert(event)
-            await self._send_alert(message)
+            await self._send_alert(
+                message,
+                alert_type="guard",
+                payload=event,
+            )
 
         except Exception:
             logger.exception("Error handling guard alert")
@@ -228,10 +305,23 @@ class TelegramAlertAdapter:
             if isinstance(phase, str) and isinstance(symbols, list) and isinstance(timeframes, list):
                 key = f"{phase}:{','.join(sorted(map(str, symbols)))}:{','.join(sorted(map(str, timeframes)))}"
                 if not self.startup_deduplicator.reserve(key):
+                    await self._record_audit(
+                        alert_type="startup",
+                        delivery_method="text",
+                        status="skipped",
+                        reason="deduplicated",
+                        dedup_key=key,
+                        payload=startup_data,
+                    )
                     return False
 
             message = self.formatter.format_startup_alert(startup_data)
-            sent = await self._send_alert(message)
+            sent = await self._send_alert(
+                message,
+                alert_type="startup",
+                payload=startup_data,
+                dedup_key=key,
+            )
             if not sent and key is not None:
                 self.startup_deduplicator.clear(key)
             return sent
@@ -256,9 +346,25 @@ class TelegramAlertAdapter:
         self._message_times.append(now)
         return True
 
-    async def _send_alert(self, message: str) -> bool:
+    async def _send_alert(
+        self,
+        message: str,
+        *,
+        alert_type: str = "generic",
+        payload: dict[str, Any] | None = None,
+        dedup_key: str | None = None,
+    ) -> bool:
         """Send a message to Telegram."""
         if not await self._check_rate_limit():
+            await self._record_audit(
+                alert_type=alert_type,
+                delivery_method="text",
+                status="skipped",
+                reason="rate_limited",
+                dedup_key=dedup_key,
+                message_text=message,
+                payload=payload,
+            )
             return False
 
         try:
@@ -267,13 +373,13 @@ class TelegramAlertAdapter:
                 return False
 
             url = f"{self.base_url}/sendMessage"
-            payload = {
+            request_payload = {
                 "chat_id": self.chat_id,
                 "text": message,
                 "parse_mode": "HTML",
             }
 
-            async with self.session.post(url, json=payload) as response:
+            async with self.session.post(url, json=request_payload) as response:
                 if response.status != _HTTP_OK:
                     text = await response.text()
                     logger.error(
@@ -281,33 +387,107 @@ class TelegramAlertAdapter:
                         response.status,
                         text,
                     )
+                    await self._record_audit(
+                        alert_type=alert_type,
+                        delivery_method="text",
+                        status="failed",
+                        reason="http_error",
+                        dedup_key=dedup_key,
+                        message_text=message,
+                        response_status=response.status,
+                        response_body=text,
+                        payload=payload,
+                    )
                     return False
 
                 data = await response.json()
                 if data.get("ok"):
                     logger.debug("Telegram alert sent successfully")
+                    result = data.get("result") or {}
+                    message_id = result.get("message_id")
+                    await self._record_audit(
+                        alert_type=alert_type,
+                        delivery_method="text",
+                        status="sent",
+                        dedup_key=dedup_key,
+                        telegram_message_id=message_id if isinstance(message_id, int) else None,
+                        message_text=message,
+                        response_status=response.status,
+                        payload=payload,
+                    )
                     return True
 
                 logger.error("Telegram API error: %s", data)
+                await self._record_audit(
+                    alert_type=alert_type,
+                    delivery_method="text",
+                    status="failed",
+                    reason="api_error",
+                    dedup_key=dedup_key,
+                    message_text=message,
+                    response_status=response.status,
+                    response_body=str(data),
+                    payload=payload,
+                )
                 return False
 
         except Exception:
             logger.exception("Error sending Telegram alert")
+            await self._record_audit(
+                alert_type=alert_type,
+                delivery_method="text",
+                status="failed",
+                reason="exception",
+                dedup_key=dedup_key,
+                message_text=message,
+                payload=payload,
+            )
             return False
 
     async def send_error_alert(self, message: str, *, dedup_key: str | None = None) -> bool:
         """Send an error alert with optional Redis-backed deduplication."""
         if dedup_key and not self.error_deduplicator.reserve(dedup_key):
+            await self._record_audit(
+                alert_type="error",
+                delivery_method="text",
+                status="skipped",
+                reason="deduplicated",
+                dedup_key=dedup_key,
+                message_text=message,
+                payload={"dedup_key": dedup_key},
+            )
             return False
 
-        sent = await self._send_alert(message)
+        sent = await self._send_alert(
+            message,
+            alert_type="error",
+            payload={"dedup_key": dedup_key} if dedup_key else None,
+            dedup_key=dedup_key,
+        )
         if not sent and dedup_key:
             self.error_deduplicator.clear(dedup_key)
         return sent
 
-    async def _send_photo_alert(self, image_data: bytes, caption: str) -> bool:
+    async def _send_photo_alert(
+        self,
+        image_data: bytes,
+        caption: str,
+        *,
+        alert_type: str = "generic",
+        payload: dict[str, Any] | None = None,
+        dedup_key: str | None = None,
+    ) -> bool:
         """Send a photo with caption to Telegram."""
         if not await self._check_rate_limit():
+            await self._record_audit(
+                alert_type=alert_type,
+                delivery_method="photo",
+                status="skipped",
+                reason="rate_limited",
+                dedup_key=dedup_key,
+                message_text=caption,
+                payload=payload,
+            )
             return False
 
         try:
@@ -337,16 +517,59 @@ class TelegramAlertAdapter:
                         response.status,
                         text,
                     )
+                    await self._record_audit(
+                        alert_type=alert_type,
+                        delivery_method="photo",
+                        status="failed",
+                        reason="http_error",
+                        dedup_key=dedup_key,
+                        message_text=caption,
+                        response_status=response.status,
+                        response_body=text,
+                        payload=payload,
+                    )
                     return False
 
                 result = await response.json()
                 if result.get("ok"):
                     logger.debug("Telegram photo alert sent successfully")
+                    response_payload = result.get("result") or {}
+                    message_id = response_payload.get("message_id")
+                    await self._record_audit(
+                        alert_type=alert_type,
+                        delivery_method="photo",
+                        status="sent",
+                        dedup_key=dedup_key,
+                        telegram_message_id=message_id if isinstance(message_id, int) else None,
+                        message_text=caption,
+                        response_status=response.status,
+                        payload=payload,
+                    )
                     return True
 
                 logger.error("Telegram API error: %s", result)
+                await self._record_audit(
+                    alert_type=alert_type,
+                    delivery_method="photo",
+                    status="failed",
+                    reason="api_error",
+                    dedup_key=dedup_key,
+                    message_text=caption,
+                    response_status=response.status,
+                    response_body=str(result),
+                    payload=payload,
+                )
                 return False
 
         except Exception:
             logger.exception("Error sending Telegram photo alert")
+            await self._record_audit(
+                alert_type=alert_type,
+                delivery_method="photo",
+                status="failed",
+                reason="exception",
+                dedup_key=dedup_key,
+                message_text=caption,
+                payload=payload,
+            )
             return False

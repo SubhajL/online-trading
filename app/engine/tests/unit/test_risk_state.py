@@ -83,8 +83,8 @@ async def test_build_risk_snapshot_computes_exposure_from_positions() -> None:
         start_of_day_equity=Decimal("1000"),
         peak_equity=Decimal("1200"),
         positions=[
-            {"symbol": "BTCUSDT", "size": Decimal("2"), "current_price": Decimal("100")},
-            {"symbol": "ETHUSDT", "size": "1.5", "current_price": "200"},
+            {"symbol": "BTCUSDT", "side": "BUY", "size": Decimal("2"), "current_price": Decimal("100")},
+            {"symbol": "ETHUSDT", "side": "SELL", "size": "1.5", "current_price": "200"},
         ],
     )
 
@@ -115,3 +115,5 @@ async def test_build_risk_snapshot_computes_exposure_from_positions() -> None:
     assert snapshot.total_exposure_usd == Decimal("500")
     assert snapshot.symbol_exposure_usd["BTCUSDT"] == Decimal("200")
     assert snapshot.symbol_exposure_usd["ETHUSDT"] == Decimal("300")
+    assert snapshot.symbol_directional_exposure_usd["BTCUSDT"]["BUY"] == Decimal("200")
+    assert snapshot.symbol_directional_exposure_usd["ETHUSDT"]["SELL"] == Decimal("300")

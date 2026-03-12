@@ -1,7 +1,7 @@
 """Integration tests for TimescaleDB DAL functions."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -12,6 +12,7 @@ import pytest_asyncio
 
 from app.engine.adapters.db import timescale
 from app.engine.adapters.db.connection_pool import DBConfig
+from app.engine.adapters.db.timescale_adapter import TimescaleDBAdapter
 from app.engine.models import (
     Candle,
     SupplyDemandZone,
@@ -357,6 +358,226 @@ class TestOrderOperations:
             assert isinstance(row["filled_quantity"], Decimal)
             assert isinstance(row["average_fill_price"], Decimal)
             assert isinstance(row["commission"], Decimal)
+
+    @pytest.mark.asyncio
+    async def test_upsert_order_preserves_existing_fields_when_update_value_is_none(
+        self,
+        test_pool,
+        test_db_config: DBConfig,
+    ) -> None:
+        """Test order upsert is append-only for None-valued fields."""
+        decision_id = str(uuid4())
+        async with test_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO trading_decisions (
+                    decision_id, timestamp, venue, symbol, action, entry_price,
+                    quantity, stop_loss, take_profit, confidence, reasoning
+                ) VALUES ($1, NOW(), 'SPOT', 'BTCUSDT', 'BUY', 50000, 0.01, 49000, 51000, 0.8, 'test')
+                """,
+                decision_id,
+            )
+
+        client_order_id = f"test_null_preserve_{uuid4()}"
+        initial = {
+            "client_order_id": client_order_id,
+            "venue": "SPOT",
+            "symbol": "BTCUSDT",
+            "side": "BUY",
+            "type": "LIMIT",
+            "quantity": "0.01",
+            "price": "50000.00",
+            "status": "REJECTED",
+            "reject_reason": "initial reject context",
+            "average_fill_price": "50100.25",
+            "decision_id": decision_id,
+        }
+
+        adapter = TimescaleDBAdapter(
+            host=test_db_config.host,
+            port=test_db_config.port,
+            database=test_db_config.database,
+            username=test_db_config.username,
+            password=test_db_config.password,
+        )
+        await adapter.initialize()
+        try:
+            assert await adapter.upsert_order(initial) is True
+
+            update = {
+                "client_order_id": client_order_id,
+                "venue": "SPOT",
+                "symbol": "BTCUSDT",
+                "side": "BUY",
+                "type": "LIMIT",
+                "quantity": "0.01",
+                "price": "50000.00",
+                "status": "CANCELED",
+                "reject_reason": None,
+                "average_fill_price": None,
+            }
+
+            assert await adapter.upsert_order(update) is True
+        finally:
+            await adapter.close()
+
+        async with test_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT status, price, average_fill_price, reject_reason FROM orders WHERE client_order_id = $1",
+                client_order_id,
+            )
+
+        assert row is not None
+        assert row["status"] == "REJECTED"
+        assert row["price"] == Decimal("50000.00")
+        assert row["average_fill_price"] == Decimal("50100.25")
+        assert row["reject_reason"] == "initial reject context"
+
+    @pytest.mark.asyncio
+    async def test_upsert_order_preserves_terminal_status_against_stale_new(
+        self,
+        test_pool,
+        test_db_config: DBConfig,
+    ) -> None:
+        """Terminal status must not regress when a stale placement write replays."""
+        decision_id = str(uuid4())
+        async with test_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO trading_decisions (
+                    decision_id, timestamp, venue, symbol, action, entry_price,
+                    quantity, stop_loss, take_profit, confidence, reasoning
+                ) VALUES ($1, NOW(), 'SPOT', 'BTCUSDT', 'BUY', 50000, 0.01, 49000, 51000, 0.8, 'test')
+                """,
+                decision_id,
+            )
+
+        client_order_id = f"test_terminal_monotonic_{uuid4()}"
+        adapter = TimescaleDBAdapter(
+            host=test_db_config.host,
+            port=test_db_config.port,
+            database=test_db_config.database,
+            username=test_db_config.username,
+            password=test_db_config.password,
+        )
+        await adapter.initialize()
+        try:
+            assert await adapter.upsert_order(
+                {
+                    "client_order_id": client_order_id,
+                    "venue": "SPOT",
+                    "symbol": "BTCUSDT",
+                    "side": "BUY",
+                    "type": "LIMIT",
+                    "quantity": "0.01",
+                    "price": "50000.00",
+                    "status": "FILLED",
+                    "filled_quantity": "0.01",
+                    "average_fill_price": "50100.25",
+                    "decision_id": decision_id,
+                    "last_update_time": datetime(2026, 3, 12, 8, 0, tzinfo=UTC),
+                },
+            ) is True
+
+            assert await adapter.upsert_order(
+                {
+                    "client_order_id": client_order_id,
+                    "venue": "SPOT",
+                    "symbol": "BTCUSDT",
+                    "side": "BUY",
+                    "type": "LIMIT",
+                    "quantity": "0.01",
+                    "price": "50000.00",
+                    "status": "NEW",
+                    "decision_id": decision_id,
+                    "last_update_time": datetime(2026, 3, 12, 7, 59, tzinfo=UTC),
+                },
+            ) is True
+        finally:
+            await adapter.close()
+
+        async with test_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT status, filled_quantity, average_fill_price, last_update_time FROM orders WHERE client_order_id = $1",
+                client_order_id,
+            )
+
+        assert row is not None
+        assert row["status"] == "FILLED"
+        assert row["filled_quantity"] == Decimal("0.01")
+        assert row["average_fill_price"] == Decimal("50100.25")
+        assert row["last_update_time"] == datetime(2026, 3, 12, 8, 0, tzinfo=UTC)
+
+    @pytest.mark.asyncio
+    async def test_upsert_order_uses_newer_last_update_time_only(
+        self,
+        test_pool,
+        test_db_config: DBConfig,
+    ) -> None:
+        """Older timestamps must not overwrite a newer order update time."""
+        decision_id = str(uuid4())
+        async with test_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO trading_decisions (
+                    decision_id, timestamp, venue, symbol, action, entry_price,
+                    quantity, stop_loss, take_profit, confidence, reasoning
+                ) VALUES ($1, NOW(), 'SPOT', 'ETHUSDT', 'SELL', 2000, 0.1, 2100, 1900, 0.8, 'test')
+                """,
+                decision_id,
+            )
+
+        client_order_id = f"test_timestamp_monotonic_{uuid4()}"
+        adapter = TimescaleDBAdapter(
+            host=test_db_config.host,
+            port=test_db_config.port,
+            database=test_db_config.database,
+            username=test_db_config.username,
+            password=test_db_config.password,
+        )
+        await adapter.initialize()
+        try:
+            assert await adapter.upsert_order(
+                {
+                    "client_order_id": client_order_id,
+                    "venue": "SPOT",
+                    "symbol": "ETHUSDT",
+                    "side": "SELL",
+                    "type": "LIMIT",
+                    "quantity": "0.1",
+                    "price": "2000.00",
+                    "status": "PARTIALLY_FILLED",
+                    "decision_id": decision_id,
+                    "last_update_time": datetime(2026, 3, 12, 8, 15, tzinfo=UTC),
+                },
+            ) is True
+
+            assert await adapter.upsert_order(
+                {
+                    "client_order_id": client_order_id,
+                    "venue": "SPOT",
+                    "symbol": "ETHUSDT",
+                    "side": "SELL",
+                    "type": "LIMIT",
+                    "quantity": "0.1",
+                    "price": "2000.00",
+                    "status": "PARTIALLY_FILLED",
+                    "decision_id": decision_id,
+                    "last_update_time": datetime(2026, 3, 12, 8, 10, tzinfo=UTC),
+                },
+            ) is True
+        finally:
+            await adapter.close()
+
+        async with test_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT status, last_update_time FROM orders WHERE client_order_id = $1",
+                client_order_id,
+            )
+
+        assert row is not None
+        assert row["status"] == "PARTIALLY_FILLED"
+        assert row["last_update_time"] == datetime(2026, 3, 12, 8, 15, tzinfo=UTC)
 
 
 class TestPositionOperations:

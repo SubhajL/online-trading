@@ -4,6 +4,8 @@ Unit tests for parsing Captain Trading Telegram messages (Thai + mixed content).
 
 import pytest
 
+pytest.importorskip("telethon", reason="telethon is not installed")
+
 from app.engine.telegram_validator.captain_parse import (
     classify_captain_message,
     normalize_external_symbol,

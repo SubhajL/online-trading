@@ -280,8 +280,9 @@ class ContractPublisher:
         update = event.update
         metadata = event.metadata or {}
 
-        decision_id = metadata.get("decision_id") or metadata.get("decisionId")
-        if not isinstance(decision_id, str) or not decision_id:
+        decision_id_raw = metadata.get("decision_id") or metadata.get("decisionId")
+        decision_id = str(decision_id_raw).strip() if decision_id_raw is not None else ""
+        if not decision_id:
             logger.warning("Skipping order_update.v1 publish: missing decision_id metadata")
             return
 

@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+
+pytest.importorskip("httpx", reason="httpx is not installed")
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient

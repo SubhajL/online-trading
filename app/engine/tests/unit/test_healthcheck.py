@@ -8,6 +8,7 @@ from urllib.error import URLError
 
 import pytest
 
+from app.engine.scripts import healthcheck as healthcheck_module
 from app.engine.scripts.healthcheck import check_health, main
 
 
@@ -32,10 +33,7 @@ class TestCheckHealth:
             ) -> None:
                 return None
 
-        monkeypatch.setattr(
-            "app.engine.scripts.healthcheck.urlopen",
-            lambda *_args, **_kwargs: _Response(),
-        )
+        monkeypatch.setattr(healthcheck_module, "urlopen", lambda *_args, **_kwargs: _Response())
 
         assert check_health(port=18000) == 0
 
@@ -57,10 +55,7 @@ class TestCheckHealth:
             ) -> None:
                 return None
 
-        monkeypatch.setattr(
-            "app.engine.scripts.healthcheck.urlopen",
-            lambda *_args, **_kwargs: _Response(),
-        )
+        monkeypatch.setattr(healthcheck_module, "urlopen", lambda *_args, **_kwargs: _Response())
 
         assert check_health(port=18001) == 1
 
@@ -82,16 +77,14 @@ class TestCheckHealth:
             ) -> None:
                 return None
 
-        monkeypatch.setattr(
-            "app.engine.scripts.healthcheck.urlopen",
-            lambda *_args, **_kwargs: _Response(),
-        )
+        monkeypatch.setattr(healthcheck_module, "urlopen", lambda *_args, **_kwargs: _Response())
 
         assert check_health(port=18002) == 1
 
     def test_returns_one_when_connection_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "app.engine.scripts.healthcheck.urlopen",
+            healthcheck_module,
+            "urlopen",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(URLError("refused")),
         )
         assert check_health(port=19999) == 1
@@ -114,10 +107,7 @@ class TestCheckHealth:
             ) -> None:
                 return None
 
-        monkeypatch.setattr(
-            "app.engine.scripts.healthcheck.urlopen",
-            lambda *_args, **_kwargs: _Response(),
-        )
+        monkeypatch.setattr(healthcheck_module, "urlopen", lambda *_args, **_kwargs: _Response())
 
         assert check_health(port=18003) == 1
 
@@ -150,10 +140,7 @@ class TestMain:
             ) -> None:
                 return None
 
-        monkeypatch.setattr(
-            "app.engine.scripts.healthcheck.urlopen",
-            lambda *_args, **_kwargs: _Response(),
-        )
+        monkeypatch.setattr(healthcheck_module, "urlopen", lambda *_args, **_kwargs: _Response())
 
         with pytest.raises(SystemExit) as exc_info:
             main(port=18004)

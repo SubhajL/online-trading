@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 
@@ -11,14 +12,14 @@ from app.engine.models import (
     CandleUpdateEvent,
     EventType,
     FeaturesCalculatedEvent,
+    OrderUpdate,
+    OrderUpdateEvent,
     RetestSignal,
     RetestSignalEvent,
     TechnicalIndicators,
     TimeFrame,
     TradingDecision,
     TradingDecisionEvent,
-    OrderUpdate,
-    OrderUpdateEvent,
 )
 from app.engine.smc_types import (
     Pivot,
@@ -30,7 +31,6 @@ from app.engine.smc_types import (
     ZoneEvent,
     ZoneSide,
 )
-from uuid import uuid4
 
 
 class _FakeBus:
@@ -321,3 +321,40 @@ async def test_contract_publisher_publishes_order_update_v1() -> None:
     assert channel == "engine:order_update.v1"
     assert payload["decision_id"] == "dec-1"
     assert payload["status"] == "new"
+
+
+@pytest.mark.asyncio
+async def test_contract_publisher_publishes_order_update_v1_with_uuid_decision_id() -> None:
+    redis = AsyncMock()
+    bus = _FakeBus()
+    publisher = ContractPublisher(bus=bus, redis=redis)
+    await publisher.start()
+
+    decision_id = uuid4()
+    update = OrderUpdate(
+        venue="SPOT",
+        symbol="BTCUSDT",
+        order_id=123,
+        client_order_id="cid",
+        status="NEW",
+        side="BUY",
+        order_type="LIMIT",
+        price=Decimal("100"),
+        quantity=Decimal("1"),
+        executed_qty=Decimal("0"),
+        update_time=datetime(2025, 1, 1, 0, 15, tzinfo=UTC),
+        reason=None,
+    )
+
+    await publisher.on_order_update(
+        OrderUpdateEvent(
+            timestamp=datetime(2025, 1, 1, 0, 15, tzinfo=UTC),
+            symbol="BTCUSDT",
+            metadata={"decision_id": decision_id},
+            update=update,
+        ),
+    )
+
+    channel, payload = redis.publish.await_args.args
+    assert channel == "engine:order_update.v1"
+    assert payload["decision_id"] == str(decision_id)

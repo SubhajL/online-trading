@@ -97,6 +97,34 @@ class _StubRouterClient(_StubDBAdapter):
         return Decimal("10000"), datetime(2026, 2, 6, 12, 0, tzinfo=UTC)
 
 
+class _StubTelegramAdapter(_StubAsyncService):
+    last_kwargs: dict[str, Any] | None = None
+
+    def __init__(self, *, bot_token: str, chat_id: str, db_adapter: object | None = None) -> None:
+        super().__init__()
+        self.bot_token = bot_token
+        self.chat_id = chat_id
+        self.db_adapter = db_adapter
+        type(self).last_kwargs = {
+            "bot_token": bot_token,
+            "chat_id": chat_id,
+            "db_adapter": db_adapter,
+        }
+
+
+class _CapturingAlertSubscriber:
+    last_kwargs: dict[str, Any] | None = None
+
+    def __init__(self, **kwargs: Any) -> None:
+        type(self).last_kwargs = dict(kwargs)
+
+    async def register(self, event_bus: object) -> None:
+        _ = event_bus
+
+    async def stop(self) -> None:
+        return None
+
+
 @pytest.mark.asyncio
 class TestMainExecutionWiring:
     async def test_initialize_services_sanitizes_trading_symbols(
@@ -311,3 +339,64 @@ class TestMainExecutionWiring:
         assert retest.started is True
         assert publisher.started is True
         assert any(sub_id == "router-execution" for sub_id, _ in bus.subscribed)
+
+    async def test_initialize_services_enables_execution_decision_alerts_when_flag_enabled(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+        from app.engine.adapters.alert import alert_subscriber as alert_subscriber_mod
+        from app.engine.adapters.alert import telegram as telegram_mod
+
+        main_mod.services.clear()
+        _CapturingAlertSubscriber.last_kwargs = None
+        _StubTelegramAdapter.last_kwargs = None
+
+        bus = _StubEventBus()
+        monkeypatch.setenv("EXECUTION_MODE", "futures_testnet")
+        monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
+        monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
+        monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat-1")
+        monkeypatch.setenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", "1")
+
+        monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
+        monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
+        monkeypatch.setattr(main_mod, "RouterHTTPClient", lambda **_: _StubRouterClient())
+
+        monkeypatch.setattr(main_mod, "IngestService", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "FeatureService", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "SMCEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
+
+        monkeypatch.setattr(alert_subscriber_mod, "AlertSubscriber", _CapturingAlertSubscriber)
+        monkeypatch.setattr(telegram_mod, "TelegramAlertAdapter", _StubTelegramAdapter)
+
+        monkeypatch.setattr(main_mod, "set_event_bus", lambda *_: None)
+        import app.engine.bus as bus_mod
+
+        monkeypatch.setattr(bus_mod, "create_event_bus", lambda: bus)
+
+        cfg = _StubConfig(
+            database=_StubDatabaseCfg(),
+            redis=_StubRedisCfg(),
+            binance=type("BinanceCfg", (), {"api_key": "", "api_secret": "", "testnet": True})(),
+            risk_parameters=type(
+                "RiskParams",
+                (),
+                {
+                    "risk_per_trade": Decimal("0.01"),
+                    "max_position_size": Decimal(1),
+                },
+            )(),
+        )
+
+        await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
+
+        assert _CapturingAlertSubscriber.last_kwargs is not None
+        assert _CapturingAlertSubscriber.last_kwargs["execution_enabled"] is True
+        assert _CapturingAlertSubscriber.last_kwargs["execution_decision_alerts_enabled"] is True
+        assert _StubTelegramAdapter.last_kwargs is not None
+        assert _StubTelegramAdapter.last_kwargs["db_adapter"] is not None

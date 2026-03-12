@@ -83,6 +83,8 @@ class TestTelegramAdapterStartupAlert:
             rate_limit_per_minute=30,
         )
         adapter.deduplicator.redis_client = None
+        adapter.error_deduplicator.redis_client = None
+        adapter.startup_deduplicator.redis_client = None
         return adapter
 
     @pytest.mark.asyncio

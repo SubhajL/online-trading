@@ -24,10 +24,8 @@ class DummyWS:
 
 
 @pytest.mark.asyncio
-async def test_binance_ws_uses_injected_connector(monkeypatch):
+async def test_binance_ws_uses_injected_connector():
     base_url = "wss://stream.binance.com:9443/ws/"
-    client = BinanceWebSocketClient(base_url=base_url, event_bus=create_event_bus())
-
     called = {}
 
     def fake_connector(url: str, **kwargs):
@@ -35,10 +33,11 @@ async def test_binance_ws_uses_injected_connector(monkeypatch):
         called["kwargs"] = kwargs
         return DummyWS()
 
-    # Inject fake connector
-    import app.engine.ingest.binance_ws as mod
-
-    monkeypatch.setattr(mod, "get_ws_connector", lambda: fake_connector)
+    client = BinanceWebSocketClient(
+        base_url=base_url,
+        event_bus=create_event_bus(),
+        ws_connector=fake_connector,
+    )
 
     await client._connect_and_listen()
 

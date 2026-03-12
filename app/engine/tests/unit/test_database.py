@@ -297,130 +297,122 @@ class TestDatabaseManager:
 
     @pytest.mark.asyncio
     async def test_database_manager_initialization(self, db_config) -> None:
-        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
-            mock_pool = AsyncMock()
-            mock_pool_class.return_value = mock_pool
+        mock_pool = AsyncMock()
+        pool_factory = Mock(return_value=mock_pool)
 
-            db_manager = DatabaseManager(db_config)
-            await db_manager.initialize()
+        db_manager = DatabaseManager(db_config, pool_factory=pool_factory)
+        await db_manager.initialize()
 
-            mock_pool_class.assert_called_once_with(db_config)
-            mock_pool.initialize.assert_called_once()
+        pool_factory.assert_called_once_with(db_config)
+        mock_pool.initialize.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_connection_with_retry(self, db_config) -> None:
-        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
-            mock_pool = AsyncMock()
+        mock_pool = AsyncMock()
 
-            # Create async context managers for connections
-            mock_connection = AsyncMock()
-            success_ctx = AsyncMock()
-            success_ctx.__aenter__ = AsyncMock(return_value=mock_connection)
-            success_ctx.__aexit__ = AsyncMock(return_value=None)
+        # Create async context managers for connections
+        mock_connection = AsyncMock()
+        success_ctx = AsyncMock()
+        success_ctx.__aenter__ = AsyncMock(return_value=mock_connection)
+        success_ctx.__aexit__ = AsyncMock(return_value=None)
 
-            # First call fails, second succeeds
-            mock_pool.get_postgres_connection = Mock(side_effect=[
-                ConnectionError("Connection failed"),
-                success_ctx,
-            ])
-            mock_pool_class.return_value = mock_pool
+        # First call fails, second succeeds
+        mock_pool.get_postgres_connection = Mock(side_effect=[
+            ConnectionError("Connection failed"),
+            success_ctx,
+        ])
+        pool_factory = Mock(return_value=mock_pool)
 
-            db_manager = DatabaseManager(db_config)
-            await db_manager.initialize()
+        db_manager = DatabaseManager(db_config, pool_factory=pool_factory)
+        await db_manager.initialize()
 
-            async with db_manager.get_connection() as conn:
-                assert conn is mock_connection
-            assert mock_pool.get_postgres_connection.call_count == 2
-            await db_manager.shutdown()
+        async with db_manager.get_connection() as conn:
+            assert conn is mock_connection
+        assert mock_pool.get_postgres_connection.call_count == 2
+        await db_manager.shutdown()
 
     @pytest.mark.asyncio
     async def test_transaction_context_manager(self, db_config) -> None:
-        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
-            mock_pool = AsyncMock()
-            mock_connection = AsyncMock()
+        mock_pool = AsyncMock()
+        mock_connection = AsyncMock()
 
-            # Mock connection context manager
-            conn_ctx = AsyncMock()
-            conn_ctx.__aenter__ = AsyncMock(return_value=mock_connection)
-            conn_ctx.__aexit__ = AsyncMock(return_value=None)
-            mock_pool.get_postgres_connection = Mock(return_value=conn_ctx)
+        # Mock connection context manager
+        conn_ctx = AsyncMock()
+        conn_ctx.__aenter__ = AsyncMock(return_value=mock_connection)
+        conn_ctx.__aexit__ = AsyncMock(return_value=None)
+        mock_pool.get_postgres_connection = Mock(return_value=conn_ctx)
 
-            # Mock transaction
-            mock_tx = AsyncMock()
-            mock_tx.start = AsyncMock()
-            mock_tx.commit = AsyncMock()
-            mock_connection.transaction.return_value = mock_tx
+        # Mock transaction
+        mock_tx = AsyncMock()
+        mock_tx.start = AsyncMock()
+        mock_tx.commit = AsyncMock()
+        mock_connection.transaction.return_value = mock_tx
 
-            mock_pool_class.return_value = mock_pool
+        pool_factory = Mock(return_value=mock_pool)
 
-            db_manager = DatabaseManager(db_config)
-            await db_manager.initialize()
+        db_manager = DatabaseManager(db_config, pool_factory=pool_factory)
+        await db_manager.initialize()
 
-            async with db_manager.transaction() as tx:
-                assert isinstance(tx, TransactionContext)
-            await db_manager.shutdown()
+        async with db_manager.transaction() as tx:
+            assert isinstance(tx, TransactionContext)
+        await db_manager.shutdown()
 
     @pytest.mark.asyncio
     async def test_concurrent_connection_handling(self, db_config) -> None:
-        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
-            mock_pool = AsyncMock()
-            mock_pool_class.return_value = mock_pool
+        mock_pool = AsyncMock()
 
-            # Mock multiple connection context managers
-            connections = []
-            for i in range(10):
-                mock_conn = AsyncMock()
-                conn_ctx = AsyncMock()
-                conn_ctx.__aenter__ = AsyncMock(return_value=mock_conn)
-                conn_ctx.__aexit__ = AsyncMock(return_value=None)
-                connections.append(conn_ctx)
+        # Mock multiple connection context managers
+        connections = []
+        for i in range(10):
+            mock_conn = AsyncMock()
+            conn_ctx = AsyncMock()
+            conn_ctx.__aenter__ = AsyncMock(return_value=mock_conn)
+            conn_ctx.__aexit__ = AsyncMock(return_value=None)
+            connections.append(conn_ctx)
 
-            mock_pool.get_postgres_connection = Mock(side_effect=connections)
+        mock_pool.get_postgres_connection = Mock(side_effect=connections)
+        pool_factory = Mock(return_value=mock_pool)
 
-            db_manager = DatabaseManager(db_config)
-            await db_manager.initialize()
+        db_manager = DatabaseManager(db_config, pool_factory=pool_factory)
+        await db_manager.initialize()
 
-            # Simulate concurrent requests
-            async def use_connection() -> None:
-                async with db_manager.get_connection() as conn:
-                    return
+        # Simulate concurrent requests
+        async def use_connection() -> None:
+            async with db_manager.get_connection() as conn:
+                return
 
-            tasks = [use_connection() for _ in range(10)]
-            results = await asyncio.gather(*tasks)
+        tasks = [use_connection() for _ in range(10)]
+        results = await asyncio.gather(*tasks)
 
-            assert len(results) == 10
-            assert mock_pool.get_postgres_connection.call_count == 10
-            await db_manager.shutdown()
+        assert len(results) == 10
+        assert mock_pool.get_postgres_connection.call_count == 10
+        await db_manager.shutdown()
 
     @pytest.mark.asyncio
     async def test_health_check_aggregation(self, db_config) -> None:
-        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
-            mock_pool = AsyncMock()
-            mock_pool.health_check.return_value = {"postgres": True, "redis": False}
-            mock_pool_class.return_value = mock_pool
+        mock_pool = AsyncMock()
+        mock_pool.health_check.return_value = {"postgres": True, "redis": False}
+        pool_factory = Mock(return_value=mock_pool)
 
-            db_manager = DatabaseManager(db_config)
-            await db_manager.initialize()
+        db_manager = DatabaseManager(db_config, pool_factory=pool_factory)
+        await db_manager.initialize()
 
-            health = await db_manager.health_check()
+        health = await db_manager.health_check()
 
-            assert health["postgres"] is True
-            assert health["redis"] is False
-            assert (
-                health["overall"] is False
-            )  # Should be False if any component unhealthy
+        assert health["postgres"] is True
+        assert health["redis"] is False
+        assert health["overall"] is False  # Should be False if any component unhealthy
 
     @pytest.mark.asyncio
     async def test_graceful_shutdown(self, db_config) -> None:
-        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
-            mock_pool = AsyncMock()
-            mock_pool_class.return_value = mock_pool
+        mock_pool = AsyncMock()
+        pool_factory = Mock(return_value=mock_pool)
 
-            db_manager = DatabaseManager(db_config)
-            await db_manager.initialize()
-            await db_manager.shutdown()
+        db_manager = DatabaseManager(db_config, pool_factory=pool_factory)
+        await db_manager.initialize()
+        await db_manager.shutdown()
 
-            mock_pool.close.assert_called_once()
+        mock_pool.close.assert_called_once()
 
 
 class TestDatabaseManagerConcurrency:
@@ -434,37 +426,36 @@ class TestDatabaseManagerConcurrency:
             max_overflow=1,
         )
 
-        with patch("app.engine.core.database.ConnectionPool") as mock_pool_class:
-            mock_pool = AsyncMock()
-            mock_pool_class.return_value = mock_pool
+        mock_pool = AsyncMock()
 
-            # Mock connection context manager
-            mock_connections = [AsyncMock() for _ in range(3)]
-            connection_contexts = []
-            for conn in mock_connections:
-                ctx = AsyncMock()
-                ctx.__aenter__ = AsyncMock(return_value=conn)
-                ctx.__aexit__ = AsyncMock(return_value=None)
-                connection_contexts.append(ctx)
+        # Mock connection context manager
+        mock_connections = [AsyncMock() for _ in range(3)]
+        connection_contexts = []
+        for conn in mock_connections:
+            ctx = AsyncMock()
+            ctx.__aenter__ = AsyncMock(return_value=conn)
+            ctx.__aexit__ = AsyncMock(return_value=None)
+            connection_contexts.append(ctx)
 
-            # `DatabaseManager.transaction()` expects `get_postgres_connection()` to return
-            # an async context manager directly (not a coroutine).
-            mock_pool.get_postgres_connection = Mock(side_effect=connection_contexts)
+        # `DatabaseManager.transaction()` expects `get_postgres_connection()` to return
+        # an async context manager directly (not a coroutine).
+        mock_pool.get_postgres_connection = Mock(side_effect=connection_contexts)
+        pool_factory = Mock(return_value=mock_pool)
 
-            db_manager = DatabaseManager(config)
-            await db_manager.initialize()
+        db_manager = DatabaseManager(config, pool_factory=pool_factory)
+        await db_manager.initialize()
 
-            # Simulate high concurrency
-            async def use_connection() -> None:
-                async with db_manager.transaction() as tx:
-                    await asyncio.sleep(0.01)  # Simulate work
+        # Simulate high concurrency
+        async def use_connection() -> None:
+            async with db_manager.transaction() as tx:
+                await asyncio.sleep(0.01)  # Simulate work
 
-            tasks = [use_connection() for _ in range(3)]
-            results = await asyncio.gather(*tasks)
+        tasks = [use_connection() for _ in range(3)]
+        results = await asyncio.gather(*tasks)
 
-            assert len(results) == 3
-            assert mock_pool.get_postgres_connection.call_count == 3
-            await db_manager.shutdown()
+        assert len(results) == 3
+        assert mock_pool.get_postgres_connection.call_count == 3
+        await db_manager.shutdown()
 
 
 class TestDatabaseIntegration:

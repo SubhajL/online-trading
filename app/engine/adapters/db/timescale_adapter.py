@@ -28,6 +28,10 @@ from ...models import (
 logger = logging.getLogger(__name__)
 
 
+class DuplicateGuardLookupError(RuntimeError):
+    """Raised when duplicate-guard state cannot be read reliably."""
+
+
 class PaperEquityComponents(NamedTuple):
     """Aggregated equity components from paper_positions."""
 
@@ -479,6 +483,58 @@ class TimescaleDBAdapter:
                 json.dumps(breakdown) if breakdown is not None else None,
             )
 
+    async def insert_outbound_alert_audit(  # noqa: PLR0913
+        self,
+        *,
+        channel: str,
+        alert_type: str,
+        delivery_method: str,
+        status: str,
+        reason: str | None,
+        chat_id: str | None,
+        dedup_key: str | None,
+        telegram_message_id: int | None,
+        message_text: str | None,
+        response_status: int | None,
+        response_body: str | None,
+        payload: dict[str, Any] | None,
+        attempted_at: datetime,
+    ) -> None:
+        """Insert one immutable outbound alert audit row."""
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO outbound_alert_audit (
+                    attempted_at,
+                    channel,
+                    alert_type,
+                    delivery_method,
+                    status,
+                    reason,
+                    chat_id,
+                    dedup_key,
+                    telegram_message_id,
+                    message_text,
+                    response_status,
+                    response_body,
+                    payload
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                """,
+                attempted_at,
+                channel,
+                alert_type,
+                delivery_method,
+                status,
+                reason,
+                chat_id,
+                dedup_key,
+                telegram_message_id,
+                message_text,
+                response_status,
+                response_body,
+                json.dumps(payload) if payload is not None else None,
+            )
+
     async def get_external_telegram_signals(
         self,
         *,
@@ -776,6 +832,7 @@ class TimescaleDBAdapter:
                         $1, $2, $3, $4, $5, $6, $7, $8, $9,
                         $10, $11, $12, $13, $14, $15, $16, $17
                     )
+                    ON CONFLICT (decision_id) DO NOTHING
                 """,
                     decision.decision_id,
                     decision.timestamp,
@@ -800,6 +857,332 @@ class TimescaleDBAdapter:
         except Exception as e:
             logger.error(f"Error inserting trading decision: {e}")
             return False
+
+    async def upsert_order(self, order: dict[str, Any]) -> bool:
+        """Upsert an order row using unique key (venue, client_order_id).
+
+        This is used by the live execution path to persist order placement and
+        later apply router/exchange updates.
+
+        This helper is append-only / null-preserving on conflict: `None` values in
+        the incoming payload do not clear existing DB columns.
+        """
+
+        def _to_decimal(val: Any) -> Decimal | None:
+            if val is None:
+                return None
+            if isinstance(val, Decimal):
+                return val
+            return Decimal(str(val))
+
+        try:
+            venue = order.get("venue")
+            client_order_id = order.get("client_order_id")
+            symbol = order.get("symbol")
+            side = order.get("side")
+            order_type = order.get("type")
+            quantity = _to_decimal(order.get("quantity"))
+
+            if not isinstance(venue, str) or not venue:
+                raise ValueError("order.venue is required")
+            if not isinstance(client_order_id, str) or not client_order_id:
+                raise ValueError("order.client_order_id is required")
+            if not isinstance(symbol, str) or not symbol:
+                raise ValueError("order.symbol is required")
+            if not isinstance(side, str) or not side:
+                raise ValueError("order.side is required")
+            if not isinstance(order_type, str) or not order_type:
+                raise ValueError("order.type is required")
+            if quantity is None or quantity <= 0:
+                raise ValueError("order.quantity must be > 0")
+
+            zone = order.get("zone")
+            zone_json = json.dumps(zone) if zone is not None else None
+
+            async with self.get_connection() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO orders (
+                        order_id,
+                        client_order_id,
+                        venue,
+                        symbol,
+                        side,
+                        type,
+                        quantity,
+                        price,
+                        stop_price,
+                        status,
+                        filled_quantity,
+                        average_fill_price,
+                        created_at,
+                        decision_id,
+                        exchange_order_id,
+                        commission,
+                        commission_asset,
+                        last_update_time,
+                        reject_reason,
+                        signal_id,
+                        timeframe,
+                        zone
+                    ) VALUES (
+                        COALESCE($1, gen_random_uuid()),
+                        $2,
+                        $3,
+                        $4,
+                        $5,
+                        $6,
+                        $7,
+                        $8,
+                        $9,
+                        COALESCE($10, 'NEW'),
+                        COALESCE($11::numeric, 0::numeric),
+                        $12,
+                        COALESCE($13, NOW()),
+                        $14,
+                        $15,
+                        COALESCE($16::numeric, 0::numeric),
+                        $17,
+                        $18,
+                        $19,
+                        $20,
+                        $21,
+                        $22::jsonb
+                    )
+                    ON CONFLICT (venue, client_order_id) DO UPDATE SET
+                        symbol = COALESCE(EXCLUDED.symbol, orders.symbol),
+                        side = COALESCE(EXCLUDED.side, orders.side),
+                        type = COALESCE(EXCLUDED.type, orders.type),
+                        quantity = COALESCE(EXCLUDED.quantity, orders.quantity),
+                        price = COALESCE(EXCLUDED.price, orders.price),
+                        stop_price = COALESCE(EXCLUDED.stop_price, orders.stop_price),
+                        status = CASE
+                            WHEN orders.status IN ('FILLED', 'CANCELED', 'REJECTED', 'EXPIRED') THEN orders.status
+                            WHEN $10 IS NULL THEN orders.status
+                            WHEN orders.last_update_time IS NOT NULL
+                                AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.status
+                            ELSE EXCLUDED.status
+                        END,
+                        filled_quantity = CASE
+                            WHEN $11::numeric IS NULL THEN orders.filled_quantity
+                            WHEN orders.last_update_time IS NOT NULL
+                                AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.filled_quantity
+                            ELSE GREATEST(EXCLUDED.filled_quantity, orders.filled_quantity)
+                        END,
+                        average_fill_price = COALESCE(EXCLUDED.average_fill_price, orders.average_fill_price),
+                        decision_id = COALESCE(EXCLUDED.decision_id, orders.decision_id),
+                        exchange_order_id = COALESCE(EXCLUDED.exchange_order_id, orders.exchange_order_id),
+                        commission = CASE
+                            WHEN $16::numeric IS NULL THEN orders.commission
+                            WHEN orders.last_update_time IS NOT NULL
+                                AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.commission
+                            ELSE GREATEST(EXCLUDED.commission, orders.commission)
+                        END,
+                        commission_asset = COALESCE(EXCLUDED.commission_asset, orders.commission_asset),
+                        last_update_time = CASE
+                            WHEN $18 IS NULL THEN orders.last_update_time
+                            WHEN orders.last_update_time IS NULL THEN EXCLUDED.last_update_time
+                            ELSE GREATEST(EXCLUDED.last_update_time, orders.last_update_time)
+                        END,
+                        reject_reason = COALESCE(EXCLUDED.reject_reason, orders.reject_reason),
+                        signal_id = COALESCE(EXCLUDED.signal_id, orders.signal_id),
+                        timeframe = COALESCE(EXCLUDED.timeframe, orders.timeframe),
+                        zone = COALESCE(EXCLUDED.zone, orders.zone),
+                        updated_at = NOW()
+                    """,
+                    order.get("order_id"),
+                    client_order_id,
+                    venue,
+                    symbol,
+                    side,
+                    order_type,
+                    quantity,
+                    _to_decimal(order.get("price")),
+                    _to_decimal(order.get("stop_price")),
+                    order.get("status"),
+                    _to_decimal(order.get("filled_quantity", 0)),
+                    _to_decimal(order.get("average_fill_price")),
+                    order.get("created_at"),
+                    order.get("decision_id"),
+                    order.get("exchange_order_id"),
+                    _to_decimal(order.get("commission")),
+                    order.get("commission_asset"),
+                    order.get("last_update_time"),
+                    order.get("reject_reason"),
+                    order.get("signal_id"),
+                    order.get("timeframe"),
+                    zone_json,
+                )
+            return True
+        except Exception:
+            logger.exception("Error upserting order: client_order_id=%s", order.get("client_order_id"))
+            return False
+
+    async def get_order_by_client_order_id(
+        self,
+        *,
+        client_order_id: str,
+        venue: str | None = None,
+    ) -> dict[Any, Any] | None:
+        """Get a single order row by client_order_id, optionally scoped by venue."""
+        try:
+            async with self.get_read_connection() as conn:
+                if venue:
+                    row = await conn.fetchrow(
+                        """
+                        SELECT
+                            order_id,
+                            client_order_id,
+                            venue,
+                            symbol,
+                            side,
+                            type,
+                            quantity,
+                            price,
+                            stop_price,
+                            status,
+                            filled_quantity,
+                            average_fill_price,
+                            created_at,
+                            decision_id::text AS decision_id,
+                            exchange_order_id,
+                            signal_id,
+                            timeframe,
+                            zone,
+                            last_update_time
+                        FROM orders
+                        WHERE client_order_id = $1
+                          AND venue = $2
+                        ORDER BY updated_at DESC
+                        LIMIT 1
+                    """,
+                        client_order_id,
+                        venue,
+                    )
+                else:
+                    row = await conn.fetchrow(
+                        """
+                        SELECT
+                            order_id,
+                            client_order_id,
+                            venue,
+                            symbol,
+                            side,
+                            type,
+                            quantity,
+                            price,
+                            stop_price,
+                            status,
+                            filled_quantity,
+                            average_fill_price,
+                            created_at,
+                            decision_id::text AS decision_id,
+                            exchange_order_id,
+                            signal_id,
+                            timeframe,
+                            zone,
+                            last_update_time
+                        FROM orders
+                        WHERE client_order_id = $1
+                        ORDER BY updated_at DESC
+                        LIMIT 1
+                    """,
+                        client_order_id,
+                    )
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"Error retrieving order by client_order_id: {e}")
+            return None
+
+    async def get_active_order_for_setup(
+        self,
+        *,
+        venue: str,
+        symbol: str,
+        side: str,
+        timeframe: str,
+        zone_id: str,
+    ) -> dict[Any, Any] | None:
+        """Get an active entry order for the same setup identity."""
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT client_order_id, status
+                    FROM orders
+                    WHERE venue = $1
+                      AND symbol = $2
+                      AND side = $3
+                      AND timeframe = $4
+                      AND zone->>'zone_id' = $5
+                      AND status IN ('NEW', 'PARTIALLY_FILLED')
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """,
+                    venue,
+                    symbol,
+                    side,
+                    timeframe,
+                    zone_id,
+                )
+                return dict(row) if row else None
+        except Exception:
+            logger.exception(
+                "Error retrieving active order for setup venue=%s symbol=%s timeframe=%s zone_id=%s",
+                venue,
+                symbol,
+                timeframe,
+                zone_id,
+            )
+            raise DuplicateGuardLookupError(
+                f"active order lookup unavailable for {venue} {symbol} {timeframe} {zone_id}"
+            ) from None
+
+    async def get_active_position_for_setup(
+        self,
+        *,
+        venue: str,
+        symbol: str,
+        side: str,
+        timeframe: str,
+        zone_id: str,
+    ) -> dict[Any, Any] | None:
+        """Get an active position whose opening order matches the same setup identity."""
+        try:
+            async with self.get_read_connection() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT p.position_id, p.entry_order_id, p.side, p.size
+                    FROM positions p
+                    JOIN orders o ON o.order_id = p.entry_order_id
+                    WHERE p.venue = $1
+                      AND p.symbol = $2
+                      AND p.side = $3
+                      AND p.is_active = TRUE
+                      AND p.size > 0
+                      AND o.timeframe = $4
+                      AND o.zone->>'zone_id' = $5
+                    ORDER BY p.opened_at DESC
+                    LIMIT 1
+                """,
+                    venue,
+                    symbol,
+                    side,
+                    timeframe,
+                    zone_id,
+                )
+                return dict(row) if row else None
+        except Exception:
+            logger.exception(
+                "Error retrieving active position for setup venue=%s symbol=%s timeframe=%s zone_id=%s",
+                venue,
+                symbol,
+                timeframe,
+                zone_id,
+            )
+            raise DuplicateGuardLookupError(
+                f"active position lookup unavailable for {venue} {symbol} {timeframe} {zone_id}"
+            ) from None
 
     async def get_recent_decisions(
         self,
@@ -1331,7 +1714,7 @@ class TimescaleDBAdapter:
             async with self.get_read_connection() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT symbol, size, current_price
+                    SELECT symbol, side, size, current_price, COALESCE(entry_order_id::text, '') AS entry_order_id
                       FROM positions
                      WHERE venue = $1
                        AND is_active = TRUE
@@ -1342,7 +1725,9 @@ class TimescaleDBAdapter:
                 return [dict(row) for row in rows]
         except Exception:
             logger.exception("Error retrieving active positions for venue=%s", venue)
-            return []
+            raise DuplicateGuardLookupError(
+                f"active positions lookup unavailable for venue={venue}"
+            ) from None
 
     async def health_check(self) -> dict[str, Any]:
         """Perform a health check on the database"""

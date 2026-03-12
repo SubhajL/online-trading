@@ -25,6 +25,13 @@ def _ingest_health(
     ws_consecutive_dns_failures: int = 0,
     ws_last_kline_ago_seconds: float | None = None,
     ws_last_closed_kline_ago_seconds: float | None = None,
+    ws_last_subscribe_ok_ago_seconds: float | None = None,
+    ws_last_subscribe_error_ago_seconds: float | None = None,
+    ws_last_subscribe_error: str | None = None,
+    ws_dispatch_queue_size: int = 0,
+    ws_dispatch_queue_max: int = 0,
+    ws_backoff_attempt: int = 0,
+    ws_max_reconnect_attempts: int = 50,
     consecutive_failures: int = 0,
     kline_subscriptions: int = 1,
     ticker_subscriptions: int = 1,
@@ -42,6 +49,13 @@ def _ingest_health(
             "consecutive_dns_failures": ws_consecutive_dns_failures,
             "last_kline_ago_seconds": ws_last_kline_ago_seconds,
             "last_closed_kline_ago_seconds": ws_last_closed_kline_ago_seconds,
+            "last_subscribe_ok_ago_seconds": ws_last_subscribe_ok_ago_seconds,
+            "last_subscribe_error_ago_seconds": ws_last_subscribe_error_ago_seconds,
+            "last_subscribe_error": ws_last_subscribe_error,
+            "dispatch_queue_size": ws_dispatch_queue_size,
+            "dispatch_queue_max": ws_dispatch_queue_max,
+            "backoff_attempt": ws_backoff_attempt,
+            "max_reconnect_attempts": ws_max_reconnect_attempts,
             "consecutive_failures": consecutive_failures,
             "kline_subscriptions": kline_subscriptions,
             "ticker_subscriptions": ticker_subscriptions,
@@ -61,6 +75,37 @@ class TestEvaluatePipelineHealth:
 
         assert any(i.key == "websocket_disconnected" for i in issues)
         assert any(i.error_type == "websocket_disconnected" for i in issues)
+
+    def test_pipeline_health_includes_recovery_context(self) -> None:
+        now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        thresholds = PipelineHealthThresholds()
+        health = _ingest_health(
+            ws_open=False,
+            ws_connected=False,
+            ws_last_connect_error_kind="dns",
+            ws_last_connect_error="Temporary failure in name resolution",
+            ws_last_connect_error_ago_seconds=15.0,
+            ws_consecutive_dns_failures=3,
+            ws_last_subscribe_ok_ago_seconds=120.0,
+            ws_last_subscribe_error_ago_seconds=30.0,
+            ws_last_subscribe_error="subscribe timeout",
+            ws_dispatch_queue_size=80,
+            ws_dispatch_queue_max=200,
+            ws_backoff_attempt=4,
+            ws_max_reconnect_attempts=50,
+        )
+
+        issues = evaluate_pipeline_health(ingest_health=health, now=now, thresholds=thresholds)
+
+        ws_issue = next(i for i in issues if i.key == "websocket_disconnected")
+        assert ws_issue.details["recovery_stage"] == "dns_recovery"
+        assert ws_issue.details["backoff_attempt"] == 4
+        assert ws_issue.details["max_reconnect_attempts"] == 50
+        assert ws_issue.details["dispatch_queue_size"] == 80
+        assert ws_issue.details["dispatch_queue_max"] == 200
+        assert ws_issue.details["last_subscribe_ok_ago_seconds"] == 120.0
+        assert ws_issue.details["last_subscribe_error_ago_seconds"] == 30.0
+        assert ws_issue.details["last_subscribe_error"] == "subscribe timeout"
 
     def test_ws_disconnected_suppresses_candle_stale_and_includes_summary(self) -> None:
         """When WS is hard-disconnected, suppress candle_stale spam but include summary details."""
@@ -140,6 +185,8 @@ class TestEvaluatePipelineHealth:
         now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
         thresholds = PipelineHealthThresholds(candle_lag_multiplier=2.0, candle_lag_grace_seconds=0)
         health = _ingest_health(
+            ws_last_message_ago_seconds=5.0,
+            ws_last_kline_ago_seconds=5.0,
             latest_candle_ago_seconds={
                 "BTCUSDT": {"5m": 1000.0},
             },
@@ -148,6 +195,25 @@ class TestEvaluatePipelineHealth:
         issues = evaluate_pipeline_health(ingest_health=health, now=now, thresholds=thresholds)
 
         assert any(i.key == "candle_stale:BTCUSDT:5m" for i in issues)
+
+    def test_pipeline_health_suppresses_redundant_stale_alerts_during_repair(self) -> None:
+        now = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
+        thresholds = PipelineHealthThresholds(candle_lag_multiplier=2.0, candle_lag_grace_seconds=0)
+        health = _ingest_health(
+            ws_connected=True,
+            ws_stale=False,
+            ws_last_message_ago_seconds=5.0,
+            ws_last_kline_ago_seconds=150.0,
+            ws_last_closed_kline_ago_seconds=300.0,
+            latest_candle_ago_seconds={
+                "BTCUSDT": {"5m": 1000.0},
+            },
+        )
+
+        issues = evaluate_pipeline_health(ingest_health=health, now=now, thresholds=thresholds)
+
+        assert any(i.key == "kline_stream_stale" for i in issues)
+        assert not any(i.key == "candle_stale:BTCUSDT:5m" for i in issues)
 
 
 class TestKlineStreamStaleDetection:

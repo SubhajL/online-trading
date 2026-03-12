@@ -111,6 +111,7 @@ class BinanceWebSocketClient:
         backoff_config: BackoffConfig | None = None,
         circuit_breaker: CircuitBreaker | None = None,
         event_bus: "EventBus | None" = None,
+        ws_connector: "Callable[..., Any] | None" = None,
         stale_threshold_seconds: int = 60,
         ping_keepalive_interval: int = 30,
         dispatch_queue_maxsize: int | None = None,
@@ -134,6 +135,7 @@ class BinanceWebSocketClient:
 
         # Event bus - use provided or get global
         self._event_bus = event_bus if event_bus is not None else get_event_bus()
+        self._ws_connector = ws_connector
 
         self._last_message_at: datetime | None = None
         self._message_times: deque[datetime] = deque(maxlen=2000)
@@ -484,7 +486,7 @@ class BinanceWebSocketClient:
 
             logger.info(f"Connecting to WebSocket: {url[:100]}...")
 
-            connector = get_ws_connector()
+            connector = self._ws_connector or get_ws_connector()
             async with connector(
                 url,
                 ping_interval=self.ping_interval,

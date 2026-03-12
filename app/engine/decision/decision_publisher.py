@@ -7,11 +7,15 @@ Converts retest signals into TradingDecision events for downstream execution.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 import logging
 from typing import TYPE_CHECKING
 
 from app.engine.bus import get_event_bus
-from app.engine.decision.pretrade_risk import evaluate_pretrade_risk
+from app.engine.decision.pretrade_risk import (
+    build_pretrade_risk_debug_metadata,
+    evaluate_pretrade_risk,
+)
 from app.engine.decision.risk_state import build_risk_snapshot
 from app.engine.models import (
     ErrorEvent,
@@ -108,6 +112,41 @@ class DecisionPublisher:
 
         risk_amount = snapshot.equity * self._risk.risk_per_trade
         quantity = risk_amount / stop_distance
+        original_quantity = quantity
+
+        # Cap sizing to notional/exposure limits instead of rejecting outright.
+        # This intentionally risks *less* than risk_per_trade when stops are too tight.
+        if signal.level_price and signal.level_price > 0 and quantity > 0:
+            entry_price = signal.level_price
+            equity = snapshot.equity
+            existing_symbol_exposure = snapshot.symbol_exposure_usd.get(
+                signal.symbol,
+                Decimal(0),
+            )
+            existing_total_exposure = snapshot.total_exposure_usd
+
+            max_qty_candidates = []
+
+            if self._risk.max_position_size > 0:
+                max_qty_candidates.append(self._risk.max_position_size)
+
+            if self._risk.max_position_notional_pct > 0:
+                max_qty_candidates.append((equity * self._risk.max_position_notional_pct) / entry_price)
+
+            if self._risk.max_symbol_exposure_pct > 0:
+                remaining_symbol_notional = (equity * self._risk.max_symbol_exposure_pct) - existing_symbol_exposure
+                if remaining_symbol_notional > 0:
+                    max_qty_candidates.append(remaining_symbol_notional / entry_price)
+
+            if self._risk.max_total_exposure_leverage > 0:
+                remaining_total_notional = (equity * self._risk.max_total_exposure_leverage) - existing_total_exposure
+                if remaining_total_notional > 0:
+                    max_qty_candidates.append(remaining_total_notional / entry_price)
+
+            if max_qty_candidates:
+                capped_qty = min(max_qty_candidates)
+                if capped_qty > 0 and capped_qty < quantity:
+                    quantity = capped_qty
 
         decision = TradingDecision(
             venue=self._venue,
@@ -125,6 +164,11 @@ class DecisionPublisher:
 
         ok, reasons = evaluate_pretrade_risk(snapshot=snapshot, decision=decision, risk=self._risk)
         if not ok:
+            debug_meta = build_pretrade_risk_debug_metadata(
+                snapshot=snapshot,
+                decision=decision,
+                risk=self._risk,
+            )
             error_event = ErrorEvent(
                 event_type=EventType.ERROR,
                 timestamp=datetime.now(UTC),
@@ -135,6 +179,7 @@ class DecisionPublisher:
                 component="decision_publisher",
                 metadata={
                     "signal_id": str(signal.signal_id),
+                    **debug_meta,
                 },
             )
             try:
@@ -154,9 +199,16 @@ class DecisionPublisher:
                 "decision_source": "retest_decision_publisher",
                 "zone": signal_metadata.get("zone"),
                 "timeframe": signal_metadata.get("timeframe"),
+                "sizing_capped": quantity != original_quantity,
+                "sizing_original_quantity": str(original_quantity),
             },
             decision=decision,
         )
+
+        try:
+            await self._db_adapter.insert_trading_decision(decision)
+        except Exception:
+            logger.exception("Error persisting trading decision to DB (decision_id=%s)", decision.decision_id)
 
         try:
             await self._event_bus.publish(decision_event, priority=7)

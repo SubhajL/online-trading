@@ -1,5 +1,6 @@
 """Unit tests for Telegram alert adapter."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,14 +9,29 @@ import pytest
 from app.engine.adapters.alert.telegram import TelegramAlertAdapter
 
 
+class _FakeAuditAdapter:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def insert_outbound_alert_audit(self, **kwargs: object) -> None:  # noqa: D401
+        self.calls.append(kwargs)
+
+
 @pytest.fixture
 def telegram_adapter():
     """Create a Telegram adapter instance for testing."""
+    audit_adapter = _FakeAuditAdapter()
     adapter = TelegramAlertAdapter(
-        bot_token="test-bot-token", chat_id="test-chat-id", rate_limit_per_minute=30,
+        bot_token="test-bot-token",
+        chat_id="test-chat-id",
+        rate_limit_per_minute=30,
+        db_adapter=audit_adapter,
     )
     # Unit tests must not rely on real Redis dedup state.
     adapter.deduplicator.redis_client = None
+    adapter.error_deduplicator.redis_client = None
+    adapter.startup_deduplicator.redis_client = None
+    adapter._test_audit_adapter = audit_adapter  # type: ignore[attr-defined]
     return adapter
 
 
@@ -108,6 +124,172 @@ async def test_handle_decision_without_snapshot(telegram_adapter):
     mock_session.post.assert_called()
     call_args = mock_session.post.call_args
     assert "sendMessage" in call_args[0][0]  # URL contains sendMessage
+
+
+@pytest.mark.asyncio
+async def test_send_alert_persists_successful_text_audit(telegram_adapter):
+    mock_response = MagicMock()
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={"ok": True, "result": {"message_id": 321}})
+
+    mock_context = AsyncMock()
+    mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_context.__aexit__ = AsyncMock(return_value=None)
+
+    mock_session = MagicMock()
+    mock_session.post = MagicMock(return_value=mock_context)
+    telegram_adapter.session = mock_session
+
+    success = await telegram_adapter._send_alert(
+        "Test outbound message",
+        alert_type="order_update",
+        payload={"symbol": "BTCUSDT", "event_type": "order_update.v1"},
+    )
+
+    assert success is True
+    audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
+    assert len(audit_calls) == 1
+    call = audit_calls[0]
+    assert call["channel"] == "telegram"
+    assert call["alert_type"] == "order_update"
+    assert call["delivery_method"] == "text"
+    assert call["status"] == "sent"
+    assert call["chat_id"] == "test-chat-id"
+    assert call["telegram_message_id"] == 321
+    assert call["message_text"] == "Test outbound message"
+    assert call["payload"] == {"symbol": "BTCUSDT", "event_type": "order_update.v1"}
+
+
+@pytest.mark.asyncio
+async def test_send_alert_persists_http_failure_audit(telegram_adapter):
+    mock_response = MagicMock()
+    mock_response.status = 500
+    mock_response.text = AsyncMock(return_value="Server error")
+
+    mock_context = AsyncMock()
+    mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_context.__aexit__ = AsyncMock(return_value=None)
+
+    mock_session = MagicMock()
+    mock_session.post = MagicMock(return_value=mock_context)
+    telegram_adapter.session = mock_session
+
+    success = await telegram_adapter._send_alert(
+        "Failure outbound message",
+        alert_type="error",
+        payload={"component": "pipeline_health"},
+    )
+
+    assert success is False
+    audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
+    assert len(audit_calls) == 1
+    call = audit_calls[0]
+    assert call["alert_type"] == "error"
+    assert call["status"] == "failed"
+    assert call["response_status"] == 500
+    assert call["response_body"] == "Server error"
+
+
+@pytest.mark.asyncio
+async def test_handle_decision_persists_dedup_skip_audit(telegram_adapter):
+    telegram_adapter.deduplicator.reserve = MagicMock(return_value=False)
+    telegram_adapter.session = MagicMock()
+
+    event = {
+        "symbol": "BTCUSDT",
+        "side": "long",
+        "timestamp": "2025-01-26T10:00:00Z",
+        "signal_id": "test-signal-123",
+        "entry_price": Decimal(50000),
+        "stop_loss": Decimal(49000),
+        "take_profit": Decimal(52000),
+        "quantity": Decimal("0.01"),
+        "confidence": 0.85,
+        "reasons": ["SMC Break", "Trend Alignment"],
+    }
+
+    await telegram_adapter._handle_decision(event)
+
+    audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
+    assert len(audit_calls) == 1
+    call = audit_calls[0]
+    assert call["alert_type"] == "decision"
+    assert call["status"] == "skipped"
+    assert call["reason"] == "deduplicated"
+    assert call["dedup_key"] == "decision:BTCUSDT:long:2025-01-26T10:00:00Z"
+
+
+@pytest.mark.asyncio
+async def test_send_alert_persists_rate_limit_skip_audit(telegram_adapter):
+    telegram_adapter._message_times = [datetime.now(UTC)] * telegram_adapter.rate_limit_per_minute
+    telegram_adapter.session = MagicMock()
+
+    success = await telegram_adapter._send_alert(
+        "Rate limited outbound message",
+        alert_type="startup",
+        payload={"phase": "backfill_complete"},
+    )
+
+    assert success is False
+    audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
+    assert len(audit_calls) == 1
+    call = audit_calls[0]
+    assert call["alert_type"] == "startup"
+    assert call["status"] == "skipped"
+    assert call["reason"] == "rate_limited"
+
+
+@pytest.mark.asyncio
+async def test_send_photo_alert_persists_failure_audit(telegram_adapter):
+    mock_response = MagicMock()
+    mock_response.status = 500
+    mock_response.text = AsyncMock(return_value="Photo upload failed")
+
+    mock_context = AsyncMock()
+    mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_context.__aexit__ = AsyncMock(return_value=None)
+
+    mock_session = MagicMock()
+    mock_session.post = MagicMock(return_value=mock_context)
+    telegram_adapter.session = mock_session
+
+    success = await telegram_adapter._send_photo_alert(
+        b"image-bytes",
+        "Photo caption",
+        alert_type="decision",
+        payload={"signal_id": "sig-1"},
+        dedup_key="decision:BTCUSDT:long:now",
+    )
+
+    assert success is False
+    audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
+    assert len(audit_calls) == 1
+    call = audit_calls[0]
+    assert call["delivery_method"] == "photo"
+    assert call["status"] == "failed"
+    assert call["reason"] == "http_error"
+    assert call["response_status"] == 500
+    assert call["response_body"] == "Photo upload failed"
+
+
+@pytest.mark.asyncio
+async def test_send_error_alert_persists_dedup_skip_audit(telegram_adapter):
+    telegram_adapter.error_deduplicator.reserve = MagicMock(return_value=False)
+    telegram_adapter.session = MagicMock()
+
+    success = await telegram_adapter.send_error_alert(
+        "Pipeline failure",
+        dedup_key="error:pipeline_health:websocket_stale",
+    )
+
+    assert success is False
+    audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
+    assert len(audit_calls) == 1
+    call = audit_calls[0]
+    assert call["alert_type"] == "error"
+    assert call["status"] == "skipped"
+    assert call["reason"] == "deduplicated"
+    assert call["dedup_key"] == "error:pipeline_health:websocket_stale"
 
 
 @pytest.mark.asyncio
@@ -231,6 +413,12 @@ async def test_send_photo_alert(telegram_adapter):
     success = await telegram_adapter._send_photo_alert(b"image-data", "Test caption")
 
     assert success is True
+    audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
+    assert len(audit_calls) == 1
+    call = audit_calls[0]
+    assert call["delivery_method"] == "photo"
+    assert call["status"] == "sent"
+    assert call["message_text"] == "Test caption"
 
     # Check FormData was used
     mock_session.post.assert_called_once()

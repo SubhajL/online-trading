@@ -221,6 +221,7 @@ class LivePaperTradingHarness:
         adapter = TelegramAlertAdapter(
             bot_token=bot_token,
             chat_id=chat_id,
+            db_adapter=self.db_adapter,
         )
         await adapter.start()
         return adapter

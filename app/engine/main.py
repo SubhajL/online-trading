@@ -8,6 +8,7 @@ metrics, and service management.
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+import json
 import logging
 import os
 import signal
@@ -46,6 +47,43 @@ logger = logging.getLogger(__name__)
 
 # Global service instances
 services: dict[str, Any] = {}
+
+
+def _merge_order_update_metadata(
+    base: dict[str, Any],
+    fallback: dict[str, Any],
+) -> dict[str, Any]:
+    merged = dict(base)
+    for key, value in fallback.items():
+        if key not in merged or merged[key] in (None, "", {}):
+            merged[key] = value
+    return merged
+
+
+def _metadata_from_order_row(order_row: dict[str, Any]) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+
+    decision_id = order_row.get("decision_id")
+    if decision_id is not None:
+        decision_id_str = str(decision_id).strip()
+        if decision_id_str:
+            metadata["decision_id"] = decision_id_str
+
+    for key in ("signal_id", "timeframe", "venue"):
+        value = order_row.get(key)
+        if isinstance(value, str) and value:
+            metadata[key] = value
+
+    zone = order_row.get("zone")
+    if isinstance(zone, str):
+        try:
+            zone = json.loads(zone)
+        except json.JSONDecodeError:
+            zone = None
+    if isinstance(zone, dict) and zone:
+        metadata["zone"] = zone
+
+    return metadata
 
 
 # Request/Response Models
@@ -148,6 +186,11 @@ def _pipeline_health_alerts_enabled_from_env() -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+def _telegram_execution_decision_alerts_enabled_from_env() -> bool:
+    value = os.getenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", "0").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def _paper_trading_enabled_from_env() -> bool:
     """Check if paper trading mode is enabled via ENABLE_PAPER_TRADING env var."""
     value = os.getenv("ENABLE_PAPER_TRADING", "false").strip().lower()
@@ -174,6 +217,11 @@ def _signal_emitter_subscriber_enabled_from_env() -> bool:
     Set SIGNAL_EMITTER_SUBSCRIBER_ENABLED=1 to enable (NOT RECOMMENDED for production).
     """
     value = os.getenv("SIGNAL_EMITTER_SUBSCRIBER_ENABLED", "0").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _order_update_db_hydration_enabled_from_env() -> bool:
+    value = os.getenv("ORDER_UPDATE_DB_HYDRATION_ENABLED", "1").strip().lower()
     return value in {"1", "true", "yes", "on"}
 
 
@@ -334,6 +382,9 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         execution_mode = execution_mode_from_env(os.environ)
         services["execution_mode"] = execution_mode  # Store for AlertSubscriber
         execution_enabled = execution_mode != ExecutionMode.DISABLED
+        execution_decision_alerts_enabled = (
+            execution_enabled and _telegram_execution_decision_alerts_enabled_from_env()
+        )
         execution_venue = (
             "USD_M"
             if execution_mode
@@ -511,16 +562,18 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
             telegram_adapter = TelegramAlertAdapter(
                 bot_token=telegram_bot_token,
                 chat_id=os.getenv("TELEGRAM_CHAT_ID", ""),
+                db_adapter=db_adapter,
             )
             await telegram_adapter.start()
             services["telegram_adapter"] = telegram_adapter
 
             # Mode-aware alert subscriber:
-            # - execution_enabled=True: alerts on ORDER_PLACED (after order confirmation)
+            # - execution_enabled=True: alerts on ORDER_UPDATE and, when enabled, TRADING_DECISION
             # - execution_enabled=False: alerts on TRADING_DECISION (signal-only)
             alert_subscriber = AlertSubscriber(
                 telegram_adapter=telegram_adapter,
                 execution_enabled=execution_enabled,
+                execution_decision_alerts_enabled=execution_decision_alerts_enabled,
                 cooldown=None if execution_enabled else alert_cooldown,
                 # BFF client for snapshots in disabled mode (set below when available)
             )
@@ -966,6 +1019,30 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
         if corr is not None:
             metadata = dict(corr.metadata)
 
+    db_adapter = services.get("database")
+    hydration_enabled = _order_update_db_hydration_enabled_from_env()
+    if (
+        not metadata
+        and hydration_enabled
+        and db_adapter is not None
+        and hasattr(db_adapter, "get_order_by_client_order_id")
+    ):
+        try:
+            hydrated_order_row = await db_adapter.get_order_by_client_order_id(
+                client_order_id=parsed.client_order_id,
+                venue=parsed.venue,
+            )
+            if hydrated_order_row is not None:
+                metadata = _merge_order_update_metadata(
+                    metadata,
+                    _metadata_from_order_row(hydrated_order_row),
+                )
+        except Exception:
+            logger.exception(
+                "Failed to hydrate order update metadata from DB (client_order_id=%s)",
+                parsed.client_order_id,
+            )
+
     event = OrderUpdateEvent(
         timestamp=ts,
         symbol=parsed.symbol,
@@ -974,10 +1051,54 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
         payload=update,
     )
 
+    normalized_status = parsed.status.strip().upper()
+    if normalized_status == "CANCELLED":
+        normalized_status = "CANCELED"
+    terminal_statuses = {"FILLED", "REJECTED", "CANCELED", "EXPIRED"}
+    terminal_update_persisted = False
+
+    # Persist order updates for auditability (best-effort; do not block alerting).
+    if hydration_enabled and db_adapter is not None and hasattr(db_adapter, "upsert_order"):
+        try:
+            venue = parsed.venue or metadata.get("venue")
+            if isinstance(venue, str) and venue:
+                raw_type = (parsed.order_type or "").strip().upper()
+                order_type = "STOP_LOSS" if raw_type == "STOP_MARKET" else raw_type
+
+                order_row: dict[str, Any] = {
+                    "venue": venue,
+                    "client_order_id": parsed.client_order_id,
+                    "symbol": parsed.symbol,
+                    "side": (parsed.side or "").strip().upper(),
+                    "type": order_type,
+                    "quantity": parsed.quantity or parsed.executed_qty,
+                    "price": parsed.price,
+                    "status": normalized_status,
+                    "filled_quantity": parsed.executed_qty,
+                    "average_fill_price": parsed.price if normalized_status == "FILLED" else None,
+                    "exchange_order_id": str(parsed.order_id) if parsed.order_id is not None else None,
+                    "last_update_time": ts,
+                }
+                decision_id = metadata.get("decision_id")
+                if isinstance(decision_id, str) and decision_id:
+                    order_row["decision_id"] = decision_id
+                signal_id = metadata.get("signal_id")
+                if isinstance(signal_id, str) and signal_id:
+                    order_row["signal_id"] = signal_id
+                timeframe = metadata.get("timeframe")
+                if isinstance(timeframe, str) and timeframe:
+                    order_row["timeframe"] = timeframe
+                zone = metadata.get("zone")
+                if isinstance(zone, dict) and zone:
+                    order_row["zone"] = zone
+                persisted = await db_adapter.upsert_order(order_row)
+                terminal_update_persisted = bool(persisted) and normalized_status in terminal_statuses
+        except Exception:
+            logger.exception("Failed to persist order update to DB (client_order_id=%s)", parsed.client_order_id)
+
     await services["event_bus"].publish(event, priority=7)
 
-    status = parsed.status.strip().upper()
-    if store is not None and status in {"FILLED", "REJECTED", "CANCELED", "EXPIRED"}:
+    if store is not None and terminal_update_persisted:
         await store.delete(client_order_id=parsed.client_order_id)
 
     return {"status": "ok"}

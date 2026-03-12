@@ -406,10 +406,15 @@ class DatabaseManager:
     unified interface for all database operations.
     """
 
-    def __init__(self, config: DatabaseConfig) -> None:
+    def __init__(
+        self,
+        config: DatabaseConfig,
+        pool_factory: Callable[[DatabaseConfig], ConnectionPool] | None = None,
+    ) -> None:
         self.config = config
         self.logger = logging.getLogger(__name__)
-        self._pool = ConnectionPool(config)
+        self._pool_factory = pool_factory or ConnectionPool
+        self._pool = self._pool_factory(config)
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -583,7 +588,7 @@ class DatabaseManager:
 
     def __del__(self) -> None:
         """Cleanup on garbage collection."""
-        if self._initialized and self._pool:
+        if getattr(self, "_initialized", False) and getattr(self, "_pool", None):
             # Log warning about ungraceful shutdown
             self.logger.warning(
                 "DatabaseManager deleted without explicit shutdown. "

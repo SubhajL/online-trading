@@ -190,6 +190,33 @@ class TestLivePaperTradingHarnessTelegramEnv:
         assert adapter is not None
         start_mock.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_maybe_create_telegram_adapter_passes_db_adapter(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
+        monkeypatch.setenv("TELEGRAM_CHAT_ID", "test-chat")
+
+        config = _make_harness_config()
+        harness = LivePaperTradingHarness(config)
+
+        class _StubTelegramAdapter:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+
+            async def start(self) -> None:
+                return None
+
+        with patch(
+            "app.engine.paper.live_harness.TelegramAlertAdapter",
+            _StubTelegramAdapter,
+        ):
+            adapter = await harness._maybe_create_telegram_adapter_from_env()
+
+        assert adapter is not None
+        assert adapter.kwargs["db_adapter"] is harness.db_adapter
+
 
 class TestLivePaperTradingHarnessOnDecision:
     """Tests for decision handling."""

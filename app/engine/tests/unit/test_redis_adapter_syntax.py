@@ -17,6 +17,15 @@ class MypyResult(NamedTuple):
     error_count: int
 
 
+def _mypy_available() -> bool:
+    """Check if mypy is importable under the current interpreter."""
+    proc = subprocess.run(
+        [sys.executable, "-c", "import mypy"],
+        capture_output=True,
+    )
+    return proc.returncode == 0
+
+
 def run_mypy_on_file(file_path: Path, config_file: Path) -> MypyResult:
     """Run mypy on a specific file and return results."""
     cmd = [
@@ -61,6 +70,7 @@ class TestRedisAdapterSyntax:
         """Path to mypy config."""
         return Path(__file__).parent.parent.parent / "mypy.ini"
 
+    @pytest.mark.skipif(not _mypy_available(), reason="mypy not installed")
     def test_redis_adapter_has_no_syntax_errors(self, redis_adapter_path: Path, mypy_config_path: Path) -> None:
         """redis_adapter.py should not have syntax errors."""
         result = run_mypy_on_file(redis_adapter_path, mypy_config_path)
@@ -117,6 +127,7 @@ class TestMypyCompliance:
         """Path to mypy config."""
         return Path(__file__).parent.parent.parent / "mypy.ini"
 
+    @pytest.mark.skipif(not _mypy_available(), reason="mypy not installed")
     def test_no_mypy_errors_after_fix(self, redis_adapter_path: Path, mypy_config_path: Path) -> None:
         """Require full mypy success for redis adapter."""
         result = run_mypy_on_file(redis_adapter_path, mypy_config_path)
