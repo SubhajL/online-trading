@@ -137,7 +137,7 @@ func (p *TradeProcessor) handleFuturesOrderTradeUpdateTx(
 	}
 
 	updateTime := futuresEventTimeUTC(event.TransactionTime)
-	_, _, err = p.orders.ApplyFillUpdate(ctx, tx, p.venue, data.ClientOrderID, storage.OrderFillUpdate{
+	order, _, err := p.orders.ApplyFillUpdate(ctx, tx, p.venue, data.ClientOrderID, storage.OrderFillUpdate{
 		Status:           data.OrderStatus,
 		FilledQuantity:   data.CumulativeFilledQty,
 		AverageFillPrice: data.AvgPrice,
@@ -191,12 +191,19 @@ func (p *TradeProcessor) handleFuturesOrderTradeUpdateTx(
 	totalCommission := commissionDelta
 	totalSlippage := slippageDelta
 	totalFunding := decimal.Zero
-	if activeFound && active != nil {
+	entryOrderID := ""
+	if order != nil {
+		entryOrderID = order.OrderID.String()
+	}
+	if activeFound && active != nil && active.Side == next.Side {
 		openedAt = active.OpenedAt
 		totalRealized = active.RealizedPnL.Add(realizedDelta)
 		totalCommission = active.CommissionPaid.Add(commissionDelta)
 		totalSlippage = active.SlippagePaid.Add(slippageDelta)
 		totalFunding = active.FundingPaid
+		if active.EntryOrderID != "" {
+			entryOrderID = active.EntryOrderID
+		}
 	}
 
 	return p.positions.UpsertActive(ctx, tx, storage.ActivePositionUpsert{
@@ -205,6 +212,7 @@ func (p *TradeProcessor) handleFuturesOrderTradeUpdateTx(
 		Side:           next.Side,
 		Size:           next.Quantity,
 		EntryPrice:     next.EntryPrice,
+		EntryOrderID:   entryOrderID,
 		CurrentPrice:   data.LastExecutedPrice,
 		RealizedPnL:    totalRealized,
 		CommissionPaid: totalCommission,

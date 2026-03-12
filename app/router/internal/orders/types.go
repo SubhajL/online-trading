@@ -16,17 +16,18 @@ const (
 
 // BracketOrder represents a bracket order (main + TPs + SL)
 type BracketOrder struct {
-	ID               string            `json:"id"`
-	Symbol           string            `json:"symbol"`
-	Type             OrderType         `json:"type"`
-	Side             string            `json:"side"`
-	Quantity         decimal.Decimal   `json:"quantity"`
-	EntryPrice       decimal.Decimal   `json:"entry_price"`
-	TakeProfitPrices []decimal.Decimal `json:"take_profit_prices"`
-	StopLossPrice    decimal.Decimal   `json:"stop_loss_price"`
-	ClientOrderIDs   ClientOrderIDs    `json:"client_order_ids"`
-	CreatedAt        time.Time         `json:"created_at"`
-	UpdatedAt        time.Time         `json:"updated_at"`
+	ID                 string            `json:"id"`
+	Symbol             string            `json:"symbol"`
+	Type               OrderType         `json:"type"`
+	Side               string            `json:"side"`
+	Quantity           decimal.Decimal   `json:"quantity"`
+	EntryPrice         decimal.Decimal   `json:"entry_price"`
+	TakeProfitPrices   []decimal.Decimal `json:"take_profit_prices"`
+	StopLossPrice      decimal.Decimal   `json:"stop_loss_price"`
+	StopLossLimitPrice decimal.Decimal   `json:"stop_loss_limit_price"`
+	ClientOrderIDs     ClientOrderIDs    `json:"client_order_ids"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
 }
 
 // ClientOrderIDs holds the client order IDs for a bracket order
@@ -69,14 +70,15 @@ type PlaceBracketRequest struct {
 
 // PlaceBracketResponse represents the response from placing a bracket order
 type PlaceBracketResponse struct {
-	BracketOrderID string          `json:"bracket_order_id"`
-	ClientOrderIDs ClientOrderIDs  `json:"client_order_ids"`
-	Symbol         string          `json:"symbol"`
-	Side           string          `json:"side"`
-	Quantity       decimal.Decimal `json:"quantity"`
-	CreatedAt      time.Time       `json:"created_at"`
-	PartialFailure bool            `json:"partial_failure,omitempty"`
-	Errors         []string        `json:"errors,omitempty"`
+	BracketOrderID     string          `json:"bracket_order_id"`
+	ClientOrderIDs     ClientOrderIDs  `json:"client_order_ids"`
+	Symbol             string          `json:"symbol"`
+	Side               string          `json:"side"`
+	Quantity           decimal.Decimal `json:"quantity"`
+	StopLossLimitPrice decimal.Decimal `json:"stop_loss_limit_price,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	PartialFailure     bool            `json:"partial_failure,omitempty"`
+	Errors             []string        `json:"errors,omitempty"`
 }
 
 // CancelRequest represents a request to cancel an order

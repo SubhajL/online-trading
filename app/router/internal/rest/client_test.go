@@ -14,6 +14,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"router/internal/auth"
 )
@@ -249,6 +250,55 @@ func TestClient_GetOrderBook(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, orderBook)
 		assert.Contains(t, err.Error(), "symbol is required")
+	})
+}
+
+func TestClient_GetTickerPrice(t *testing.T) {
+	t.Run("parses single symbol price response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/v3/ticker/price", r.URL.Path)
+			assert.Equal(t, "BTCUSDT", r.URL.Query().Get("symbol"))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(200)
+			_, _ = w.Write([]byte(`{"symbol":"BTCUSDT","price":"65000.12"}`))
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL, nil)
+
+		price, err := client.GetTickerPrice(context.Background(), "BTCUSDT")
+
+		require.NoError(t, err)
+		require.NotNil(t, price)
+		assert.Equal(t, "BTCUSDT", price.Symbol)
+		assert.True(t, decimal.RequireFromString("65000.12").Equal(price.Price))
+	})
+}
+
+func TestClient_GetTickerPrices(t *testing.T) {
+	t.Run("parses bulk symbol prices response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/v3/ticker/price", r.URL.Path)
+			assert.Empty(t, r.URL.Query().Get("symbol"))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(200)
+			_, _ = w.Write([]byte(`[
+				{"symbol":"BTCUSDT","price":"65000.12"},
+				{"symbol":"ETHUSDT","price":"3200.50"}
+			]`))
+		}))
+		defer server.Close()
+
+		client := NewClient(server.URL, nil)
+
+		prices, err := client.GetTickerPrices(context.Background())
+
+		require.NoError(t, err)
+		require.Len(t, prices, 2)
+		assert.Equal(t, "BTCUSDT", prices[0].Symbol)
+		assert.True(t, decimal.RequireFromString("65000.12").Equal(prices[0].Price))
+		assert.Equal(t, "ETHUSDT", prices[1].Symbol)
+		assert.True(t, decimal.RequireFromString("3200.50").Equal(prices[1].Price))
 	})
 }
 
@@ -615,12 +665,14 @@ func TestClient_CancelOrder(t *testing.T) {
 		client := NewClient("https://api.binance.com", signer)
 		ctx := context.Background()
 
-		err := client.CancelOrder(ctx, "BTCUSDT", 0)
+		resp, err := client.CancelOrder(ctx, "BTCUSDT", 0)
 		assert.Error(t, err)
+		assert.Nil(t, resp)
 		assert.Contains(t, err.Error(), "orderID is required")
 
-		err = client.CancelOrder(ctx, "", 123)
+		resp, err = client.CancelOrder(ctx, "", 123)
 		assert.Error(t, err)
+		assert.Nil(t, resp)
 		assert.Contains(t, err.Error(), "symbol is required")
 	})
 
@@ -634,7 +686,10 @@ func TestClient_CancelOrder(t *testing.T) {
 			_, _ = w.Write([]byte(`{
 					"symbol": "BTCUSDT",
 					"orderId": 123456,
-					"status": "CANCELED"
+					"status": "CANCELED",
+					"executedQty": "0.007",
+					"type": "LIMIT",
+					"side": "BUY"
 				}`))
 		}))
 		defer server.Close()
@@ -643,8 +698,12 @@ func TestClient_CancelOrder(t *testing.T) {
 		client := NewClient(server.URL, signer)
 		ctx := context.Background()
 
-		err := client.CancelOrder(ctx, "BTCUSDT", 123456)
+		resp, err := client.CancelOrder(ctx, "BTCUSDT", 123456)
 		assert.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.Equal(t, int64(123456), resp.OrderID)
+		assert.Equal(t, "CANCELED", resp.Status)
+		assert.True(t, decimal.RequireFromString("0.007").Equal(resp.ExecutedQty))
 	})
 
 	t.Run("handles order not found error", func(t *testing.T) {
@@ -659,8 +718,9 @@ func TestClient_CancelOrder(t *testing.T) {
 		client := NewClient(server.URL, signer)
 		ctx := context.Background()
 
-		err := client.CancelOrder(ctx, "BTCUSDT", 999999)
+		resp, err := client.CancelOrder(ctx, "BTCUSDT", 999999)
 
+		assert.Nil(t, resp)
 		assert.Error(t, err)
 		var binanceErr *BinanceError
 		assert.True(t, errors.As(err, &binanceErr))
@@ -769,6 +829,115 @@ func TestClient_GetOpenOrders(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, orders)
 		assert.Contains(t, err.Error(), "symbol is required")
+	})
+}
+
+func TestClient_GetOrder(t *testing.T) {
+	t.Run("parses order correctly", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/v3/order", r.URL.Path)
+			assert.Equal(t, "BTCUSDT", r.URL.Query().Get("symbol"))
+			assert.Equal(t, "123", r.URL.Query().Get("orderId"))
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{
+				"symbol": "BTCUSDT",
+				"orderId": 123,
+				"clientOrderId": "cid-123",
+				"price": "50000.00",
+				"origQty": "1.00000000",
+				"executedQty": "1.00000000",
+				"status": "FILLED",
+				"timeInForce": "GTC",
+				"type": "LIMIT",
+				"side": "BUY",
+				"time": 1499827319559,
+				"updateTime": 1499827319560
+			}`))
+		}))
+		defer server.Close()
+
+		signer := auth.NewSigner("test-key", "test-secret")
+		client := NewClient(server.URL, signer)
+		ctx := context.Background()
+
+		order, err := client.GetOrder(ctx, "BTCUSDT", 123)
+
+		assert.NoError(t, err)
+		require.NotNil(t, order)
+		assert.Equal(t, int64(123), order.OrderID)
+		assert.Equal(t, "cid-123", order.ClientOrderID)
+		assert.Equal(t, "FILLED", order.Status)
+		assert.True(t, decimal.RequireFromString("1").Equal(order.ExecutedQty))
+	})
+
+	t.Run("validates inputs", func(t *testing.T) {
+		signer := auth.NewSigner("test-key", "test-secret")
+		client := NewClient("https://api.binance.com", signer)
+		ctx := context.Background()
+
+		order, err := client.GetOrder(ctx, "", 123)
+		assert.Error(t, err)
+		assert.Nil(t, order)
+
+		order, err = client.GetOrder(ctx, "BTCUSDT", 0)
+		assert.Error(t, err)
+		assert.Nil(t, order)
+	})
+}
+
+func TestClient_GetMyTrades(t *testing.T) {
+	t.Run("parses trades correctly", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/v3/myTrades", r.URL.Path)
+			assert.Equal(t, "BTCUSDT", r.URL.Query().Get("symbol"))
+			assert.Equal(t, "123", r.URL.Query().Get("orderId"))
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[
+				{
+					"symbol": "BTCUSDT",
+					"id": 701,
+					"orderId": 123,
+					"price": "50000.00",
+					"qty": "0.02000000",
+					"commission": "0.10",
+					"commissionAsset": "USDT",
+					"time": 1499827319560,
+					"isBuyer": true
+				}
+			]`))
+		}))
+		defer server.Close()
+
+		signer := auth.NewSigner("test-key", "test-secret")
+		client := NewClient(server.URL, signer)
+		ctx := context.Background()
+
+		trades, err := client.GetMyTrades(ctx, "BTCUSDT", 123)
+
+		assert.NoError(t, err)
+		require.Len(t, trades, 1)
+		assert.Equal(t, int64(701), trades[0].TradeID)
+		assert.Equal(t, int64(123), trades[0].OrderID)
+		assert.True(t, trades[0].IsBuyer)
+		assert.True(t, decimal.RequireFromString("0.02000000").Equal(trades[0].Qty))
+	})
+
+	t.Run("validates inputs", func(t *testing.T) {
+		signer := auth.NewSigner("test-key", "test-secret")
+		client := NewClient("https://api.binance.com", signer)
+		ctx := context.Background()
+
+		trades, err := client.GetMyTrades(ctx, "", 123)
+		assert.Error(t, err)
+		assert.Nil(t, trades)
+
+		trades, err = client.GetMyTrades(ctx, "BTCUSDT", 0)
+		assert.Error(t, err)
+		assert.Nil(t, trades)
 	})
 }
 

@@ -8,10 +8,21 @@ import (
 	"router/internal/binance"
 )
 
+type bracketPlacementResult struct {
+	IDs                ClientOrderIDs
+	Main               *binance.OrderResponse
+	TakeProfits        []*binance.OrderResponse
+	StopLoss           *binance.OrderResponse
+	StopLossLimitPrice decimal.Decimal
+}
+
 // placeSpotBracket places a bracket order for spot trading
-func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string) (ClientOrderIDs, error) {
-	ids := ClientOrderIDs{
-		TakeProfits: make([]string, len(req.TakeProfitPrices)),
+func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string) (*bracketPlacementResult, error) {
+	result := &bracketPlacementResult{
+		IDs: ClientOrderIDs{
+			TakeProfits: make([]string, len(req.TakeProfitPrices)),
+		},
+		TakeProfits: make([]*binance.OrderResponse, len(req.TakeProfitPrices)),
 	}
 	plannedIDs := m.plannedClientOrderIDs(req, bracketID)
 
@@ -34,9 +45,10 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	if err != nil {
 		bracketErr.Add("MAIN", err)
 		// Return immediately if main order fails as it's critical
-		return ids, bracketErr
+		return result, bracketErr
 	}
-	ids.Main = mainOrderID
+	result.IDs.Main = mainOrderID
+	result.Main = mainResp
 
 	// 2. Place take profit orders (as limit orders)
 	// For spot, we can place these immediately
@@ -56,7 +68,7 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 			NewClientOrderID: tpID,
 		}
 
-		_, err := client.PlaceSpotOrder(ctx, tpOrder)
+		tpResp, err := client.PlaceSpotOrder(ctx, tpOrder)
 		if err != nil {
 			bracketErr.Add(fmt.Sprintf("TP%d", i+1), err)
 			m.logger.Error().
@@ -66,7 +78,8 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 				Int("tp_index", i+1).
 				Msg("Failed to place take profit order")
 		} else {
-			ids.TakeProfits[i] = tpID
+			result.IDs.TakeProfits[i] = tpID
+			result.TakeProfits[i] = tpResp
 		}
 	}
 
@@ -76,14 +89,12 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	// For STOP_LOSS_LIMIT:
 	// - stopPrice is the trigger price
 	// - price is the limit price (slightly worse than stop to ensure fill)
-	var slLimitPrice decimal.Decimal
-	if req.Side == "BUY" {
-		// For long positions, SL sells below stop price
-		slLimitPrice = req.StopLossPrice.Mul(decimal.NewFromFloat(0.995))
-	} else {
-		// For short positions, SL buys above stop price
-		slLimitPrice = req.StopLossPrice.Mul(decimal.NewFromFloat(1.005))
+	tickSize := decimal.Zero
+	if info, err := client.GetSymbolInfo(ctx, req.Symbol); err == nil && info != nil && info.TickSize.IsPositive() {
+		tickSize = info.TickSize
 	}
+	slLimitPrice := stopLossLimitPriceForSpotBracket(req.StopLossPrice, req.Side, tickSize)
+	result.StopLossLimitPrice = slLimitPrice
 
 	slOrder := binance.SpotOrderRequest{
 		Symbol:           req.Symbol,
@@ -96,7 +107,7 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 		NewClientOrderID: slID,
 	}
 
-	_, err = client.PlaceSpotOrder(ctx, slOrder)
+	slResp, err := client.PlaceSpotOrder(ctx, slOrder)
 	if err != nil {
 		bracketErr.Add("SL", err)
 		m.logger.Error().
@@ -105,7 +116,8 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 			Str("sl_id", slID).
 			Msg("Failed to place stop loss order")
 	} else {
-		ids.StopLoss = slID
+		result.IDs.StopLoss = slID
+		result.StopLoss = slResp
 	}
 
 	// Log successful placement
@@ -119,17 +131,23 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 		Msg("Placed spot bracket order")
 
 	// Return aggregated errors if any
+	if bracketErr.HasCriticalError() {
+		m.failClosedSpotBracket(ctx, client, req, bracketID, result, bracketErr)
+	}
 	if bracketErr.HasErrors() {
-		return ids, bracketErr
+		return result, bracketErr
 	}
 
-	return ids, nil
+	return result, nil
 }
 
 // placeFuturesBracket places a bracket order for futures trading
-func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string) (ClientOrderIDs, error) {
-	ids := ClientOrderIDs{
-		TakeProfits: make([]string, len(req.TakeProfitPrices)),
+func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string) (*bracketPlacementResult, error) {
+	result := &bracketPlacementResult{
+		IDs: ClientOrderIDs{
+			TakeProfits: make([]string, len(req.TakeProfitPrices)),
+		},
+		TakeProfits: make([]*binance.OrderResponse, len(req.TakeProfitPrices)),
 	}
 	plannedIDs := m.plannedClientOrderIDs(req, bracketID)
 
@@ -153,9 +171,10 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 	if err != nil {
 		bracketErr.Add("MAIN", err)
 		// Return immediately if main order fails as it's critical
-		return ids, bracketErr
+		return result, bracketErr
 	}
-	ids.Main = mainOrderID
+	result.IDs.Main = mainOrderID
+	result.Main = mainResp
 
 	// 2. Place take profit orders with ReduceOnly
 	for i, tpPrice := range req.TakeProfitPrices {
@@ -175,7 +194,7 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 			ReduceOnly:       true, // TP orders reduce position
 		}
 
-		_, err := client.PlaceFuturesOrder(ctx, tpOrder)
+		tpResp, err := client.PlaceFuturesOrder(ctx, tpOrder)
 		if err != nil {
 			bracketErr.Add(fmt.Sprintf("TP%d", i+1), err)
 			m.logger.Error().
@@ -185,7 +204,8 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 				Int("tp_index", i+1).
 				Msg("Failed to place futures take profit order")
 		} else {
-			ids.TakeProfits[i] = tpID
+			result.IDs.TakeProfits[i] = tpID
+			result.TakeProfits[i] = tpResp
 		}
 	}
 
@@ -203,7 +223,7 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 		ClosePosition:    true, // Close entire position on stop
 	}
 
-	_, err = client.PlaceFuturesOrder(ctx, slOrder)
+	slResp, err := client.PlaceFuturesOrder(ctx, slOrder)
 	if err != nil {
 		bracketErr.Add("SL", err)
 		m.logger.Error().
@@ -212,7 +232,8 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 			Str("sl_id", slID).
 			Msg("Failed to place futures stop loss order")
 	} else {
-		ids.StopLoss = slID
+		result.IDs.StopLoss = slID
+		result.StopLoss = slResp
 	}
 
 	// Log successful placement
@@ -227,10 +248,126 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 
 	// Return aggregated errors if any
 	if bracketErr.HasErrors() {
-		return ids, bracketErr
+		return result, bracketErr
 	}
 
-	return ids, nil
+	return result, nil
+}
+
+func (m *Manager) failClosedSpotBracket(
+	ctx context.Context,
+	client *binance.Client,
+	req *PlaceBracketRequest,
+	bracketID string,
+	result *bracketPlacementResult,
+	bracketErr *BracketOrderError,
+) {
+	if result == nil || result.Main == nil {
+		return
+	}
+
+	m.cancelSpotProtectiveOrders(ctx, client, req.Symbol, result.TakeProfits, bracketErr)
+
+	mainExecutedQty := result.Main.ExecutedQty
+	mainStatus := normalizeOrderStatus(result.Main.Status)
+	if mainStatus == "NEW" || mainStatus == "PARTIALLY_FILLED" {
+		cancelResp, err := client.CancelOrder(ctx, req.Symbol, result.Main.OrderID)
+		if err != nil {
+			bracketErr.Add("CANCEL_MAIN", err)
+			m.logger.Error().
+				Err(err).
+				Str("symbol", req.Symbol).
+				Int64("order_id", result.Main.OrderID).
+				Msg("Failed to cancel unsafe main spot order")
+		} else {
+			if cancelResp != nil {
+				mainExecutedQty = cancelResp.ExecutedQty
+				mainStatus = normalizeOrderStatus(cancelResp.Status)
+			}
+			m.logger.Warn().
+				Str("symbol", req.Symbol).
+				Int64("order_id", result.Main.OrderID).
+				Msg("Canceled unsafe main spot order")
+		}
+		if err != nil || mainStatus == "NEW" || mainStatus == "PARTIALLY_FILLED" {
+			currentOrder, getErr := client.GetOrder(ctx, req.Symbol, result.Main.OrderID)
+			if getErr == nil && currentOrder != nil {
+				mainExecutedQty = currentOrder.ExecutedQty
+				mainStatus = normalizeOrderStatus(currentOrder.Status)
+			}
+		}
+	}
+
+	if mainStatus == "FILLED" || mainStatus == "PARTIALLY_FILLED" || mainExecutedQty.GreaterThan(decimal.Zero) {
+		m.closeUnsafeFilledSpotEntry(ctx, client, req, bracketID, mainExecutedQty, bracketErr)
+	}
+}
+
+func (m *Manager) cancelSpotProtectiveOrders(
+	ctx context.Context,
+	client *binance.Client,
+	symbol string,
+	orders []*binance.OrderResponse,
+	bracketErr *BracketOrderError,
+) {
+	for i, order := range orders {
+		if order == nil || order.OrderID <= 0 {
+			continue
+		}
+		if _, err := client.CancelOrder(ctx, symbol, order.OrderID); err != nil {
+			bracketErr.Add(fmt.Sprintf("CANCEL_TP%d", i+1), err)
+			m.logger.Error().
+				Err(err).
+				Str("symbol", symbol).
+				Int64("order_id", order.OrderID).
+				Int("tp_index", i+1).
+				Msg("Failed to cancel unsafe take profit order")
+			continue
+		}
+		m.logger.Warn().
+			Str("symbol", symbol).
+			Int64("order_id", order.OrderID).
+			Int("tp_index", i+1).
+			Msg("Canceled unsafe take profit order")
+	}
+}
+
+func (m *Manager) closeUnsafeFilledSpotEntry(
+	ctx context.Context,
+	client *binance.Client,
+	req *PlaceBracketRequest,
+	bracketID string,
+	executedQty decimal.Decimal,
+	bracketErr *BracketOrderError,
+) {
+	if executedQty.LessThanOrEqual(decimal.Zero) {
+		return
+	}
+
+	closeOrder := binance.SpotOrderRequest{
+		Symbol:           req.Symbol,
+		Side:             getOppositeSide(req.Side),
+		Type:             "MARKET",
+		Quantity:         executedQty,
+		NewClientOrderID: m.generateClientOrderID(bracketID, "FAILSAFE"),
+	}
+
+	if _, err := client.PlaceSpotOrder(ctx, closeOrder); err != nil {
+		bracketErr.Add("FAILSAFE", err)
+		m.logger.Error().
+			Err(err).
+			Str("symbol", req.Symbol).
+			Str("side", closeOrder.Side).
+			Str("quantity", executedQty.String()).
+			Msg("Failed to close unsafe filled spot entry")
+		return
+	}
+
+	m.logger.Warn().
+		Str("symbol", req.Symbol).
+		Str("side", closeOrder.Side).
+		Str("quantity", executedQty.String()).
+		Msg("Closed unsafe filled spot entry with failsafe market order")
 }
 
 func (m *Manager) plannedClientOrderIDs(req *PlaceBracketRequest, bracketID string) ClientOrderIDs {
@@ -302,7 +439,7 @@ func (m *Manager) CloseAllPositions(ctx context.Context, req *CloseAllRequest) e
 
 		// Cancel all open orders
 		for _, order := range orders {
-			err = client.CancelOrder(ctx, symbol, order.OrderID)
+			_, err = client.CancelOrder(ctx, symbol, order.OrderID)
 			if err != nil {
 				lastErr = err
 				m.logger.Error().

@@ -35,6 +35,22 @@ type OrderResponse struct {
 	Fills               []Fill          `json:"fills"`
 }
 
+// CancelResponse represents the response from canceling an order.
+type CancelResponse struct {
+	Symbol              string          `json:"symbol"`
+	OrderID             int64           `json:"orderId"`
+	OrderListID         int64           `json:"orderListId"`
+	ClientOrderID       string          `json:"clientOrderId"`
+	Price               decimal.Decimal `json:"price"`
+	OrigQty             decimal.Decimal `json:"origQty"`
+	ExecutedQty         decimal.Decimal `json:"executedQty"`
+	CummulativeQuoteQty decimal.Decimal `json:"cummulativeQuoteQty"`
+	Status              string          `json:"status"`
+	TimeInForce         string          `json:"timeInForce"`
+	Type                string          `json:"type"`
+	Side                string          `json:"side"`
+}
+
 // Fill represents a trade execution
 type Fill struct {
 	Price           decimal.Decimal `json:"price"`
@@ -42,6 +58,18 @@ type Fill struct {
 	Commission      decimal.Decimal `json:"commission"`
 	CommissionAsset string          `json:"commissionAsset"`
 	TradeID         int64           `json:"tradeId"`
+}
+
+type Trade struct {
+	Symbol          string          `json:"symbol"`
+	TradeID         int64           `json:"id"`
+	OrderID         int64           `json:"orderId"`
+	Price           decimal.Decimal `json:"price"`
+	Qty             decimal.Decimal `json:"qty"`
+	Commission      decimal.Decimal `json:"commission"`
+	CommissionAsset string          `json:"commissionAsset"`
+	Time            int64           `json:"time"`
+	IsBuyer         bool            `json:"isBuyer"`
 }
 
 // AccountResponse represents account information
@@ -242,4 +270,10 @@ type Ticker24hr struct {
 	FirstId            int64           `json:"firstId"`
 	LastId             int64           `json:"lastId"`
 	Count              int64           `json:"count"`
+}
+
+// TickerPrice represents a simple last-price payload.
+type TickerPrice struct {
+	Symbol string          `json:"symbol"`
+	Price  decimal.Decimal `json:"price"`
 }

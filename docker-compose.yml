@@ -143,6 +143,8 @@ services:
       - ENGINE_URL=http://engine:8000
       - ORDER_UPDATE_URL=http://engine:8000/internal/order_update
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-trading_platform}
+      - SPOT_RECONCILIATION_ENABLED=${SPOT_RECONCILIATION_ENABLED:-true}
       - TRADING_MODE=${TRADING_MODE:-paper}
       - ENVIRONMENT=${ENVIRONMENT:-development}
     ports:

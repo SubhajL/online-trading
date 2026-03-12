@@ -49,10 +49,10 @@ func (e *BracketOrderError) HasErrors() bool {
 	return len(e.Errors) > 0
 }
 
-// HasCriticalError returns true if the main order failed
+// HasCriticalError returns true if the bracket is unsafe to leave open.
 func (e *BracketOrderError) HasCriticalError() bool {
 	for _, err := range e.Errors {
-		if err.OrderType == "MAIN" {
+		if err.OrderType == "MAIN" || err.OrderType == "SL" {
 			return true
 		}
 	}

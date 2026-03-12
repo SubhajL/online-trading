@@ -116,10 +116,18 @@ func TestTradeProcessor_UpdatesOrdersFillsAndPositions(t *testing.T) {
 				updated_at TIMESTAMPTZ NOT NULL,
 				closed_at TIMESTAMPTZ,
 				is_active BOOLEAN NOT NULL DEFAULT TRUE,
+				entry_order_id UUID,
 				commission_paid NUMERIC(18,8) NOT NULL DEFAULT 0,
 				funding_paid NUMERIC(18,8) NOT NULL DEFAULT 0,
 				slippage_paid NUMERIC(18,8) NOT NULL DEFAULT 0
 			) ON COMMIT DROP
+		`)
+		require.NoError(t, err)
+
+		_, err = tx.Exec(ctx, `
+			CREATE UNIQUE INDEX uq_positions_active
+			ON positions (venue, symbol)
+			WHERE is_active = TRUE
 		`)
 		require.NoError(t, err)
 
@@ -164,6 +172,54 @@ func TestTradeProcessor_UpdatesOrdersFillsAndPositions(t *testing.T) {
 		require.True(t, found)
 		require.Equal(t, "BUY", pos.Side)
 		require.True(t, decimal.RequireFromString("0.01").Equal(pos.Size))
+		require.NotEmpty(t, pos.EntryOrderID)
+
+		var openingOrderID string
+		err = tx.QueryRow(ctx, `SELECT order_id::text FROM orders WHERE venue = $1 AND client_order_id = $2`, "USD_M", "abc_entry").Scan(&openingOrderID)
+		require.NoError(t, err)
+		require.Equal(t, openingOrderID, pos.EntryOrderID)
+
+		_, err = ordersRepo.UpsertOrderIntent(ctx, tx, storage.OrderIntent{
+			Venue:          "USD_M",
+			Symbol:         "BTCUSDT",
+			ClientOrderID:  "abc_entry_scale",
+			Side:           "BUY",
+			Type:           "LIMIT",
+			TimeInForce:    "GTC",
+			Quantity:       decimal.RequireFromString("0.01"),
+			Price:          decimal.RequireFromString("102"),
+			RequestedPrice: decimal.RequireFromString("102"),
+			SignalID:       "sig-2",
+			Timeframe:      "15m",
+		})
+		require.NoError(t, err)
+
+		scaleEvent := &websocket.FuturesOrderTradeUpdateEvent{
+			EventType:       "ORDER_TRADE_UPDATE",
+			TransactionTime: now.Add(30 * time.Second).UnixMilli(),
+			OrderTradeUpdate: websocket.FuturesOrderTradeData{
+				Symbol:               "BTCUSDT",
+				ClientOrderID:        "abc_entry_scale",
+				Side:                 "BUY",
+				ExecutionType:        "TRADE",
+				OrderStatus:          "FILLED",
+				OrderID:              13,
+				TradeID:              103,
+				LastExecutedQuantity: decimal.RequireFromString("0.01"),
+				LastExecutedPrice:    decimal.RequireFromString("102"),
+				CumulativeFilledQty:  decimal.RequireFromString("0.01"),
+				AvgPrice:             decimal.RequireFromString("102"),
+				CommissionAmount:     decimal.RequireFromString("0.04"),
+				CommissionAsset:      "USDT",
+			},
+		}
+		require.NoError(t, processor.handleFuturesOrderTradeUpdateTx(ctx, tx, scaleEvent))
+
+		pos, found, err = posRepo.GetActive(ctx, tx, "USD_M", "BTCUSDT")
+		require.NoError(t, err)
+		require.True(t, found)
+		require.True(t, decimal.RequireFromString("0.02").Equal(pos.Size))
+		require.Equal(t, openingOrderID, pos.EntryOrderID)
 
 		_, err = ordersRepo.UpsertOrderIntent(ctx, tx, storage.OrderIntent{
 			Venue:          "USD_M",
@@ -172,7 +228,7 @@ func TestTradeProcessor_UpdatesOrdersFillsAndPositions(t *testing.T) {
 			Side:           "SELL",
 			Type:           "LIMIT",
 			TimeInForce:    "GTC",
-			Quantity:       decimal.RequireFromString("0.01"),
+			Quantity:       decimal.RequireFromString("0.02"),
 			Price:          decimal.RequireFromString("110"),
 			RequestedPrice: decimal.RequireFromString("110"),
 			SignalID:       "sig-1",
@@ -192,9 +248,9 @@ func TestTradeProcessor_UpdatesOrdersFillsAndPositions(t *testing.T) {
 				OrderStatus:          "FILLED",
 				OrderID:              12,
 				TradeID:              102,
-				LastExecutedQuantity: decimal.RequireFromString("0.01"),
+				LastExecutedQuantity: decimal.RequireFromString("0.02"),
 				LastExecutedPrice:    decimal.RequireFromString("110"),
-				CumulativeFilledQty:  decimal.RequireFromString("0.01"),
+				CumulativeFilledQty:  decimal.RequireFromString("0.02"),
 				AvgPrice:             decimal.RequireFromString("110"),
 				CommissionAmount:     decimal.RequireFromString("0.04"),
 				CommissionAsset:      "USDT",

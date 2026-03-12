@@ -38,6 +38,7 @@ func createTempTableWithPartialIndex(ctx context.Context, t *testing.T, tx pgx.T
 			updated_at TIMESTAMPTZ NOT NULL,
 			closed_at TIMESTAMPTZ,
 			is_active BOOLEAN NOT NULL DEFAULT TRUE,
+			entry_order_id UUID,
 			commission_paid NUMERIC(18,8) NOT NULL DEFAULT 0,
 			funding_paid NUMERIC(18,8) NOT NULL DEFAULT 0,
 			slippage_paid NUMERIC(18,8) NOT NULL DEFAULT 0
@@ -112,6 +113,7 @@ func TestPositionRepo_UpsertAndCloseActivePosition(t *testing.T) {
 				updated_at TIMESTAMPTZ NOT NULL,
 				closed_at TIMESTAMPTZ,
 				is_active BOOLEAN NOT NULL DEFAULT TRUE,
+				entry_order_id UUID,
 				commission_paid NUMERIC(18,8) NOT NULL DEFAULT 0,
 				funding_paid NUMERIC(18,8) NOT NULL DEFAULT 0,
 				slippage_paid NUMERIC(18,8) NOT NULL DEFAULT 0

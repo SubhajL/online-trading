@@ -263,28 +263,33 @@ func (c *Client) PlaceOrder(ctx context.Context, req *OrderRequest) (*OrderRespo
 	return &orderResp, nil
 }
 
-// CancelOrder cancels an active order
-func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) error {
+// CancelOrder cancels an active order.
+func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) (*CancelResponse, error) {
 	if c.signer == nil {
-		return fmt.Errorf("signer required for CancelOrder")
+		return nil, fmt.Errorf("signer required for CancelOrder")
 	}
 	if symbol == "" {
-		return fmt.Errorf("symbol is required")
+		return nil, fmt.Errorf("symbol is required")
 	}
 	if orderID <= 0 {
-		return fmt.Errorf("orderID is required")
+		return nil, fmt.Errorf("orderID is required")
 	}
 
 	params := url.Values{}
 	params.Set("symbol", symbol)
 	params.Set("orderId", strconv.FormatInt(orderID, 10))
 
-	_, err := c.doRequest(ctx, "DELETE", "/api/v3/order", params, true)
+	body, err := c.doRequest(ctx, "DELETE", "/api/v3/order", params, true)
 	if err != nil {
-		return ErrorWithContext(err, "CancelOrder")
+		return nil, ErrorWithContext(err, "CancelOrder")
 	}
 
-	return nil
+	var cancelResp CancelResponse
+	if err := json.Unmarshal(body, &cancelResp); err != nil {
+		return nil, ErrorWithContext(err, "CancelOrder")
+	}
+
+	return &cancelResp, nil
 }
 
 // CancelFuturesOrder cancels an active futures order
@@ -329,6 +334,43 @@ func (c *Client) GetTicker24hr(ctx context.Context, symbol string) (*Ticker24hr,
 	return &ticker, nil
 }
 
+// GetTickerPrice retrieves the last traded price for a single symbol.
+func (c *Client) GetTickerPrice(ctx context.Context, symbol string) (*TickerPrice, error) {
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+
+	params := url.Values{}
+	params.Set("symbol", symbol)
+
+	body, err := c.doRequest(ctx, "GET", "/api/v3/ticker/price", params, false)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetTickerPrice")
+	}
+
+	var ticker TickerPrice
+	if err := json.Unmarshal(body, &ticker); err != nil {
+		return nil, ErrorWithContext(err, "GetTickerPrice")
+	}
+
+	return &ticker, nil
+}
+
+// GetTickerPrices retrieves last traded prices for all spot symbols.
+func (c *Client) GetTickerPrices(ctx context.Context) ([]TickerPrice, error) {
+	body, err := c.doRequest(ctx, "GET", "/api/v3/ticker/price", nil, false)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetTickerPrices")
+	}
+
+	var tickers []TickerPrice
+	if err := json.Unmarshal(body, &tickers); err != nil {
+		return nil, ErrorWithContext(err, "GetTickerPrices")
+	}
+
+	return tickers, nil
+}
+
 // GetOpenOrders lists all open orders for a symbol
 func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]Order, error) {
 	if c.signer == nil {
@@ -352,6 +394,63 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]Order, err
 	}
 
 	return orders, nil
+}
+
+// GetOrder retrieves a single spot order by exchange order ID.
+func (c *Client) GetOrder(ctx context.Context, symbol string, orderID int64) (*Order, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for GetOrder")
+	}
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+	if orderID <= 0 {
+		return nil, fmt.Errorf("order ID must be positive")
+	}
+
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("orderId", strconv.FormatInt(orderID, 10))
+
+	body, err := c.doRequest(ctx, "GET", "/api/v3/order", params, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetOrder")
+	}
+
+	var order Order
+	if err := json.Unmarshal(body, &order); err != nil {
+		return nil, ErrorWithContext(err, "GetOrder")
+	}
+
+	return &order, nil
+}
+
+func (c *Client) GetMyTrades(ctx context.Context, symbol string, orderID int64) ([]Trade, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for GetMyTrades")
+	}
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+	if orderID <= 0 {
+		return nil, fmt.Errorf("order ID must be positive")
+	}
+
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("orderId", strconv.FormatInt(orderID, 10))
+
+	body, err := c.doRequest(ctx, "GET", "/api/v3/myTrades", params, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetMyTrades")
+	}
+
+	var trades []Trade
+	if err := json.Unmarshal(body, &trades); err != nil {
+		return nil, ErrorWithContext(err, "GetMyTrades")
+	}
+
+	return trades, nil
 }
 
 // GetFuturesOpenOrders lists all open futures orders for a symbol

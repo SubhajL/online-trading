@@ -25,6 +25,9 @@ type Manager struct {
 	// Event emitter
 	eventEmitter EventEmitter
 
+	spotReconciler      spotOrderTracker
+	spotExecutionLedger spotExecutionLedger
+
 	// Logger
 	logger zerolog.Logger
 }
@@ -44,6 +47,46 @@ func NewManager(spotClient, futuresClient *binance.Client, eventEmitter EventEmi
 		eventEmitter:   eventEmitter,
 		logger:         logger,
 	}
+}
+
+func (m *Manager) SetSpotReconciler(reconciler spotOrderTracker) {
+	m.spotReconciler = reconciler
+}
+
+func (m *Manager) SetSpotExecutionLedger(ledger spotExecutionLedger) {
+	m.spotExecutionLedger = ledger
+}
+
+func (m *Manager) trackSpotPlacementLeg(leg *binance.OrderResponse) {
+	if m == nil || m.spotReconciler == nil || leg == nil {
+		return
+	}
+	status := normalizeOrderStatus(leg.Status)
+	if isTerminalOrderStatus(status) {
+		return
+	}
+	m.spotReconciler.Track(SpotReconcileRequest{
+		Symbol:        leg.Symbol,
+		OrderID:       leg.OrderID,
+		ClientOrderID: leg.ClientOrderID,
+		Side:          leg.Side,
+		OrderType:     leg.Type,
+		Quantity:      leg.OrigQty,
+		Price:         leg.Price,
+		InitialStatus: status,
+		ExecutedQty:   leg.ExecutedQty,
+	})
+}
+
+func (m *Manager) trackSpotPlacementLegs(placement *bracketPlacementResult) {
+	if m == nil || m.spotReconciler == nil || placement == nil {
+		return
+	}
+	m.trackSpotPlacementLeg(placement.Main)
+	for _, takeProfit := range placement.TakeProfits {
+		m.trackSpotPlacementLeg(takeProfit)
+	}
+	m.trackSpotPlacementLeg(placement.StopLoss)
 }
 
 func (m *Manager) CancelOpenOrders(
@@ -71,7 +114,7 @@ func (m *Manager) CancelOpenOrders(
 				continue
 			}
 			for _, order := range openOrders {
-				if err := client.CancelOrder(ctx, symbol, order.OrderID); err != nil {
+				if _, err := client.CancelOrder(ctx, symbol, order.OrderID); err != nil {
 					resp.Errors = append(resp.Errors, fmt.Sprintf("%s: cancel order %d failed: %v", symbol, order.OrderID, err))
 					continue
 				}
@@ -181,12 +224,13 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 
 		if exists && existing != nil {
 			return &PlaceBracketResponse{
-				BracketOrderID: bracketID,
-				ClientOrderIDs: existing.ClientOrderIDs,
-				Symbol:         existing.Symbol,
-				Side:           existing.Side,
-				Quantity:       existing.Quantity,
-				CreatedAt:      existing.CreatedAt,
+				BracketOrderID:     bracketID,
+				ClientOrderIDs:     existing.ClientOrderIDs,
+				Symbol:             existing.Symbol,
+				Side:               existing.Side,
+				Quantity:           existing.Quantity,
+				StopLossLimitPrice: existing.StopLossLimitPrice,
+				CreatedAt:          existing.CreatedAt,
 			}, nil
 		}
 	}
@@ -261,13 +305,19 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		CreatedAt:      bracket.CreatedAt,
 	}
 
+	var placement *bracketPlacementResult
 	if req.IsFutures {
-		bracket.ClientOrderIDs, err = m.placeFuturesBracket(ctx, client, req, bracketID)
+		placement, err = m.placeFuturesBracket(ctx, client, req, bracketID)
 	} else {
-		bracket.ClientOrderIDs, err = m.placeSpotBracket(ctx, client, req, bracketID)
+		placement, err = m.placeSpotBracket(ctx, client, req, bracketID)
+	}
+	if placement != nil {
+		bracket.ClientOrderIDs = placement.IDs
+		bracket.StopLossLimitPrice = placement.StopLossLimitPrice
 	}
 
 	response.ClientOrderIDs = bracket.ClientOrderIDs
+	response.StopLossLimitPrice = bracket.StopLossLimitPrice
 
 	// Handle bracket order errors
 	if err != nil {
@@ -308,19 +358,61 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	if req.IsFutures {
 		venue = "USD_M"
 	}
-	m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
-		EventType:     "order_update.v1",
-		Venue:         venue,
-		Symbol:        req.Symbol,
-		ClientOrderID: bracket.ClientOrderIDs.Main,
-		Status:        "NEW",
-		Side:          req.Side,
-		OrderType:     req.OrderType,
-		Price:         req.EntryPrice,
-		Quantity:      req.Quantity,
-		ExecutedQty:   decimal.Zero,
-		UpdateTime:    time.Now(),
-	})
+
+	if placement != nil && placement.Main != nil {
+		initialUpdate := &OrderUpdate{
+			EventType:     "order_update.v1",
+			Venue:         venue,
+			Symbol:        req.Symbol,
+			OrderID:       placement.Main.OrderID,
+			ClientOrderID: bracket.ClientOrderIDs.Main,
+			Status:        normalizeOrderStatus(placement.Main.Status),
+			Side:          placement.Main.Side,
+			OrderType:     placement.Main.Type,
+			Price:         initialOrderUpdatePrice(req, placement.Main),
+			Quantity:      orderUpdateQuantity(req.Quantity, placement.Main.OrigQty),
+			ExecutedQty:   placement.Main.ExecutedQty,
+			UpdateTime:    orderUpdateTimeFromMillis(placement.Main.TransactTime),
+		}
+		if !req.IsFutures && m.spotExecutionLedger != nil && placement.Main.ExecutedQty.GreaterThan(decimal.Zero) && len(placement.Main.Fills) > 0 {
+			snapshot := SpotExecutionSnapshot{
+				Symbol:        req.Symbol,
+				OrderID:       placement.Main.OrderID,
+				ClientOrderID: bracket.ClientOrderIDs.Main,
+				Side:          placement.Main.Side,
+				OrderType:     placement.Main.Type,
+				Price:         initialUpdate.Price,
+				Quantity:      initialUpdate.Quantity,
+				ExecutedQty:   placement.Main.ExecutedQty,
+				Status:        initialUpdate.Status,
+				UpdateTime:    initialUpdate.UpdateTime,
+				Trades:        make([]SpotExecutionTrade, 0, len(placement.Main.Fills)),
+			}
+			for _, fill := range placement.Main.Fills {
+				snapshot.Trades = append(snapshot.Trades, SpotExecutionTrade{
+					TradeID:         fill.TradeID,
+					Price:           fill.Price,
+					Quantity:        fill.Qty,
+					Commission:      fill.Commission,
+					CommissionAsset: fill.CommissionAsset,
+					Time:            initialUpdate.UpdateTime,
+				})
+			}
+			if err := m.spotExecutionLedger.PersistSpotExecution(ctx, snapshot); err != nil {
+				m.logger.Error().
+					Err(err).
+					Str("symbol", snapshot.Symbol).
+					Str("client_order_id", snapshot.ClientOrderID).
+					Str("status", snapshot.Status).
+					Msg("Failed to persist immediate spot execution snapshot")
+			}
+		}
+		m.emitOrderUpdateWithLogging(ctx, initialUpdate)
+
+		if !req.IsFutures && m.spotReconciler != nil {
+			m.trackSpotPlacementLegs(placement)
+		}
+	}
 
 	return response, nil
 }
@@ -393,7 +485,7 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 	)
 	if req.OrderID > 0 {
 		if m.spotClient != nil {
-			err = m.spotClient.CancelOrder(ctx, req.Symbol, req.OrderID)
+			_, err = m.spotClient.CancelOrder(ctx, req.Symbol, req.OrderID)
 			if err == nil {
 				venue = "SPOT"
 			}
@@ -402,7 +494,7 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 		}
 		if err != nil && m.futuresClient != nil {
 			// Try futures
-			err = m.futuresClient.CancelOrder(ctx, req.Symbol, req.OrderID)
+			_, err = m.futuresClient.CancelOrder(ctx, req.Symbol, req.OrderID)
 			if err == nil {
 				venue = "USD_M"
 			}
@@ -519,4 +611,40 @@ func (m *Manager) emitOrderUpdateWithLogging(ctx context.Context, update *OrderU
 			Str("status", update.Status).
 			Msg("failed to emit order update event")
 	}
+}
+
+func initialOrderUpdatePrice(req *PlaceBracketRequest, response *binance.OrderResponse) decimal.Decimal {
+	if response == nil {
+		if req == nil {
+			return decimal.Zero
+		}
+		return req.EntryPrice
+	}
+
+	totalQty := decimal.Zero
+	totalNotional := decimal.Zero
+	for _, fill := range response.Fills {
+		if fill.Qty.LessThanOrEqual(decimal.Zero) {
+			continue
+		}
+		totalQty = totalQty.Add(fill.Qty)
+		totalNotional = totalNotional.Add(fill.Price.Mul(fill.Qty))
+	}
+	if totalQty.GreaterThan(decimal.Zero) {
+		return totalNotional.Div(totalQty)
+	}
+	if response.Price.GreaterThan(decimal.Zero) {
+		return response.Price
+	}
+	if req != nil {
+		return req.EntryPrice
+	}
+	return decimal.Zero
+}
+
+func orderUpdateQuantity(fallback, quantity decimal.Decimal) decimal.Decimal {
+	if quantity.GreaterThan(decimal.Zero) {
+		return quantity
+	}
+	return fallback
 }

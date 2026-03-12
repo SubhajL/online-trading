@@ -69,7 +69,7 @@ func TestPlaceSpotOrder_RealTestnet(t *testing.T) {
 	t.Logf("Placed test order: %d", resp.OrderID)
 
 	// Cancel the order to clean up
-	err = client.CancelOrder(ctx, symbol, resp.OrderID)
+	_, err = client.CancelOrder(ctx, symbol, resp.OrderID)
 	assert.NoError(t, err)
 	t.Log("Cancelled test order")
 }
@@ -128,7 +128,7 @@ func TestCancelOrder_NonExistent(t *testing.T) {
 	symbol := findTestSymbol(t, client)
 
 	// Try to cancel non-existent order
-	err := client.CancelOrder(ctx, symbol, 999999999)
+	_, err := client.CancelOrder(ctx, symbol, 999999999)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Unknown order")
 }
@@ -176,7 +176,7 @@ func TestGetOpenOrders_RealTestnet(t *testing.T) {
 	assert.Equal(t, resp.OrderID, orders[0].OrderID)
 
 	// Clean up
-	err = client.CancelOrder(ctx, symbol, resp.OrderID)
+	_, err = client.CancelOrder(ctx, symbol, resp.OrderID)
 	assert.NoError(t, err)
 }
 
@@ -225,7 +225,7 @@ func TestPlaceStopLossOrder_RealTestnet(t *testing.T) {
 	t.Logf("Stop order created with ID: %d", resp.OrderID)
 
 	// Clean up
-	err = client.CancelOrder(ctx, symbol, resp.OrderID)
+	_, err = client.CancelOrder(ctx, symbol, resp.OrderID)
 	assert.NoError(t, err)
 }
 
