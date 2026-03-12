@@ -9,6 +9,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { WsJwtGuard } from './guards/ws-jwt.guard';
+import type { StringValue } from 'ms';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { WsJwtGuard } from './guards/ws-jwt.guard';
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRATION', '24h'),
+          expiresIn: configService.get<string>('JWT_EXPIRATION', '24h') as StringValue,
         },
       }),
     }),

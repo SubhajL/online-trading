@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import type { StringValue } from 'ms';
 import { JwtPayload, JwtTokens } from './interfaces/jwt-payload.interface';
 
 interface User {
@@ -78,13 +79,13 @@ export class AuthService {
       : this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d');
 
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: accessExpiry,
+      expiresIn: accessExpiry as StringValue,
     });
 
     const refreshToken = this.jwtService.sign(
       { sub: user.id, username: user.username },
       {
-        expiresIn: refreshExpiry,
+        expiresIn: refreshExpiry as StringValue,
       },
     );
 
@@ -107,7 +108,7 @@ export class AuthService {
       };
 
       const accessToken = this.jwtService.sign(newPayload, {
-        expiresIn: this.configService.get<string>('JWT_EXPIRATION', '24h'),
+        expiresIn: this.configService.get<string>('JWT_EXPIRATION', '24h') as StringValue,
       });
 
       return { access_token: accessToken };
