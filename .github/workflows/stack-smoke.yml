@@ -5,6 +5,9 @@ on:
     branches: [main, develop]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 env:
   POSTGRES_USER: trading_user
   POSTGRES_PASSWORD: password

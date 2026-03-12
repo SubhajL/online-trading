@@ -817,7 +817,8 @@ async def health_check() -> HealthResponse:
                     service_health[service_name] = {"status": "unknown"}
 
             except Exception as e:
-                service_health[service_name] = {"status": "error", "error": str(e)}
+                logger.error("Health check error for %s: %s", service_name, e)
+                service_health[service_name] = {"status": "error", "error": "health check failed"}
                 overall_status = "unhealthy"
 
         uptime = (datetime.now(UTC) - startup_time).total_seconds()
@@ -831,7 +832,7 @@ async def health_check() -> HealthResponse:
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}") from e
+        raise HTTPException(status_code=500, detail="Health check failed") from e
 
 
 @app.get("/health/simple")
@@ -919,7 +920,7 @@ async def equity_health_check() -> EquityHealthResponse:
         logger.error(f"Error checking equity health: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error checking equity health: {e!s}",
+            detail="Error checking equity health",
         ) from e
 
 
@@ -942,7 +943,8 @@ async def get_metrics() -> MetricsResponse:
                 metrics[service_name] = service_metrics
 
             except Exception as e:
-                metrics[service_name] = {"error": str(e)}
+                logger.error("Metrics error for %s: %s", service_name, e)
+                metrics[service_name] = {"error": "metrics collection failed"}
 
         return MetricsResponse(
             timestamp=datetime.now(UTC).isoformat(),
@@ -959,7 +961,7 @@ async def get_metrics() -> MetricsResponse:
         logger.error(f"Error getting metrics: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Metrics collection failed: {e!s}",
+            detail="Metrics collection failed",
         ) from e
 
 
@@ -986,7 +988,7 @@ async def get_system_health() -> Any:
     except Exception as e:
         logger.error(f"system health error: {e}")
         return JSONResponse(
-            content={"status": "unhealthy", "message": f"system health error: {e!s}"},
+            content={"status": "unhealthy", "message": "system health error"},
             status_code=503,
         )
 
@@ -1006,7 +1008,7 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
     try:
         parsed = OrderUpdate.model_validate(update)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"invalid order update: {exc!s}") from exc
+        raise HTTPException(status_code=400, detail="invalid order update payload") from exc
 
     ts = parsed.update_time or datetime.now(UTC)
     if ts.tzinfo is None:
@@ -1162,7 +1164,7 @@ async def control_service(  # noqa: C901, PLR0912
 
     except Exception as e:
         logger.error(f"Error controlling service: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="Service control failed") from e
 
 
 async def restart_service(service_name: str, service: Any) -> None:
@@ -1206,7 +1208,8 @@ async def get_status() -> dict[str, Any]:
                 status[service_name] = service_status
 
             except Exception as e:
-                status[service_name] = {"error": str(e)}
+                logger.error("Status error for %s: %s", service_name, e)
+                status[service_name] = {"error": "status check failed"}
 
         return {
             "timestamp": datetime.now(UTC).isoformat(),
@@ -1216,7 +1219,7 @@ async def get_status() -> dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error getting status: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="Error getting status") from e
 
 
 @app.get("/info")
@@ -1241,7 +1244,7 @@ async def global_exception_handler(_request: Any, exc: Exception) -> JSONRespons
         status_code=500,
         content={
             "error": "Internal server error",
-            "message": str(exc),
+            "message": "An unexpected error occurred",
             "timestamp": datetime.now(UTC).isoformat(),
         },
     )

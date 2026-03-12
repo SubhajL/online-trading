@@ -1,7 +1,7 @@
-import pytest
-import yaml
 from pathlib import Path
 import re
+
+import yaml
 
 
 def test_github_workflows_directory_exists():
@@ -85,7 +85,8 @@ def test_ci_workflow_has_matrix_strategy():
     ci_workflow = Path(__file__).parent.parent / ".github/workflows/ci.yml"
 
     with open(ci_workflow, "r") as f:
-        config = yaml.safe_load(f)
+        content = f.read()
+        config = yaml.safe_load(content)
 
     # Check at least one job uses matrix strategy
     has_matrix = False
@@ -187,6 +188,36 @@ def test_workflows_have_security_scanning():
     has_security = any(tool in content.lower() for tool in security_tools)
 
     assert has_security, "CI workflow should include security scanning"
+
+
+<<<<<<< HEAD
+def test_workflows_define_explicit_permissions():
+    """Verify every workflow defines explicit GitHub token permissions"""
+    workflows_dir = Path(__file__).parent.parent / ".github/workflows"
+
+    missing_permissions = []
+    for workflow_path in sorted(workflows_dir.glob("*.yml")):
+        with open(workflow_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        root_permissions = config.get("permissions")
+        jobs = config.get("jobs", {})
+        jobs_missing_permissions = [
+            job_name
+            for job_name, job in jobs.items()
+            if isinstance(job, dict)
+            and root_permissions is None
+            and "permissions" not in job
+        ]
+        if jobs_missing_permissions:
+            missing_permissions.append(
+                f"{workflow_path.name}: {', '.join(jobs_missing_permissions)}"
+            )
+
+    assert not missing_permissions, (
+        "Workflows must define explicit permissions. Missing: "
+        + "; ".join(missing_permissions)
+    )
 
 
 def test_ci_go_version_matches_router_toolchain():

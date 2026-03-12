@@ -9,6 +9,9 @@ on:
       - 'app/engine/**'
       - '.github/workflows/features-ci.yml'
 
+permissions:
+  contents: read
+
 env:
   PYTHON_VERSION: '3.13'
 
@@ -128,6 +131,9 @@ jobs:
   security:
     name: Security Scanning
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - uses: actions/checkout@v4
