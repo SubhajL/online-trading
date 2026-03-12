@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-
-	"github.com/shopspring/decimal"
 )
 
 type fakeSpotExecutionLedger struct {
@@ -33,22 +31,6 @@ func (f *fakeSpotExecutionLedger) latestSnapshot() SpotExecutionSnapshot {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.snapshots[len(f.snapshots)-1]
-}
-
-func mustSpotExecutionTrade(
-	tradeID int64,
-	price string,
-	quantity string,
-	commission string,
-	commissionAsset string,
-) SpotExecutionTrade {
-	return SpotExecutionTrade{
-		TradeID:         tradeID,
-		Price:           decimal.RequireFromString(price),
-		Quantity:        decimal.RequireFromString(quantity),
-		Commission:      decimal.RequireFromString(commission),
-		CommissionAsset: commissionAsset,
-	}
 }
 
 type flakySpotExecutionLedger struct {

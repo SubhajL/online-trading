@@ -23,17 +23,28 @@ type OrderManager interface {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
-	orderManager    OrderManager
-	intentPersister IntentPersister
-	logger          zerolog.Logger
+	orderManager       OrderManager
+	intentPersister    IntentPersister
+	executionPersister SpotExecutionPersister
+	logger             zerolog.Logger
+}
+
+type SpotExecutionPersister interface {
+	PersistSpotExecution(ctx context.Context, snapshot orders.SpotExecutionSnapshot) error
 }
 
 // NewHandlers creates new handlers instance
-func NewHandlers(orderManager OrderManager, logger zerolog.Logger, intentPersister IntentPersister) *Handlers {
+func NewHandlers(
+	orderManager OrderManager,
+	logger zerolog.Logger,
+	intentPersister IntentPersister,
+	executionPersister SpotExecutionPersister,
+) *Handlers {
 	return &Handlers{
-		orderManager:    orderManager,
-		intentPersister: intentPersister,
-		logger:          logger,
+		orderManager:       orderManager,
+		intentPersister:    intentPersister,
+		executionPersister: executionPersister,
+		logger:             logger,
 	}
 }
 
@@ -85,6 +96,9 @@ func (h *Handlers) PlaceBracketHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.orderManager.PlaceBracketOrder(r.Context(), &req)
 	if err != nil {
+		if resp != nil {
+			h.persistSpotPlacementArtifacts(r.Context(), req, *resp)
+		}
 		h.logger.Error().
 			Err(err).
 			Str("symbol", req.Symbol).
@@ -102,8 +116,18 @@ func (h *Handlers) PlaceBracketHandler(w http.ResponseWriter, r *http.Request) {
 		Dur("duration", time.Since(start)).
 		Msg("Bracket order placed successfully")
 
+	h.persistSpotPlacementArtifacts(r.Context(), req, *resp)
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handlers) persistSpotPlacementArtifacts(
+	ctx context.Context,
+	req orders.PlaceBracketRequest,
+	resp orders.PlaceBracketResponse,
+) {
 	if h.intentPersister != nil {
-		if err := h.intentPersister.PersistBracketIntent(r.Context(), req, *resp); err != nil {
+		if err := h.intentPersister.PersistBracketIntent(ctx, req, resp); err != nil {
 			h.logger.Error().
 				Err(err).
 				Str("symbol", req.Symbol).
@@ -111,8 +135,22 @@ func (h *Handlers) PlaceBracketHandler(w http.ResponseWriter, r *http.Request) {
 				Msg("Failed to persist bracket intent")
 		}
 	}
-
-	writeJSON(w, http.StatusOK, resp)
+	if h.executionPersister == nil {
+		return
+	}
+	for _, snapshot := range resp.SpotExecutionSnapshots {
+		if snapshot.ClientOrderID == "" || snapshot.ExecutedQty.LessThanOrEqual(decimal.Zero) {
+			continue
+		}
+		if err := h.executionPersister.PersistSpotExecution(ctx, snapshot); err != nil {
+			h.logger.Error().
+				Err(err).
+				Str("symbol", snapshot.Symbol).
+				Str("client_order_id", snapshot.ClientOrderID).
+				Str("status", snapshot.Status).
+				Msg("Failed to persist spot execution snapshot")
+		}
+	}
 }
 
 // CancelHandler handles POST /cancel

@@ -174,9 +174,6 @@ func main() {
 
 	// Create order manager
 	orderManager := orders.NewManager(spotClient, futuresClient, eventEmitter, logger)
-	if spotTradeProcessor != nil {
-		orderManager.SetSpotExecutionLedger(spotTradeProcessor)
-	}
 	var spotReconciler *orders.SpotReconciler
 	if spotClient != nil {
 		if enabled, err := strconv.ParseBool(os.Getenv("SPOT_RECONCILIATION_ENABLED")); err == nil && enabled {
@@ -200,7 +197,7 @@ func main() {
 	}
 
 	// Create HTTP handlers
-	handlers := api.NewHandlers(orderManager, logger, intentPersister)
+	handlers := api.NewHandlers(orderManager, logger, intentPersister, spotTradeProcessor)
 
 	// Create and configure HTTP server
 	mux := http.NewServeMux()

@@ -70,15 +70,16 @@ type PlaceBracketRequest struct {
 
 // PlaceBracketResponse represents the response from placing a bracket order
 type PlaceBracketResponse struct {
-	BracketOrderID     string          `json:"bracket_order_id"`
-	ClientOrderIDs     ClientOrderIDs  `json:"client_order_ids"`
-	Symbol             string          `json:"symbol"`
-	Side               string          `json:"side"`
-	Quantity           decimal.Decimal `json:"quantity"`
-	StopLossLimitPrice decimal.Decimal `json:"stop_loss_limit_price,omitempty"`
-	CreatedAt          time.Time       `json:"created_at"`
-	PartialFailure     bool            `json:"partial_failure,omitempty"`
-	Errors             []string        `json:"errors,omitempty"`
+	BracketOrderID         string                  `json:"bracket_order_id"`
+	ClientOrderIDs         ClientOrderIDs          `json:"client_order_ids"`
+	Symbol                 string                  `json:"symbol"`
+	Side                   string                  `json:"side"`
+	Quantity               decimal.Decimal         `json:"quantity"`
+	StopLossLimitPrice     decimal.Decimal         `json:"stop_loss_limit_price,omitempty"`
+	CreatedAt              time.Time               `json:"created_at"`
+	PartialFailure         bool                    `json:"partial_failure,omitempty"`
+	Errors                 []string                `json:"errors,omitempty"`
+	SpotExecutionSnapshots []SpotExecutionSnapshot `json:"-"`
 }
 
 // CancelRequest represents a request to cancel an order

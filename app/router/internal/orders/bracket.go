@@ -13,6 +13,7 @@ type bracketPlacementResult struct {
 	Main               *binance.OrderResponse
 	TakeProfits        []*binance.OrderResponse
 	StopLoss           *binance.OrderResponse
+	FailsafeClose      *binance.OrderResponse
 	StopLossLimitPrice decimal.Decimal
 }
 
@@ -298,8 +299,12 @@ func (m *Manager) failClosedSpotBracket(
 		}
 	}
 
+	if result.Main != nil {
+		result.Main.Status = mainStatus
+		result.Main.ExecutedQty = mainExecutedQty
+	}
 	if mainStatus == "FILLED" || mainStatus == "PARTIALLY_FILLED" || mainExecutedQty.GreaterThan(decimal.Zero) {
-		m.closeUnsafeFilledSpotEntry(ctx, client, req, bracketID, mainExecutedQty, bracketErr)
+		result.FailsafeClose = m.closeUnsafeFilledSpotEntry(ctx, client, req, bracketID, mainExecutedQty, bracketErr)
 	}
 }
 
@@ -339,9 +344,9 @@ func (m *Manager) closeUnsafeFilledSpotEntry(
 	bracketID string,
 	executedQty decimal.Decimal,
 	bracketErr *BracketOrderError,
-) {
+) *binance.OrderResponse {
 	if executedQty.LessThanOrEqual(decimal.Zero) {
-		return
+		return nil
 	}
 
 	closeOrder := binance.SpotOrderRequest{
@@ -352,7 +357,8 @@ func (m *Manager) closeUnsafeFilledSpotEntry(
 		NewClientOrderID: m.generateClientOrderID(bracketID, "FAILSAFE"),
 	}
 
-	if _, err := client.PlaceSpotOrder(ctx, closeOrder); err != nil {
+	resp, err := client.PlaceSpotOrder(ctx, closeOrder)
+	if err != nil {
 		bracketErr.Add("FAILSAFE", err)
 		m.logger.Error().
 			Err(err).
@@ -360,7 +366,7 @@ func (m *Manager) closeUnsafeFilledSpotEntry(
 			Str("side", closeOrder.Side).
 			Str("quantity", executedQty.String()).
 			Msg("Failed to close unsafe filled spot entry")
-		return
+		return nil
 	}
 
 	m.logger.Warn().
@@ -368,6 +374,7 @@ func (m *Manager) closeUnsafeFilledSpotEntry(
 		Str("side", closeOrder.Side).
 		Str("quantity", executedQty.String()).
 		Msg("Closed unsafe filled spot entry with failsafe market order")
+	return resp
 }
 
 func (m *Manager) plannedClientOrderIDs(req *PlaceBracketRequest, bracketID string) ClientOrderIDs {

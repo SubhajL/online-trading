@@ -372,3 +372,143 @@ func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
 	assert.Equal(t, 1, ledger.callCount())
 	require.Len(t, ledger.latestSnapshot().Trades, 1)
 }
+
+func TestSpotReconciler_EmitsTerminalStatusWhenTradesLag(t *testing.T) {
+	var tradeCalls int
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/order":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"symbol":              "BTCUSDT",
+				"orderId":             100,
+				"clientOrderId":       "cid-1",
+				"price":               "50000",
+				"origQty":             "0.020",
+				"executedQty":         "0.020",
+				"cummulativeQuoteQty": "1000",
+				"status":              "FILLED",
+				"timeInForce":         "GTC",
+				"type":                "LIMIT",
+				"side":                "BUY",
+				"time":                time.Now().UnixMilli(),
+				"updateTime":          time.Now().UnixMilli(),
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/myTrades":
+			tradeCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"code":-1,"msg":"not found"}`))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	emitter := &mockSuccessEmitter{}
+	ledger := &fakeSpotExecutionLedger{}
+	reconciler := NewSpotReconciler(
+		newSpotTestClient(t, server.URL),
+		emitter,
+		zerolog.Nop(),
+		WithSpotReconcilerLedger(ledger),
+		WithSpotReconcilerPollInterval(5*time.Millisecond),
+		WithSpotReconcilerMaxAttempts(1),
+	)
+	reconciler.Start(context.Background())
+	t.Cleanup(reconciler.Stop)
+
+	reconciler.Track(SpotReconcileRequest{
+		Symbol:        "BTCUSDT",
+		OrderID:       100,
+		ClientOrderID: "cid-1",
+		Side:          "BUY",
+		OrderType:     "LIMIT",
+		Quantity:      decimal.RequireFromString("0.020"),
+		Price:         decimal.RequireFromString("50000"),
+		InitialStatus: "NEW",
+		ExecutedQty:   decimal.Zero,
+	})
+
+	require.Eventually(t, func() bool {
+		return emitter.called && emitter.update != nil && emitter.update.Status == "FILLED"
+	}, time.Second, 10*time.Millisecond)
+
+	assert.Equal(t, 1, tradeCalls)
+	assert.Equal(t, 0, ledger.callCount())
+}
+
+func TestSpotReconciler_EmitsTerminalStatusWhenLedgerPersistenceFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/order":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"symbol":              "BTCUSDT",
+				"orderId":             100,
+				"clientOrderId":       "cid-1",
+				"price":               "50000",
+				"origQty":             "0.020",
+				"executedQty":         "0.020",
+				"cummulativeQuoteQty": "1000",
+				"status":              "FILLED",
+				"timeInForce":         "GTC",
+				"type":                "LIMIT",
+				"side":                "BUY",
+				"time":                time.Now().UnixMilli(),
+				"updateTime":          time.Now().UnixMilli(),
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/myTrades":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]map[string]any{
+				{
+					"symbol":          "BTCUSDT",
+					"id":              902,
+					"orderId":         100,
+					"price":           "50010",
+					"qty":             "0.020",
+					"commission":      "0.10",
+					"commissionAsset": "USDT",
+					"time":            time.Now().UnixMilli(),
+					"isBuyer":         true,
+				},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"code":-1,"msg":"not found"}`))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	emitter := &mockSuccessEmitter{}
+	ledger := &fakeSpotExecutionLedger{err: assert.AnError}
+	reconciler := NewSpotReconciler(
+		newSpotTestClient(t, server.URL),
+		emitter,
+		zerolog.Nop(),
+		WithSpotReconcilerLedger(ledger),
+		WithSpotReconcilerPollInterval(5*time.Millisecond),
+		WithSpotReconcilerMaxAttempts(1),
+	)
+	reconciler.Start(context.Background())
+	t.Cleanup(reconciler.Stop)
+
+	reconciler.Track(SpotReconcileRequest{
+		Symbol:        "BTCUSDT",
+		OrderID:       100,
+		ClientOrderID: "cid-1",
+		Side:          "BUY",
+		OrderType:     "LIMIT",
+		Quantity:      decimal.RequireFromString("0.020"),
+		Price:         decimal.RequireFromString("50000"),
+		InitialStatus: "NEW",
+		ExecutedQty:   decimal.Zero,
+	})
+
+	require.Eventually(t, func() bool {
+		return emitter.called && emitter.update != nil && emitter.update.Status == "FILLED"
+	}, time.Second, 10*time.Millisecond)
+
+	assert.Equal(t, 1, ledger.callCount())
+}

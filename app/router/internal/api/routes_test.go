@@ -16,7 +16,7 @@ func TestRegisterHealthRoutes(t *testing.T) {
 	mockManager := new(MockOrderManager)
 	mockManager.On("ReconcileOrder", mock.Anything, mock.Anything).Maybe()
 
-	handlers := NewHandlers(mockManager, logger, nil)
+	handlers := NewHandlers(mockManager, logger, nil, nil)
 
 	mux := http.NewServeMux()
 	RegisterHealthRoutes(mux, handlers)
@@ -52,4 +52,3 @@ func TestRegisterHealthRoutes(t *testing.T) {
 	t.Cleanup(func() { _ = resp.Body.Close() })
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
-

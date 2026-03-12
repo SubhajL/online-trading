@@ -154,7 +154,7 @@ func TestPlaceBracketOrder_SpotImmediateFillEmitsFilled(t *testing.T) {
 	assert.Equal(t, "LIMIT", emitter.update.OrderType)
 }
 
-func TestPlaceBracketOrder_SpotImmediateFillPersistsExecution(t *testing.T) {
+func TestPlaceBracketOrder_SpotImmediateFillReturnsExecutionSnapshot(t *testing.T) {
 	var postCalls int
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -200,9 +200,7 @@ func TestPlaceBracketOrder_SpotImmediateFillPersistsExecution(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	emitter := &mockSuccessEmitter{}
-	ledger := &fakeSpotExecutionLedger{}
 	manager := NewManager(newSpotTestClient(t, server.URL), nil, emitter, zerolog.Nop())
-	manager.SetSpotExecutionLedger(ledger)
 
 	req := &PlaceBracketRequest{
 		Symbol:           "BTCUSDT",
@@ -217,10 +215,9 @@ func TestPlaceBracketOrder_SpotImmediateFillPersistsExecution(t *testing.T) {
 	resp, err := manager.PlaceBracketOrder(context.Background(), req)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.True(t, ledger.called)
-	require.Len(t, ledger.snapshots, 1)
+	require.Len(t, resp.SpotExecutionSnapshots, 1)
 
-	snapshot := ledger.latestSnapshot()
+	snapshot := resp.SpotExecutionSnapshots[0]
 	assert.Equal(t, "BTCUSDT", snapshot.Symbol)
 	assert.Equal(t, "FILLED", snapshot.Status)
 	assert.Equal(t, "BUY", snapshot.Side)
@@ -432,9 +429,13 @@ func TestPlaceBracketOrder_SpotStopLossFailureCancelsUnsafeOrders(t *testing.T) 
 
 	resp, err := manager.PlaceBracketOrder(context.Background(), req)
 	require.Error(t, err)
-	assert.Nil(t, resp)
+	require.NotNil(t, resp)
+	assert.True(t, resp.PartialFailure)
+	assert.Contains(t, resp.Errors, "SL: failed to place spot order: PlaceOrder: Binance API error -2010: stop loss rejected")
 	assert.Equal(t, []int64{200, 100}, deletedOrderIDs)
-	assert.False(t, emitter.called)
+	require.True(t, emitter.called)
+	require.NotNil(t, emitter.update)
+	assert.Equal(t, "CANCELED", emitter.update.Status)
 }
 
 func TestPlaceBracketOrder_SpotStopLossFailureClosesFilledEntry(t *testing.T) {
@@ -553,11 +554,15 @@ func TestPlaceBracketOrder_SpotStopLossFailureClosesFilledEntry(t *testing.T) {
 
 	resp, err := manager.PlaceBracketOrder(context.Background(), req)
 	require.Error(t, err)
-	assert.Nil(t, resp)
+	require.NotNil(t, resp)
+	assert.True(t, resp.PartialFailure)
 	assert.Equal(t, []int64{200}, deletedOrderIDs)
 	assert.Equal(t, "SELL", compensationSide)
 	assert.Equal(t, "MARKET", compensationType)
 	assert.True(t, decimal.RequireFromString("0.020").Equal(decimal.RequireFromString(compensationQty)))
+	require.Len(t, resp.SpotExecutionSnapshots, 2)
+	assert.Equal(t, "FILLED", resp.SpotExecutionSnapshots[0].Status)
+	assert.Equal(t, "FILLED", resp.SpotExecutionSnapshots[1].Status)
 }
 
 func TestPlaceBracketOrder_SpotSuccessfulCancelClosesResidualFillFromCancelResponse(t *testing.T) {
@@ -653,10 +658,14 @@ func TestPlaceBracketOrder_SpotSuccessfulCancelClosesResidualFillFromCancelRespo
 
 	resp, err := manager.PlaceBracketOrder(context.Background(), req)
 	require.Error(t, err)
-	assert.Nil(t, resp)
+	require.NotNil(t, resp)
+	assert.True(t, resp.PartialFailure)
 	assert.Equal(t, []int64{200, 100}, deletedOrderIDs)
 	assert.Equal(t, "SELL", compensationSide)
 	assert.True(t, decimal.RequireFromString("0.007").Equal(decimal.RequireFromString(compensationQty)))
+	require.Len(t, resp.SpotExecutionSnapshots, 2)
+	assert.Equal(t, "CANCELED", resp.SpotExecutionSnapshots[0].Status)
+	assert.Equal(t, "FILLED", resp.SpotExecutionSnapshots[1].Status)
 }
 
 func TestPlaceBracketOrder_SpotNewStatusTracksForReconciliation(t *testing.T) {

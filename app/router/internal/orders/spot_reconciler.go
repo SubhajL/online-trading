@@ -152,6 +152,7 @@ func (r *SpotReconciler) Track(req SpotReconcileRequest) {
 func (r *SpotReconciler) reconcile(ctx context.Context, req SpotReconcileRequest) {
 	lastStatus := normalizeOrderStatus(req.InitialStatus)
 	lastExecutedQty := req.ExecutedQty
+	pendingTerminalPersistence := false
 
 	for attempt := 0; attempt < r.maxAttempts; attempt++ {
 		if ctx.Err() != nil {
@@ -168,8 +169,10 @@ func (r *SpotReconciler) reconcile(ctx context.Context, req SpotReconcileRequest
 				Msg("Spot reconciliation lookup failed")
 		} else {
 			status := normalizeOrderStatus(order.Status)
+			statusChanged := status != lastStatus || !order.ExecutedQty.Equal(lastExecutedQty)
+			shouldRetryPersistence := pendingTerminalPersistence && isTerminalOrderStatus(status)
 			stateApplied := true
-			if status != lastStatus || !order.ExecutedQty.Equal(lastExecutedQty) {
+			if statusChanged || shouldRetryPersistence {
 				update := &OrderUpdate{
 					EventType:     "order_update.v1",
 					Venue:         "SPOT",
@@ -185,8 +188,17 @@ func (r *SpotReconciler) reconcile(ctx context.Context, req SpotReconcileRequest
 					UpdateTime:    orderUpdateTimeFromMillis(order.UpdateTime),
 				}
 				stateApplied = r.persistExecutionSnapshot(ctx, order, update)
-				if stateApplied {
+				if statusChanged {
 					r.emit(update)
+					lastStatus = status
+					lastExecutedQty = order.ExecutedQty
+				}
+				if isTerminalOrderStatus(status) {
+					pendingTerminalPersistence = !stateApplied
+				} else if stateApplied {
+					pendingTerminalPersistence = false
+				}
+				if stateApplied && shouldRetryPersistence {
 					lastStatus = status
 					lastExecutedQty = order.ExecutedQty
 				}
