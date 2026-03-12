@@ -199,8 +199,7 @@ func (r *SpotReconciler) reconcile(ctx context.Context, req SpotReconcileRequest
 					pendingTerminalPersistence = false
 				}
 				if stateApplied && shouldRetryPersistence {
-					lastStatus = status
-					lastExecutedQty = order.ExecutedQty
+					r.emit(update)
 				}
 			}
 
@@ -275,6 +274,8 @@ func (r *SpotReconciler) persistExecutionSnapshot(
 			return false
 		}
 		snapshot.Trades = make([]SpotExecutionTrade, 0, len(trades))
+		totalQty := decimal.Zero
+		totalQuote := decimal.Zero
 		for _, trade := range trades {
 			snapshot.Trades = append(snapshot.Trades, SpotExecutionTrade{
 				TradeID:         trade.TradeID,
@@ -284,6 +285,13 @@ func (r *SpotReconciler) persistExecutionSnapshot(
 				CommissionAsset: trade.CommissionAsset,
 				Time:            trade.Time,
 			})
+			totalQty = totalQty.Add(trade.Qty)
+			totalQuote = totalQuote.Add(trade.Price.Mul(trade.Qty))
+		}
+		if !totalQty.IsZero() {
+			averageFillPrice := totalQuote.Div(totalQty)
+			snapshot.Price = averageFillPrice
+			update.Price = averageFillPrice
 		}
 	}
 

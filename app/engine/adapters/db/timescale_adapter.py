@@ -958,6 +958,7 @@ class TimescaleDBAdapter:
                         stop_price = COALESCE(EXCLUDED.stop_price, orders.stop_price),
                         status = CASE
                             WHEN orders.status IN ('FILLED', 'CANCELED', 'REJECTED', 'EXPIRED') THEN orders.status
+                            WHEN orders.status = 'PARTIALLY_FILLED' AND EXCLUDED.status = 'NEW' THEN orders.status
                             WHEN $10 IS NULL THEN orders.status
                             WHEN orders.last_update_time IS NOT NULL
                                 AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.status
@@ -969,7 +970,12 @@ class TimescaleDBAdapter:
                                 AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.filled_quantity
                             ELSE GREATEST(EXCLUDED.filled_quantity, orders.filled_quantity)
                         END,
-                        average_fill_price = COALESCE(EXCLUDED.average_fill_price, orders.average_fill_price),
+                        average_fill_price = CASE
+                            WHEN $12::numeric IS NULL THEN orders.average_fill_price
+                            WHEN orders.last_update_time IS NOT NULL
+                                AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.average_fill_price
+                            ELSE COALESCE(EXCLUDED.average_fill_price, orders.average_fill_price)
+                        END,
                         decision_id = COALESCE(EXCLUDED.decision_id, orders.decision_id),
                         exchange_order_id = COALESCE(EXCLUDED.exchange_order_id, orders.exchange_order_id),
                         commission = CASE
