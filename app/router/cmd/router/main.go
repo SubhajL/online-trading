@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -66,6 +67,7 @@ func main() {
 	var dbPool *pgxpool.Pool
 	var intentPersister api.IntentPersister
 	var userDataIngestor *execution.Ingestor
+	var spotTradeProcessor *execution.SpotTradeProcessor
 	var fundingCancel context.CancelFunc
 
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
@@ -77,6 +79,17 @@ func main() {
 		}
 
 		intentPersister = api.NewPostgresIntentPersister(dbPool, logger.With().Str("component", "persistence").Logger())
+		if cfg.Binance.IsSpotEnabled() {
+			spotTradeProcessor, err = execution.NewSpotTradeProcessor(
+				dbPool,
+				storage.NewOrderRepo(),
+				storage.NewFillRepo(),
+				storage.NewPositionRepo(),
+			)
+			if err != nil {
+				logger.Fatal().Err(err).Msg("Failed to initialize spot trade processor")
+			}
+		}
 
 		if cfg.Binance.IsFuturesEnabled() {
 			userWSBase := normalizeWSBaseURL(cfg.Binance.FuturesWSURL)
@@ -161,9 +174,30 @@ func main() {
 
 	// Create order manager
 	orderManager := orders.NewManager(spotClient, futuresClient, eventEmitter, logger)
+	var spotReconciler *orders.SpotReconciler
+	if spotClient != nil {
+		if enabled, err := strconv.ParseBool(os.Getenv("SPOT_RECONCILIATION_ENABLED")); err == nil && enabled {
+			pollInterval := 3 * time.Second
+			if raw := os.Getenv("SPOT_RECONCILIATION_POLL_INTERVAL"); raw != "" {
+				if parsed, parseErr := time.ParseDuration(raw); parseErr == nil && parsed > 0 {
+					pollInterval = parsed
+				}
+			}
+			spotReconciler = orders.NewSpotReconciler(
+				spotClient,
+				eventEmitter,
+				logger.With().Str("component", "spot_reconciler").Logger(),
+				orders.WithSpotReconcilerLedger(spotTradeProcessor),
+				orders.WithSpotReconcilerPollInterval(pollInterval),
+			)
+			spotReconciler.Start(context.Background())
+			orderManager.SetSpotReconciler(spotReconciler)
+			logger.Info().Dur("poll_interval", pollInterval).Msg("Spot reconciliation enabled")
+		}
+	}
 
 	// Create HTTP handlers
-	handlers := api.NewHandlers(orderManager, logger, intentPersister)
+	handlers := api.NewHandlers(orderManager, logger, intentPersister, spotTradeProcessor)
 
 	// Create and configure HTTP server
 	mux := http.NewServeMux()
@@ -234,6 +268,9 @@ func main() {
 		}
 		if fundingCancel != nil {
 			fundingCancel()
+		}
+		if spotReconciler != nil {
+			spotReconciler.Stop()
 		}
 		if dbPool != nil {
 			dbPool.Close()

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,14 +25,32 @@ func (m *mockFailingEmitter) EmitOrderUpdate(ctx context.Context, update *OrderU
 
 // mockSuccessEmitter is an EventEmitter that always succeeds
 type mockSuccessEmitter struct {
+	mu     sync.Mutex
 	called bool
 	update *OrderUpdate
 }
 
 func (m *mockSuccessEmitter) EmitOrderUpdate(ctx context.Context, update *OrderUpdate) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.called = true
-	m.update = update
+	if update == nil {
+		m.update = nil
+		return nil
+	}
+	updateCopy := *update
+	m.update = &updateCopy
 	return nil
+}
+
+func (m *mockSuccessEmitter) snapshot() (bool, *OrderUpdate) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.update == nil {
+		return m.called, nil
+	}
+	updateCopy := *m.update
+	return m.called, &updateCopy
 }
 
 func TestManager_validateBracketRequest(t *testing.T) {

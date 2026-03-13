@@ -48,7 +48,7 @@ func TestBracketOrderError(t *testing.T) {
 			},
 			expectedString: "bracket order 12345678 failed:; TP1: insufficient balance; TP2: invalid price; SL: quantity too small",
 			hasErrors:      true,
-			hasCritical:    false,
+			hasCritical:    true,
 		},
 		{
 			name:      "critical error",

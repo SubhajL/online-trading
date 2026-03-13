@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -65,7 +66,7 @@ func (m *MockOrderManager) ReconcileOrder(ctx context.Context, clientOrderID str
 func TestHealthzHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger, nil)
+	handlers := NewHandlers(mockManager, logger, nil, nil)
 
 	tests := []struct {
 		name       string
@@ -112,7 +113,7 @@ func TestHealthzHandler(t *testing.T) {
 func TestReadyzHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger, nil)
+	handlers := NewHandlers(mockManager, logger, nil, nil)
 
 	tests := []struct {
 		name       string
@@ -159,7 +160,7 @@ func TestReadyzHandler(t *testing.T) {
 func TestPlaceBracketHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger, nil)
+	handlers := NewHandlers(mockManager, logger, nil, nil)
 
 	tests := []struct {
 		name       string
@@ -323,11 +324,25 @@ func (s *stubIntentPersister) PersistBracketIntent(
 	return nil
 }
 
+type stubSpotExecutionPersister struct {
+	called    bool
+	snapshots []orders.SpotExecutionSnapshot
+}
+
+func (s *stubSpotExecutionPersister) PersistSpotExecution(
+	_ctx context.Context,
+	snapshot orders.SpotExecutionSnapshot,
+) error {
+	s.called = true
+	s.snapshots = append(s.snapshots, snapshot)
+	return nil
+}
+
 func TestPlaceBracketHandler_PersistsIntentsWhenConfigured(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
 	stub := &stubIntentPersister{}
-	handlers := NewHandlers(mockManager, logger, stub)
+	handlers := NewHandlers(mockManager, logger, stub, nil)
 
 	mockManager.On("PlaceBracketOrder", mock.Anything, mock.AnythingOfType("*orders.PlaceBracketRequest")).
 		Return(&orders.PlaceBracketResponse{
@@ -362,10 +377,121 @@ func TestPlaceBracketHandler_PersistsIntentsWhenConfigured(t *testing.T) {
 	require.True(t, stub.called)
 }
 
+func TestPlaceBracketHandler_PersistsSpotExecutionsAfterIntentPersistence(t *testing.T) {
+	logger := zerolog.Nop()
+	mockManager := new(MockOrderManager)
+	intentPersister := &stubIntentPersister{}
+	executionPersister := &stubSpotExecutionPersister{}
+	handlers := NewHandlers(mockManager, logger, intentPersister, executionPersister)
+
+	mockManager.On("PlaceBracketOrder", mock.Anything, mock.AnythingOfType("*orders.PlaceBracketRequest")).
+		Return(&orders.PlaceBracketResponse{
+			BracketOrderID: "test-bracket-id",
+			Symbol:         "BTCUSDT",
+			Side:           "BUY",
+			Quantity:       decimal.RequireFromString("0.001"),
+			ClientOrderIDs: orders.ClientOrderIDs{
+				Main:        "main-order-id",
+				TakeProfits: []string{"tp1-id"},
+				StopLoss:    "sl-id",
+			},
+			SpotExecutionSnapshots: []orders.SpotExecutionSnapshot{
+				{
+					Symbol:        "BTCUSDT",
+					OrderID:       100,
+					ClientOrderID: "main-order-id",
+					Side:          "BUY",
+					OrderType:     "LIMIT",
+					Price:         decimal.RequireFromString("50000"),
+					Quantity:      decimal.RequireFromString("0.001"),
+					ExecutedQty:   decimal.RequireFromString("0.001"),
+					Status:        "FILLED",
+					UpdateTime:    time.Now().UTC(),
+				},
+			},
+		}, nil).Once()
+
+	body := &orders.PlaceBracketRequest{
+		Symbol:           "BTCUSDT",
+		Side:             "BUY",
+		Quantity:         decimal.RequireFromString("0.001"),
+		EntryPrice:       decimal.RequireFromString("50000"),
+		TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("51000")},
+		StopLossPrice:    decimal.RequireFromString("49000"),
+	}
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/place_bracket", bytes.NewReader(raw))
+	w := httptest.NewRecorder()
+	handlers.PlaceBracketHandler(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, intentPersister.called)
+	require.True(t, executionPersister.called)
+	require.Len(t, executionPersister.snapshots, 1)
+	assert.Equal(t, "main-order-id", executionPersister.snapshots[0].ClientOrderID)
+}
+
+func TestPlaceBracketHandler_PersistsSnapshotsOnErrorWhenResponseExists(t *testing.T) {
+	logger := zerolog.Nop()
+	mockManager := new(MockOrderManager)
+	intentPersister := &stubIntentPersister{}
+	executionPersister := &stubSpotExecutionPersister{}
+	handlers := NewHandlers(mockManager, logger, intentPersister, executionPersister)
+
+	mockManager.On("PlaceBracketOrder", mock.Anything, mock.AnythingOfType("*orders.PlaceBracketRequest")).
+		Return(&orders.PlaceBracketResponse{
+			BracketOrderID: "test-bracket-id",
+			Symbol:         "BTCUSDT",
+			Side:           "BUY",
+			Quantity:       decimal.RequireFromString("0.001"),
+			ClientOrderIDs: orders.ClientOrderIDs{
+				Main:        "main-order-id",
+				TakeProfits: []string{"tp1-id"},
+				StopLoss:    "sl-id",
+			},
+			SpotExecutionSnapshots: []orders.SpotExecutionSnapshot{
+				{
+					Symbol:        "BTCUSDT",
+					OrderID:       100,
+					ClientOrderID: "main-order-id",
+					Side:          "BUY",
+					OrderType:     "LIMIT",
+					Price:         decimal.RequireFromString("50000"),
+					Quantity:      decimal.RequireFromString("0.001"),
+					ExecutedQty:   decimal.RequireFromString("0.001"),
+					Status:        "FILLED",
+					UpdateTime:    time.Now().UTC(),
+				},
+			},
+		}, errors.New("critical bracket placement failure")).Once()
+
+	body := &orders.PlaceBracketRequest{
+		Symbol:           "BTCUSDT",
+		Side:             "BUY",
+		Quantity:         decimal.RequireFromString("0.001"),
+		EntryPrice:       decimal.RequireFromString("50000"),
+		TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("51000")},
+		StopLossPrice:    decimal.RequireFromString("49000"),
+	}
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/place_bracket", bytes.NewReader(raw))
+	w := httptest.NewRecorder()
+	handlers.PlaceBracketHandler(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.True(t, intentPersister.called)
+	require.True(t, executionPersister.called)
+	require.Len(t, executionPersister.snapshots, 1)
+}
+
 func TestCancelHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger, nil)
+	handlers := NewHandlers(mockManager, logger, nil, nil)
 
 	tests := []struct {
 		name       string
@@ -454,7 +580,7 @@ func TestCancelHandler(t *testing.T) {
 func TestCloseAllHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger, nil)
+	handlers := NewHandlers(mockManager, logger, nil, nil)
 
 	tests := []struct {
 		name       string
@@ -548,7 +674,7 @@ func TestCloseAllHandler(t *testing.T) {
 func TestCancelOpenOrdersHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger, nil)
+	handlers := NewHandlers(mockManager, logger, nil, nil)
 
 	tests := []struct {
 		name       string
@@ -642,7 +768,7 @@ func TestCancelOpenOrdersHandler(t *testing.T) {
 func TestClosePositionsHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	handlers := NewHandlers(mockManager, logger, nil)
+	handlers := NewHandlers(mockManager, logger, nil, nil)
 
 	tests := []struct {
 		name       string

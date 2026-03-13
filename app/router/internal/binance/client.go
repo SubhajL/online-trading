@@ -51,9 +51,28 @@ func convertFills(restFills []rest.Fill) []Fill {
 			Qty:             f.Qty,
 			Commission:      f.Commission,
 			CommissionAsset: f.CommissionAsset,
+			TradeID:         f.TradeID,
 		}
 	}
 	return fills
+}
+
+func convertTrades(restTrades []rest.Trade) []Trade {
+	trades := make([]Trade, len(restTrades))
+	for i, trade := range restTrades {
+		trades[i] = Trade{
+			Symbol:          trade.Symbol,
+			TradeID:         trade.TradeID,
+			OrderID:         trade.OrderID,
+			Price:           trade.Price,
+			Qty:             trade.Qty,
+			Commission:      trade.Commission,
+			CommissionAsset: trade.CommissionAsset,
+			Time:            time.UnixMilli(trade.Time).UTC(),
+			IsBuyer:         trade.IsBuyer,
+		}
+	}
+	return trades
 }
 
 // NewClient creates a new Binance-specific client
@@ -284,13 +303,13 @@ func convertBalances(restBalances []rest.Balance) []Balance {
 	return balances
 }
 
-// CancelOrder cancels an existing order
-func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) error {
+// CancelOrder cancels an existing order.
+func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) (*CancelResponse, error) {
 	if symbol == "" {
-		return fmt.Errorf("symbol is required")
+		return nil, fmt.Errorf("symbol is required")
 	}
 	if orderID <= 0 {
-		return fmt.Errorf("order ID must be positive")
+		return nil, fmt.Errorf("order ID must be positive")
 	}
 
 	c.logger.Info().
@@ -298,11 +317,14 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 		Int64("order_id", orderID).
 		Msg("Canceling order")
 
-	var err error
+	var (
+		err        error
+		cancelResp *rest.CancelResponse
+	)
 	if c.isFutures {
 		err = c.restClient.CancelFuturesOrder(ctx, symbol, orderID)
 	} else {
-		err = c.restClient.CancelOrder(ctx, symbol, orderID)
+		cancelResp, err = c.restClient.CancelOrder(ctx, symbol, orderID)
 	}
 	if err != nil {
 		c.logger.Error().
@@ -310,7 +332,7 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 			Str("symbol", symbol).
 			Int64("order_id", orderID).
 			Msg("Failed to cancel order")
-		return err
+		return nil, err
 	}
 
 	c.logger.Info().
@@ -318,7 +340,22 @@ func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) 
 		Int64("order_id", orderID).
 		Msg("Order canceled successfully")
 
-	return nil
+	if cancelResp == nil {
+		return nil, nil
+	}
+
+	return &CancelResponse{
+		Symbol:        cancelResp.Symbol,
+		OrderID:       cancelResp.OrderID,
+		ClientOrderID: cancelResp.ClientOrderID,
+		Price:         cancelResp.Price,
+		OrigQty:       cancelResp.OrigQty,
+		ExecutedQty:   cancelResp.ExecutedQty,
+		Status:        cancelResp.Status,
+		TimeInForce:   cancelResp.TimeInForce,
+		Type:          cancelResp.Type,
+		Side:          cancelResp.Side,
+	}, nil
 }
 
 // GetOpenOrders retrieves open orders for a symbol
@@ -372,6 +409,70 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]*Order, er
 		Msg("Retrieved open orders")
 
 	return orders, nil
+}
+
+// GetOrder retrieves a single spot order by exchange order ID.
+func (c *Client) GetOrder(ctx context.Context, symbol string, orderID int64) (*Order, error) {
+	if c.isFutures {
+		return nil, fmt.Errorf("single-order lookup not available on futures client")
+	}
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+	if orderID <= 0 {
+		return nil, fmt.Errorf("order ID must be positive")
+	}
+
+	restOrder, err := c.restClient.GetOrder(ctx, symbol, orderID)
+	if err != nil {
+		c.logger.Error().
+			Err(err).
+			Str("symbol", symbol).
+			Int64("order_id", orderID).
+			Msg("Failed to get order")
+		return nil, fmt.Errorf("failed to get order: %w", err)
+	}
+
+	order := &Order{
+		Symbol:        restOrder.Symbol,
+		OrderID:       restOrder.OrderID,
+		ClientOrderID: restOrder.ClientOrderID,
+		Price:         restOrder.Price,
+		OrigQty:       restOrder.OrigQty,
+		ExecutedQty:   restOrder.ExecutedQty,
+		Status:        restOrder.Status,
+		TimeInForce:   restOrder.TimeInForce,
+		Type:          restOrder.Type,
+		Side:          restOrder.Side,
+		Time:          restOrder.Time,
+		UpdateTime:    restOrder.UpdateTime,
+	}
+
+	return order, nil
+}
+
+func (c *Client) GetMyTrades(ctx context.Context, symbol string, orderID int64) ([]Trade, error) {
+	if c.isFutures {
+		return nil, fmt.Errorf("trade lookup not available on futures client")
+	}
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol is required")
+	}
+	if orderID <= 0 {
+		return nil, fmt.Errorf("order ID must be positive")
+	}
+
+	restTrades, err := c.restClient.GetMyTrades(ctx, symbol, orderID)
+	if err != nil {
+		c.logger.Error().
+			Err(err).
+			Str("symbol", symbol).
+			Int64("order_id", orderID).
+			Msg("Failed to get spot trades")
+		return nil, fmt.Errorf("failed to get spot trades: %w", err)
+	}
+
+	return convertTrades(restTrades), nil
 }
 
 type FuturesAccountResponse struct {
@@ -520,4 +621,44 @@ func (c *Client) ValidateNotional(ctx context.Context, symbol string, price, qua
 		return nil // Skip validation if cache not available
 	}
 	return c.exchangeInfoCache.ValidateNotional(ctx, symbol, price, quantity, c.isFutures)
+}
+
+// GetSymbolInfo returns cached exchange trading rules for a symbol.
+func (c *Client) GetSymbolInfo(ctx context.Context, symbol string) (*SymbolInfo, error) {
+	if c.exchangeInfoCache == nil {
+		return nil, fmt.Errorf("exchange info cache not available")
+	}
+	return c.exchangeInfoCache.GetSymbolInfo(ctx, symbol, c.isFutures)
+}
+
+// GetTickerLastPrice returns the last traded price for a spot symbol (e.g. BTCUSDT).
+func (c *Client) GetTickerLastPrice(ctx context.Context, symbol string) (decimal.Decimal, error) {
+	if c.restClient == nil {
+		return decimal.Zero, fmt.Errorf("rest client not available")
+	}
+	ticker, err := c.restClient.GetTickerPrice(ctx, symbol)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return ticker.Price, nil
+}
+
+// GetTickerPrices returns last traded prices for all spot symbols.
+func (c *Client) GetTickerPrices(ctx context.Context) (map[string]decimal.Decimal, error) {
+	if c.restClient == nil {
+		return nil, fmt.Errorf("rest client not available")
+	}
+	tickers, err := c.restClient.GetTickerPrices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	prices := make(map[string]decimal.Decimal, len(tickers))
+	for _, ticker := range tickers {
+		if ticker.Symbol == "" {
+			continue
+		}
+		prices[ticker.Symbol] = ticker.Price
+	}
+	return prices, nil
 }

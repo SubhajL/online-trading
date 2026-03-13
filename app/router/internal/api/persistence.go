@@ -137,7 +137,7 @@ func buildBracketOrderIntents(
 	}
 
 	slType := "STOP_LOSS_LIMIT"
-	slPrice := req.StopLossPrice
+	slPrice := resp.StopLossLimitPrice
 	slStop := req.StopLossPrice
 	reduceOnly := false
 	closePosition := false

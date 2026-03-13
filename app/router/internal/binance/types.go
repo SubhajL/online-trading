@@ -55,6 +55,19 @@ type Fill struct {
 	Qty             decimal.Decimal `json:"qty"`
 	Commission      decimal.Decimal `json:"commission"`
 	CommissionAsset string          `json:"commissionAsset"`
+	TradeID         int64           `json:"tradeId"`
+}
+
+type Trade struct {
+	Symbol          string
+	TradeID         int64
+	OrderID         int64
+	Price           decimal.Decimal
+	Qty             decimal.Decimal
+	Commission      decimal.Decimal
+	CommissionAsset string
+	Time            time.Time
+	IsBuyer         bool
 }
 
 // AccountResponse represents account information

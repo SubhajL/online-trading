@@ -11,12 +11,13 @@ import (
 )
 
 type ActivePosition struct {
-	PositionID uuid.UUID
-	Venue      string
-	Symbol     string
-	Side       string
-	Size       decimal.Decimal
-	EntryPrice decimal.Decimal
+	PositionID   uuid.UUID
+	Venue        string
+	Symbol       string
+	Side         string
+	Size         decimal.Decimal
+	EntryPrice   decimal.Decimal
+	EntryOrderID string
 
 	CurrentPrice  decimal.Decimal
 	UnrealizedPnL decimal.Decimal
@@ -31,11 +32,12 @@ type ActivePosition struct {
 }
 
 type ActivePositionUpsert struct {
-	Venue      string
-	Symbol     string
-	Side       string
-	Size       decimal.Decimal
-	EntryPrice decimal.Decimal
+	Venue        string
+	Symbol       string
+	Side         string
+	Size         decimal.Decimal
+	EntryPrice   decimal.Decimal
+	EntryOrderID string
 
 	CurrentPrice decimal.Decimal
 
@@ -80,6 +82,7 @@ func (r *PositionRepo) GetActive(
 	row := tx.QueryRow(
 		ctx,
 		`SELECT position_id, venue, symbol, side, size, entry_price,
+		        COALESCE(entry_order_id::text, ''),
 		        current_price, unrealized_pnl, realized_pnl,
 		        COALESCE(commission_paid, 0), COALESCE(funding_paid, 0), COALESCE(slippage_paid, 0),
 		        opened_at, updated_at
@@ -98,6 +101,7 @@ func (r *PositionRepo) GetActive(
 		&pos.Side,
 		&pos.Size,
 		&pos.EntryPrice,
+		&pos.EntryOrderID,
 		&pos.CurrentPrice,
 		&pos.UnrealizedPnL,
 		&pos.RealizedPnL,
@@ -146,11 +150,11 @@ func (r *PositionRepo) UpsertActive(ctx context.Context, tx pgx.Tx, upsert Activ
 		`INSERT INTO positions (
 			venue, symbol, side, size, entry_price, current_price, unrealized_pnl, realized_pnl,
 			margin_used, leverage, opened_at, updated_at, is_active,
-			commission_paid, funding_paid, slippage_paid
+			entry_order_id, commission_paid, funding_paid, slippage_paid
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8,
 			0, 1, $9, $10, TRUE,
-			$11, $12, $13
+			NULLIF($11, '')::uuid, $12, $13, $14
 		)
 		ON CONFLICT (venue, symbol) WHERE is_active = TRUE
 		DO UPDATE SET
@@ -160,6 +164,8 @@ func (r *PositionRepo) UpsertActive(ctx context.Context, tx pgx.Tx, upsert Activ
 			current_price = EXCLUDED.current_price,
 			unrealized_pnl = EXCLUDED.unrealized_pnl,
 			realized_pnl = EXCLUDED.realized_pnl,
+			opened_at = EXCLUDED.opened_at,
+			entry_order_id = EXCLUDED.entry_order_id,
 			commission_paid = EXCLUDED.commission_paid,
 			funding_paid = EXCLUDED.funding_paid,
 			slippage_paid = EXCLUDED.slippage_paid,
@@ -174,6 +180,7 @@ func (r *PositionRepo) UpsertActive(ctx context.Context, tx pgx.Tx, upsert Activ
 		upsert.RealizedPnL,
 		upsert.OpenedAt,
 		upsert.UpdatedAt,
+		upsert.EntryOrderID,
 		upsert.CommissionPaid,
 		upsert.FundingPaid,
 		upsert.SlippagePaid,
