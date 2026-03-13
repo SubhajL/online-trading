@@ -190,7 +190,6 @@ def test_workflows_have_security_scanning():
     assert has_security, "CI workflow should include security scanning"
 
 
-<<<<<<< HEAD
 def test_workflows_define_explicit_permissions():
     """Verify every workflow defines explicit GitHub token permissions"""
     workflows_dir = Path(__file__).parent.parent / ".github/workflows"
