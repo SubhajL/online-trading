@@ -1,6 +1,7 @@
 import pytest
 import yaml
 from pathlib import Path
+import re
 
 
 def test_github_workflows_directory_exists():
@@ -173,3 +174,22 @@ def test_workflows_have_security_scanning():
     has_security = any(tool in content.lower() for tool in security_tools)
 
     assert has_security, "CI workflow should include security scanning"
+
+
+def test_ci_go_version_matches_router_toolchain():
+    """Verify CI pins the exact Go toolchain required by the router module."""
+    repo_root = Path(__file__).parent.parent
+    ci_workflow = repo_root / ".github/workflows/ci.yml"
+    router_go_mod = repo_root / "app/router/go.mod"
+
+    with open(ci_workflow, "r") as f:
+        ci_config = yaml.safe_load(f)
+
+    workflow_go_version = ci_config["env"]["GO_VERSION"]
+
+    go_mod = router_go_mod.read_text()
+    toolchain_match = re.search(r"^toolchain\s+(go[0-9.]+)\s*$", go_mod, re.MULTILINE)
+    assert toolchain_match, "router go.mod should declare an explicit toolchain"
+
+    expected_version = toolchain_match.group(1).removeprefix("go")
+    assert workflow_go_version == expected_version
