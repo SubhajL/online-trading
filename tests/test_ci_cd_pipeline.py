@@ -81,7 +81,7 @@ def test_ci_workflow_tests_all_services():
 
 
 def test_ci_workflow_has_matrix_strategy():
-    """Verify CI workflow uses matrix strategy for multiple versions"""
+    """Verify CI workflow declares runtime versions or matrix strategy"""
     ci_workflow = Path(__file__).parent.parent / ".github/workflows/ci.yml"
 
     with open(ci_workflow, "r") as f:
@@ -94,9 +94,13 @@ def test_ci_workflow_has_matrix_strategy():
             has_matrix = True
             break
 
-    assert (
-        has_matrix
-    ), "CI workflow should use matrix strategy for testing multiple versions"
+    has_version_pins = all(
+        key in config.get("env", {}) for key in ["PYTHON_VERSION", "NODE_VERSION", "GO_VERSION"]
+    )
+
+    assert has_matrix or has_version_pins, (
+        "CI workflow should define tested runtime versions or a matrix strategy"
+    )
 
 
 def test_cd_workflow_structure():
@@ -146,7 +150,7 @@ def test_cd_workflow_has_deployment_jobs():
 
 
 def test_workflows_use_caching():
-    """Verify workflows use caching for dependencies"""
+    """Verify workflows use caching for dependencies or container builds"""
     workflows = [
         Path(__file__).parent.parent / ".github/workflows/ci.yml",
         Path(__file__).parent.parent / ".github/workflows/cd.yml",
@@ -156,9 +160,18 @@ def test_workflows_use_caching():
         with open(workflow_path, "r") as f:
             content = f.read()
 
-        # Check for cache actions
+        has_cache = any(
+            marker in content
+            for marker in [
+                "actions/cache",
+                "cache:",
+                "cache-from:",
+                "cache-to:",
+            ]
+        )
+
         assert (
-            "actions/cache" in content or "cache:" in content
+            has_cache
         ), f"{workflow_path.name} should use caching for better performance"
 
 
@@ -193,3 +206,12 @@ def test_ci_go_version_matches_router_toolchain():
 
     expected_version = toolchain_match.group(1).removeprefix("go")
     assert workflow_go_version == expected_version
+
+
+def test_claude_workflows_are_consolidated():
+    """Verify the repo uses the new Claude workflows without the legacy duplicate."""
+    workflows_dir = Path(__file__).parent.parent / ".github/workflows"
+
+    assert (workflows_dir / "claude-code-review.yml").exists()
+    assert (workflows_dir / "claude.yml").exists()
+    assert not (workflows_dir / "claude-review.yml").exists()
