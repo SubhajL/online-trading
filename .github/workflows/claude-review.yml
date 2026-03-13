@@ -31,12 +31,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Workaround: remove local-dev hooks that reference paths not on the runner
+      # and can trigger AJV schema validation crashes (see claude-code-action#852, #892, #1021)
+      - name: Sanitize settings for CI
+        run: |
+          if [ -f .claude/settings.json ]; then
+            # Strip hooks (local paths don't exist on runner) but keep other settings
+            python3 -c "
+          import json, sys
+          with open('.claude/settings.json') as f:
+              s = json.load(f)
+          s.pop('hooks', None)
+          with open('.claude/settings.json', 'w') as f:
+              json.dump(s, f, indent=2)
+          " || rm -f .claude/settings.json
+          fi
+
       - name: Run Claude Code Review
-        uses: anthropics/claude-code-action@v1
+        # Pin to latest SHA (2026-03-11, SDK 0.2.73) to pick up AJV crash fixes.
+        # The @v1 tag still resolves to an older build with SDK 0.2.70.
+        # Revert to @v1 once the tag is updated past the AJV schema drift issue.
+        uses: anthropics/claude-code-action@567be3da98ac1cacd803477c9a738bec79484dc0
         with:
           github_token: ${{ github.token }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--model claude-opus-4-6 --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"'
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --allowed-tools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
+            --max-turns 10
+          show_full_output: "true"
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
