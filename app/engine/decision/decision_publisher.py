@@ -131,15 +131,21 @@ class DecisionPublisher:
                 max_qty_candidates.append(self._risk.max_position_size)
 
             if self._risk.max_position_notional_pct > 0:
-                max_qty_candidates.append((equity * self._risk.max_position_notional_pct) / entry_price)
+                max_qty_candidates.append(
+                    (equity * self._risk.max_position_notional_pct) / entry_price
+                )
 
             if self._risk.max_symbol_exposure_pct > 0:
-                remaining_symbol_notional = (equity * self._risk.max_symbol_exposure_pct) - existing_symbol_exposure
+                remaining_symbol_notional = (
+                    equity * self._risk.max_symbol_exposure_pct
+                ) - existing_symbol_exposure
                 if remaining_symbol_notional > 0:
                     max_qty_candidates.append(remaining_symbol_notional / entry_price)
 
             if self._risk.max_total_exposure_leverage > 0:
-                remaining_total_notional = (equity * self._risk.max_total_exposure_leverage) - existing_total_exposure
+                remaining_total_notional = (
+                    equity * self._risk.max_total_exposure_leverage
+                ) - existing_total_exposure
                 if remaining_total_notional > 0:
                     max_qty_candidates.append(remaining_total_notional / entry_price)
 
@@ -208,7 +214,10 @@ class DecisionPublisher:
         try:
             await self._db_adapter.insert_trading_decision(decision)
         except Exception:
-            logger.exception("Error persisting trading decision to DB (decision_id=%s)", decision.decision_id)
+            logger.exception(
+                "Error persisting trading decision to DB (decision_id=%s)",
+                decision.decision_id,
+            )
 
         try:
             await self._event_bus.publish(decision_event, priority=7)
