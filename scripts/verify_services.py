@@ -3,11 +3,11 @@
 Verify all services are properly configured before starting integration test.
 """
 
+import asyncio
+from datetime import datetime
+import json
 import os
 import sys
-import asyncio
-import json
-from datetime import datetime
 
 # Override PostgreSQL password to match container
 os.environ["POSTGRES_PASSWORD"] = "password"
@@ -15,10 +15,10 @@ os.environ["POSTGRES_PASSWORD"] = "password"
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import psycopg2
-import redis
 import aiohttp
 from dotenv import load_dotenv
+import psycopg2
+import redis
 
 # Load environment variables
 load_dotenv()
@@ -101,16 +101,16 @@ class ServiceVerifier:
             # Check version
             cursor.execute("SELECT version();")
             version = cursor.fetchone()[0]
-            print(f"  ✓ Connected to PostgreSQL")
+            print("  ✓ Connected to PostgreSQL")
             print(f"    Version: {version.split(',')[0]}")
 
             # Check TimescaleDB
             cursor.execute("SELECT extname FROM pg_extension WHERE extname = 'timescaledb';")
             timescale = cursor.fetchone()
             if timescale:
-                print(f"  ✓ TimescaleDB extension installed")
+                print("  ✓ TimescaleDB extension installed")
             else:
-                print(f"  ⚠ TimescaleDB not installed (optional)")
+                print("  ⚠ TimescaleDB not installed (optional)")
 
             # Check required tables
             cursor.execute("""
@@ -151,7 +151,7 @@ class ServiceVerifier:
 
             # Test connection
             r.ping()
-            print(f"  ✓ Connected to Redis")
+            print("  ✓ Connected to Redis")
 
             # Get info
             info = r.info()
@@ -162,7 +162,7 @@ class ServiceVerifier:
             r.set("test_key", "test_value", ex=10)
             value = r.get("test_key")
             if value == "test_value":
-                print(f"  ✓ Read/Write test passed")
+                print("  ✓ Read/Write test passed")
 
             self.results["redis"] = True
 
@@ -192,7 +192,7 @@ class ServiceVerifier:
                     if response.status == 200:
                         data = await response.json()
                         server_time = datetime.fromtimestamp(data['serverTime'] / 1000)
-                        print(f"  ✓ Connected to Binance Testnet")
+                        print("  ✓ Connected to Binance Testnet")
                         print(f"    Server time: {server_time}")
 
                 # Test authenticated endpoint
@@ -202,13 +202,13 @@ class ServiceVerifier:
                     headers=headers
                 ) as response:
                     if response.status == 200:
-                        print(f"  ✓ API key valid")
+                        print("  ✓ API key valid")
                         data = await response.json()
 
                         # Check testnet balance
                         balances = {b['asset']: float(b['free']) for b in data['balances'] if float(b['free']) > 0}
                         if balances:
-                            print(f"    Testnet balances:")
+                            print("    Testnet balances:")
                             for asset, amount in list(balances.items())[:3]:
                                 print(f"      {asset}: {amount:.8f}")
                     else:
@@ -278,7 +278,7 @@ class ServiceVerifier:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
                 # Try to bind to port
-                sock.bind(("", port))
+                sock.bind(("127.0.0.1", port))
                 sock.close()
                 print(f"  ✓ {service} port {port} is available")
             except OSError:
@@ -318,7 +318,7 @@ class ServiceVerifier:
                 "results": self.results
             }, f, indent=2)
 
-        print(f"\nResults saved to: service_verification_results.json")
+        print("\nResults saved to: service_verification_results.json")
 
 
 async def main():

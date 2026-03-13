@@ -4,6 +4,10 @@ Unit tests for extracting entry/SL/TP levels from Captain Trading chart images.
 
 from decimal import Decimal
 
+import pytest
+
+pytest.importorskip("pytesseract", reason="pytesseract is not installed")
+
 from app.engine.telegram_validator import captain_image_levels
 
 

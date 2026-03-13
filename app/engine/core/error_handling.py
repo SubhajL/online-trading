@@ -7,7 +7,7 @@ following best practices for resilient distributed systems.
 
 from abc import ABC, abstractmethod
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import Enum
@@ -485,12 +485,19 @@ class error_boundary:
         category: ErrorCategory = ErrorCategory.PROCESSING,
         severity: ErrorSeverity = ErrorSeverity.MEDIUM,
         reraise: bool = True,
+        handler: (
+            Callable[[Exception | EventBusError, ErrorContext | None], Awaitable[bool]]
+            | None
+        ) = None,
+        sync_logger: Any | None = None,
     ) -> None:
         self.component = component
         self.operation = operation
         self.category = category
         self.severity = severity
         self.reraise = reraise
+        self._handle_error = handler or handle_error
+        self._sync_logger = sync_logger or logger
 
     def __call__(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Use as decorator."""
@@ -528,7 +535,7 @@ class error_boundary:
             )
 
             if isinstance(exc_val, Exception):
-                await handle_error(exc_val, context)
+                await self._handle_error(exc_val, context)
 
             if not self.reraise:
                 return True  # Suppress exception
@@ -571,7 +578,7 @@ class error_boundary:
                     asyncio.create_task(logging_handler.handle_error(eventbus_error))
                 except RuntimeError:
                     # No event loop running, handle synchronously
-                    logger.error(
+                    self._sync_logger.error(
                         f"Error in {self.component}.{self.operation}: {exc_val}",
                         extra={
                             "error_id": context.error_id,
@@ -583,8 +590,8 @@ class error_boundary:
                     )
             except Exception as e:
                 # Fallback logging
-                logger.error(f"Failed to handle error in sync context: {e}")
-                logger.error(f"Original error: {exc_val}")
+                self._sync_logger.error(f"Failed to handle error in sync context: {e}")
+                self._sync_logger.error(f"Original error: {exc_val}")
 
             if not self.reraise:
                 return True  # Suppress exception

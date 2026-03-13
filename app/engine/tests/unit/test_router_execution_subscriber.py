@@ -131,6 +131,20 @@ class _FakeBus:
 
 
 class _FakeDBAdapter:
+    def __init__(self) -> None:
+        self.upserted_orders: list[dict[str, object]] = []
+        self.active_positions: list[dict[str, object]] = []
+        self.active_setup_order: dict[str, object] | None = None
+        self.active_setup_position: dict[str, object] | None = None
+        self.active_positions_error: Exception | None = None
+        self.active_positions_errors: list[Exception | None] = []
+        self.active_setup_order_error: Exception | None = None
+        self.active_setup_position_error: Exception | None = None
+
+    async def upsert_order(self, _order: dict[str, object]) -> bool:
+        self.upserted_orders.append(_order)
+        return True
+
     async def get_latest_equity_sample(self):
         return Decimal(10_000), datetime.now(UTC)
 
@@ -141,7 +155,41 @@ class _FakeDBAdapter:
         return Decimal(10_000)
 
     async def get_active_positions(self, _venue: str):
-        return []
+        if self.active_positions_errors:
+            next_error = self.active_positions_errors.pop(0)
+            if next_error is not None:
+                raise next_error
+        if self.active_positions_error is not None:
+            raise self.active_positions_error
+        return list(self.active_positions)
+
+    async def get_active_order_for_setup(
+        self,
+        *,
+        venue: str,
+        symbol: str,
+        side: str,
+        timeframe: str,
+        zone_id: str,
+    ) -> dict[str, object] | None:
+        _ = venue, symbol, side, timeframe, zone_id
+        if self.active_setup_order_error is not None:
+            raise self.active_setup_order_error
+        return self.active_setup_order
+
+    async def get_active_position_for_setup(
+        self,
+        *,
+        venue: str,
+        symbol: str,
+        side: str,
+        timeframe: str,
+        zone_id: str,
+    ) -> dict[str, object] | None:
+        _ = venue, symbol, side, timeframe, zone_id
+        if self.active_setup_position_error is not None:
+            raise self.active_setup_position_error
+        return self.active_setup_position
 
 
 def _default_risk() -> RiskParameters:
@@ -177,10 +225,11 @@ def _make_subscriber(
         "order_update_correlation_store",
         OrderUpdateCorrelationStore(ttl_seconds=3600),
     )
+    db_adapter = kwargs.pop("db_adapter", _FakeDBAdapter())
     return RouterExecutionSubscriber(
         bus=bus,
         router_client=router_client,
-        db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
+        db_adapter=db_adapter,  # type: ignore[arg-type]
         risk=_default_risk(),
         venue=_venue_for_mode(execution_mode),
         execution_mode=execution_mode,
@@ -358,6 +407,35 @@ async def test_execution_retries_on_transient_exception_then_succeeds(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_persist_orders_to_db_skips_spot_stop_loss_without_exact_limit_price() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        execution_mode=ExecutionMode.SPOT_TESTNET,
+    )
+
+    event = _make_valid_decision_event()
+    response = {"bracket_order_id": "bracket-1", "success": True}
+
+    await subscriber._persist_orders_to_db(
+        event,
+        response,
+        router_module._ClientOrderIDs(
+            main="entry-1",
+            take_profits=["tp-1"],
+            stop_loss="sl-1",
+        ),
+        [Decimal("51000.00")],
+        False,
+    )
+
+    assert [row["client_order_id"] for row in subscriber._db_adapter.upserted_orders] == ["entry-1", "tp-1"]
+    assert all(row["type"] != "STOP_LOSS_LIMIT" for row in subscriber._db_adapter.upserted_orders)
+
+
+@pytest.mark.asyncio
 async def test_execution_rejects_quantity_over_max_position_size() -> None:
     from app.engine.models import ErrorEvent
 
@@ -493,6 +571,359 @@ async def test_execution_subscriber_calls_router_place_bracket_with_provenance()
     assert payload["metadata"]["timeframe"] == "15m"
     assert payload["metadata"]["zone"]["zone_type"] == "FAIR_VALUE_GAP"
     assert payload["metadata"]["decision_source"] == "retest_decision_publisher"
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_persists_signal_timeframe_zone_for_all_legs() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {
+        "success": True,
+        "bracket_order_id": "bracket-123",
+    }
+    db_adapter = _FakeDBAdapter()
+
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+    await subscriber.start()
+
+    now = datetime.now(UTC)
+    zone = {
+        "zone_id": "zone_1",
+        "zone_type": "FAIR_VALUE_GAP",
+        "top_price": Decimal("3190"),
+        "bottom_price": Decimal("3180"),
+    }
+    decision = TradingDecision(
+        venue="SPOT",
+        symbol="ETHUSDT",
+        timestamp=now,
+        action="SELL",
+        entry_price=Decimal("3184.36"),
+        stop_loss=Decimal("3187.16"),
+        take_profit=Decimal("3152.52"),
+        quantity=Decimal("0.01"),
+        confidence=Decimal("0.75"),
+        reasoning="FVG fill with bearish bias",
+    )
+    event = TradingDecisionEvent(
+        symbol="ETHUSDT",
+        timestamp=now,
+        timeframe=TimeFrame.M15,
+        decision=decision,
+        metadata={
+            "signal_id": "sig_abc123",
+            "decision_source": "retest_decision_publisher",
+            "timeframe": "15m",
+            "zone": zone,
+        },
+    )
+
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    assert len(db_adapter.upserted_orders) == 3
+    for row in db_adapter.upserted_orders:
+        assert row["signal_id"] == "sig_abc123"
+        assert row["timeframe"] == "15m"
+        assert row["zone"] == {
+            "zone_id": "zone_1",
+            "zone_type": "FAIR_VALUE_GAP",
+            "top_price": "3190",
+            "bottom_price": "3180",
+        }
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_skips_spot_stop_leg_persistence() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {
+        "success": True,
+        "bracket_order_id": "bracket-spot-123",
+    }
+    db_adapter = _FakeDBAdapter()
+
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,
+        execution_mode=ExecutionMode.SPOT_TESTNET,
+    )
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["timeframe"] = "15m"
+    event.metadata["zone"] = {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"}
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    stop_rows = [row for row in db_adapter.upserted_orders if row["type"] == "STOP_LOSS_LIMIT"]
+    assert stop_rows == []
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_blocks_active_duplicate_setup_before_cooldown() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    db_adapter = _FakeDBAdapter()
+    db_adapter.active_setup_order = {"client_order_id": "existing-entry"}
+    cooldown = AsyncMock()
+
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,
+        cooldown=cooldown,
+    )
+    await subscriber.start()
+
+    now = datetime.now(UTC)
+    decision = TradingDecision(
+        venue="SPOT",
+        symbol="ETHUSDT",
+        timestamp=now,
+        action="SELL",
+        entry_price=Decimal("3184.36"),
+        stop_loss=Decimal("3187.16"),
+        take_profit=Decimal("3152.52"),
+        quantity=Decimal("0.01"),
+        confidence=Decimal("0.75"),
+        reasoning="FVG fill with bearish bias",
+    )
+    event = TradingDecisionEvent(
+        symbol="ETHUSDT",
+        timestamp=now,
+        timeframe=TimeFrame.M15,
+        decision=decision,
+        metadata={
+            "signal_id": "sig_abc123",
+            "decision_source": "retest_decision_publisher",
+            "timeframe": "15m",
+            "zone": {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"},
+        },
+    )
+
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    cooldown.try_acquire_async.assert_not_awaited()
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "duplicate_active_setup"
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_blocks_when_setup_position_is_active() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+    db_adapter = _FakeDBAdapter()
+    db_adapter.active_positions = [
+        {
+            "symbol": "BTCUSDT",
+            "size": Decimal("0.01"),
+            "current_price": Decimal("50000"),
+        },
+    ]
+    db_adapter.active_setup_position = {
+        "position_id": "pos-1",
+        "entry_order_id": "ord-1",
+    }
+
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["timeframe"] = "15m"
+    event.metadata["zone"] = {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"}
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "duplicate_active_setup"
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_allows_other_setup_when_active_position_origin_differs() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+    db_adapter = _FakeDBAdapter()
+    db_adapter.active_positions = [
+        {
+            "symbol": "BTCUSDT",
+            "size": Decimal("0.01"),
+            "current_price": Decimal("50000"),
+            "entry_order_id": "ord-2",
+        },
+    ]
+    db_adapter.active_setup_position = None
+
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["timeframe"] = "15m"
+    event.metadata["zone"] = {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"}
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    router_client.place_bracket_order.assert_awaited_once()
+    assert not any(isinstance(published, ErrorEvent) for published in bus.published_events)
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_blocks_when_opposite_side_position_is_active() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+    db_adapter = _FakeDBAdapter()
+    db_adapter.active_positions = [
+        {
+            "symbol": "BTCUSDT",
+            "side": "SELL",
+            "size": Decimal("0.01"),
+            "current_price": Decimal("50000"),
+            "entry_order_id": "ord-2",
+        },
+    ]
+    db_adapter.active_setup_position = None
+
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["timeframe"] = "15m"
+    event.metadata["zone"] = {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"}
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "duplicate_active_setup"
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_blocks_when_active_position_origin_is_unknown() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+    db_adapter = _FakeDBAdapter()
+    db_adapter.active_positions = [
+        {
+            "symbol": "BTCUSDT",
+            "size": Decimal("0.01"),
+            "current_price": Decimal("50000"),
+            "entry_order_id": "",
+        },
+    ]
+    db_adapter.active_setup_position = None
+
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["timeframe"] = "15m"
+    event.metadata["zone"] = {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"}
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "duplicate_active_setup"
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_blocks_when_setup_position_lookup_degrades() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+    db_adapter = _FakeDBAdapter()
+    db_adapter.active_setup_position_error = RuntimeError("db unavailable")
+
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["timeframe"] = "15m"
+    event.metadata["zone"] = {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"}
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "duplicate_active_setup"
+    assert "unavailable" in bus.published_events[0].error_message.lower()
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_blocks_when_active_positions_lookup_degrades() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+    db_adapter = _FakeDBAdapter()
+    db_adapter.active_positions_errors = [None, RuntimeError("db unavailable")]
+
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["timeframe"] = "15m"
+    event.metadata["zone"] = {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"}
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "duplicate_active_setup"
+    assert "unavailable" in bus.published_events[0].error_message.lower()
+
+
+@pytest.mark.asyncio
+async def test_execution_subscriber_blocks_when_setup_order_lookup_degrades() -> None:
+    from app.engine.models import ErrorEvent
+
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {"success": True}
+    db_adapter = _FakeDBAdapter()
+    db_adapter.active_setup_order_error = RuntimeError("db unavailable")
+
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+    await subscriber.start()
+
+    event = _make_valid_decision_event()
+    event.metadata["timeframe"] = "15m"
+    event.metadata["zone"] = {"zone_id": "zone_1", "zone_type": "FAIR_VALUE_GAP"}
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "duplicate_active_setup"
+    assert "unavailable" in bus.published_events[0].error_message.lower()
 
 
 @pytest.mark.asyncio

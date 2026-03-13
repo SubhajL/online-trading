@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+
+pytest.importorskip("httpx", reason="httpx is not installed")
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -77,11 +80,11 @@ async def test_health_system_returns_components_and_200(
                     "details": comp.details,
                 }
             return JSONResponse(content=body, status_code=200)
-        except Exception as e:  # pragma: no cover - error path tested separately
+        except Exception:  # pragma: no cover - error path tested separately
             return JSONResponse(
                 content={
                     "status": "unhealthy",
-                    "message": f"system health error: {e!s}",
+                    "message": "system health error",
                 },
                 status_code=503,
             )
@@ -109,11 +112,11 @@ def test_health_system_returns_503_on_aggregator_error(
         try:
             # Simulate aggregator error
             raise RuntimeError("integration error")
-        except Exception as e:
+        except Exception:
             return JSONResponse(
                 content={
                     "status": "unhealthy",
-                    "message": f"system health error: {e!s}",
+                    "message": "system health error",
                 },
                 status_code=503,
             )
@@ -123,4 +126,5 @@ def test_health_system_returns_503_on_aggregator_error(
         assert res.status_code == 503
         body = res.json()
         assert body.get("status") == "unhealthy"
-        assert "system health error" in body.get("message", "")
+        assert body.get("message") == "system health error"
+        assert "integration error" not in body.get("message", "")

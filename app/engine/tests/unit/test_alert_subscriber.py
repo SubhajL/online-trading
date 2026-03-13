@@ -387,6 +387,23 @@ class TestAlertSubscriberEventTypesParameter:
         assert EventType.ERROR in event_types  # type: ignore[operator]
 
     @pytest.mark.asyncio
+    async def test_execution_enabled_event_types_include_decision_when_flag_enabled(self) -> None:
+        bus = _FakeBus()
+        subscriber = AlertSubscriber(
+            execution_enabled=True,
+            execution_decision_alerts_enabled=True,
+        )
+
+        await subscriber.register(bus)
+
+        event_types = bus.subscriptions[0]["event_types"]
+        assert event_types is not None
+        assert EventType.ORDER_UPDATE in event_types  # type: ignore[operator]
+        assert EventType.TRADING_DECISION in event_types  # type: ignore[operator]
+        assert EventType.ERROR in event_types  # type: ignore[operator]
+        assert EventType.STARTUP_COMPLETE in event_types  # type: ignore[operator]
+
+    @pytest.mark.asyncio
     async def test_custom_event_types_override(self) -> None:
         """When event_types provided, uses only those types."""
         bus = _FakeBus()
@@ -792,3 +809,77 @@ class TestErrorEventToText:
         assert "WS Closed Kline Age: null" in text
         assert "WS Last Msg Age: 0s" in text
         assert "Stale Threshold: 120s" in text
+
+    def test_error_event_text_includes_recovery_context_metadata(self) -> None:
+        ts = datetime(2026, 2, 6, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="SYSTEM",
+            component="pipeline_health",
+            error_type="websocket_disconnected",
+            error_message="WebSocket is disconnected",
+        )
+        event.metadata.update(
+            {
+                "recovery_stage": "dns_recovery",
+                "backoff_attempt": 4,
+                "max_reconnect_attempts": 50,
+                "dispatch_queue_size": 80,
+                "dispatch_queue_max": 200,
+                "last_subscribe_ok_ago_seconds": 120.0,
+                "last_subscribe_error_ago_seconds": 30.0,
+                "last_subscribe_error": "subscribe timeout",
+            },
+        )
+
+        text = _error_event_to_text(event)
+
+        assert "Recovery Stage: dns_recovery" in text
+        assert "WS Backoff Attempt: 4" in text
+        assert "WS Max Reconnect Attempts: 50" in text
+        assert "WS Dispatch Queue: 80/200" in text
+        assert "WS Last Subscribe OK Age: 120s" in text
+        assert "WS Last Subscribe Error Age: 30s" in text
+        assert "WS Last Subscribe Error: subscribe timeout" in text
+
+    def test_error_event_text_includes_risk_debug_metadata(self) -> None:
+        ts = datetime(2026, 2, 6, 12, 0, tzinfo=UTC)
+        event = ErrorEvent(
+            timestamp=ts,
+            symbol="BTCUSDT",
+            component="decision_publisher",
+            error_type="risk_limit_exceeded",
+            error_message="max_position_notional_exceeded:4.79",
+        )
+        event.metadata.update(
+            {
+                "equity_usd": "10000",
+                "start_of_day_equity_usd": "10000",
+                "peak_equity_usd": "11000",
+                "daily_loss_ratio": "0.01",
+                "max_daily_loss": "0.05",
+                "drawdown_ratio": "0.0909",
+                "max_drawdown": "0.15",
+                "symbol_exposure_usd": "1500",
+                "max_symbol_exposure_pct": "0.25",
+                "total_exposure_usd": "2500",
+                "max_total_exposure_leverage": "3",
+                "entry_price": "66500",
+                "stop_loss": "66750",
+                "stop_distance": "250",
+                "quantity": "0.5",
+                "new_notional_usd": "33250",
+                "max_position_notional_ratio": "3.325",
+                "max_position_notional_pct": "0.10",
+            },
+        )
+
+        text = _error_event_to_text(event)
+
+        assert "Equity:" in text
+        assert "Daily Loss:" in text
+        assert "Drawdown:" in text
+        assert "Symbol Exposure:" in text
+        assert "Total Exposure:" in text
+        assert "New Notional:" in text
+        assert "Entry:" in text

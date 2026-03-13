@@ -10,7 +10,10 @@ import logging
 from typing import TYPE_CHECKING, Any, Protocol
 
 from app.engine.core.zone_identity import extract_zone_identity
-from app.engine.decision.pretrade_risk import evaluate_pretrade_risk
+from app.engine.decision.pretrade_risk import (
+    build_pretrade_risk_debug_metadata,
+    evaluate_pretrade_risk,
+)
 from app.engine.decision.risk_state import build_risk_snapshot
 from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 from app.engine.models import (
@@ -118,6 +121,8 @@ async def _emit_execution_error(
     event: TradingDecisionEvent,
     error_message: str,
     error_type: str,
+    *,
+    extra_metadata: dict[str, object] | None = None,
 ) -> None:
     """Emit an ErrorEvent for execution failures."""
     decision = event.decision
@@ -135,6 +140,8 @@ async def _emit_execution_error(
             "action": str(decision.action),
         },
     )
+    if extra_metadata:
+        error_event.metadata.update(extra_metadata)
     try:
         await bus.publish(error_event)
     except Exception:
@@ -208,6 +215,99 @@ class RouterExecutionSubscriber:
         self._router_backoff_config = router_backoff_config
         self._subscription_id: str | None = None
         self._symbol_locks: dict[str, asyncio.Lock] = {}
+
+    async def _find_duplicate_execution_reason(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        timeframe: str | None,
+        zone_identity: Any,
+    ) -> str | None:
+        get_active_position_for_setup = getattr(self._db_adapter, "get_active_position_for_setup", None)
+        get_active_positions = getattr(self._db_adapter, "get_active_positions", None)
+        if (
+            timeframe is not None
+            and zone_identity is not None
+            and callable(get_active_position_for_setup)
+        ):
+            try:
+                active_position = await get_active_position_for_setup(
+                    venue=self._venue,
+                    symbol=symbol,
+                    side=side,
+                    timeframe=timeframe,
+                    zone_id=zone_identity.zone_id,
+                )
+            except Exception:
+                logger.exception(
+                    "Duplicate guard setup-position lookup failed for %s %s %s %s",
+                    symbol,
+                    timeframe,
+                    zone_identity.zone_id,
+                    side,
+                )
+                return f"Duplicate guard state unavailable for {symbol}"
+            if active_position is not None:
+                return (
+                    f"Active setup position already exists for "
+                    f"{symbol} {timeframe} {zone_identity.zone_id} {side}"
+                )
+            if callable(get_active_positions):
+                try:
+                    active_positions = await get_active_positions(self._venue)
+                except Exception:
+                    logger.exception(
+                        "Duplicate guard active-position lookup failed for %s",
+                        symbol,
+                    )
+                    return f"Duplicate guard state unavailable for {symbol}"
+                for position in active_positions:
+                    if str(position.get("symbol")) != symbol:
+                        continue
+                    position_side = str(position.get("side") or "").strip().upper()
+                    if position_side and position_side != side:
+                        return f"Active opposite-side position already exists for {symbol}"
+                    entry_order_id = str(position.get("entry_order_id") or "").strip()
+                    if not entry_order_id:
+                        return f"Active position already exists for {symbol}"
+        elif callable(get_active_positions):
+            try:
+                active_positions = await get_active_positions(self._venue)
+            except Exception:
+                logger.exception(
+                    "Duplicate guard active-position lookup failed for %s",
+                    symbol,
+                )
+                return f"Duplicate guard state unavailable for {symbol}"
+            if any(str(position.get("symbol")) == symbol for position in active_positions):
+                return f"Active position already exists for {symbol}"
+
+        get_active_order_for_setup = getattr(self._db_adapter, "get_active_order_for_setup", None)
+        if timeframe is None or zone_identity is None or not callable(get_active_order_for_setup):
+            return None
+
+        try:
+            active_order = await get_active_order_for_setup(
+                venue=self._venue,
+                symbol=symbol,
+                side=side,
+                timeframe=timeframe,
+                zone_id=zone_identity.zone_id,
+            )
+        except Exception:
+            logger.exception(
+                "Duplicate guard setup-order lookup failed for %s %s %s %s",
+                symbol,
+                timeframe,
+                zone_identity.zone_id,
+                side,
+            )
+            return f"Duplicate guard state unavailable for {symbol}"
+        if active_order is None:
+            return None
+
+        return f"Active setup already exists for {symbol} {timeframe} {zone_identity.zone_id} {side}"
 
     async def _place_bracket_with_retries(self, payload: dict[str, Any]) -> dict[str, Any]:
         backoff = ExponentialBackoff(
@@ -326,11 +426,17 @@ class RouterExecutionSubscriber:
 
         ok, reasons = evaluate_pretrade_risk(snapshot=snapshot, decision=decision, risk=self._risk)
         if not ok:
+            debug_meta = build_pretrade_risk_debug_metadata(
+                snapshot=snapshot,
+                decision=decision,
+                risk=self._risk,
+            )
             await _emit_execution_error(
                 self._bus,
                 event,
                 "; ".join(reasons),
                 "risk_limit_exceeded",
+                extra_metadata=debug_meta,
             )
             return
 
@@ -344,9 +450,30 @@ class RouterExecutionSubscriber:
             )
             return
 
-        # Extract zone identity for cooldown check
+        metadata_timeframe = event.metadata.get("timeframe")
+        timeframe = (
+            metadata_timeframe
+            if isinstance(metadata_timeframe, str) and metadata_timeframe
+            else (event.timeframe.value if event.timeframe else None)
+        )
+        zone = event.metadata.get("zone")
         zone_identity = extract_zone_identity(event.metadata)
-        timeframe_str = event.timeframe.value if event.timeframe else "unknown"
+        duplicate_reason = await self._find_duplicate_execution_reason(
+            symbol=decision.symbol,
+            side=action,
+            timeframe=timeframe,
+            zone_identity=zone_identity,
+        )
+        if duplicate_reason is not None:
+            await _emit_execution_error(
+                self._bus,
+                event,
+                duplicate_reason,
+                "duplicate_active_setup",
+            )
+            return
+
+        timeframe_str = timeframe or "unknown"
 
         # Check cooldown atomically (only if cooldown configured and zone_id extractable)
         if (
@@ -374,14 +501,7 @@ class RouterExecutionSubscriber:
             ExecutionMode.FUTURES_MAINNET,
         }
 
-        metadata_timeframe = event.metadata.get("timeframe")
-        timeframe = (
-            metadata_timeframe
-            if isinstance(metadata_timeframe, str) and metadata_timeframe
-            else (event.timeframe.value if event.timeframe else None)
-        )
         signal_id = event.metadata.get("signal_id")
-        zone = event.metadata.get("zone")
 
         tp_prices = [take_profit]
         client_ids = _build_client_order_ids(
@@ -392,23 +512,32 @@ class RouterExecutionSubscriber:
         # Sanitize metadata to ensure JSON serialization works
         raw_metadata = {
             "signal_id": signal_id if isinstance(signal_id, str) else None,
+            "decision_id": str(decision.decision_id),
             "decision_source": decision_source,
             "timeframe": timeframe,
             "zone": zone if isinstance(zone, dict) else None,
+            "venue": self._venue,
             "decision_time": decision.timestamp.replace(tzinfo=UTC).isoformat()
             if decision.timestamp.tzinfo is None
             else decision.timestamp.isoformat(),
         }
         sanitized_metadata = _sanitize_value_for_json(raw_metadata)
         try:
-            await self._order_update_correlation_store.register(
-                client_order_id=client_ids.main,
-                metadata=sanitized_metadata,
-            )
+            for client_order_id in (
+                [client_ids.main]
+                + list(client_ids.take_profits)
+                + ([client_ids.stop_loss] if client_ids.stop_loss else [])
+            ):
+                if not client_order_id:
+                    continue
+                await self._order_update_correlation_store.register(
+                    client_order_id=client_order_id,
+                    metadata=sanitized_metadata,
+                )
         except Exception:
             logger.exception(
-                "Failed to register order update correlation for client_order_id=%s",
-                client_ids.main,
+                "Failed to register order update correlation for symbol=%s",
+                decision.symbol,
             )
 
         decision_ts = decision.timestamp
@@ -441,7 +570,7 @@ class RouterExecutionSubscriber:
                 # Cooldown already acquired atomically via try_acquire_async above
 
                 # Persist order to DB BEFORE emitting event to prevent orphans
-                await self._persist_order_to_db(event, response, client_ids.main)
+                await self._persist_orders_to_db(event, response, client_ids, tp_prices, is_futures)
 
                 # Trigger snapshot FIRST so it's available when alert handler runs
                 await self._notify_snapshot(event)
@@ -475,34 +604,118 @@ class RouterExecutionSubscriber:
             )
             await _emit_execution_error(self._bus, event, str(exc), "router_exception")
 
-    async def _persist_order_to_db(
+    async def _persist_orders_to_db(
         self,
         event: TradingDecisionEvent,
         response: dict[str, Any],
-        client_order_id: str,
+        client_ids: _ClientOrderIDs,
+        take_profit_prices: list[Decimal],
+        is_futures: bool,
     ) -> None:
-        """Persist order to DB before emitting event to prevent orphaned exchange orders."""
+        """Persist order legs to DB before emitting event to prevent orphaned exchange orders."""
         decision = event.decision
-        order_row = {
-            "client_order_id": client_order_id,
-            "symbol": decision.symbol,
-            "side": str(decision.action).upper(),
-            "type": "LIMIT",
-            "quantity": str(decision.quantity) if decision.quantity else "0",
-            "price": str(decision.entry_price) if decision.entry_price else None,
-            "stop_price": str(decision.stop_loss) if decision.stop_loss else None,
-            "status": "NEW",
-            "decision_id": str(decision.decision_id),
-            "exchange_order_id": response.get("bracket_order_id"),
-        }
-        try:
-            from app.engine.adapters.db.timescale import upsert_order
+        now = datetime.now(UTC)
 
-            await upsert_order(order_row)
+        def _map_type(raw: str) -> str:
+            typ = raw.strip().upper()
+            # DB schema doesn't include STOP_MARKET; map to STOP_LOSS for audit purposes.
+            if typ == "STOP_MARKET":
+                return "STOP_LOSS"
+            return typ
+
+        action = str(decision.action).upper()
+        bracket_order_id = response.get("bracket_order_id")
+
+        qty = decision.quantity or Decimal(0)
+        entry_price = decision.entry_price
+        stop_loss = decision.stop_loss
+        signal_id = event.metadata.get("signal_id")
+        metadata_timeframe = event.metadata.get("timeframe")
+        timeframe = (
+            metadata_timeframe
+            if isinstance(metadata_timeframe, str) and metadata_timeframe
+            else (event.timeframe.value if event.timeframe else None)
+        )
+        zone = event.metadata.get("zone")
+        sanitized_zone = _sanitize_value_for_json(zone) if isinstance(zone, dict) else None
+
+        order_rows: list[dict[str, Any]] = []
+
+        # Main order (always present)
+        if entry_price is not None and qty > 0 and client_ids.main:
+            order_rows.append(
+                {
+                    "client_order_id": client_ids.main,
+                    "venue": self._venue,
+                    "symbol": decision.symbol,
+                    "side": action,
+                    "type": _map_type("LIMIT"),
+                    "quantity": str(qty),
+                    "price": str(entry_price),
+                    "status": "NEW",
+                    "created_at": now,
+                    "decision_id": str(decision.decision_id),
+                    "exchange_order_id": bracket_order_id,
+                    "signal_id": signal_id if isinstance(signal_id, str) else None,
+                    "timeframe": timeframe,
+                    "zone": sanitized_zone,
+                },
+            )
+
+        # Take profit legs
+        if take_profit_prices and qty > 0:
+            tp_qty = qty / Decimal(len(take_profit_prices))
+            for i, tp_price in enumerate(take_profit_prices):
+                if i >= len(client_ids.take_profits):
+                    break
+                tp_client_id = client_ids.take_profits[i]
+                if not tp_client_id:
+                    continue
+                order_rows.append(
+                    {
+                        "client_order_id": tp_client_id,
+                        "venue": self._venue,
+                        "symbol": decision.symbol,
+                        "side": "SELL" if action == "BUY" else "BUY",
+                        "type": _map_type("LIMIT"),
+                        "quantity": str(tp_qty),
+                        "price": str(tp_price),
+                        "status": "NEW",
+                        "created_at": now,
+                        "decision_id": str(decision.decision_id),
+                        "signal_id": signal_id if isinstance(signal_id, str) else None,
+                        "timeframe": timeframe,
+                        "zone": sanitized_zone,
+                    },
+                )
+
+        # Stop loss leg
+        if stop_loss is not None and qty > 0 and client_ids.stop_loss:
+            if is_futures:
+                order_rows.append(
+                    {
+                        "client_order_id": client_ids.stop_loss,
+                        "venue": self._venue,
+                        "symbol": decision.symbol,
+                        "side": "SELL" if action == "BUY" else "BUY",
+                        "type": _map_type("STOP_LOSS"),
+                        "quantity": str(qty),
+                        "price": None,
+                        "stop_price": str(stop_loss),
+                        "status": "NEW",
+                        "created_at": now,
+                        "decision_id": str(decision.decision_id),
+                        "signal_id": signal_id if isinstance(signal_id, str) else None,
+                        "timeframe": timeframe,
+                        "zone": sanitized_zone,
+                    },
+                )
+        try:
+            for row in order_rows:
+                await self._db_adapter.upsert_order(row)
         except Exception:
             logger.exception(
-                "Failed to persist order to DB for %s (order may be orphaned on exchange)",
-                client_order_id,
+                "Failed to persist order legs to DB (orders may be orphaned on exchange)",
             )
 
     async def _emit_order_placed(

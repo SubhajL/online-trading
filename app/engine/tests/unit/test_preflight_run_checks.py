@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytest.importorskip("yaml", reason="PyYAML is not installed")
+
 from app.engine.preflight.check_results import CheckResult, CheckStatus, PreflightResults
 from app.engine.preflight.run_checks import generate_preflight_report, run_all_checks
 

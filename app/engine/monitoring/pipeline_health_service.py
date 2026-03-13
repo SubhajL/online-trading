@@ -67,6 +67,30 @@ def _max_allowed_candle_age_seconds(
     return seconds * thresholds.candle_lag_multiplier + thresholds.candle_lag_grace_seconds
 
 
+def _recovery_context(websocket: dict[str, object]) -> dict[str, object]:
+    details: dict[str, object] = {}
+
+    for key in (
+        "last_connect_error_kind",
+        "last_connect_error",
+        "last_connect_error_ago_seconds",
+        "consecutive_failures",
+        "consecutive_dns_failures",
+        "last_subscribe_ok_ago_seconds",
+        "last_subscribe_error_ago_seconds",
+        "last_subscribe_error",
+        "backoff_attempt",
+        "max_reconnect_attempts",
+        "dispatch_queue_size",
+        "dispatch_queue_max",
+    ):
+        value = websocket.get(key)
+        if isinstance(value, (str, int, float)) and value != "":
+            details[key] = value
+
+    return details
+
+
 def evaluate_pipeline_health(
     *,
     ingest_health: dict[str, object],
@@ -75,6 +99,7 @@ def evaluate_pipeline_health(
 ) -> list[PipelineHealthIssue]:
     websocket = ingest_health.get("websocket")
     issues: list[PipelineHealthIssue] = []
+    suppress_candle_stale = False
 
     if isinstance(websocket, dict):
         ws_open = websocket.get("open")
@@ -89,12 +114,14 @@ def evaluate_pipeline_health(
         ws_last_ago = websocket.get("last_message_ago_seconds")
         ws_last_closed_kline_ago = websocket.get("last_closed_kline_ago_seconds")
         consecutive_failures = websocket.get("consecutive_failures")
+        recovery_details = _recovery_context(websocket)
 
         if not ws_is_open:
             # Hard disconnect — report as root cause (supersedes stale and kline_stream_stale)
             details: dict[str, object] = {
                 "last_message_ago_seconds": ws_last_ago,
                 "consecutive_failures": consecutive_failures,
+                **recovery_details,
             }
             last_connect_error_kind = websocket.get("last_connect_error_kind")
             if isinstance(last_connect_error_kind, str) and last_connect_error_kind:
@@ -108,6 +135,14 @@ def evaluate_pipeline_health(
             consecutive_dns_failures = websocket.get("consecutive_dns_failures")
             if isinstance(consecutive_dns_failures, int) and consecutive_dns_failures > 0:
                 details["consecutive_dns_failures"] = consecutive_dns_failures
+            if last_connect_error_kind == "dns" or (
+                isinstance(consecutive_dns_failures, int) and consecutive_dns_failures > 0
+            ):
+                details["recovery_stage"] = "dns_recovery"
+            elif isinstance(websocket.get("backoff_attempt"), int) and websocket.get("backoff_attempt", 0) > 0:
+                details["recovery_stage"] = "reconnect_backoff"
+            else:
+                details["recovery_stage"] = "reconnect_pending"
 
             # Include a small summary of candle ages so operators don't lose context,
             # but suppress per-symbol candle_stale spam while WS is down.
@@ -162,9 +197,12 @@ def evaluate_pipeline_health(
                             "last_message_ago_seconds": ws_last_ago,
                             "stale_threshold_seconds": thresholds.stale_ws_seconds,
                             "consecutive_failures": consecutive_failures,
+                            "recovery_stage": "message_gap_repair",
+                            **recovery_details,
                         },
                     ),
                 )
+                suppress_candle_stale = True
             else:
                 kline_subscriptions = websocket.get("kline_subscriptions")
                 ticker_subscriptions = websocket.get("ticker_subscriptions")
@@ -188,6 +226,8 @@ def evaluate_pipeline_health(
                                 "last_subscribe_error": websocket.get(
                                     "last_subscribe_error",
                                 ),
+                                "recovery_stage": "subscription_repair",
+                                **recovery_details,
                             },
                         ),
                     )
@@ -225,9 +265,15 @@ def evaluate_pipeline_health(
                                 "last_subscribe_error": websocket.get(
                                     "last_subscribe_error",
                                 ),
+                                "recovery_stage": "kline_gap_repair",
+                                **recovery_details,
                             },
                         ),
                     )
+                    suppress_candle_stale = True
+
+    if suppress_candle_stale:
+        return issues
 
     latest_candle_ago_seconds = ingest_health.get("latest_candle_ago_seconds")
     if isinstance(latest_candle_ago_seconds, dict):

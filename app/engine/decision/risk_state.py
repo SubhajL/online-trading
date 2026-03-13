@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import logging
@@ -20,6 +20,7 @@ class RiskSnapshot:
     open_positions_count: int
     total_exposure_usd: Decimal
     symbol_exposure_usd: dict[str, Decimal]
+    symbol_directional_exposure_usd: dict[str, dict[str, Decimal]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -77,8 +78,18 @@ async def build_risk_snapshot(
     if peak_equity is None:
         peak_equity = equity
 
-    rows = await db_adapter.get_active_positions(venue)
+    try:
+        rows = await db_adapter.get_active_positions(venue)
+    except Exception as exc:
+        logger.exception("Failed to retrieve active positions for venue=%s", venue)
+        return None, [
+            RiskSnapshotError(
+                error_type="active_positions_unavailable",
+                message=f"Failed to retrieve active positions: {exc!s}",
+            ),
+        ]
     symbol_exposure: dict[str, Decimal] = {}
+    symbol_directional_exposure: dict[str, dict[str, Decimal]] = {}
     total_exposure = Decimal(0)
     open_positions_count = 0
 
@@ -100,6 +111,10 @@ async def build_risk_snapshot(
         open_positions_count += 1
         total_exposure += notional
         symbol_exposure[symbol] = symbol_exposure.get(symbol, Decimal(0)) + notional
+        side = str(row.get("side") or "").strip().upper()
+        if side in {"BUY", "SELL"}:
+            directional = symbol_directional_exposure.setdefault(symbol, {})
+            directional[side] = directional.get(side, Decimal(0)) + notional
 
     return (
         RiskSnapshot(
@@ -110,6 +125,7 @@ async def build_risk_snapshot(
             open_positions_count=open_positions_count,
             total_exposure_usd=total_exposure,
             symbol_exposure_usd=symbol_exposure,
+            symbol_directional_exposure_usd=symbol_directional_exposure,
         ),
         [],
     )

@@ -3,26 +3,24 @@
 Script to get your Telegram chat ID.
 
 Usage:
-1. Replace YOUR_BOT_TOKEN with your actual bot token
+1. Export TELEGRAM_BOT_TOKEN in your shell
 2. Send a message to your bot in Telegram
 3. Run this script to see your chat ID
 """
 
-import requests
 import json
+import os
+from urllib.error import URLError
+from urllib.request import urlopen
 
-# Replace with your bot token from BotFather
-BOT_TOKEN = "8289541020:AAHd-sruzaADQO_3-aQ-6-C6_5izZ6s5edI"
 
-def get_updates():
+def get_updates(bot_token: str):
     """Get recent messages sent to the bot."""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+    url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
 
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-
-        data = response.json()
+        with urlopen(url) as response:
+            data = json.load(response)
 
         if data["ok"] and data["result"]:
             print("Recent messages:")
@@ -52,15 +50,23 @@ def get_updates():
             print("2. Try sending '/start' to your bot")
             print("3. Run this script again")
 
-    except requests.exceptions.RequestException as e:
+    except (URLError, ValueError) as e:
         print(f"Error: {e}")
         print("\nMake sure:")
-        print("1. Your bot token is correct")
+        print("1. Your TELEGRAM_BOT_TOKEN is correct")
         print("2. You have internet connection")
 
-if __name__ == "__main__":
-    if BOT_TOKEN == "YOUR_BOT_TOKEN":
-        print("ERROR: Please replace YOUR_BOT_TOKEN with your actual bot token")
+
+def main() -> int:
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        print("ERROR: Please set TELEGRAM_BOT_TOKEN in your environment")
         print("Get your token from @BotFather in Telegram")
-    else:
-        get_updates()
+        return 1
+
+    get_updates(bot_token)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

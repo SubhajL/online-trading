@@ -5,8 +5,8 @@ These tests verify Python import mechanics work before any initialization.
 Following TDD, these tests document the expected module structure.
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -27,12 +27,7 @@ class TestCoreModuleImports:
 
     def test_model_imports(self):
         """All model/type definitions should be importable."""
-        from app.engine.models import (
-            BinanceConfig,
-            EngineConfig,
-            DatabaseConfig,
-            RedisConfig
-        )
+        from app.engine.models import BinanceConfig, DatabaseConfig, EngineConfig, RedisConfig
         # Verify these are proper types/classes
         assert all(isinstance(cls, type) for cls in [
             BinanceConfig, EngineConfig,
@@ -45,11 +40,7 @@ class TestServiceImports:
 
     def test_decision_service_imports(self):
         """Decision engine functions and risk components should be importable."""
-        from app.engine.decision.engine import (
-            generate_decision,
-            fuse_signals,
-            apply_trading_guards
-        )
+        from app.engine.decision.engine import apply_trading_guards, fuse_signals, generate_decision
         assert callable(generate_decision)
         assert callable(fuse_signals)
         assert callable(apply_trading_guards)
@@ -61,10 +52,10 @@ class TestServiceImports:
         """Feature service and indicators should be importable."""
         from app.engine.features.feature_service import FeatureService
         from app.engine.features.indicators import (
+            calculate_bollinger_bands,
             calculate_ema,
-            calculate_rsi,
             calculate_macd,
-            calculate_bollinger_bands
+            calculate_rsi,
         )
         assert FeatureService is not None
         assert all(callable(fn) for fn in [
@@ -74,9 +65,9 @@ class TestServiceImports:
 
     def test_ingest_service_imports(self):
         """Ingest service and Binance connectors should be importable."""
-        from app.engine.ingest.ingest_service import IngestService
-        from app.engine.ingest.binance_ws import BinanceWebSocketClient
         from app.engine.ingest.binance_rest import BinanceRestClient
+        from app.engine.ingest.binance_ws import BinanceWebSocketClient
+        from app.engine.ingest.ingest_service import IngestService
 
         assert all(cls is not None for cls in [
             IngestService, BinanceWebSocketClient, BinanceRestClient
@@ -133,13 +124,13 @@ class TestTypeDefinitions:
         from app.engine.models import (
             BaseEvent,
             CandleUpdateEvent,
+            EventType,
             FeaturesCalculatedEvent,
-            SMCSignalEvent,
-            RetestSignalEvent,
-            TradingDecisionEvent,
-            OrderPlacedEvent,
             OrderFilledEvent,
-            EventType
+            OrderPlacedEvent,
+            RetestSignalEvent,
+            SMCSignalEvent,
+            TradingDecisionEvent,
         )
 
         # Verify these are proper types
@@ -152,7 +143,7 @@ class TestTypeDefinitions:
     def test_config_type_imports(self):
         """Configuration types should be properly defined."""
         from app.engine.decision.risk_guards import RiskGuardConfig
-        from app.engine.models import EngineConfig, BinanceConfig
+        from app.engine.models import BinanceConfig, EngineConfig
 
         assert RiskGuardConfig is not None
         assert all(isinstance(cls, type) for cls in [
@@ -173,18 +164,38 @@ class TestImportIntegrity:
         except ImportError:
             first_import_success = False
 
-        # Clear module cache
-        modules_to_clear = [m for m in sys.modules if m.startswith('app.engine')]
-        for module in modules_to_clear:
-            del sys.modules[module]
-
-        # Reverse order should also work without ImportError
         try:
-            from app.engine.decision.engine import generate_decision
-            from app.engine.bus import EventBus
-            second_import_success = True
-        except ImportError:
-            second_import_success = False
+            original_modules = {
+                name: module
+                for name, module in sys.modules.items()
+                if name.startswith("app.engine")
+            }
+
+            # Clear module cache
+            for module_name in list(original_modules):
+                del sys.modules[module_name]
+
+            # Reverse order should also work without ImportError
+            try:
+                from app.engine.bus import EventBus
+                from app.engine.decision.engine import generate_decision
+                second_import_success = True
+            except ImportError:
+                second_import_success = False
+        finally:
+            reloaded_modules = [
+                name for name in sys.modules if name.startswith("app.engine")
+            ]
+            for module_name in reloaded_modules:
+                del sys.modules[module_name]
+            sys.modules.update(original_modules)
+            for module_name, module in original_modules.items():
+                parent_name, _, attr_name = module_name.rpartition(".")
+                if not parent_name:
+                    continue
+                parent_module = sys.modules.get(parent_name)
+                if parent_module is not None:
+                    setattr(parent_module, attr_name, module)
 
         assert first_import_success, "First import order failed"
         assert second_import_success, "Second import order failed"

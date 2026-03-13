@@ -177,3 +177,24 @@ async def test_normalizes_naive_timestamp_to_utc(
     # Timestamp should be in ISO format
     assert result.timestamp is not None
     assert "2026-02-04T12:00:00" in result.timestamp
+
+
+@pytest.mark.asyncio
+async def test_redacts_database_error_details(
+    mock_db_adapter: MagicMock,
+) -> None:
+    """Unexpected DB errors return a generic message."""
+    from fastapi import HTTPException
+
+    from app.engine.main import services
+
+    mock_db_adapter.get_latest_equity_sample.side_effect = RuntimeError("db password leaked")
+    services["database"] = mock_db_adapter
+
+    from app.engine.main import equity_health_check
+
+    with pytest.raises(HTTPException) as exc_info:
+        await equity_health_check()
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "Error checking equity health"

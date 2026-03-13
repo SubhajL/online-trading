@@ -100,28 +100,28 @@ class TestErrorHandlingIntegration:
         async def mock_handle_error(error, context=None) -> None:
             errors_handled.append((error, context))
 
-        # Patch the error handling to capture errors
-        with patch(
-            "app.engine.core.error_handling.handle_error", side_effect=mock_handle_error
-        ):
+        @error_boundary(
+            "TestComponent",
+            "test_operation",
+            ErrorCategory.PROCESSING,
+            handler=mock_handle_error,
+        )
+        async def failing_operation() -> None:
+            await event_bus.start()
+            # Simulate an operation that fails
+            raise ValueError("Simulated failure")
 
-            @error_boundary("TestComponent", "test_operation", ErrorCategory.PROCESSING)
-            async def failing_operation() -> None:
-                await event_bus.start()
-                # Simulate an operation that fails
-                raise ValueError("Simulated failure")
+        with pytest.raises(ValueError):
+            await failing_operation()
 
-            with pytest.raises(ValueError):
-                await failing_operation()
-
-            # Verify error was handled
-            assert len(errors_handled) == 1
-            handled_error, handled_context = errors_handled[0]
-            assert isinstance(handled_error, ValueError)
-            assert str(handled_error) == "Simulated failure"
-            assert handled_context is not None
-            assert handled_context.component == "TestComponent"
-            assert handled_context.operation == "test_operation"
+        # Verify error was handled
+        assert len(errors_handled) == 1
+        handled_error, handled_context = errors_handled[0]
+        assert isinstance(handled_error, ValueError)
+        assert str(handled_error) == "Simulated failure"
+        assert handled_context is not None
+        assert handled_context.component == "TestComponent"
+        assert handled_context.operation == "test_operation"
 
         await event_bus.stop()
 

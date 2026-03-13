@@ -727,19 +727,21 @@ class TestGapDetectionRound2:
 
 
 class TestBracketOrderIdMapping:
-    """Verify _persist_order_to_db reads bracket_order_id from router response."""
+    """Verify persisted order rows map bracket_order_id from router response."""
 
     @pytest.mark.asyncio
     async def test_persist_order_uses_bracket_order_id(self) -> None:
         """exchange_order_id must come from response['bracket_order_id']."""
         from app.engine.execution.router_execution_subscriber import (
             RouterExecutionSubscriber,
+            _ClientOrderIDs,
         )
 
         captured_rows: list[dict[str, Any]] = []
 
-        async def fake_upsert(row: dict[str, Any]) -> None:
+        async def fake_upsert(row: dict[str, Any]) -> bool:
             captured_rows.append(row)
+            return True
 
         sub = RouterExecutionSubscriber(
             bus=AsyncMock(),
@@ -763,11 +765,10 @@ class TestBracketOrderIdMapping:
 
         response = {"bracket_order_id": "bracket-abc-123", "success": True}
 
-        with patch(
-            "app.engine.adapters.db.timescale.upsert_order",
-            side_effect=fake_upsert,
-        ):
-            await sub._persist_order_to_db(event, response, "client-1")
+        sub._db_adapter.upsert_order = AsyncMock(side_effect=fake_upsert)
+
+        client_ids = _ClientOrderIDs(main="client-1", take_profits=[], stop_loss="")
+        await sub._persist_orders_to_db(event, response, client_ids, [], False)
 
         assert len(captured_rows) == 1
         assert captured_rows[0]["exchange_order_id"] == "bracket-abc-123"

@@ -3,7 +3,7 @@ AlertSubscriber - Routes trading events to alert adapters.
 Subscribes to the event bus and dispatches events to configured alert channels.
 
 Mode-aware behavior:
-- When execution_enabled=True: Subscribes to ORDER_UPDATE (alerts on router/exchange updates)
+- When execution_enabled=True: Subscribes to ORDER_UPDATE (and optionally TRADING_DECISION)
 - When execution_enabled=False: Subscribes to TRADING_DECISION (alerts on signal, with snapshots)
 """
 
@@ -202,13 +202,155 @@ def _error_event_to_text(event: ErrorEvent) -> str:
     _append_value("WS Last Connect Error Kind", "last_connect_error_kind")
     _append_value("WS Last Connect Error", "last_connect_error")
     _append_seconds("WS Last Connect Error Age", "last_connect_error_ago_seconds")
+    _append_value("Recovery Stage", "recovery_stage")
     _append_value("WS Consecutive Failures", "consecutive_failures")
     _append_value("WS Consecutive DNS Failures", "consecutive_dns_failures")
+    _append_value("WS Backoff Attempt", "backoff_attempt")
+    _append_value("WS Max Reconnect Attempts", "max_reconnect_attempts")
 
     _append_seconds("WS Kline Age", "last_kline_ago_seconds")
     _append_seconds("WS Closed Kline Age", "last_closed_kline_ago_seconds")
     _append_seconds("WS Last Msg Age", "last_message_ago_seconds")
     _append_seconds("Stale Threshold", "stale_threshold_seconds")
+    _append_seconds("WS Last Subscribe OK Age", "last_subscribe_ok_ago_seconds")
+    _append_seconds("WS Last Subscribe Error Age", "last_subscribe_error_ago_seconds")
+    _append_value("WS Last Subscribe Error", "last_subscribe_error")
+
+    dispatch_queue_size = meta.get("dispatch_queue_size")
+    dispatch_queue_max = meta.get("dispatch_queue_max")
+    if isinstance(dispatch_queue_size, int) and isinstance(dispatch_queue_max, int):
+        lines.append(f"WS Dispatch Queue: {dispatch_queue_size}/{dispatch_queue_max}")
+
+    # Risk debug metadata (best-effort): include when present to make alerts actionable.
+    if any(
+        k in meta
+        for k in (
+            "equity_usd",
+            "start_of_day_equity_usd",
+            "peak_equity_usd",
+            "daily_loss_ratio",
+            "max_daily_loss",
+            "drawdown_ratio",
+            "max_drawdown",
+            "new_notional_usd",
+            "max_position_notional_ratio",
+            "max_position_notional_pct",
+            "symbol_exposure_usd",
+            "max_symbol_exposure_pct",
+            "total_exposure_usd",
+            "max_total_exposure_leverage",
+            "entry_price",
+            "stop_loss",
+            "stop_distance",
+            "quantity",
+        )
+    ):
+        def _pct(label: str, raw: object) -> str:
+            try:
+                v = Decimal(str(raw))
+                return f"{label}{(v * 100):.2f}%"
+            except Exception:
+                return f"{label}{raw}"
+
+        def _dec(raw: object) -> Decimal | None:
+            try:
+                return Decimal(str(raw))
+            except Exception:
+                return None
+
+        equity_usd = meta.get("equity_usd")
+        if equity_usd is not None:
+            lines.append(f"Equity: {equity_usd}")
+        start_of_day = meta.get("start_of_day_equity_usd")
+        if start_of_day is not None:
+            lines.append(f"Start of Day Equity: {start_of_day}")
+        peak_equity = meta.get("peak_equity_usd")
+        if peak_equity is not None:
+            lines.append(f"Peak Equity: {peak_equity}")
+
+        if meta.get("daily_loss_ratio") is not None and meta.get("max_daily_loss") is not None:
+            lines.append(
+                "Daily Loss: "
+                f"{_pct('', meta.get('daily_loss_ratio'))} "
+                f"(max {_pct('', meta.get('max_daily_loss'))})",
+            )
+
+        if meta.get("drawdown_ratio") is not None and meta.get("max_drawdown") is not None:
+            lines.append(
+                "Drawdown: "
+                f"{_pct('', meta.get('drawdown_ratio'))} "
+                f"(max {_pct('', meta.get('max_drawdown'))})",
+            )
+
+        symbol_exposure = meta.get("symbol_exposure_usd")
+        max_symbol_exposure_pct = meta.get("max_symbol_exposure_pct")
+        if symbol_exposure is not None:
+            equity_dec = _dec(equity_usd) if equity_usd is not None else None
+            exposure_dec = _dec(symbol_exposure)
+            if equity_dec and exposure_dec is not None and equity_dec > 0:
+                ratio = exposure_dec / equity_dec
+                if max_symbol_exposure_pct is not None:
+                    lines.append(
+                        "Symbol Exposure: "
+                        f"{symbol_exposure} "
+                        f"({_pct('', ratio)} of equity, max {_pct('', max_symbol_exposure_pct)})",
+                    )
+                else:
+                    lines.append(
+                        "Symbol Exposure: "
+                        f"{symbol_exposure} "
+                        f"({_pct('', ratio)} of equity)",
+                    )
+            else:
+                lines.append(f"Symbol Exposure: {symbol_exposure}")
+
+        total_exposure = meta.get("total_exposure_usd")
+        max_total_exposure_leverage = meta.get("max_total_exposure_leverage")
+        if total_exposure is not None:
+            equity_dec = _dec(equity_usd) if equity_usd is not None else None
+            exposure_dec = _dec(total_exposure)
+            if equity_dec and exposure_dec is not None and equity_dec > 0:
+                ratio = exposure_dec / equity_dec
+                if max_total_exposure_leverage is not None:
+                    lines.append(
+                        "Total Exposure: "
+                        f"{total_exposure} "
+                        f"({ratio:.2f}x equity, max {max_total_exposure_leverage}x)",
+                    )
+                else:
+                    lines.append(
+                        "Total Exposure: "
+                        f"{total_exposure} "
+                        f"({ratio:.2f}x equity)",
+                    )
+            else:
+                lines.append(f"Total Exposure: {total_exposure}")
+
+        new_notional = meta.get("new_notional_usd")
+        if new_notional is not None:
+            ratio = meta.get("max_position_notional_ratio")
+            limit = meta.get("max_position_notional_pct")
+            if ratio is not None and limit is not None:
+                lines.append(
+                    "New Notional: "
+                    f"{new_notional} "
+                    f"({_pct('', ratio)} of equity, max {_pct('', limit)})",
+                )
+            else:
+                lines.append(f"New Notional: {new_notional}")
+
+        entry_price = meta.get("entry_price")
+        stop_loss = meta.get("stop_loss")
+        stop_distance = meta.get("stop_distance")
+        quantity = meta.get("quantity")
+        if entry_price is not None:
+            lines.append(f"Entry: {entry_price}")
+        if stop_loss is not None:
+            lines.append(f"Stop Loss: {stop_loss}")
+        if stop_distance is not None:
+            lines.append(f"Stop Distance: {stop_distance}")
+        if quantity is not None:
+            lines.append(f"Quantity: {quantity}")
 
     return "\n".join(lines)
 
@@ -250,7 +392,7 @@ class AlertSubscriber:
     using the correct bus API (subscriber_id, handler, event_types, priority).
 
     Mode-aware behavior:
-    - execution_enabled=True: Subscribes to ORDER_UPDATE (alerts on router/exchange updates)
+    - execution_enabled=True: Subscribes to ORDER_UPDATE and, when enabled, TRADING_DECISION
     - execution_enabled=False: Subscribes to TRADING_DECISION (alerts on signal)
     """
 
@@ -260,6 +402,7 @@ class AlertSubscriber:
         event_types: list[EventType] | None = None,
         *,
         execution_enabled: bool = False,
+        execution_decision_alerts_enabled: bool = False,
         bff_client: _BffClient | None = None,
         cooldown: SignalCooldown | None = None,
         allowed_decision_sources: set[str] | None = None,
@@ -271,13 +414,16 @@ class AlertSubscriber:
             telegram_adapter: Optional Telegram adapter for sending alerts
             event_types: Optional list of event types to subscribe to.
                          If None, determined by execution_enabled mode.
-            execution_enabled: If True, alerts on ORDER_PLACED.
+            execution_enabled: If True, alerts on ORDER_UPDATE.
                               If False, alerts on TRADING_DECISION.
+            execution_decision_alerts_enabled: When True with execution_enabled,
+                              also subscribe to TRADING_DECISION for real decision-path alerts.
             bff_client: Optional BFF client for triggering snapshots.
             cooldown: Optional cooldown tracker for deduplicating alerts.
         """
         self.telegram = telegram_adapter
         self._execution_enabled = execution_enabled
+        self._execution_decision_alerts_enabled = execution_decision_alerts_enabled
         self._bff_client = bff_client
         self._cooldown = cooldown
         self._allowed_decision_sources = (
@@ -290,7 +436,9 @@ class AlertSubscriber:
         if event_types is not None:
             self._event_types = event_types
         elif execution_enabled:
-            self._event_types = EXECUTION_ENABLED_EVENT_TYPES
+            self._event_types = list(EXECUTION_ENABLED_EVENT_TYPES)
+            if execution_decision_alerts_enabled:
+                self._event_types.append(EventType.TRADING_DECISION)
         else:
             self._event_types = EXECUTION_DISABLED_EVENT_TYPES
 

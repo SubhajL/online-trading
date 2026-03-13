@@ -384,6 +384,7 @@ func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
 	assert.Equal(t, int64(2), tradeCalls.Load())
 	assert.Equal(t, 1, ledger.callCount())
 	require.Len(t, ledger.latestSnapshot().Trades, 1)
+	assert.True(t, decimal.RequireFromString("50010").Equal(emitter.update.Price))
 }
 
 func TestSpotReconciler_EmitsTerminalStatusWhenTradesLag(t *testing.T) {

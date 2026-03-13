@@ -4,31 +4,32 @@ Written first following TDD principles.
 """
 
 import asyncio
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from app.engine.core.error_handling import (
-    ErrorSeverity,
+    CircuitBreakerError,
+    CompositeErrorHandler,
+    ConfigurationError,
     ErrorCategory,
     ErrorContext,
-    EventBusError,
-    SubscriptionError,
-    ProcessingError,
-    QueueError,
-    ConfigurationError,
-    TimeoutError,
-    CircuitBreakerError,
+    ErrorManager,
+    ErrorSeverity,
     ErrorStats,
+    EventBusError,
     LoggingErrorHandler,
     MetricsErrorHandler,
+    ProcessingError,
+    QueueError,
     RetryableErrorHandler,
-    CompositeErrorHandler,
-    ErrorManager,
-    error_manager,
-    handle_error,
+    SubscriptionError,
+    TimeoutError,
     create_error_context,
     error_boundary,
+    error_manager,
+    handle_error,
 )
 
 
@@ -432,61 +433,67 @@ class TestConvenienceFunctions:
 class TestErrorBoundary:
     @pytest.mark.asyncio
     async def test_error_boundary_async_context_manager(self) -> None:
-        with patch("app.engine.core.error_handling.handle_error") as mock_handle:
-            mock_handle.return_value = True
+        mock_handle = AsyncMock(return_value=True)
 
-            with pytest.raises(ValueError):
-                async with error_boundary("test_component", "test_operation"):
-                    raise ValueError("Test error")
+        with pytest.raises(ValueError):
+            async with error_boundary(
+                "test_component",
+                "test_operation",
+                handler=mock_handle,
+            ):
+                raise ValueError("Test error")
 
-            mock_handle.assert_called_once()
+        mock_handle.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_error_boundary_async_decorator(self) -> None:
-        with patch("app.engine.core.error_handling.handle_error") as mock_handle:
-            mock_handle.return_value = True
+        mock_handle = AsyncMock(return_value=True)
 
-            @error_boundary("test_component", "test_operation")
-            async def failing_function() -> None:
-                raise ValueError("Test error")
+        @error_boundary("test_component", "test_operation", handler=mock_handle)
+        async def failing_function() -> None:
+            raise ValueError("Test error")
 
-            with pytest.raises(ValueError):
-                await failing_function()
+        with pytest.raises(ValueError):
+            await failing_function()
 
-            mock_handle.assert_called_once()
+        mock_handle.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_error_boundary_suppresses_exception_when_reraise_false(self) -> None:
-        with patch("app.engine.core.error_handling.handle_error") as mock_handle:
-            mock_handle.return_value = True
+        mock_handle = AsyncMock(return_value=True)
 
-            async with error_boundary("test_component", reraise=False):
-                raise ValueError("Test error")
+        async with error_boundary("test_component", reraise=False, handler=mock_handle):
+            raise ValueError("Test error")
 
-            # Should not raise exception
-            mock_handle.assert_called_once()
+        # Should not raise exception
+        mock_handle.assert_called_once()
 
     def test_error_boundary_sync_context_manager(self) -> None:
-        with patch("app.engine.core.error_handling.logger") as mock_logger:
-            with pytest.raises(ValueError):
-                with error_boundary("test_component", "test_operation"):
-                    raise ValueError("Test error")
+        mock_logger = Mock()
 
-            # Should log the error synchronously
-            mock_logger.error.assert_called()
-
-    def test_error_boundary_sync_decorator(self) -> None:
-        with patch("app.engine.core.error_handling.logger") as mock_logger:
-
-            @error_boundary("test_component", "test_operation")
-            def failing_function() -> None:
+        with pytest.raises(ValueError):
+            with error_boundary(
+                "test_component",
+                "test_operation",
+                sync_logger=mock_logger,
+            ):
                 raise ValueError("Test error")
 
-            with pytest.raises(ValueError):
-                failing_function()
+        # Should log the error synchronously
+        mock_logger.error.assert_called()
 
-            # Should log the error synchronously
-            mock_logger.error.assert_called()
+    def test_error_boundary_sync_decorator(self) -> None:
+        mock_logger = Mock()
+
+        @error_boundary("test_component", "test_operation", sync_logger=mock_logger)
+        def failing_function() -> None:
+            raise ValueError("Test error")
+
+        with pytest.raises(ValueError):
+            failing_function()
+
+        # Should log the error synchronously
+        mock_logger.error.assert_called()
 
 
 class TestErrorStats:

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"html"
 	"log"
 	"net/http"
 	"os"
@@ -358,8 +359,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		duration := time.Since(start)
 		fmt.Printf("%s %s %s - %d - %v\n",
 			r.Method,
-			r.URL.Path,
-			r.RemoteAddr,
+			html.EscapeString(r.URL.Path),
+			html.EscapeString(r.RemoteAddr),
 			wrapped.statusCode,
 			duration,
 		)

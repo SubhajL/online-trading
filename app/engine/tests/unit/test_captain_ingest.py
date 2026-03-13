@@ -4,6 +4,11 @@ Unit tests for Captain Trading Telegram ingestion helpers.
 
 from decimal import Decimal
 
+import pytest
+
+pytest.importorskip("pytesseract", reason="pytesseract is not installed")
+pytest.importorskip("telethon", reason="telethon is not installed")
+
 from app.engine.telegram_validator.captain_image_levels import TradeLevels
 from app.engine.telegram_validator.captain_ingest import build_external_signal_fields
 
