@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,17 +15,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func waitForEmitterStatus(t *testing.T, emitter *mockSuccessEmitter, status string) *OrderUpdate {
+	t.Helper()
+
+	var update *OrderUpdate
+	require.Eventually(t, func() bool {
+		called, current := emitter.snapshot()
+		if !called || current == nil || current.Status != status {
+			return false
+		}
+		update = current
+		return true
+	}, time.Second, 10*time.Millisecond)
+
+	require.NotNil(t, update)
+	return update
+}
+
 func TestSpotReconciler_TracksUntilTerminalStatus(t *testing.T) {
-	var getCalls int
-	var tradeCalls int
+	var getCalls atomic.Int64
+	var tradeCalls atomic.Int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/order":
-			getCalls++
+			currentGetCalls := getCalls.Add(1)
 			status := "NEW"
 			executedQty := "0"
-			if getCalls >= 2 {
+			if currentGetCalls >= 2 {
 				status = "FILLED"
 				executedQty = "0.020"
 			}
@@ -46,7 +64,7 @@ func TestSpotReconciler_TracksUntilTerminalStatus(t *testing.T) {
 				"updateTime":          time.Now().UnixMilli(),
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/myTrades":
-			tradeCalls++
+			tradeCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode([]map[string]any{
 				{
@@ -93,15 +111,13 @@ func TestSpotReconciler_TracksUntilTerminalStatus(t *testing.T) {
 		ExecutedQty:   decimal.Zero,
 	})
 
-	require.Eventually(t, func() bool {
-		return emitter.called && emitter.update != nil && emitter.update.Status == "FILLED"
-	}, time.Second, 10*time.Millisecond)
+	update := waitForEmitterStatus(t, emitter, "FILLED")
 
-	assert.Equal(t, int64(100), emitter.update.OrderID)
-	assert.True(t, decimal.RequireFromString("0.020").Equal(emitter.update.ExecutedQty))
-	assert.GreaterOrEqual(t, getCalls, 2)
+	assert.Equal(t, int64(100), update.OrderID)
+	assert.True(t, decimal.RequireFromString("0.020").Equal(update.ExecutedQty))
+	assert.GreaterOrEqual(t, getCalls.Load(), int64(2))
 	assert.Equal(t, 1, ledger.callCount())
-	assert.Equal(t, 1, tradeCalls)
+	assert.Equal(t, int64(1), tradeCalls.Load())
 	snapshot := ledger.latestSnapshot()
 	assert.Equal(t, "FILLED", snapshot.Status)
 	require.Len(t, snapshot.Trades, 1)
@@ -109,12 +125,12 @@ func TestSpotReconciler_TracksUntilTerminalStatus(t *testing.T) {
 }
 
 func TestSpotReconciler_IgnoresTrackUntilStarted(t *testing.T) {
-	var getCalls int
+	var getCalls atomic.Int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/order":
-			getCalls++
+			getCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"symbol":              "BTCUSDT",
@@ -159,7 +175,7 @@ func TestSpotReconciler_IgnoresTrackUntilStarted(t *testing.T) {
 		ExecutedQty:   decimal.Zero,
 	})
 	time.Sleep(20 * time.Millisecond)
-	assert.Equal(t, 0, getCalls)
+	assert.Equal(t, int64(0), getCalls.Load())
 
 	reconciler.Start(context.Background())
 	t.Cleanup(reconciler.Stop)
@@ -176,7 +192,7 @@ func TestSpotReconciler_IgnoresTrackUntilStarted(t *testing.T) {
 	})
 
 	require.Eventually(t, func() bool {
-		return getCalls > 0
+		return getCalls.Load() > 0
 	}, time.Second, 10*time.Millisecond)
 }
 
@@ -202,18 +218,19 @@ func TestSpotReconciler_EmitSkipsAfterStop(t *testing.T) {
 		UpdateTime:    time.Now(),
 	})
 
-	assert.False(t, emitter.called)
-	assert.Nil(t, emitter.update)
+	called, update := emitter.snapshot()
+	assert.False(t, called)
+	assert.Nil(t, update)
 }
 
 func TestSpotReconciler_RetriesTerminalPersistenceAfterLedgerFailure(t *testing.T) {
-	var getCalls int
-	var tradeCalls int
+	var getCalls atomic.Int64
+	var tradeCalls atomic.Int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/order":
-			getCalls++
+			getCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"symbol":              "BTCUSDT",
@@ -231,7 +248,7 @@ func TestSpotReconciler_RetriesTerminalPersistenceAfterLedgerFailure(t *testing.
 				"updateTime":          time.Now().UnixMilli(),
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/myTrades":
-			tradeCalls++
+			tradeCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode([]map[string]any{
 				{
@@ -278,23 +295,21 @@ func TestSpotReconciler_RetriesTerminalPersistenceAfterLedgerFailure(t *testing.
 		ExecutedQty:   decimal.Zero,
 	})
 
-	require.Eventually(t, func() bool {
-		return emitter.called && emitter.update != nil && emitter.update.Status == "FILLED"
-	}, time.Second, 10*time.Millisecond)
+	waitForEmitterStatus(t, emitter, "FILLED")
 
 	assert.GreaterOrEqual(t, ledger.callCount(), 2)
-	assert.GreaterOrEqual(t, getCalls, 2)
-	assert.GreaterOrEqual(t, tradeCalls, 2)
+	assert.GreaterOrEqual(t, getCalls.Load(), int64(2))
+	assert.GreaterOrEqual(t, tradeCalls.Load(), int64(2))
 }
 
 func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
-	var getCalls int
-	var tradeCalls int
+	var getCalls atomic.Int64
+	var tradeCalls atomic.Int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/order":
-			getCalls++
+			getCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"symbol":              "BTCUSDT",
@@ -312,9 +327,9 @@ func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
 				"updateTime":          time.Now().UnixMilli(),
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/myTrades":
-			tradeCalls++
+			currentTradeCalls := tradeCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
-			if tradeCalls == 1 {
+			if currentTradeCalls == 1 {
 				_ = json.NewEncoder(w).Encode([]map[string]any{})
 				return
 			}
@@ -363,18 +378,16 @@ func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
 		ExecutedQty:   decimal.Zero,
 	})
 
-	require.Eventually(t, func() bool {
-		return emitter.called && emitter.update != nil && emitter.update.Status == "FILLED"
-	}, time.Second, 10*time.Millisecond)
+	waitForEmitterStatus(t, emitter, "FILLED")
 
-	assert.GreaterOrEqual(t, getCalls, 2)
-	assert.Equal(t, 2, tradeCalls)
+	assert.GreaterOrEqual(t, getCalls.Load(), int64(2))
+	assert.Equal(t, int64(2), tradeCalls.Load())
 	assert.Equal(t, 1, ledger.callCount())
 	require.Len(t, ledger.latestSnapshot().Trades, 1)
 }
 
 func TestSpotReconciler_EmitsTerminalStatusWhenTradesLag(t *testing.T) {
-	var tradeCalls int
+	var tradeCalls atomic.Int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -396,7 +409,7 @@ func TestSpotReconciler_EmitsTerminalStatusWhenTradesLag(t *testing.T) {
 				"updateTime":          time.Now().UnixMilli(),
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/myTrades":
-			tradeCalls++
+			tradeCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode([]map[string]any{})
 		default:
@@ -431,11 +444,9 @@ func TestSpotReconciler_EmitsTerminalStatusWhenTradesLag(t *testing.T) {
 		ExecutedQty:   decimal.Zero,
 	})
 
-	require.Eventually(t, func() bool {
-		return emitter.called && emitter.update != nil && emitter.update.Status == "FILLED"
-	}, time.Second, 10*time.Millisecond)
+	waitForEmitterStatus(t, emitter, "FILLED")
 
-	assert.Equal(t, 1, tradeCalls)
+	assert.Equal(t, int64(1), tradeCalls.Load())
 	assert.Equal(t, 0, ledger.callCount())
 }
 
@@ -506,9 +517,7 @@ func TestSpotReconciler_EmitsTerminalStatusWhenLedgerPersistenceFails(t *testing
 		ExecutedQty:   decimal.Zero,
 	})
 
-	require.Eventually(t, func() bool {
-		return emitter.called && emitter.update != nil && emitter.update.Status == "FILLED"
-	}, time.Second, 10*time.Millisecond)
+	waitForEmitterStatus(t, emitter, "FILLED")
 
 	assert.Equal(t, 1, ledger.callCount())
 }
