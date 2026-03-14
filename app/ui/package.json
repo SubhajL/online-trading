@@ -22,8 +22,8 @@
     "test:e2e:accessibility": "playwright test tests/e2e/tc13-accessibility",
     "test:e2e:report": "playwright show-report",
     "test:all": "npm run test && npm run test:e2e",
-    "typecheck": "tsc --noEmit",
-    "type-check": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
+    "type-check": "next typegen && tsc --noEmit",
     "format": "prettier --write \"src/**/*.{js,ts,jsx,tsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{js,ts,jsx,tsx,json,css,md}\""
   },
