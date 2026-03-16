@@ -128,18 +128,20 @@ describe('AlertsGateway', () => {
       });
     });
 
-    it('should disconnect unauthenticated client', async () => {
+    it('disconnects unauthenticated clients safely', async () => {
       const unauthClient = {
         ...mockClient,
-        data: { user: undefined },
+        data: {},
         disconnect: jest.fn(),
       } as any;
 
       await gateway.handleConnection(unauthClient);
 
-      expect(unauthClient.disconnect).toHaveBeenCalledWith(true);
       expect(unauthClient.join).not.toHaveBeenCalled();
-      expect(unauthClient.emit).not.toHaveBeenCalled();
+      expect(unauthClient.emit).toHaveBeenCalledWith('error', {
+        message: 'unauthorized',
+      });
+      expect(unauthClient.disconnect).toHaveBeenCalledWith(true);
       expect(mockAlertsService.getUnreadCount).not.toHaveBeenCalled();
     });
   });
@@ -149,6 +151,16 @@ describe('AlertsGateway', () => {
       gateway.handleDisconnect(mockClient);
 
       expect(mockClient.leave).toHaveBeenCalledWith('alerts:user-123');
+    });
+
+    it('does not throw when user context is missing', () => {
+      const unauthClient = {
+        ...mockClient,
+        data: {},
+      } as any;
+
+      expect(() => gateway.handleDisconnect(unauthClient)).not.toThrow();
+      expect(unauthClient.leave).not.toHaveBeenCalled();
     });
   });
 
