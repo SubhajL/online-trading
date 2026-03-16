@@ -7,7 +7,7 @@ export function calculatePnL(
   let pnl: number
   let pnlPercent: number
 
-  if (position.side === 'BUY') {
+  if (position.side === 'LONG') {
     // For long positions: (current - entry) * quantity
     pnl = (currentPrice - position.entryPrice) * position.quantity
     pnlPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100

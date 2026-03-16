@@ -7,7 +7,7 @@ describe('PositionsList', () => {
   const mockPositions: Position[] = [
     {
       symbol: 'BTCUSDT' as any,
-      side: 'BUY',
+      side: 'LONG',
       quantity: 0.1,
       entryPrice: 40000,
       markPrice: 42000,
@@ -17,7 +17,7 @@ describe('PositionsList', () => {
     },
     {
       symbol: 'ETHUSDT' as any,
-      side: 'SELL',
+      side: 'SHORT',
       quantity: 1,
       entryPrice: 2500,
       markPrice: 2400,
@@ -44,7 +44,7 @@ describe('PositionsList', () => {
   it('displays position details', () => {
     render(<PositionsList positions={[mockPositions[0]!]} />)
 
-    expect(screen.getByText('BUY')).toBeInTheDocument()
+    expect(screen.getByText('LONG')).toBeInTheDocument()
     expect(screen.getByText('0.1')).toBeInTheDocument()
     expect(screen.getByText('40,000')).toBeInTheDocument()
     expect(screen.getByText('42,000')).toBeInTheDocument()
@@ -68,7 +68,7 @@ describe('PositionsList', () => {
   it('displays negative PnL with correct color', () => {
     const losingPosition: Position = {
       symbol: 'BTCUSDT' as any,
-      side: 'BUY',
+      side: 'LONG',
       quantity: 0.1,
       entryPrice: 42000,
       markPrice: 40000,
@@ -124,10 +124,10 @@ describe('PositionsList', () => {
   it('displays correct side styling', () => {
     render(<PositionsList positions={mockPositions} />)
 
-    const buyBadge = screen.getByText('BUY')
+    const buyBadge = screen.getByText('LONG')
     expect(buyBadge).toHaveClass('text-success')
 
-    const sellBadge = screen.getByText('SELL')
+    const sellBadge = screen.getByText('SHORT')
     expect(sellBadge).toHaveClass('text-destructive')
   })
 
@@ -152,7 +152,7 @@ describe('PositionsList', () => {
   it('formats large numbers correctly', () => {
     const largePosition: Position = {
       symbol: 'BTCUSDT' as any,
-      side: 'BUY',
+      side: 'LONG',
       quantity: 10,
       entryPrice: 42000,
       markPrice: 43000,

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { AppShell } from './AppShell'
 
 vi.mock('next-themes', () => ({
@@ -9,7 +9,7 @@ vi.mock('next-themes', () => ({
 
 vi.mock('@/services/alerts.service', () => ({
   alertsService: {
-    getAlerts: vi.fn().mockResolvedValue({ alerts: [], total: 0, page: 1, limit: 50 }),
+    getAlerts: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 50 }),
     markAllAsRead: vi.fn().mockResolvedValue({ updated: 0 }),
   },
 }))
@@ -38,6 +38,10 @@ vi.mock('next/link', () => ({
 }))
 
 describe('AppShell', () => {
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_UI_REVAMP
+  })
+
   it('renders shell with topbar and content area (nav links in header)', () => {
     render(
       <AppShell userEmail="test@example.com">
@@ -209,5 +213,18 @@ describe('AppShell', () => {
     expect(
       screen.getByText('Keyboard shortcuts, glossary, and app information.'),
     ).toBeInTheDocument()
+  })
+
+  it('renders revamp shell layout when feature flag is enabled', () => {
+    process.env.NEXT_PUBLIC_UI_REVAMP = '1'
+
+    render(
+      <AppShell>
+        <div>Revamp content</div>
+      </AppShell>,
+    )
+
+    expect(screen.queryByTestId('app-sidebar')).not.toBeInTheDocument()
+    expect(screen.getByText(/Engine:/)).toBeInTheDocument()
   })
 })

@@ -125,6 +125,8 @@
   --color-border-default: hsl(214, 20%, 85%); /* #CBD5E1 - default borders */
   --color-border-strong: hsl(215, 16%, 75%); /* #94A3B8 - emphasized borders */
   --color-border-focus: var(--color-primary-500); /* Focus indicator */
+  --connector-primary: 3px solid #6464f2;
+  --connector-secondary: 2px dashed rgba(148, 163, 184, 0.5);
 
   /* ===== LEGACY / COMPATIBILITY ALIASES ===== */
   /* Older dashboard CSS uses these names. Keep them as aliases to avoid drift. */
@@ -153,10 +155,13 @@
 
   /* ===== BORDER RADIUS ===== */
   --radius-none: 0;
-  --radius-sm: 4px; /* Buttons, inputs, tags */
-  --radius-md: 8px; /* Cards, modals, containers */
-  --radius-lg: 16px; /* Feature cards, hero sections */
+  --radius-sm: 8px;
+  --radius-md: 12px; /* Controls */
+  --radius-lg: 18px; /* Cards */
   --radius-full: 9999px; /* Pills, avatars, badges */
+  --radius-control: 12px;
+  --radius-card: 18px;
+  --radius-pill: 9999px;
 
   /* ===== SHADOWS ===== */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);

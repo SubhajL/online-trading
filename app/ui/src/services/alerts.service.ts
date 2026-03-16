@@ -1,16 +1,16 @@
 import { apiClient } from './api'
-import { websocketService } from './websocket'
+import { alertsWebsocketService } from './websocket'
 import type { Alert, AlertId, AlertFilters, AlertStats } from '@/types/alerts'
 
 export type AlertsResponse = {
-  alerts: Alert[]
+  data: Alert[]
   total: number
   page: number
   limit: number
 }
 
 export type AlertSearchResponse = {
-  alerts: Alert[]
+  data: Alert[]
   total: number
 }
 
@@ -51,12 +51,37 @@ class AlertsService {
   }
 
   subscribeToAlerts(callback: (alert: Alert) => void): () => void {
-    websocketService.emit('alerts:subscribe', {})
-    return websocketService.subscribe('alert.new', callback)
+    const subscribe = () => {
+      try {
+        alertsWebsocketService.emit('alerts:subscribe', {})
+      } catch {
+        // Fail-open: socket may not be connected yet
+      }
+    }
+
+    // Re-subscribe on reconnect (Socket.IO reconnects can drop rooms)
+    alertsWebsocketService.on('connect', subscribe)
+    subscribe()
+
+    const unsubscribeAlertNew = alertsWebsocketService.subscribe('alert.new', callback)
+
+    return () => {
+      alertsWebsocketService.off('connect', subscribe)
+      unsubscribeAlertNew()
+      try {
+        alertsWebsocketService.emit('alerts:unsubscribe', {})
+      } catch {
+        // Fail-open on disconnect
+      }
+    }
   }
 
+  /**
+   * @deprecated Use the cleanup function returned by subscribeToAlerts().
+   */
   unsubscribeFromAlerts(): void {
-    websocketService.emit('alerts:unsubscribe', {})
+    // Deprecated: rely on the cleanup function returned by subscribeToAlerts().
+    // Kept as a no-op for backward compatibility.
   }
 
   async searchAlerts(query: string, limit = 50): Promise<AlertSearchResponse> {

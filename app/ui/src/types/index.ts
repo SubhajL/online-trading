@@ -6,6 +6,7 @@ export type Symbol = Brand<string, 'Symbol'>
 export type UserId = Brand<string, 'UserId'>
 
 export type OrderSide = 'BUY' | 'SELL'
+export type PositionSide = 'LONG' | 'SHORT'
 export type OrderType = 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'STOP_LIMIT'
 export type OrderStatus =
   | 'NEW'
@@ -61,7 +62,7 @@ export type Order = {
 
 export type Position = {
   symbol: Symbol
-  side: OrderSide
+  side: PositionSide
   quantity: number
   entryPrice: number
   markPrice: number
@@ -162,27 +163,4 @@ export type Zone = {
   timeframe: string
   created: number
   lastTested?: number
-}
-
-// Alert types
-export type AlertType =
-  | 'smc_event'
-  | 'zone_retest'
-  | 'order_filled'
-  | 'position_update'
-  | 'risk_limit'
-export type AlertSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info'
-
-export type Alert = {
-  id: string
-  symbol: string
-  venue: Venue
-  type: AlertType
-  title: string
-  message: string
-  severity: AlertSeverity
-  createdAt: string
-  read: boolean
-  imageUrl?: string
-  signalId?: string
 }

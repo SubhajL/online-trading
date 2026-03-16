@@ -8,6 +8,15 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }))
 
+const mockInitWebsockets = vi.fn()
+const mockDisconnectWebsockets = vi.fn()
+const mockReconnectAllWebsocketsWithAuth = vi.fn()
+vi.mock('@/services/websocket', () => ({
+  initWebsockets: () => mockInitWebsockets(),
+  disconnectWebsockets: () => mockDisconnectWebsockets(),
+  reconnectAllWebsocketsWithAuth: () => mockReconnectAllWebsocketsWithAuth(),
+}))
+
 // Mock fetch
 const mockFetch = vi.fn()
 global.fetch = mockFetch
@@ -229,6 +238,71 @@ describe('AuthContext', () => {
       })
 
       // Should only have login call, no refresh call after logout
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+
+      vi.useRealTimers()
+    })
+
+    it('decodes base64url JWT payload and schedules refresh', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const expTime = Math.floor(Date.now() / 1000) + 60
+      const payload = Buffer.from(JSON.stringify({ exp: expTime, marker: '-_' })).toString(
+        'base64url',
+      )
+      const mockJwt = `header.${payload}.signature`
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ accessToken: mockJwt, refreshToken: 'refresh-token' }),
+      })
+
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await vi.runOnlyPendingTimersAsync()
+
+      await act(async () => {
+        await result.current.login('trader@test.com', 'Password123')
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ access_token: 'new-token' }),
+      })
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31000)
+      })
+
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('/auth/refresh'),
+        expect.objectContaining({ method: 'POST' }),
+      )
+
+      vi.useRealTimers()
+    })
+
+    it('does not schedule refresh when refresh token is missing', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const expTime = Math.floor(Date.now() / 1000) + 60
+      const payload = Buffer.from(JSON.stringify({ exp: expTime })).toString('base64')
+      const mockJwt = `header.${payload}.signature`
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ accessToken: mockJwt }),
+      })
+
+      const { result } = renderHook(() => useAuth(), { wrapper })
+      await vi.runOnlyPendingTimersAsync()
+
+      await act(async () => {
+        await result.current.login('trader@test.com', 'Password123')
+      })
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31000)
+      })
+
       expect(mockFetch).toHaveBeenCalledTimes(1)
 
       vi.useRealTimers()

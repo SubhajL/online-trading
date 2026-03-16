@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Online Trader - Desktop Trades Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#6363f2",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101022",
+                        "card-dark": "#1A1A2E",
+                        "success": "#22C55E",
+                        "danger": "#EF4444",
+                        "accent": "#14B8A6",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"],
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.75rem",
+                        "xl": "1.125rem","2xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    gridTemplateColumns: {
+                        'workspace': '320px 1fr'
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .glow-success {
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+        }
+        .glow-danger {
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+        }
+        .bus-line {
+            height: 3px;
+            background-color: #6363f2;
+            width: 100%;
+            position: absolute;
+            top: 50%;
+            left: 0;
+            z-index: 0;
+            transform: translateY(-50%);
+        }::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #101022; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2d2d45; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3e3e5e; 
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark text-slate-100 font-display overflow-hidden antialiased h-screen w-full flex flex-col">
+<header class="h-[120px] shrink-0 bg-card-dark border-b border-white/5 px-8 flex items-center justify-between z-40 relative">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary/30">OT</div>
+<div class="flex flex-col">
+<span class="text-lg font-bold tracking-tight text-white">Online Trader</span>
+<span class="text-[10px] text-slate-400 font-mono">TERMINAL PRO</span>
+</div>
+</div>
+<div class="h-10 w-[1px] bg-white/10 mx-2"></div>
+<div class="flex items-center gap-4">
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<h1 class="text-2xl font-bold tracking-tight text-white">BTC/USDT</h1>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/20 text-primary uppercase tracking-wide border border-primary/20">PERP</span>
+</div>
+<div class="flex items-center gap-2 text-xs font-mono text-emerald-400">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span>Connected • ws://stream.v1</span>
+</div>
+</div>
+<div class="flex gap-8 px-6">
+<div>
+<div class="text-3xl font-bold font-mono text-white tracking-tight">$64,230.50</div>
+<div class="text-sm font-medium text-emerald-400 font-mono flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                        +2.4% (24h)
+                    </div>
+</div>
+<div class="flex gap-6 items-center">
+<div class="text-right">
+<p class="text-[10px] text-slate-500 uppercase font-semibold">24h Vol</p>
+<p class="text-sm font-bold font-mono text-slate-300">42.1M</p>
+</div>
+<div class="w-[1px] h-8 bg-white/5"></div>
+<div class="text-right">
+<p class="text-[10px] text-slate-500 uppercase font-semibold">Funding</p>
+<p class="text-sm font-bold font-mono text-accent">0.0100%</p>
+</div>
+<div class="w-[1px] h-8 bg-white/5"></div>
+<div class="text-right">
+<p class="text-[10px] text-slate-500 uppercase font-semibold">Mark</p>
+<p class="text-sm font-bold font-mono text-slate-300">64,235</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 bg-background-dark border border-white/5 rounded-lg p-1">
+<button class="p-2 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors"><span class="material-symbols-outlined">search</span></button>
+<button class="p-2 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors"><span class="material-symbols-outlined">notifications</span></button>
+<button class="p-2 rounded hover:bg-white/5 text-slate-400 hover:text-white transition-colors"><span class="material-symbols-outlined">settings</span></button>
+</div>
+<div class="flex items-center gap-3 pl-4 border-l border-white/5">
+<div class="text-right hidden xl:block">
+<div class="text-sm font-bold text-white">Alex Trader</div>
+<div class="text-[10px] text-slate-400 font-mono">UID: 8839201</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-600 border-2 border-card-dark flex items-center justify-center text-white font-bold">AT</div>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<aside class="w-[320px] bg-background-dark border-r border-white/5 flex flex-col shrink-0 overflow-y-auto">
+<div class="p-4 space-y-6">
+<nav class="space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-card-dark border border-white/5 text-white shadow-lg shadow-black/20 group" href="#">
+<span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">candlestick_chart</span>
+<span class="font-medium">Trade Execution</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-medium">Market Analysis</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-medium">Portfolio</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-colors" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-medium">Order History</span>
+</a>
+</nav>
+<div class="border-t border-white/5 pt-6">
+<h3 class="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Watchlist</h3>
+<div class="space-y-1">
+<div class="flex items-center justify-between px-4 py-2 rounded-lg hover:bg-white/5 cursor-pointer group">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500 font-bold text-[10px]">BTC</div>
+<div>
+<div class="text-sm font-bold text-white group-hover:text-primary transition-colors">BTC/USDT</div>
+<div class="text-[10px] text-slate-400">Bitcoin</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-sm font-mono text-white">64,230</div>
+<div class="text-[10px] font-mono text-emerald-400">+2.45%</div>
+</div>
+</div>
+<div class="flex items-center justify-between px-4 py-2 rounded-lg hover:bg-white/5 cursor-pointer group">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 font-bold text-[10px]">ETH</div>
+<div>
+<div class="text-sm font-bold text-white group-hover:text-primary transition-colors">ETH/USDT</div>
+<div class="text-[10px] text-slate-400">Ethereum</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-sm font-mono text-white">3,420</div>
+<div class="text-[10px] font-mono text-rose-400">-0.12%</div>
+</div>
+</div>
+<div class="flex items-center justify-between px-4 py-2 rounded-lg hover:bg-white/5 cursor-pointer group">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 font-bold text-[10px]">SOL</div>
+<div>
+<div class="text-sm font-bold text-white group-hover:text-primary transition-colors">SOL/USDT</div>
+<div class="text-[10px] text-slate-400">Solana</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-sm font-mono text-white">145.20</div>
+<div class="text-[10px] font-mono text-emerald-400">+5.10%</div>
+</div>
+</div>
+</div>
+</div>
+<div class="border-t border-white/5 pt-6">
+<div class="bg-gradient-to-br from-primary/20 to-purple-900/20 rounded-xl p-4 border border-white/5">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary">rocket_launch</span>
+<span class="text-sm font-bold text-white">Pro Features</span>
+</div>
+<p class="text-xs text-slate-400 mb-3">Unlock advanced trading bots and lower fees.</p>
+<button class="w-full py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors">Upgrade Now</button>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 bg-background-dark overflow-y-auto p-6">
+<div class="grid grid-cols-12 gap-6 h-full min-h-[800px]">
+<div class="col-span-8 flex flex-col gap-6">
+<section class="flex-1 bg-card-dark rounded-xl border border-white/5 overflow-hidden shadow-lg relative min-h-[500px] flex flex-col">
+<div class="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-background-dark/30">
+<div class="flex gap-2">
+<button class="px-3 py-1.5 rounded-lg bg-white/5 text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors">15m</button>
+<button class="px-3 py-1.5 rounded-lg bg-primary text-xs font-bold text-white shadow-lg shadow-primary/20">1H</button>
+<button class="px-3 py-1.5 rounded-lg bg-white/5 text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors">4H</button>
+<button class="px-3 py-1.5 rounded-lg bg-white/5 text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors">1D</button>
+<div class="w-[1px] h-6 bg-white/10 mx-1"></div>
+<button class="px-3 py-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">show_chart</span>
+<span class="text-xs">Indicators</span>
+</button>
+</div>
+<div class="flex items-center gap-2">
+<div class="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-full border border-white/5 backdrop-blur-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
+<span class="text-[10px] font-mono text-slate-400">WS: candles.v1</span>
+</div>
+<button class="p-1.5 rounded hover:bg-white/5 text-slate-400"><span class="material-symbols-outlined text-sm">fullscreen</span></button>
+</div>
+</div>
+<div class="relative flex-1 bg-gradient-to-b from-card-dark to-[#131325] w-full">
+<div class="absolute inset-0" style="background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 60px 60px;"></div>
+<div class="absolute inset-0 overflow-hidden px-10 py-8 flex items-end justify-center">
+<div class="relative w-full h-full max-w-5xl">
+<div class="absolute bottom-[40%] left-[10%] w-4 h-24 bg-emerald-500 rounded-sm">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 w-[1px] h-40 bg-emerald-500/50"></div>
+</div>
+<div class="absolute bottom-[48%] left-[15%] w-4 h-12 bg-rose-500 rounded-sm">
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 w-[1px] h-20 bg-rose-500/50"></div>
+</div>
+<div class="absolute bottom-[45%] left-[20%] w-4 h-32 bg-emerald-500 rounded-sm">
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 w-[1px] h-52 bg-emerald-500/50"></div>
+</div>
+<div class="absolute bottom-[60%] left-[25%] w-4 h-8 bg-emerald-500 rounded-sm"></div>
+<div class="absolute top-[30%] left-0 right-0 border-t border-dashed border-emerald-500/50 flex justify-end">
+<span class="bg-emerald-500 text-white text-xs font-mono px-2 py-0.5 rounded-l-sm mt-[-10px]">64,230.50</span>
+</div>
+<svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+<path d="M0,400 C100,380 200,420 300,350 C400,280 500,320 600,250 C700,180 800,200 900,150 L1000,150" fill="none" stroke="#6363f2" stroke-width="2" style="filter: drop-shadow(0 0 8px rgba(99,99,242,0.4));"></path>
+</svg>
+</div>
+</div>
+<div class="absolute bottom-4 left-4 flex gap-4 bg-background-dark/80 backdrop-blur p-2 rounded-lg border border-white/10">
+<label class="flex items-center gap-2 cursor-pointer select-none">
+<input checked="" class="w-3.5 h-3.5 rounded bg-white/10 border-white/20 text-accent focus:ring-0" type="checkbox"/>
+<span class="text-xs font-bold text-accent">EMA (20)</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer select-none">
+<input class="w-3.5 h-3.5 rounded bg-white/10 border-white/20 text-purple-400 focus:ring-0" type="checkbox"/>
+<span class="text-xs font-bold text-purple-400">RSI (14)</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer select-none">
+<input class="w-3.5 h-3.5 rounded bg-white/10 border-white/20 text-yellow-400 focus:ring-0" type="checkbox"/>
+<span class="text-xs font-bold text-yellow-400">MACD</span>
+</label>
+</div>
+</div>
+</section>
+<section class="bg-card-dark rounded-xl border border-white/5 p-4 flex items-center gap-6 shadow-lg">
+<div class="flex items-center gap-2 shrink-0 pr-4 border-r border-white/10">
+<span class="material-symbols-outlined text-amber-400">bolt</span>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-slate-200">Decision Feed</span>
+<span class="text-[10px] text-slate-500 uppercase tracking-wide">Real-time Signals</span>
+</div>
+</div>
+<div class="flex flex-1 gap-4 overflow-x-auto scrollbar-hide py-1">
+<div class="flex items-center gap-3 bg-emerald-500/5 border border-emerald-500/20 pl-3 pr-4 py-2 rounded-lg shrink-0 group hover:bg-emerald-500/10 transition-colors cursor-pointer">
+<div class="flex flex-col items-center">
+<span class="text-[10px] font-bold text-emerald-400">STRONG BUY</span>
+<span class="text-xs font-bold bg-emerald-500 text-white px-1.5 rounded mt-1">88%</span>
+</div>
+<div class="h-8 w-[1px] bg-emerald-500/20"></div>
+<div>
+<div class="text-sm font-bold text-white">BTC/USDT</div>
+<div class="text-[10px] font-mono text-slate-400">@ 64,100 • 2m ago</div>
+</div>
+<span class="material-symbols-outlined text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity text-sm ml-2">arrow_forward</span>
+</div>
+<div class="flex items-center gap-3 bg-rose-500/5 border border-rose-500/20 pl-3 pr-4 py-2 rounded-lg shrink-0 group hover:bg-rose-500/10 transition-colors cursor-pointer opacity-70">
+<div class="flex flex-col items-center">
+<span class="text-[10px] font-bold text-rose-400">SELL</span>
+<span class="text-xs font-bold bg-rose-500 text-white px-1.5 rounded mt-1">62%</span>
+</div>
+<div class="h-8 w-[1px] bg-rose-500/20"></div>
+<div>
+<div class="text-sm font-bold text-white">ETH/USDT</div>
+<div class="text-[10px] font-mono text-slate-400">@ 3,420 • 5m ago</div>
+</div>
+</div>
+<div class="flex items-center gap-3 bg-background-dark border border-white/5 pl-3 pr-4 py-2 rounded-lg shrink-0 opacity-50">
+<div class="flex flex-col items-center">
+<span class="text-[10px] font-bold text-slate-400">HOLD</span>
+<span class="text-xs font-bold bg-slate-600 text-white px-1.5 rounded mt-1">50%</span>
+</div>
+<div class="h-8 w-[1px] bg-white/10"></div>
+<div>
+<div class="text-sm font-bold text-white">SOL/USDT</div>
+<div class="text-[10px] font-mono text-slate-400">@ 145.20 • 12m ago</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div class="col-span-4 flex flex-col gap-6">
+<section class="bg-card-dark rounded-xl border border-white/5 p-6 shadow-xl flex flex-col gap-5 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50"></div>
+<div class="flex items-center justify-between">
+<h2 class="text-lg font-bold text-white">Place Order</h2>
+<div class="text-[10px] text-slate-500 bg-background-dark px-2 py-1 rounded border border-white/5 flex items-center gap-2">
+<span>Avail:</span>
+<span class="text-white font-mono font-bold">14,203.55 USDT</span>
+<button class="text-primary hover:text-white"><span class="material-symbols-outlined text-sm">add_circle</span></button>
+</div>
+</div>
+<div class="flex bg-background-dark p-1 rounded-lg border border-white/5">
+<button class="flex-1 py-2 text-xs font-bold text-slate-400 rounded hover:text-white transition-colors">SPOT</button>
+<button class="flex-1 py-2 text-xs font-bold text-white bg-card-dark rounded shadow-sm border border-white/5">USD-M</button>
+<button class="flex-1 py-2 text-xs font-bold text-slate-400 rounded hover:text-white transition-colors">COIN-M</button>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<button class="relative py-3 rounded-lg border border-transparent bg-emerald-500/10 text-emerald-400 font-bold text-sm hover:bg-emerald-500/20 transition-all border-emerald-500/30 glow-success ring-1 ring-emerald-500/50">
+                            BUY / LONG
+                            <div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></div>
+<div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_8px_#10b981]"></div>
+</button>
+<button class="py-3 rounded-lg border border-transparent bg-background-dark text-slate-500 font-bold text-sm hover:bg-rose-500/10 hover:text-rose-400 transition-all border-white/5 group">
+                            SELL / SHORT
+                        </button>
+</div>
+<div class="space-y-4 mt-2">
+<div class="relative group z-20">
+<label class="text-xs font-medium text-slate-400 mb-1.5 block">Order Type</label>
+<div class="relative">
+<select class="w-full bg-background-dark border border-white/10 text-white text-sm rounded-lg focus:ring-primary focus:border-primary p-2.5 font-mono appearance-none cursor-pointer hover:border-white/20 transition-colors">
+<option>Limit Order</option>
+<option>Market Order</option>
+<option>Stop Limit</option>
+<option>Trailing Stop</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-2.5 text-slate-500 pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="relative group">
+<label class="text-xs font-medium text-slate-400 mb-1.5 block">Price (USDT)</label>
+<div class="flex items-center bg-background-dark border border-white/10 rounded-lg group-focus-within:border-primary/50 group-focus-within:ring-1 group-focus-within:ring-primary/50 transition-all">
+<button class="px-3 py-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-l-lg border-r border-white/5"><span class="material-symbols-outlined text-sm">remove</span></button>
+<input class="flex-1 bg-transparent border-none text-right text-white font-mono text-base focus:ring-0 p-2" type="text" value="64,210.00"/>
+<button class="px-3 py-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-r-lg border-l border-white/5"><span class="material-symbols-outlined text-sm">add</span></button>
+</div>
+</div>
+<div class="relative group">
+<label class="text-xs font-medium text-slate-400 mb-1.5 block">Amount (BTC)</label>
+<div class="flex items-center bg-background-dark border border-white/10 rounded-lg group-focus-within:border-primary/50 group-focus-within:ring-1 group-focus-within:ring-primary/50 transition-all">
+<button class="px-3 py-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-l-lg border-r border-white/5"><span class="material-symbols-outlined text-sm">remove</span></button>
+<input class="flex-1 bg-transparent border-none text-right text-white font-mono text-base focus:ring-0 p-2" type="text" value="0.05"/>
+<span class="text-xs text-slate-500 font-mono pr-2">BTC</span>
+<button class="px-3 py-2.5 text-slate-500 hover:text-white hover:bg-white/5 rounded-r-lg border-l border-white/5"><span class="material-symbols-outlined text-sm">add</span></button>
+</div>
+<div class="flex justify-between mt-2 px-0.5 gap-1">
+<div class="h-1 flex-1 bg-white/10 rounded-full cursor-pointer hover:bg-primary/50 transition-colors"></div>
+<div class="h-1 flex-1 bg-white/10 rounded-full cursor-pointer hover:bg-primary/50 transition-colors"></div>
+<div class="h-1 flex-1 bg-primary rounded-full cursor-pointer shadow-[0_0_8px_rgba(99,99,242,0.6)] relative">
+<div class="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-sm"></div>
+</div>
+<div class="h-1 flex-1 bg-white/10 rounded-full cursor-pointer hover:bg-primary/50 transition-colors"></div>
+<div class="h-1 flex-1 bg-white/10 rounded-full cursor-pointer hover:bg-primary/50 transition-colors"></div>
+</div>
+<div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+<span>0%</span>
+<span class="text-primary font-bold">50%</span>
+<span>100%</span>
+</div>
+</div>
+<div class="flex gap-3 pt-2">
+<label class="flex-1 flex items-center gap-2 bg-background-dark p-2.5 rounded-lg border border-white/5 cursor-pointer hover:border-white/10 transition-colors">
+<input class="rounded bg-white/10 border-white/20 text-primary focus:ring-0 w-4 h-4" type="checkbox"/>
+<span class="text-xs font-medium text-slate-300">TP/SL</span>
+</label>
+<label class="flex-1 flex items-center gap-2 bg-background-dark p-2.5 rounded-lg border border-white/5 cursor-pointer hover:border-white/10 transition-colors">
+<input class="rounded bg-white/10 border-white/20 text-primary focus:ring-0 w-4 h-4" type="checkbox"/>
+<span class="text-xs font-medium text-slate-300">Post Only</span>
+</label>
+</div>
+</div>
+<div class="mt-2 flex gap-3 items-start bg-amber-500/5 p-3 rounded-lg border border-amber-500/20">
+<span class="material-symbols-outlined text-amber-500 text-base mt-0.5">warning</span>
+<p class="text-[11px] text-amber-500/90 leading-snug">High leverage trading involves significant risk. Ensure you have sufficient margin to avoid liquidation at <span class="font-mono font-bold">63,100.00</span>.</p>
+</div>
+<button class="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 group mt-2">
+<span class="text-base tracking-wide">BUY / LONG BTC</span>
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+<div class="flex justify-between mt-1 text-xs text-slate-500 px-1 border-t border-white/5 pt-3">
+<span>Cost: <span class="text-slate-300 font-mono">3,210.50 USDT</span></span>
+<span>Max Buy: <span class="text-slate-300 font-mono">0.22 BTC</span></span>
+</div>
+</section>
+<section class="bg-card-dark rounded-xl border border-white/5 p-6 shadow-lg">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">schema</span>
+                            Order Status Flow
+                        </h3>
+<div class="flex items-center gap-2 bg-primary/10 px-2 py-1 rounded-full border border-primary/20">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+<span class="text-[10px] font-mono text-primary font-bold">WS events: order_update.v1</span>
+</div>
+</div>
+<div class="relative py-4">
+<div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[3px] bg-slate-800 rounded-full"></div>
+<div class="absolute left-0 w-[65%] top-1/2 -translate-y-1/2 h-[3px] bg-primary shadow-[0_0_8px_rgba(99,99,242,0.8)] rounded-full"></div>
+<div class="relative z-10 flex justify-between w-full">
+<div class="flex flex-col items-center gap-3 group cursor-default">
+<div class="w-4 h-4 rounded-full bg-primary ring-4 ring-primary/20 shadow-lg shadow-primary/40 transition-all group-hover:scale-125"></div>
+<span class="text-[10px] font-bold text-primary uppercase tracking-wide bg-card-dark px-1">Draft</span>
+</div>
+<div class="flex flex-col items-center gap-3 group cursor-default">
+<div class="w-4 h-4 rounded-full bg-primary shadow-lg shadow-primary/40 transition-all group-hover:scale-125"></div>
+<span class="text-[10px] font-bold text-primary uppercase tracking-wide bg-card-dark px-1">Validate</span>
+</div>
+<div class="flex flex-col items-center gap-3 group cursor-default">
+<div class="w-4 h-4 rounded-full bg-primary animate-pulse shadow-[0_0_15px_#6363f2] ring-2 ring-white transition-all group-hover:scale-125"></div>
+<span class="text-[10px] font-bold text-white uppercase tracking-wide bg-card-dark px-1 shadow-black drop-shadow-md">Submit</span>
+</div>
+<div class="flex flex-col items-center gap-3 group cursor-default">
+<div class="w-4 h-4 rounded-full bg-background-dark border-2 border-slate-600 transition-all group-hover:border-slate-400"></div>
+<span class="text-[10px] font-medium text-slate-600 uppercase tracking-wide bg-card-dark px-1 group-hover:text-slate-400">ACK</span>
+</div>
+<div class="flex flex-col items-center gap-3 group cursor-default">
+<div class="w-4 h-4 rounded-full bg-background-dark border-2 border-slate-600 transition-all group-hover:border-slate-400"></div>
+<span class="text-[10px] font-medium text-slate-600 uppercase tracking-wide bg-card-dark px-1 group-hover:text-slate-400">Filled</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div class="col-span-12">
+<section class="bg-card-dark rounded-xl border border-white/5 overflow-hidden shadow-xl flex flex-col h-[300px]">
+<div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-background-dark/30">
+<div class="flex gap-8">
+<button class="text-sm font-bold text-white border-b-2 border-primary pb-4 -mb-4.5 px-2 hover:text-white transition-colors">
+                                Open Orders <span class="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded-full ml-1">2</span>
+</button>
+<button class="text-sm font-bold text-slate-500 hover:text-slate-300 pb-4 -mb-4.5 px-2 transition-colors">
+                                Positions <span class="bg-white/10 text-slate-400 text-[10px] px-1.5 py-0.5 rounded-full ml-1">1</span>
+</button>
+<button class="text-sm font-bold text-slate-500 hover:text-slate-300 pb-4 -mb-4.5 px-2 transition-colors">Order History</button>
+<button class="text-sm font-bold text-slate-500 hover:text-slate-300 pb-4 -mb-4.5 px-2 transition-colors">Trade History</button>
+</div>
+<div class="flex gap-3">
+<div class="relative">
+<span class="absolute left-2.5 top-2 material-symbols-outlined text-slate-500 text-sm">search</span>
+<input class="bg-background-dark border border-white/10 rounded pl-8 pr-3 py-1 text-xs text-white focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-600" placeholder="Filter symbol" type="text"/>
+</div>
+<button class="px-3 py-1 text-xs font-bold bg-danger/10 text-danger border border-danger/20 rounded hover:bg-danger hover:text-white transition-all">Cancel All</button>
+</div>
+</div>
+<div class="flex-1 overflow-auto">
+<table class="w-full text-left border-collapse">
+<thead class="sticky top-0 z-10 bg-card-dark shadow-sm">
+<tr class="text-[11px] text-slate-500 uppercase font-semibold border-b border-white/5">
+<th class="pl-6 pr-4 py-3 w-12 text-center">
+<input class="rounded bg-white/10 border-white/20 text-primary focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+</th>
+<th class="px-4 py-3">Symbol</th>
+<th class="px-4 py-3">Type</th>
+<th class="px-4 py-3">Side</th>
+<th class="px-4 py-3 text-right">Size</th>
+<th class="px-4 py-3 text-right">Filled</th>
+<th class="px-4 py-3 text-right">Price</th>
+<th class="px-4 py-3 text-right">Trigger</th>
+<th class="px-4 py-3">Time</th>
+<th class="pl-4 pr-6 py-3 text-right">Action</th>
+</tr>
+</thead>
+<tbody class="text-xs font-mono divide-y divide-white/5">
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="pl-6 pr-4 py-3 text-center">
+<input class="rounded bg-white/10 border-white/20 text-primary focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+</td>
+<td class="px-4 py-3 font-bold text-white">BTC/USDT <span class="text-[9px] text-primary bg-primary/10 px-1 rounded ml-1 font-display">PERP</span></td>
+<td class="px-4 py-3 text-slate-300">Limit</td>
+<td class="px-4 py-3"><span class="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded text-[10px]">BUY</span></td>
+<td class="px-4 py-3 text-right text-slate-200">0.050 BTC</td>
+<td class="px-4 py-3 text-right">
+<div class="flex flex-col items-end gap-1">
+<span class="text-slate-300">0.012</span>
+<div class="w-12 h-1 bg-white/10 rounded-full overflow-hidden">
+<div class="w-[24%] h-full bg-emerald-500"></div>
+</div>
+</div>
+</td>
+<td class="px-4 py-3 text-right text-white font-bold">63,850.00</td>
+<td class="px-4 py-3 text-right text-slate-500">-</td>
+<td class="px-4 py-3 text-slate-500">12:45:22</td>
+<td class="pl-4 pr-6 py-3 text-right">
+<button class="text-slate-400 hover:text-white hover:bg-white/10 p-1.5 rounded transition-colors mr-1">
+<span class="material-symbols-outlined text-base">edit</span>
+</button>
+<button class="text-slate-400 hover:text-danger hover:bg-danger/10 p-1.5 rounded transition-colors">
+<span class="material-symbols-outlined text-base">close</span>
+</button>
+</td>
+</tr>
+<tr class="bg-background-dark/20 hover:bg-white/5 transition-colors group">
+<td class="pl-6 pr-4 py-3 text-center">
+<input class="rounded bg-white/10 border-white/20 text-primary focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+</td>
+<td class="px-4 py-3 font-bold text-white">ETH/USDT <span class="text-[9px] text-primary bg-primary/10 px-1 rounded ml-1 font-display">PERP</span></td>
+<td class="px-4 py-3 text-slate-300">Stop Market</td>
+<td class="px-4 py-3"><span class="text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded text-[10px]">SELL</span></td>
+<td class="px-4 py-3 text-right text-slate-200">1.500 ETH</td>
+<td class="px-4 py-3 text-right">
+<div class="flex flex-col items-end gap-1">
+<span class="text-slate-300">0.000</span>
+<div class="w-12 h-1 bg-white/10 rounded-full overflow-hidden">
+<div class="w-0 h-full bg-rose-500"></div>
+</div>
+</div>
+</td>
+<td class="px-4 py-3 text-right text-slate-400">Market</td>
+<td class="px-4 py-3 text-right text-white font-bold">≤ 3,450.25</td>
+<td class="px-4 py-3 text-slate-500">12:30:15</td>
+<td class="pl-4 pr-6 py-3 text-right">
+<button class="text-slate-400 hover:text-white hover:bg-white/10 p-1.5 rounded transition-colors mr-1">
+<span class="material-symbols-outlined text-base">edit</span>
+</button>
+<button class="text-slate-400 hover:text-danger hover:bg-danger/10 p-1.5 rounded transition-colors">
+<span class="material-symbols-outlined text-base">close</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="p-8 text-center text-slate-600 text-xs italic">
+                            End of active orders list
+                        </div>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+<footer class="h-[56px] bg-[#15152a] border-t border-white/5 flex items-center justify-between px-6 shrink-0 z-50 text-xs text-slate-400">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span>Stable Connection (12ms)</span>
+</div>
+<div class="h-4 w-[1px] bg-white/10"></div>
+<div>Server Time: <span class="font-mono text-slate-200">2023-10-24 14:32:01 UTC</span></div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">wifi_tethering</span>
+<span>API: v3.2.1</span>
+</div>
+<div class="h-4 w-[1px] bg-white/10"></div>
+<div class="flex items-center gap-2 hover:text-white cursor-pointer transition-colors">
+<span class="material-symbols-outlined text-sm">help</span>
+<span>Support</span>
+</div>
+<div class="flex items-center gap-2 hover:text-white cursor-pointer transition-colors">
+<span class="material-symbols-outlined text-sm">settings_ethernet</span>
+<span>Network Status</span>
+</div>
+</div>
+</footer>
+
+</body></html>

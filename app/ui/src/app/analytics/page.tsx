@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AppShell } from '@/components/shell'
 import { useAnalytics } from '@/hooks/useAnalytics'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +17,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MaterialIcon } from '@/components/common/MaterialIcon'
 import { PageHeader } from '@/components/common/PageHeader'
+import { IntegrationPill } from '@/components/common/IntegrationPill'
+import { isUiRevampEnabled } from '@/config/ui-flags'
+import { cn } from '@/lib/utils'
 
 type TimeFrame = '24h' | '7d' | '30d' | '90d' | '1y' | 'all'
 
@@ -31,28 +34,51 @@ const TIMEFRAMES: { value: TimeFrame; label: string }[] = [
 
 export default function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState<TimeFrame>('7d')
+  const [compareEnabled, setCompareEnabled] = useState(false)
   const { data, loading, error } = useAnalytics(timeframe)
+  const revamp = isUiRevampEnabled()
+  const surfaceCardClass = revamp
+    ? 'bg-[#1A1A2E] border-[#232348] rounded-[18px] text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,0.35)]'
+    : 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft'
+  const netProfit = useMemo(
+    () =>
+      data
+        ? data.symbols.reduce((sum, symbol) => {
+            return sum + symbol.pnl
+          }, 0)
+        : 0,
+    [data],
+  )
 
   return (
     <AppShell>
-      <div className="flex flex-col gap-8">
+      <div className={revamp ? 'flex flex-col gap-6 text-slate-100' : 'flex flex-col gap-8'}>
         <PageHeader
           title="Trading Analytics"
           actions={
-            <Tabs value={timeframe} onValueChange={v => setTimeframe(v as TimeFrame)}>
-              <TabsList>
-                {TIMEFRAMES.map(tf => (
-                  <TabsTrigger key={tf.value} value={tf.value}>
-                    {tf.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+            <div className="flex items-center gap-2">
+              <Tabs value={timeframe} onValueChange={v => setTimeframe(v as TimeFrame)}>
+                <TabsList className={cn(revamp && 'border border-[#232348] bg-[#1A1A2E]')}>
+                  {TIMEFRAMES.map(tf => (
+                    <TabsTrigger key={tf.value} value={tf.value}>
+                      {tf.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+              <IntegrationPill transport="REST" endpoint="/analytics" />
+            </div>
           }
         />
 
         {error && (
-          <Card className="border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950">
+          <Card
+            className={cn(
+              revamp
+                ? 'rounded-[18px] border border-red-500/40 bg-red-500/10'
+                : 'border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950',
+            )}
+          >
             <CardContent className="flex items-center gap-3 p-4">
               <MaterialIcon name="error" size="lg" className="text-destructive shrink-0" />
               <div>
@@ -103,6 +129,45 @@ export default function AnalyticsPage() {
           </div>
         ) : error ? null : (
           <>
+            {revamp && (
+              <Card className={surfaceCardClass}>
+                <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Net Profit</p>
+                    <p
+                      className={cn(
+                        'mt-1 font-mono text-3xl font-bold',
+                        netProfit >= 0 ? 'text-emerald-400' : 'text-red-400',
+                      )}
+                    >
+                      {netProfit >= 0 ? '+' : ''}$
+                      {netProfit.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-slate-400">Compare Performance</span>
+                    <button
+                      aria-label="Toggle compare performance"
+                      onClick={() => setCompareEnabled(current => !current)}
+                      className={cn(
+                        'h-7 w-12 rounded-full border transition-colors',
+                        compareEnabled
+                          ? 'border-primary bg-primary/30'
+                          : 'border-[#323267] bg-[#15152a]',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'block h-5 w-5 rounded-full bg-white transition-transform',
+                          compareEnabled ? 'translate-x-6' : 'translate-x-1',
+                        )}
+                      />
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* KPI Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-5">
               {[
@@ -132,7 +197,11 @@ export default function AnalyticsPage() {
               ].map(kpi => (
                 <Card
                   key={kpi.label}
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-md transition-all duration-200"
+                  className={cn(
+                    surfaceCardClass,
+                    !revamp && 'hover:shadow-md transition-all duration-200',
+                    revamp && 'hover:border-primary/40',
+                  )}
                 >
                   <CardContent className="p-5">
                     <p className="text-xs text-slate-400 uppercase tracking-wide">{kpi.label}</p>
@@ -147,7 +216,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Trading Statistics */}
-            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+            <Card className={surfaceCardClass}>
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                   <MaterialIcon name="trending_up" size="md" />
@@ -189,7 +258,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* Weekly PnL Chart */}
-            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+            <Card className={surfaceCardClass}>
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide flex items-center gap-2">
                   <MaterialIcon name="bar_chart" size="md" />
@@ -221,7 +290,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* Performance by Symbol */}
-            <Card className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-soft">
+            <Card className={surfaceCardClass}>
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Performance by Symbol
@@ -230,7 +299,13 @@ export default function AnalyticsPage() {
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <TableRow
+                      className={cn(
+                        revamp
+                          ? 'bg-[#15152a] hover:bg-[#15152a]'
+                          : 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800',
+                      )}
+                    >
                       <TableHead className="text-xs text-slate-400 uppercase tracking-wide">
                         Symbol
                       </TableHead>
@@ -249,7 +324,11 @@ export default function AnalyticsPage() {
                     {data.symbols.map(sym => (
                       <TableRow
                         key={sym.symbol}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-fast"
+                        className={cn(
+                          revamp
+                            ? 'border-[#232348] hover:bg-[#15152a] transition-colors duration-fast'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors duration-fast',
+                        )}
                       >
                         <TableCell className="font-medium text-sm">{sym.symbol}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums text-sm">

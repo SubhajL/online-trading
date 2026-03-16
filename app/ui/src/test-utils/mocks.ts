@@ -1,4 +1,5 @@
-import type { Alert, Balance, Order, OrderId, Symbol } from '@/types'
+import type { Balance, Order, OrderId, Symbol } from '@/types'
+import type { Alert } from '@/types/alerts'
 
 /**
  * Create a mock Balance object with all required fields
@@ -27,13 +28,12 @@ export function createMockBalance(overrides?: Partial<Balance>): Balance {
  */
 export function createMockAlert(overrides?: Partial<Alert>): Alert {
   const defaults: Alert = {
-    id: 'alert-1',
-    symbol: 'BTCUSDT' as Symbol,
-    venue: 'SPOT',
-    type: 'smc_event',
+    id: 'alert-1' as Alert['id'],
+    type: 'info',
+    priority: 'medium',
     title: 'Test Alert',
     message: 'This is a test alert',
-    severity: 'medium',
+    data: { symbol: 'BTCUSDT' as Symbol, venue: 'SPOT' },
     createdAt: new Date().toISOString(),
     read: false,
   }

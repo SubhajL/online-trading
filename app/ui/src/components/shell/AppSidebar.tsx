@@ -25,6 +25,7 @@ type AppSidebarProps = {
   isOpen: boolean
   onToggle: () => void
   connectionState?: ConnectionState
+  variant?: 'default' | 'revamp'
 }
 
 function ConnectionIndicator({ state, compact }: { state: ConnectionState; compact: boolean }) {
@@ -94,15 +95,22 @@ function SidebarNav({ compact, onNavigate }: { compact: boolean; onNavigate?: ()
   )
 }
 
-export function AppSidebar({ isOpen, onToggle, connectionState = 'connected' }: AppSidebarProps) {
+export function AppSidebar({
+  isOpen,
+  onToggle,
+  connectionState = 'connected',
+  variant = 'default',
+}: AppSidebarProps) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside
         data-testid="app-sidebar"
         className={cn(
-          'hidden md:flex flex-col border-r border-slate-100 dark:border-border-dark-mode bg-white dark:bg-surface-dark shadow-[1px_0_8px_rgba(0,0,0,0.03)] transition-all duration-normal',
-          'h-[calc(100vh-3.5rem)] sticky top-14',
+          'hidden flex-col border-r transition-all duration-normal',
+          variant === 'revamp'
+            ? 'h-full border-[#232348] bg-[#111122] lg:flex'
+            : 'h-[calc(100vh-3.5rem)] sticky top-14 border-slate-100 bg-white shadow-[1px_0_8px_rgba(0,0,0,0.03)] md:flex dark:border-border-dark-mode dark:bg-surface-dark',
           isOpen ? 'w-[220px]' : 'w-[60px]',
         )}
       >

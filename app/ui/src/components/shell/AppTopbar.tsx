@@ -15,6 +15,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { MaterialIcon } from '@/components/common/MaterialIcon'
+import { StatusPill } from '@/components/common/StatusPill'
 import { ThemeToggle } from './ThemeToggle'
 import { isPathActive } from '@/utils/navigation'
 
@@ -30,6 +31,7 @@ type AppTopbarProps = {
   unreadAlerts?: number
   userEmail?: string
   showMenuButton?: boolean
+  variant?: 'default' | 'revamp'
 }
 
 const CONNECTION_CONFIG = {
@@ -116,15 +118,18 @@ export function AppTopbar({
   unreadAlerts = 0,
   userEmail,
   showMenuButton = false,
+  variant = 'default',
 }: AppTopbarProps) {
+  const revamp = variant === 'revamp'
+
   return (
     <header
       data-testid="app-topbar"
       className={cn(
         'sticky top-0 z-20 flex h-18 items-center gap-4 px-4 lg:px-6 shadow-sm',
-        'border-b border-slate-100 dark:border-border-dark-mode',
-        'bg-white dark:bg-surface-dark',
-        'text-slate-900 dark:text-white',
+        revamp
+          ? 'border-b border-[#232348] bg-[#1A1A2E] text-white'
+          : 'border-b border-slate-100 bg-white text-slate-900 dark:border-border-dark-mode dark:bg-surface-dark dark:text-white',
       )}
     >
       {/* Left cluster: Logo + Search */}
@@ -156,22 +161,34 @@ export function AppTopbar({
           />
           <Input
             type="search"
-            placeholder="Search..."
-            className="w-48 lg:w-64 pl-10 h-9 rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+            placeholder={revamp ? 'Search symbols, orders, or commands...' : 'Search...'}
+            className={cn(
+              'h-9 w-48 pl-10 pr-16 lg:w-64',
+              revamp
+                ? 'rounded-xl border-[#323267] bg-[#111122] text-slate-200 placeholder:text-slate-500'
+                : 'rounded-lg border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
+            )}
             aria-label="Search"
           />
+          {revamp && (
+            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-700 bg-[#15152a] px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+              Ctrl+K
+            </kbd>
+          )}
         </div>
       </div>
 
       {/* Center: Navigation links (visible lg+) */}
-      <div className="flex-1 flex justify-center">
-        <NavLinks />
-      </div>
+      <div className="flex-1 flex justify-center">{!revamp && <NavLinks />}</div>
 
       {/* Right cluster: Actions + User */}
       <div className="flex items-center gap-1">
         <TooltipProvider delayDuration={300}>
-          <ConnectionPill state={connectionState} />
+          {revamp ? (
+            <StatusPill state={connectionState} />
+          ) : (
+            <ConnectionPill state={connectionState} />
+          )}
           <ThemeToggle />
 
           {/* Alerts bell */}

@@ -9,6 +9,7 @@ import { CommandPalette } from './CommandPalette'
 import { cn } from '@/lib/utils'
 import { alertsService } from '@/services/alerts.service'
 import type { Alert } from '@/types/alerts'
+import { isUiRevampEnabled } from '@/config/ui-flags'
 
 type ConnectionState = 'connected' | 'reconnecting' | 'offline'
 
@@ -38,13 +39,14 @@ export function AppShell({
   const [helpOpen, setHelpOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [alerts, setAlerts] = useState<Alert[]>([])
+  const revamp = isUiRevampEnabled()
 
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
         const result = await alertsService.getAlerts(1, 50)
-        if (!cancelled) setAlerts(result.alerts ?? [])
+        if (!cancelled) setAlerts(result.data ?? [])
       } catch {
         // Alerts are non-critical; ignore load failures for now.
       }
@@ -57,6 +59,15 @@ export function AppShell({
 
   const derivedUnreadAlerts = useMemo(() => alerts.filter(a => !a.read).length, [alerts])
   const effectiveUnreadAlerts = unreadAlerts ?? derivedUnreadAlerts
+  const snapshotTime = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(new Date()),
+    [],
+  )
 
   const openAlerts = useCallback(() => {
     setAlertsOpen(true)
@@ -136,6 +147,7 @@ export function AppShell({
         onCommandPaletteClick={openCommandPalette}
         onMenuClick={() => setMobileSidebarOpen(prev => !prev)}
         showMenuButton
+        variant={revamp ? 'revamp' : 'default'}
       />
 
       {/* Offline banner */}
@@ -170,18 +182,43 @@ export function AppShell({
         />
       </div>
 
-      {/* Main content - full width, no sidebar on desktop */}
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className={cn(
-          'flex-1 overflow-auto',
-          'px-4 py-6 md:px-6 md:py-8 lg:px-8',
-          'w-full max-w-[1400px] mx-auto',
-        )}
-      >
-        {children}
-      </main>
+      {revamp ? (
+        <>
+          <div className="flex flex-1 overflow-hidden">
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className="flex-1 overflow-auto bg-[#101022] px-4 py-5 md:px-6 lg:px-8 [background-image:linear-gradient(to_right,rgba(51,65,85,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(51,65,85,0.12)_1px,transparent_1px)] [background-size:40px_40px]"
+            >
+              <div className="mx-auto w-full max-w-[1520px]">{children}</div>
+            </main>
+          </div>
+          <footer className="flex h-10 items-center justify-between border-t border-[#232348] bg-[#111122] px-4 text-xs font-mono text-slate-400">
+            <div className="flex items-center gap-3">
+              <span>Engine: {connectionState === 'offline' ? 'PAUSED' : 'ACTIVE'}</span>
+              <span className="text-slate-600">|</span>
+              <span>WS: {connectionState.toUpperCase()}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span>Lag: {connectionState === 'connected' ? '12ms' : '--'}</span>
+              <span className="text-slate-600">|</span>
+              <span>Last Snapshot: {snapshotTime}</span>
+            </div>
+          </footer>
+        </>
+      ) : (
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className={cn(
+            'flex-1 overflow-auto',
+            'px-4 py-6 md:px-6 md:py-8 lg:px-8',
+            'w-full max-w-[1400px] mx-auto',
+          )}
+        >
+          {children}
+        </main>
+      )}
 
       <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
       <HelpDrawer open={helpOpen} onOpenChange={setHelpOpen} />

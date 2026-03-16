@@ -6,7 +6,7 @@ import type { Position } from '@/types'
 describe('PositionDisplay', () => {
   const mockPosition: Position = {
     symbol: 'BTCUSDT' as any,
-    side: 'BUY',
+    side: 'LONG',
     quantity: 0.5,
     entryPrice: 45000,
     markPrice: 46000,
@@ -17,7 +17,7 @@ describe('PositionDisplay', () => {
 
   const mockShortPosition: Position = {
     symbol: 'ETHUSDT' as any,
-    side: 'SELL',
+    side: 'SHORT',
     quantity: 10,
     entryPrice: 3000,
     markPrice: 2900,
@@ -28,7 +28,7 @@ describe('PositionDisplay', () => {
 
   const mockLossPosition: Position = {
     symbol: 'BTCUSDT' as any,
-    side: 'BUY',
+    side: 'LONG',
     quantity: 0.1,
     entryPrice: 50000,
     markPrice: 48000,

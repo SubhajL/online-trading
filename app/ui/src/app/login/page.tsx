@@ -7,6 +7,7 @@ import { MaterialIcon } from '@/components/common/MaterialIcon'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { isUiRevampEnabled } from '@/config/ui-flags'
 
 type FormErrors = {
   email?: string
@@ -33,6 +34,7 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [loginError, setLoginError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const revamp = isUiRevampEnabled()
 
   useEffect(() => {
     if (state.isAuthenticated && !state.isLoading) {
@@ -77,6 +79,149 @@ export default function LoginPage() {
   )
 
   const isLoading = isSubmitting || state.isLoading
+
+  if (revamp) {
+    return (
+      <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#101022] text-slate-100">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(99,99,242,0.18),transparent_52%),linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:100%_100%,40px_40px,40px_40px]"
+        />
+
+        {state.notification && (
+          <div className="relative z-10 border-b border-amber-500/20 bg-amber-500/10">
+            <div className="mx-auto flex w-full max-w-md items-start gap-3 px-4 py-3">
+              <MaterialIcon name="warning" size="md" className="mt-0.5 text-amber-400" />
+              <div className="text-sm text-amber-200">{state.notification}</div>
+            </div>
+          </div>
+        )}
+
+        <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pb-8 pt-6">
+          <header className="mb-8 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/30 bg-primary/20 text-primary">
+              <MaterialIcon name="candlestick_chart" size="md" />
+            </div>
+            <h1 className="text-xl font-bold text-white">Online Trader</h1>
+          </header>
+
+          <div className="relative flex-1 rounded-[18px] border border-white/5 bg-[#1A1A2E] p-6 shadow-2xl">
+            <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-primary via-indigo-500 to-primary" />
+
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold text-white">Welcome back</h3>
+              <p className="mt-1 text-sm text-slate-400">Sign in to monitor and execute safely</p>
+            </div>
+
+            <form data-testid="login-form" onSubmit={handleSubmit} className="space-y-4">
+              {loginError && (
+                <div
+                  data-testid="login-error"
+                  role="alert"
+                  className="flex items-center gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm text-red-300"
+                >
+                  <MaterialIcon name="error" size="md" className="shrink-0" />
+                  {loginError}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label htmlFor="email" className="ml-1 text-xs font-medium text-slate-300">
+                  Email Access ID
+                </label>
+                <div className="relative">
+                  <MaterialIcon
+                    name="alternate_email"
+                    size="md"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                  />
+                  <input
+                    id="email"
+                    type="email"
+                    data-testid="email-input"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className={cn(
+                      'w-full rounded-xl border border-white/10 bg-[#101022] py-3 pl-10 pr-3 font-mono text-sm text-white placeholder:text-slate-600 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary',
+                      errors.email && 'border-red-500',
+                    )}
+                    placeholder="trader@firm.com"
+                    autoComplete="email"
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.email && (
+                  <span data-testid="email-error" className="text-xs text-red-300">
+                    {errors.email}
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="password" className="ml-1 text-xs font-medium text-slate-300">
+                  Secure Token / Password
+                </label>
+                <div className="relative">
+                  <MaterialIcon
+                    name="lock"
+                    size="md"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                  />
+                  <input
+                    id="password"
+                    type="password"
+                    data-testid="password-input"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className={cn(
+                      'w-full rounded-xl border border-white/10 bg-[#101022] py-3 pl-10 pr-3 font-mono text-sm text-white placeholder:text-slate-600 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary',
+                      errors.password && 'border-red-500',
+                    )}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.password && (
+                  <span data-testid="password-error" className="text-xs text-red-300">
+                    {errors.password}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center pt-1">
+                <label className="inline-flex items-center gap-2 text-xs text-slate-400">
+                  <input
+                    type="checkbox"
+                    data-testid="remember-me-checkbox"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 rounded border-white/20 bg-[#101022] text-primary focus:ring-primary focus:ring-offset-0"
+                    disabled={isLoading}
+                  />
+                  Remember device
+                </label>
+              </div>
+
+              <Button
+                type="submit"
+                data-testid="login-button"
+                disabled={isLoading}
+                className="mt-3 h-12 w-full rounded-xl bg-primary font-semibold text-white shadow-[0_0_15px_rgba(99,99,242,0.4)] hover:bg-primary/90"
+              >
+                {isLoading ? 'Authenticating...' : 'Authenticate'}
+              </Button>
+            </form>
+          </div>
+
+          <footer className="mt-6 flex justify-center text-xs font-mono text-slate-500">
+            Security: Encrypted (TLS 1.3)
+          </footer>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-screen bg-[#FAFBFC] dark:bg-slate-900">

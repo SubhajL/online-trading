@@ -3,8 +3,13 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { getApiUrl } from '@/config/constants'
 import { setOnUnauthorizedHandler } from '@/services/api.client'
-import { websocketService } from '@/services/websocket'
+import {
+  initWebsockets,
+  disconnectWebsockets,
+  reconnectAllWebsocketsWithAuth,
+} from '@/services/websocket'
 
 type User = {
   id: string
@@ -46,7 +51,11 @@ function decodeJwtExpiry(token: string): number | null {
     if (parts.length !== 3) return null
     const encodedPayload = parts[1]
     if (!encodedPayload) return null
-    const payload = JSON.parse(atob(encodedPayload))
+    const normalizedBase64 = encodedPayload
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(encodedPayload.length / 4) * 4, '=')
+    const payload = JSON.parse(atob(normalizedBase64))
     return typeof payload.exp === 'number' ? payload.exp * 1000 : null
   } catch {
     return null
@@ -67,7 +76,12 @@ function getStoredAuth(): StoredAuth | null {
   }
 }
 
-function setStoredAuth(user: User, token: string, refreshToken: string, rememberMe: boolean) {
+function setStoredAuth(
+  user: User,
+  token: string,
+  refreshToken: string | undefined,
+  rememberMe: boolean,
+) {
   const data: StoredAuth = { user, token, refreshToken, rememberMe }
   if (rememberMe) {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data))
@@ -103,14 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshAccessToken = useCallback(async (refreshToken: string) => {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002/api'}/auth/refresh`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        },
-      )
+      const response = await fetch(`${getApiUrl()}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
 
       if (!response.ok) {
         throw new Error('Token refresh failed')
@@ -125,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const scheduleTokenRefresh = useCallback(
     (token: string, refreshToken: string, rememberMe: boolean, user: User) => {
+      if (!refreshToken) return
       clearRefreshTimer()
       const expiryMs = decodeJwtExpiry(token)
       if (!expiryMs) return
@@ -158,6 +170,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = getStoredAuth()
     if (stored) {
+      initWebsockets()
+      reconnectAllWebsocketsWithAuth()
       setState({
         user: stored.user,
         isAuthenticated: true,
@@ -174,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         )
       }
     } else {
+      disconnectWebsockets()
       setState(prev => ({ ...prev, isLoading: false }))
     }
   }, [scheduleTokenRefresh])
@@ -187,6 +202,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Another tab logged in
         try {
           const data: StoredAuth = JSON.parse(event.newValue)
+          initWebsockets()
+          reconnectAllWebsocketsWithAuth()
           setState({
             user: data.user,
             isAuthenticated: true,
@@ -202,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         // Another tab logged out
         clearRefreshTimer()
+        disconnectWebsockets()
         setState({
           user: null,
           isAuthenticated: false,
@@ -236,14 +254,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, isLoading: true }))
 
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002/api'}/auth/login`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: email, password, rememberMe }),
-          },
-        )
+        const response = await fetch(`${getApiUrl()}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: email, password, rememberMe }),
+        })
 
         if (!response.ok) {
           const error = await response.json().catch(() => ({ message: 'Login failed' }))
@@ -257,9 +272,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email,
           roles: data.roles || ['user'],
         }
+        const refreshToken =
+          typeof data.refreshToken === 'string' && data.refreshToken.length > 0
+            ? data.refreshToken
+            : undefined
 
-        setStoredAuth(user, data.accessToken, data.refreshToken || '', rememberMe)
-        scheduleTokenRefresh(data.accessToken, data.refreshToken || '', rememberMe, user)
+        setStoredAuth(user, data.accessToken, refreshToken, rememberMe)
+        if (refreshToken) {
+          scheduleTokenRefresh(data.accessToken, refreshToken, rememberMe, user)
+        }
         setState({
           user,
           isAuthenticated: true,
@@ -267,8 +288,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           notification: null,
         })
 
-        // Reconnect WebSocket with new auth token
-        websocketService.reconnectWithAuth()
+        initWebsockets()
+        reconnectAllWebsocketsWithAuth()
 
         router.push('/')
       } catch (error) {
@@ -281,6 +302,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     clearRefreshTimer()
+    disconnectWebsockets()
     clearStoredAuth()
     setState({
       user: null,
@@ -293,6 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleSessionExpired = useCallback(() => {
     clearRefreshTimer()
+    disconnectWebsockets()
     clearStoredAuth()
     setState({
       user: null,
