@@ -156,69 +156,41 @@ func (p *TradeProcessor) handleFuturesOrderTradeUpdateTx(
 		return err
 	}
 
-	var current *pnl.Position
-	if activeFound && active != nil && !active.Size.IsZero() {
-		current = &pnl.Position{
-			Side:       active.Side,
-			Quantity:   active.Size,
-			EntryPrice: active.EntryPrice,
-		}
-	}
-
-	next, realizedDelta, err := pnl.ApplyFillToPosition(current, pnl.Fill{
-		Side:     data.Side,
-		Quantity: data.LastExecutedQuantity,
-		Price:    data.LastExecutedPrice,
-	})
+	next, realizedDelta, err := applyFillsToActivePosition(
+		activeFound,
+		active,
+		[]pnl.Fill{
+			{
+				Side:     data.Side,
+				Quantity: data.LastExecutedQuantity,
+				Price:    data.LastExecutedPrice,
+			},
+		},
+	)
 	if err != nil {
 		return err
 	}
 
-	commissionDelta := data.CommissionAmount
-	slippageDelta := slippage
-	if next == nil {
-		return p.positions.CloseActive(ctx, tx, p.venue, data.Symbol, storage.PositionClose{
-			ClosedAt:       updateTime,
-			CurrentPrice:   data.LastExecutedPrice,
-			RealizedPnL:    realizedDelta,
-			CommissionPaid: commissionDelta,
-			SlippagePaid:   slippageDelta,
-		})
-	}
-
-	openedAt := updateTime
-	totalRealized := realizedDelta
-	totalCommission := commissionDelta
-	totalSlippage := slippageDelta
-	totalFunding := decimal.Zero
 	entryOrderID := ""
 	if order != nil {
 		entryOrderID = order.OrderID.String()
 	}
-	if activeFound && active != nil && active.Side == next.Side {
-		openedAt = active.OpenedAt
-		totalRealized = active.RealizedPnL.Add(realizedDelta)
-		totalCommission = active.CommissionPaid.Add(commissionDelta)
-		totalSlippage = active.SlippagePaid.Add(slippageDelta)
-		totalFunding = active.FundingPaid
-		if active.EntryOrderID != "" {
-			entryOrderID = active.EntryOrderID
-		}
+	persistence := buildPositionPersistence(
+		p.venue,
+		data.Symbol,
+		next,
+		activeFound,
+		active,
+		entryOrderID,
+		data.LastExecutedPrice,
+		realizedDelta,
+		data.CommissionAmount,
+		decimal.Zero,
+		slippage,
+		updateTime,
+	)
+	if persistence.close != nil {
+		return p.positions.CloseActive(ctx, tx, p.venue, data.Symbol, *persistence.close)
 	}
-
-	return p.positions.UpsertActive(ctx, tx, storage.ActivePositionUpsert{
-		Venue:          p.venue,
-		Symbol:         data.Symbol,
-		Side:           next.Side,
-		Size:           next.Quantity,
-		EntryPrice:     next.EntryPrice,
-		EntryOrderID:   entryOrderID,
-		CurrentPrice:   data.LastExecutedPrice,
-		RealizedPnL:    totalRealized,
-		CommissionPaid: totalCommission,
-		FundingPaid:    totalFunding,
-		SlippagePaid:   totalSlippage,
-		OpenedAt:       openedAt,
-		UpdatedAt:      updateTime,
-	})
+	return p.positions.UpsertActive(ctx, tx, *persistence.upsert)
 }

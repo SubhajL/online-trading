@@ -166,72 +166,41 @@ func (p *SpotTradeProcessor) persistSpotExecutionTx(
 		return err
 	}
 
-	var current *pnl.Position
-	if activeFound && active != nil && !active.Size.IsZero() {
-		current = &pnl.Position{
-			Side:       active.Side,
-			Quantity:   active.Size,
-			EntryPrice: active.EntryPrice,
-		}
-	}
-
-	totalRealized := decimal.Zero
+	fills := make([]pnl.Fill, 0, len(insertedTrades))
 	for _, trade := range insertedTrades {
-		next, realizedDelta, err := pnl.ApplyFillToPosition(current, pnl.Fill{
+		fills = append(fills, pnl.Fill{
 			Side:     snapshot.Side,
 			Quantity: trade.Quantity,
 			Price:    trade.Price,
 		})
-		if err != nil {
-			return err
-		}
-		current = next
-		totalRealized = totalRealized.Add(realizedDelta)
+	}
+	current, totalRealized, err := applyFillsToActivePosition(activeFound, active, fills)
+	if err != nil {
+		return err
 	}
 
-	if current == nil {
-		return p.positions.CloseActive(ctx, tx, "SPOT", snapshot.Symbol, storage.PositionClose{
-			ClosedAt:       updateTime,
-			CurrentPrice:   insertedTrades[len(insertedTrades)-1].Price,
-			RealizedPnL:    totalRealized,
-			CommissionPaid: commissionDelta,
-			FundingPaid:    decimal.Zero,
-			SlippagePaid:   slippageDelta,
-		})
-	}
-
-	openedAt := updateTime
-	totalCommission := commissionDelta
-	totalSlippage := slippageDelta
 	entryOrderID := ""
 	if orderRec != nil {
 		entryOrderID = orderRec.OrderID.String()
 	}
-	if activeFound && active != nil && active.Side == current.Side {
-		openedAt = active.OpenedAt
-		totalRealized = active.RealizedPnL.Add(totalRealized)
-		totalCommission = active.CommissionPaid.Add(commissionDelta)
-		totalSlippage = active.SlippagePaid.Add(slippageDelta)
-		if active.EntryOrderID != "" {
-			entryOrderID = active.EntryOrderID
-		}
+	persistence := buildPositionPersistence(
+		"SPOT",
+		snapshot.Symbol,
+		current,
+		activeFound,
+		active,
+		entryOrderID,
+		insertedTrades[len(insertedTrades)-1].Price,
+		totalRealized,
+		commissionDelta,
+		decimal.Zero,
+		slippageDelta,
+		updateTime,
+	)
+	if persistence.close != nil {
+		return p.positions.CloseActive(ctx, tx, "SPOT", snapshot.Symbol, *persistence.close)
 	}
-
-	return p.positions.UpsertActive(ctx, tx, storage.ActivePositionUpsert{
-		Venue:          "SPOT",
-		Symbol:         snapshot.Symbol,
-		Side:           current.Side,
-		Size:           current.Quantity,
-		EntryPrice:     current.EntryPrice,
-		EntryOrderID:   entryOrderID,
-		CurrentPrice:   insertedTrades[len(insertedTrades)-1].Price,
-		RealizedPnL:    totalRealized,
-		CommissionPaid: totalCommission,
-		FundingPaid:    decimal.Zero,
-		SlippagePaid:   totalSlippage,
-		OpenedAt:       openedAt,
-		UpdatedAt:      updateTime,
-	})
+	return p.positions.UpsertActive(ctx, tx, *persistence.upsert)
 }
 
 func spotAverageFillPrice(snapshot orders.SpotExecutionSnapshot) (decimal.Decimal, decimal.Decimal) {
