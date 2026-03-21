@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CONTRACT_TOPICS } from '../contracts/topics';
+import type { OrderUpdateV1 } from '../contracts/gen';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import {
   RouterClientService,
@@ -49,10 +50,56 @@ export interface DecisionEvent {
 export interface OrderUpdateEvent {
   orderId: string;
   symbol: string;
-  status: string;
+  status: OrderStatus;
   executedQty?: number;
   executedPrice?: number;
   timestamp?: number;
+}
+
+const orderUpdateStatusMap: Record<OrderUpdateV1['status'], OrderStatus> = {
+  pending: 'NEW',
+  new: 'NEW',
+  partially_filled: 'PARTIALLY_FILLED',
+  filled: 'FILLED',
+  cancelled: 'CANCELED',
+  rejected: 'REJECTED',
+  expired: 'EXPIRED',
+};
+
+function parseContractNumber(value: string | null | undefined): number | undefined {
+  if (value == null || value === '') {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseContractTimestamp(value: string): number | undefined {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function mapOrderResponseToUpdateEvent(order: OrderResponse): OrderUpdateEvent {
+  return {
+    orderId: order.orderId,
+    symbol: order.symbol,
+    status: order.status as OrderStatus,
+    executedQty: order.executedQty,
+    executedPrice: order.price,
+    timestamp: order.updatedAt ? parseContractTimestamp(order.updatedAt) : undefined,
+  };
+}
+
+function mapContractUpdateToEvent(orderId: string, update: OrderUpdateV1): OrderUpdateEvent {
+  return {
+    orderId,
+    symbol: update.symbol,
+    status: orderUpdateStatusMap[update.status],
+    executedQty: parseContractNumber(update.filled_quantity),
+    executedPrice:
+      parseContractNumber(update.average_fill_price) ?? parseContractNumber(update.price),
+    timestamp: parseContractTimestamp(update.update_time),
+  };
 }
 
 function mapPersistedOrderToResponse(order: OrderEntity): OrderResponse {
@@ -147,9 +194,8 @@ export class TradingService implements OnModuleInit {
     });
 
     // Subscribe to order update events
-    this.engineClient.subscribe(CONTRACT_TOPICS.orderUpdateV1, (event: OrderUpdateEvent) => {
-      this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, event);
-      this.handleOrderUpdate(event);
+    this.engineClient.subscribe(CONTRACT_TOPICS.orderUpdateV1, async (event: OrderUpdateV1) => {
+      await this.handleOrderUpdate(event);
     });
   }
 
@@ -185,7 +231,10 @@ export class TradingService implements OnModuleInit {
       this.activeOrders.set(response.orderId, response);
 
       // Emit order update event (multi-tab sync via WebSocket)
-      this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, response);
+      this.eventEmitter.emit(
+        CONTRACT_TOPICS.orderUpdateV1,
+        mapOrderResponseToUpdateEvent(response),
+      );
 
       return response;
     } catch (error) {
@@ -245,7 +294,7 @@ export class TradingService implements OnModuleInit {
     this.activeOrders.delete(orderId);
 
     // Emit order update event
-    this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, response);
+    this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, mapOrderResponseToUpdateEvent(response));
 
     return response;
   }
@@ -373,28 +422,78 @@ export class TradingService implements OnModuleInit {
     }
   }
 
-  private handleOrderUpdate(update: OrderUpdateEvent) {
-    const order = this.activeOrders.get(update.orderId);
-    if (!order) {
+  private async handleOrderUpdate(update: OrderUpdateV1): Promise<void> {
+    const persisted = await this.findOrderForUpdate(update);
+    if (!persisted) {
+      this.logger.warn(
+        `Ignoring order update without persisted match: clientOrderId=${update.client_order_id} exchangeOrderId=${update.order_id}`,
+      );
       return;
     }
 
-    // Update order status
-    order.status = update.status;
-    if (update.executedQty !== undefined) {
-      order.executedQty = update.executedQty;
+    const normalizedUpdate = mapContractUpdateToEvent(persisted.orderId, update);
+    const updatedAt = new Date();
+    const lastUpdateTime = new Date(update.update_time);
+    const updates: Partial<OrderEntity> = {
+      status: normalizedUpdate.status,
+      filledQuantity: normalizedUpdate.executedQty ?? persisted.filledQuantity,
+      averageFillPrice: normalizedUpdate.executedPrice ?? persisted.averageFillPrice,
+      exchangeOrderId: update.order_id || persisted.exchangeOrderId,
+      rejectReason: update.error_message ?? persisted.rejectReason,
+      lastUpdateTime: Number.isNaN(lastUpdateTime.getTime())
+        ? persisted.lastUpdateTime
+        : lastUpdateTime,
+      updatedAt,
+    };
+    await this.orderRepository.update(persisted.orderId, updates);
+
+    const order: OrderResponse = {
+      ...mapPersistedOrderToResponse({
+        ...persisted,
+        ...updates,
+      }),
+      updatedAt: updatedAt.toISOString(),
+    };
+
+    if (normalizedUpdate.executedQty !== undefined) {
+      order.executedQty = normalizedUpdate.executedQty;
     }
 
-    // Handle filled orders
-    if (update.status === 'FILLED' && update.executedPrice) {
-      this.updatePosition(order, update.executedPrice);
-      this.activeOrders.delete(update.orderId);
+    if (normalizedUpdate.status === 'FILLED' && normalizedUpdate.executedPrice !== undefined) {
+      this.updatePosition(order, normalizedUpdate.executedPrice);
+      this.activeOrders.delete(order.orderId);
+    } else if (
+      normalizedUpdate.status === 'CANCELED' ||
+      normalizedUpdate.status === 'REJECTED' ||
+      normalizedUpdate.status === 'EXPIRED'
+    ) {
+      this.activeOrders.delete(order.orderId);
+    } else {
+      this.activeOrders.set(order.orderId, order);
     }
 
-    // Handle canceled or rejected orders
-    if (update.status === 'CANCELED' || update.status === 'REJECTED') {
-      this.activeOrders.delete(update.orderId);
+    this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, normalizedUpdate);
+  }
+
+  private async findOrderForUpdate(update: OrderUpdateV1): Promise<OrderEntity | null> {
+    if (update.client_order_id) {
+      const matchedByClientOrderId = await this.orderRepository.findByClientOrderId(
+        update.client_order_id,
+        update.venue as 'SPOT' | 'USD_M',
+      );
+      if (matchedByClientOrderId) {
+        return matchedByClientOrderId;
+      }
     }
+
+    if (update.order_id) {
+      return this.orderRepository.findByExchangeOrderId(
+        update.order_id,
+        update.venue as 'SPOT' | 'USD_M',
+      );
+    }
+
+    return null;
   }
 
   private updatePosition(order: OrderResponse, executedPrice: number) {

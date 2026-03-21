@@ -66,9 +66,9 @@ export class OrderRepository {
     });
   }
 
-  async findByExchangeOrderId(exchangeOrderId: string): Promise<OrderEntity | null> {
+  async findByExchangeOrderId(exchangeOrderId: string, venue: Venue): Promise<OrderEntity | null> {
     return this.repository.findOne({
-      where: { exchangeOrderId },
+      where: { exchangeOrderId, venue },
     });
   }
 

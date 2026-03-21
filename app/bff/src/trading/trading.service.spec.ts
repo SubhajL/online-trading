@@ -5,6 +5,7 @@ import { RouterClientService } from '../router-client/router-client.service';
 import { OrderRepository } from '../orders/repositories/order.repository';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CONTRACT_TOPICS } from '../contracts/topics';
+import type { OrderUpdateV1 } from '../contracts/gen';
 
 describe('TradingService', () => {
   let service: TradingService;
@@ -30,6 +31,8 @@ describe('TradingService', () => {
   const mockOrderRepository = {
     save: jest.fn(),
     findByOrderId: jest.fn(),
+    findByClientOrderId: jest.fn(),
+    findByExchangeOrderId: jest.fn(),
     find: jest.fn(),
     findActiveOrders: jest.fn().mockResolvedValue([]),
     update: jest.fn(),
@@ -357,26 +360,96 @@ describe('TradingService', () => {
       expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.decisionV1, decisionEvent);
     });
 
-    it('should handle order update events from engine', () => {
-      const orderUpdate = {
-        orderId: '123456',
-        symbol: 'BTCUSDT',
-        status: 'FILLED',
-        executedQty: 0.01,
-        executedPrice: 45000,
-      };
-
+    it('should register an order update subscription', () => {
       // Get the callback registered for order_update.v1 events
       const subscribeCallback = mockEngineClientService.subscribe.mock.calls.find(
         (call) => call[0] === 'order_update.v1',
       )?.[1];
 
       expect(subscribeCallback).toBeDefined();
+    });
 
-      // Simulate order update event
-      subscribeCallback(orderUpdate);
+    it('should normalize live order_update.v1 events and persist them by client order id', async () => {
+      const persistedOrder = {
+        orderId: 'bracket-123',
+        clientOrderId: 'main-1',
+        exchangeOrderId: null,
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        type: 'LIMIT',
+        quantity: 0.01,
+        price: 45000,
+        averageFillPrice: null,
+        status: 'NEW',
+        venue: 'USD_M',
+        filledQuantity: 0,
+        createdAt: new Date('2026-03-21T20:00:00Z'),
+        updatedAt: new Date('2026-03-21T20:01:00Z'),
+        rejectReason: null,
+        lastUpdateTime: null,
+      };
+      mockOrderRepository.findActiveOrders.mockResolvedValue([persistedOrder]);
+      await service.onModuleInit();
+      mockOrderRepository.findByClientOrderId.mockResolvedValue(persistedOrder);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderUpdate);
+      const orderUpdate: OrderUpdateV1 = {
+        version: '1.0.0',
+        venue: 'USD_M',
+        symbol: 'BTCUSDT',
+        order_id: 'exchange-789',
+        client_order_id: 'main-1',
+        decision_id: 'decision-1',
+        update_time: '2026-03-21T20:05:00Z',
+        status: 'filled',
+        side: 'buy',
+        order_type: 'limit',
+        price: '45000',
+        stop_price: null,
+        quantity: '0.01',
+        filled_quantity: '0.01',
+        average_fill_price: '45010.5',
+        commission: null,
+        commission_asset: null,
+        error_message: null,
+        is_reduce_only: false,
+      };
+
+      const subscribeCallback = mockEngineClientService.subscribe.mock.calls.find(
+        (call) => call[0] === CONTRACT_TOPICS.orderUpdateV1,
+      )?.[1];
+
+      expect(subscribeCallback).toBeDefined();
+
+      await subscribeCallback(orderUpdate);
+
+      expect(mockOrderRepository.findByClientOrderId).toHaveBeenCalledWith('main-1', 'USD_M');
+      expect(mockOrderRepository.update).toHaveBeenCalledWith(
+        'bracket-123',
+        expect.objectContaining({
+          status: 'FILLED',
+          filledQuantity: 0.01,
+          averageFillPrice: 45010.5,
+          exchangeOrderId: 'exchange-789',
+        }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, {
+        orderId: 'bracket-123',
+        symbol: 'BTCUSDT',
+        status: 'FILLED',
+        executedQty: 0.01,
+        executedPrice: 45010.5,
+        timestamp: Date.parse('2026-03-21T20:05:00Z'),
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CONTRACT_TOPICS.positionUpdateV1,
+        expect.objectContaining({
+          symbol: 'BTCUSDT',
+          side: 'LONG',
+          entryPrice: 45010.5,
+          quantity: 0.01,
+        }),
+      );
+      await expect(service.getActiveOrders()).resolves.toEqual([]);
     });
   });
 
