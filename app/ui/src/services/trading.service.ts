@@ -8,6 +8,8 @@ export type PlaceOrderRequest = {
   quantity: number
   price?: number
   stopPrice?: number
+  stopLossPrice?: number
+  takeProfitPrice?: number
   venue: Venue
 }
 
@@ -46,12 +48,20 @@ export class TradingService {
       throw new Error('Quantity must be positive')
     }
 
-    if ((order.type === 'LIMIT' || order.type === 'STOP_LIMIT') && !order.price) {
+    if (!['MARKET', 'LIMIT'].includes(order.type)) {
+      throw new Error('Only MARKET and LIMIT entries are supported')
+    }
+
+    if (order.type === 'LIMIT' && !order.price) {
       throw new Error(`${order.type} order requires price`)
     }
 
-    if ((order.type === 'STOP_MARKET' || order.type === 'STOP_LIMIT') && !order.stopPrice) {
-      throw new Error(`${order.type} order requires stopPrice`)
+    if (!order.stopLossPrice) {
+      throw new Error('Order requires stopLossPrice')
+    }
+
+    if (!order.takeProfitPrice) {
+      throw new Error('Order requires takeProfitPrice')
     }
 
     return this.apiClient.post<Order>('/trading/orders', order)

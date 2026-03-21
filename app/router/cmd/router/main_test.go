@@ -45,3 +45,39 @@ func TestLoggingMiddlewareEscapesRequestData(t *testing.T) {
 		t.Fatalf("expected HTML-escaped request data, got %q", text)
 	}
 }
+
+func TestAuthMiddlewareRejectsMissingBearerToken(t *testing.T) {
+	handler := authMiddleware(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}),
+		"secret-token",
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/place_bracket", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", recorder.Code)
+	}
+}
+
+func TestAuthMiddlewareAllowsHealthRoutesWithoutToken(t *testing.T) {
+	handler := authMiddleware(
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}),
+		"secret-token",
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", recorder.Code)
+	}
+}

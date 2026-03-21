@@ -8,13 +8,14 @@ metrics, and service management.
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import lru_cache
 import json
 import logging
 import os
 import signal
 from typing import Any
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -121,6 +122,32 @@ class EquityHealthResponse(BaseModel):
     message: str
 
 
+def _cors_allowed_origins_from_env() -> list[str]:
+    raw = os.getenv(
+        "CORS_ORIGIN",
+        "http://localhost:3000,http://localhost:3001,http://localhost:8002",
+    )
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return origins or ["http://localhost:3000"]
+
+
+def _internal_api_token_from_env() -> str:
+    return os.getenv("ENGINE_INTERNAL_API_TOKEN", "").strip()
+
+
+async def _require_internal_api_token(
+    authorization: str | None = Header(default=None),
+) -> None:
+    expected_token = _internal_api_token_from_env()
+    if not expected_token:
+        raise HTTPException(status_code=503, detail="internal API token not configured")
+    if authorization is None:
+        raise HTTPException(status_code=401, detail="missing Authorization header")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or token.strip() != expected_token:
+        raise HTTPException(status_code=401, detail="invalid Authorization header")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> Any:
     """Application lifespan management"""
@@ -162,7 +189,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=_cors_allowed_origins_from_env(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -220,6 +247,7 @@ def _signal_emitter_subscriber_enabled_from_env() -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+@lru_cache(maxsize=1)
 def _order_update_db_hydration_enabled_from_env() -> bool:
     value = os.getenv("ORDER_UPDATE_DB_HYDRATION_ENABLED", "1").strip().lower()
     return value in {"1", "true", "yes", "on"}
@@ -414,6 +442,51 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
             correlation_store = OrderUpdateCorrelationStore(ttl_seconds=correlation_ttl_seconds)
             services["order_update_correlation_store"] = correlation_store
 
+            async def execution_readiness_check() -> tuple[bool, str | None, dict[str, object]]:
+                ingest_service = services.get("ingest")
+                if ingest_service is None or not hasattr(ingest_service, "health_check"):
+                    return (
+                        False,
+                        "Execution blocked: ingest service unavailable",
+                        {"blocking_issue_types": ["ingest_unavailable"]},
+                    )
+
+                from .monitoring.pipeline_health_service import (
+                    PipelineHealthThresholds,
+                    evaluate_pipeline_health,
+                )
+
+                ingest_health = await ingest_service.health_check()
+                issues = evaluate_pipeline_health(
+                    ingest_health=ingest_health,
+                    now=datetime.now(UTC),
+                    thresholds=PipelineHealthThresholds(),
+                )
+                blocking_issues = [
+                    issue
+                    for issue in issues
+                    if issue.error_type
+                    in {
+                        "websocket_disconnected",
+                        "websocket_stale",
+                        "kline_stream_stale",
+                        "candle_stale",
+                    }
+                ]
+                if not blocking_issues:
+                    return True, None, {}
+                issue_types = list(dict.fromkeys(issue.error_type for issue in blocking_issues))
+                return (
+                    False,
+                    f"Execution blocked: {', '.join(issue_types)}",
+                    {
+                        "blocking_issue_types": issue_types,
+                        "blocking_symbols": list(
+                            dict.fromkeys(issue.symbol for issue in blocking_issues),
+                        ),
+                    },
+                )
+
             services["execution_subscriber"] = RouterExecutionSubscriber(
                 bus=event_bus,
                 router_client=router_client,
@@ -425,6 +498,7 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
                 cooldown=execution_cooldown,
                 min_confidence=min_confidence,
                 max_position_size=config.risk_parameters.max_position_size,
+                execution_readiness_check=execution_readiness_check,
             )
             logger.info(
                 "Execution subscriber enabled: %s (min_confidence=%s, cooldown=%ss)",
@@ -993,7 +1067,7 @@ async def get_system_health() -> Any:
         )
 
 
-@app.post("/internal/order_update")
+@app.post("/internal/order_update", dependencies=[Depends(_require_internal_api_token)])
 async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
     """Ingest router/exchange order updates for execution-mode alerting.
 
@@ -1078,7 +1152,9 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
                     "status": normalized_status,
                     "filled_quantity": parsed.executed_qty,
                     "average_fill_price": parsed.price if normalized_status == "FILLED" else None,
-                    "exchange_order_id": str(parsed.order_id) if parsed.order_id is not None else None,
+                    "exchange_order_id": str(parsed.order_id)
+                    if parsed.order_id is not None
+                    else None,
                     "last_update_time": ts,
                 }
                 decision_id = metadata.get("decision_id")
@@ -1094,9 +1170,13 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
                 if isinstance(zone, dict) and zone:
                     order_row["zone"] = zone
                 persisted = await db_adapter.upsert_order(order_row)
-                terminal_update_persisted = bool(persisted) and normalized_status in terminal_statuses
+                terminal_update_persisted = (
+                    bool(persisted) and normalized_status in terminal_statuses
+                )
         except Exception:
-            logger.exception("Failed to persist order update to DB (client_order_id=%s)", parsed.client_order_id)
+            logger.exception(
+                "Failed to persist order update to DB (client_order_id=%s)", parsed.client_order_id
+            )
 
     await services["event_bus"].publish(event, priority=7)
 
@@ -1107,7 +1187,7 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
 
 
 # Service Control Endpoints
-@app.post("/control/service")
+@app.post("/control/service", dependencies=[Depends(_require_internal_api_token)])
 async def control_service(  # noqa: C901, PLR0912
     request: ServiceControlRequest,
     background_tasks: BackgroundTasks,

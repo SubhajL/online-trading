@@ -36,6 +36,8 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
 
   // Keep string representation for form inputs
   const [quantityStr, setQuantityStr] = useState('')
+  const [stopLossPriceStr, setStopLossPriceStr] = useState('')
+  const [takeProfitPriceStr, setTakeProfitPriceStr] = useState('')
 
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -56,13 +58,18 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
       return false
     }
 
-    if ((order.type === 'LIMIT' || order.type === 'STOP_LIMIT') && !order.price) {
+    if (order.type === 'LIMIT' && !order.price) {
       setValidationError('Price is required for limit orders')
       return false
     }
 
-    if ((order.type === 'STOP_MARKET' || order.type === 'STOP_LIMIT') && !order.stopPrice) {
-      setValidationError('Stop price is required for stop orders')
+    if (!order.stopLossPrice) {
+      setValidationError('Stop loss price is required')
+      return false
+    }
+
+    if (!order.takeProfitPrice) {
+      setValidationError('Take profit price is required')
       return false
     }
 
@@ -105,6 +112,8 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
         quantity: 0,
       })
       setQuantityStr('')
+      setStopLossPriceStr('')
+      setTakeProfitPriceStr('')
       setValidationError(null)
     } catch (err) {
       rollback(token)
@@ -120,7 +129,7 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
     setValidationError(null)
   }
 
-  const handleTypeChange = (type: OrderType) => {
+  const handleTypeChange = (type: Extract<OrderType, 'MARKET' | 'LIMIT'>) => {
     setOrderForm(prev => ({ ...prev, type }))
   }
 
@@ -128,8 +137,14 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
     setOrderForm(prev => ({ ...prev, price: value }))
   }
 
-  const handleStopPriceChange = (value: number) => {
-    setOrderForm(prev => ({ ...prev, stopPrice: value }))
+  const handleStopLossPriceChange = (value: number) => {
+    setStopLossPriceStr(value > 0 ? String(value) : '')
+    setOrderForm(prev => ({ ...prev, stopLossPrice: value || undefined }))
+  }
+
+  const handleTakeProfitPriceChange = (value: number) => {
+    setTakeProfitPriceStr(value > 0 ? String(value) : '')
+    setOrderForm(prev => ({ ...prev, takeProfitPrice: value || undefined }))
   }
 
   const calculateMaxQuantity = (): number => {
@@ -165,14 +180,12 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
         <select
           id="order-type"
           value={orderForm.type}
-          onChange={e => handleTypeChange(e.target.value as OrderType)}
+          onChange={e => handleTypeChange(e.target.value as Extract<OrderType, 'MARKET' | 'LIMIT'>)}
           disabled={isLoading}
           className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         >
           <option value="MARKET">Market</option>
           <option value="LIMIT">Limit</option>
-          <option value="STOP_MARKET">Stop Market</option>
-          <option value="STOP_LIMIT">Stop Limit</option>
         </select>
       </div>
 
@@ -196,28 +209,39 @@ export function PanelPB({ symbol, price = 0 }: PanelPBProps) {
         </div>
       )}
 
-      {/* Stop Price field (for stop orders) */}
-      {(orderForm.type === 'STOP_MARKET' || orderForm.type === 'STOP_LIMIT') && (
-        <div>
-          <label
-            htmlFor="order-stop-price"
-            className="block text-sm font-medium text-gray-300 mb-1"
-          >
-            Stop Price
-          </label>
-          <input
-            id="order-stop-price"
-            type="number"
-            value={orderForm.stopPrice || ''}
-            onChange={e => handleStopPriceChange(parseFloat(e.target.value) || 0)}
-            disabled={isLoading}
-            placeholder="0.00"
-            step="0.01"
-            min="0"
-            className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-      )}
+      <div>
+        <label htmlFor="order-stop-loss" className="block text-sm font-medium text-gray-300 mb-1">
+          Stop Loss
+        </label>
+        <input
+          id="order-stop-loss"
+          type="number"
+          value={stopLossPriceStr}
+          onChange={e => handleStopLossPriceChange(parseFloat(e.target.value) || 0)}
+          disabled={isLoading}
+          placeholder="0.00"
+          step="0.01"
+          min="0"
+          className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="order-take-profit" className="block text-sm font-medium text-gray-300 mb-1">
+          Take Profit
+        </label>
+        <input
+          id="order-take-profit"
+          type="number"
+          value={takeProfitPriceStr}
+          onChange={e => handleTakeProfitPriceChange(parseFloat(e.target.value) || 0)}
+          disabled={isLoading}
+          placeholder="0.00"
+          step="0.01"
+          min="0"
+          className="w-full px-3 py-2 bg-gray-800 text-white rounded-md border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
 
       {/* Quantity */}
       <div>

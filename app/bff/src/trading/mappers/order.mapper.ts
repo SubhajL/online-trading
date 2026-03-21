@@ -6,14 +6,13 @@ import { v4 as uuidv4 } from 'uuid';
 export type PlaceOrderDto = {
   symbol: string;
   side: 'BUY' | 'SELL';
-  type: 'LIMIT' | 'MARKET' | 'STOP' | 'STOP_MARKET' | 'STOP_LIMIT';
+  type: 'LIMIT' | 'MARKET';
   quantity: number;
   price?: number;
-  stopPrice?: number;
+  stopLossPrice: number;
+  takeProfitPrice: number;
   venue?: 'SPOT' | 'USD_M';
   clientOrderId?: string;
-  reduceOnly?: boolean;
-  timeInForce?: 'GTC' | 'IOC' | 'FOK';
 };
 
 export type OrderDto = {
@@ -40,13 +39,12 @@ export function mapPlaceOrderDtoToRouterRequest(dto: PlaceOrderDto): OrderReques
   return {
     symbol: dto.symbol,
     side: dto.side,
-    type: dto.type === 'STOP_LIMIT' ? 'STOP' : dto.type,
+    type: dto.type,
     quantity: dto.quantity,
     price: dto.price,
-    stopPrice: dto.stopPrice,
+    stopLossPrice: dto.stopLossPrice,
+    takeProfitPrice: dto.takeProfitPrice,
     venue: dto.venue || 'SPOT',
-    reduceOnly: dto.reduceOnly,
-    timeInForce: dto.timeInForce,
   };
 }
 

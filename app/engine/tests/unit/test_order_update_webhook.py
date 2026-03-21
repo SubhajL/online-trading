@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 
 from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
-from app.engine.main import ingest_order_update, services
+from app.engine.main import (
+    _order_update_db_hydration_enabled_from_env,
+    ingest_order_update,
+    services,
+)
 from app.engine.models import OrderUpdateEvent
 
 
@@ -39,6 +44,13 @@ class _CapturingDB:
     ) -> dict[str, object] | None:
         self.lookup_calls.append((client_order_id, venue))
         return self.lookup_row
+
+
+@pytest.fixture(autouse=True)
+def _reset_order_update_hydration_flag_cache() -> None:
+    _order_update_db_hydration_enabled_from_env.cache_clear()
+    yield
+    _order_update_db_hydration_enabled_from_env.cache_clear()
 
 
 @pytest.mark.asyncio
@@ -152,6 +164,43 @@ async def test_ingest_order_update_persists_to_db_when_database_available() -> N
         assert db.rows[0]["venue"] == "SPOT"
         assert db.rows[0]["client_order_id"] == "abc_entry"
         assert db.rows[0]["symbol"] == "BTCUSDT"
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_ingest_order_update_persists_reconciled_spot_average_fill_price() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        bus = _CapturingBus()
+        db = _CapturingDB()
+        services["event_bus"] = bus
+        services["database"] = db
+
+        now = datetime.now(UTC).replace(microsecond=0)
+        payload = {
+            "event_type": "order_update.v1",
+            "venue": "SPOT",
+            "symbol": "BTCUSDT",
+            "order_id": 123,
+            "client_order_id": "abc_entry",
+            "status": "FILLED",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "price": "50020.00",
+            "quantity": "0.02",
+            "executed_qty": "0.02",
+            "update_time": now.isoformat(),
+        }
+
+        resp = await ingest_order_update(payload)
+
+        assert resp == {"status": "ok"}
+        assert len(db.rows) == 1
+        assert db.rows[0]["average_fill_price"] == Decimal("50020.00")
+        assert db.rows[0]["filled_quantity"] == Decimal("0.02")
     finally:
         services.clear()
         services.update(previous)
@@ -349,6 +398,7 @@ async def test_ingest_order_update_skips_db_hydration_when_flag_disabled(
     previous = dict(services)
     services.clear()
     monkeypatch.setenv("ORDER_UPDATE_DB_HYDRATION_ENABLED", "0")
+    _order_update_db_hydration_enabled_from_env.cache_clear()
     try:
         bus = _CapturingBus()
         db = _CapturingDB()
@@ -389,5 +439,21 @@ async def test_ingest_order_update_skips_db_hydration_when_flag_disabled(
         assert isinstance(event, OrderUpdateEvent)
         assert event.metadata == {}
     finally:
+        _order_update_db_hydration_enabled_from_env.cache_clear()
         services.clear()
         services.update(previous)
+
+
+def test_order_update_db_hydration_flag_is_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _order_update_db_hydration_enabled_from_env.cache_clear()
+    monkeypatch.setenv("ORDER_UPDATE_DB_HYDRATION_ENABLED", "0")
+
+    assert _order_update_db_hydration_enabled_from_env() is False
+
+    monkeypatch.setenv("ORDER_UPDATE_DB_HYDRATION_ENABLED", "1")
+    assert _order_update_db_hydration_enabled_from_env() is False
+
+    _order_update_db_hydration_enabled_from_env.cache_clear()
+    assert _order_update_db_hydration_enabled_from_env() is True

@@ -386,7 +386,7 @@ features:
 
 # Router Client Configuration
 router:
-  base_url: ${ROUTER_URL:-http://localhost:8080}
+  base_url: ${ROUTER_URL:-http://localhost:8001}
   timeout_seconds: 10
   max_retries: 3
   retry_delay_ms: 1000

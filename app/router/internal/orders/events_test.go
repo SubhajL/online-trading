@@ -124,6 +124,23 @@ func TestHTTPEventEmitter_SucceedsOnOKStatus(t *testing.T) {
 	}
 }
 
+func TestHTTPEventEmitter_AddsBearerTokenWhenConfigured(t *testing.T) {
+	t.Setenv("ENGINE_INTERNAL_API_TOKEN", "engine-secret")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer engine-secret", r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	emitter := NewHTTPEventEmitter(srv.URL)
+	update := newTestOrderUpdate()
+
+	err := emitter.EmitOrderUpdate(context.Background(), update)
+
+	require.NoError(t, err)
+}
+
 func TestHTTPEventEmitter_SendsCorrectPayload(t *testing.T) {
 	var receivedBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

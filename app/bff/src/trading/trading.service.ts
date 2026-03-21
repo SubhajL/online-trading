@@ -1,4 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CONTRACT_TOPICS } from '../contracts/topics';
 import { EngineClientService } from '../engine-client/engine-client.service';
@@ -6,11 +12,13 @@ import {
   RouterClientService,
   OrderRequest,
   OrderResponse,
+  type RouterBracketPlacementResponse,
 } from '../router-client/router-client.service';
 import type { EmergencyCloseScope } from './dto/emergency-close.dto';
 import { OrderRepository } from '../orders/repositories/order.repository';
 import type { OrderType as EntityOrderType, OrderStatus } from '../orders/entities/order-entity';
 import { generateClientOrderId, mapRouterErrorToHttpException } from './mappers/order.mapper';
+import type { OrderEntity } from '../orders/entities/order-entity';
 
 export interface Position {
   symbol: string;
@@ -45,6 +53,41 @@ export interface OrderUpdateEvent {
   executedQty?: number;
   executedPrice?: number;
   timestamp?: number;
+}
+
+function mapPersistedOrderToResponse(order: OrderEntity): OrderResponse {
+  return {
+    orderId: order.orderId,
+    status: order.status,
+    symbol: order.symbol,
+    side: order.side,
+    type: order.type,
+    quantity: order.quantity,
+    price: order.price ?? undefined,
+    executedQty: order.filledQuantity,
+    venue: order.venue,
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+  };
+}
+
+function mapPlacementToResponse(
+  request: OrderRequest,
+  placement: RouterBracketPlacementResponse,
+): OrderResponse {
+  return {
+    orderId: placement.bracket_order_id,
+    status: placement.partial_failure ? 'REJECTED' : 'NEW',
+    symbol: placement.symbol,
+    side: placement.side,
+    type: request.type,
+    quantity: placement.quantity,
+    price: request.price,
+    executedQty: 0,
+    venue: request.venue,
+    createdAt: placement.created_at ?? new Date().toISOString(),
+    updatedAt: placement.created_at ?? new Date().toISOString(),
+  };
 }
 
 // Map request order types to entity order types
@@ -111,13 +154,14 @@ export class TradingService implements OnModuleInit {
   }
 
   async placeOrder(request: OrderRequest): Promise<OrderResponse> {
-    const clientOrderId = generateClientOrderId();
     const now = new Date();
 
     try {
       this.logger.log(`Placing order: ${JSON.stringify(request)}`);
 
-      const response = await this.routerClient.placeOrder(request);
+      const placement = await this.routerClient.placeOrder(request);
+      const clientOrderId = placement.client_order_ids.main || generateClientOrderId();
+      const response = mapPlacementToResponse(request, placement);
 
       // Save order to database so it appears on /trades and /history pages
       await this.orderRepository.save({
@@ -128,9 +172,10 @@ export class TradingService implements OnModuleInit {
         type: mapOrderType(request.type),
         quantity: request.quantity,
         price: request.price || null,
+        stopPrice: request.stopLossPrice,
         status: response.status as OrderStatus,
         venue: request.venue || 'SPOT',
-        timeInForce: request.timeInForce || 'GTC',
+        timeInForce: 'GTC',
         filledQuantity: response.executedQty || 0,
         createdAt: now,
         updatedAt: now,
@@ -157,7 +202,11 @@ export class TradingService implements OnModuleInit {
   }
 
   async getOrderStatus(orderId: string, venue: 'SPOT' | 'USD_M'): Promise<OrderResponse> {
-    return this.routerClient.getOrderStatus(orderId, venue);
+    const persisted = await this.orderRepository.findByOrderId(orderId, venue);
+    if (!persisted) {
+      throw new NotFoundException('Order not found');
+    }
+    return mapPersistedOrderToResponse(persisted);
   }
 
   async cancelOrder(
@@ -165,7 +214,32 @@ export class TradingService implements OnModuleInit {
     symbol: string,
     venue: 'SPOT' | 'USD_M',
   ): Promise<OrderResponse> {
-    const response = await this.routerClient.cancelOrder(orderId, symbol, venue);
+    const persisted = await this.orderRepository.findByOrderId(orderId, venue);
+    if (!persisted) {
+      throw new NotFoundException('Order not found');
+    }
+    if (!persisted.exchangeOrderId && !persisted.clientOrderId) {
+      throw new ConflictException('Order has no cancel identifier');
+    }
+
+    await this.routerClient.cancelOrder({
+      symbol: persisted.symbol,
+      venue: persisted.venue,
+      orderId,
+      exchangeOrderId: persisted.exchangeOrderId,
+      clientOrderId: persisted.clientOrderId,
+    });
+
+    await this.orderRepository.update(orderId, {
+      status: 'CANCELED',
+      updatedAt: new Date(),
+    } as Partial<OrderEntity>);
+
+    const response: OrderResponse = {
+      ...mapPersistedOrderToResponse(persisted),
+      status: 'CANCELED',
+      updatedAt: new Date().toISOString(),
+    };
 
     // Remove from active orders
     this.activeOrders.delete(orderId);
@@ -283,6 +357,8 @@ export class TradingService implements OnModuleInit {
         side: decision.action as 'BUY' | 'SELL',
         type: decision.type,
         quantity: decision.quantity,
+        stopLossPrice: decision.stopLoss as number,
+        takeProfitPrice: decision.takeProfit as number,
         venue: decision.venue,
         price: decision.price,
       };

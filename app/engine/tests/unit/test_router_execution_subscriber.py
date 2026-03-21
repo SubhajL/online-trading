@@ -1,7 +1,9 @@
 """Unit tests for RouterExecutionSubscriber."""
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -192,6 +194,78 @@ class _FakeDBAdapter:
         return self.active_setup_position
 
 
+class _BlockingDuplicateGuardDBAdapter(_FakeDBAdapter):
+    def __init__(self) -> None:
+        super().__init__()
+        self.release = asyncio.Event()
+        self.setup_position_started = asyncio.Event()
+        self.active_positions_started = asyncio.Event()
+        self.setup_order_started = asyncio.Event()
+
+    async def get_active_positions(self, _venue: str):
+        self.active_positions_started.set()
+        await self.release.wait()
+        return await super().get_active_positions(_venue)
+
+    async def get_active_order_for_setup(
+        self,
+        *,
+        venue: str,
+        symbol: str,
+        side: str,
+        timeframe: str,
+        zone_id: str,
+    ) -> dict[str, object] | None:
+        self.setup_order_started.set()
+        await self.release.wait()
+        return await super().get_active_order_for_setup(
+            venue=venue,
+            symbol=symbol,
+            side=side,
+            timeframe=timeframe,
+            zone_id=zone_id,
+        )
+
+    async def get_active_position_for_setup(
+        self,
+        *,
+        venue: str,
+        symbol: str,
+        side: str,
+        timeframe: str,
+        zone_id: str,
+    ) -> dict[str, object] | None:
+        self.setup_position_started.set()
+        await self.release.wait()
+        return await super().get_active_position_for_setup(
+            venue=venue,
+            symbol=symbol,
+            side=side,
+            timeframe=timeframe,
+            zone_id=zone_id,
+        )
+
+
+class _BlockingUpsertDBAdapter(_FakeDBAdapter):
+    def __init__(self, expected_calls: int) -> None:
+        super().__init__()
+        self.expected_calls = expected_calls
+        self.release = asyncio.Event()
+        self.all_started = asyncio.Event()
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def upsert_order(self, order: dict[str, object]) -> bool:
+        self.upserted_orders.append(order)
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+        if len(self.upserted_orders) == self.expected_calls:
+            self.all_started.set()
+        await self.release.wait()
+        self.in_flight -= 1
+        return True
+
+
 def _default_risk() -> RiskParameters:
     return RiskParameters(
         max_position_size=Decimal("999999"),
@@ -348,6 +422,38 @@ class TestExecutionSubscriberErrorHandling:
         assert isinstance(bus.published_events[0], OrderPlacedEvent)
 
     @pytest.mark.asyncio
+    async def test_blocks_execution_when_ingest_health_is_unhealthy(self) -> None:
+        from app.engine.models import ErrorEvent
+
+        bus = _FakeBus()
+        router_client = AsyncMock()
+        router_client.place_bracket_order.return_value = {"success": True}
+        execution_readiness_check = AsyncMock(
+            return_value=(
+                False,
+                "Execution blocked: websocket_disconnected",
+                {"blocking_issue_types": ["websocket_disconnected"]},
+            ),
+        )
+
+        subscriber = _make_subscriber(
+            bus=bus,
+            router_client=router_client,
+            execution_readiness_check=execution_readiness_check,
+        )
+        await subscriber.start()
+
+        event = _make_valid_decision_event()
+        assert callable(bus.handler)
+        await bus.handler(event)
+
+        router_client.place_bracket_order.assert_not_awaited()
+        assert len(bus.published_events) == 1
+        error_event = bus.published_events[0]
+        assert isinstance(error_event, ErrorEvent)
+        assert error_event.error_type == "execution_blocked_unhealthy_ingest"
+
+    @pytest.mark.asyncio
     async def test_handler_completes_after_error(self) -> None:
         """Handler completes without raising even after router error."""
         bus = _FakeBus()
@@ -431,8 +537,71 @@ async def test_persist_orders_to_db_skips_spot_stop_loss_without_exact_limit_pri
         False,
     )
 
-    assert [row["client_order_id"] for row in subscriber._db_adapter.upserted_orders] == ["entry-1", "tp-1"]
+    assert [row["client_order_id"] for row in subscriber._db_adapter.upserted_orders] == [
+        "entry-1",
+        "tp-1",
+    ]
     assert all(row["type"] != "STOP_LOSS_LIMIT" for row in subscriber._db_adapter.upserted_orders)
+
+
+@pytest.mark.asyncio
+async def test_find_duplicate_execution_reason_runs_independent_queries_concurrently() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    db_adapter = _BlockingDuplicateGuardDBAdapter()
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+
+    zone_identity = SimpleNamespace(zone_id="zone_1")
+    task = asyncio.create_task(
+        subscriber._find_duplicate_execution_reason(
+            symbol="BTCUSDT",
+            side="BUY",
+            timeframe="15m",
+            zone_identity=zone_identity,
+        ),
+    )
+
+    await asyncio.wait_for(
+        asyncio.gather(
+            db_adapter.setup_position_started.wait(),
+            db_adapter.active_positions_started.wait(),
+            db_adapter.setup_order_started.wait(),
+        ),
+        timeout=0.1,
+    )
+    db_adapter.release.set()
+
+    assert await task is None
+
+
+@pytest.mark.asyncio
+async def test_persist_orders_to_db_upserts_legs_concurrently() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    db_adapter = _BlockingUpsertDBAdapter(expected_calls=3)
+    subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
+
+    event = _make_valid_decision_event()
+    response = {"bracket_order_id": "bracket-1", "success": True}
+    persist_task = asyncio.create_task(
+        subscriber._persist_orders_to_db(
+            event,
+            response,
+            router_module._ClientOrderIDs(
+                main="entry-1",
+                take_profits=["tp-1"],
+                stop_loss="sl-1",
+            ),
+            [Decimal("51000.00")],
+            True,
+        ),
+    )
+
+    await asyncio.wait_for(db_adapter.all_started.wait(), timeout=0.1)
+    assert db_adapter.max_in_flight == 3
+    db_adapter.release.set()
+
+    await persist_task
 
 
 @pytest.mark.asyncio
@@ -751,7 +920,9 @@ async def test_execution_subscriber_blocks_when_setup_position_is_active() -> No
 
 
 @pytest.mark.asyncio
-async def test_execution_subscriber_allows_other_setup_when_active_position_origin_differs() -> None:
+async def test_execution_subscriber_allows_other_setup_when_active_position_origin_differs() -> (
+    None
+):
     from app.engine.models import ErrorEvent
 
     bus = _FakeBus()

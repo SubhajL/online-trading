@@ -27,6 +27,8 @@ describe('order.mapper', () => {
       side: 'BUY',
       type: 'MARKET',
       quantity: 0.001,
+      stopLossPrice: 44000,
+      takeProfitPrice: 47000,
     };
 
     it('maps all required fields correctly', () => {
@@ -38,10 +40,9 @@ describe('order.mapper', () => {
         type: 'MARKET',
         quantity: 0.001,
         price: undefined,
-        stopPrice: undefined,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'SPOT',
-        reduceOnly: undefined,
-        timeInForce: undefined,
       });
     });
 
@@ -61,49 +62,26 @@ describe('order.mapper', () => {
         ...baseDto,
         type: 'LIMIT',
         price: 50000.0,
-        timeInForce: 'GTC',
       };
       const result = mapPlaceOrderDtoToRouterRequest(dto);
 
       expect(result.type).toBe('LIMIT');
       expect(result.price).toBe(50000.0);
-      expect(result.timeInForce).toBe('GTC');
+      expect(result.stopLossPrice).toBe(44000);
+      expect(result.takeProfitPrice).toBe(47000);
     });
 
-    it('maps STOP_LIMIT to STOP type', () => {
-      const dto: PlaceOrderDto = {
-        ...baseDto,
-        type: 'STOP_LIMIT',
-        price: 49000.0,
-        stopPrice: 50000.0,
-      };
-      const result = mapPlaceOrderDtoToRouterRequest(dto);
-
-      expect(result.type).toBe('STOP');
-      expect(result.price).toBe(49000.0);
-      expect(result.stopPrice).toBe(50000.0);
-    });
-
-    it('maps STOP_MARKET order', () => {
-      const dto: PlaceOrderDto = {
-        ...baseDto,
-        type: 'STOP_MARKET',
-        stopPrice: 48000.0,
-      };
-      const result = mapPlaceOrderDtoToRouterRequest(dto);
-
-      expect(result.type).toBe('STOP_MARKET');
-      expect(result.stopPrice).toBe(48000.0);
-    });
-
-    it('maps reduceOnly for futures', () => {
+    it('maps bracket risk fields for futures', () => {
       const dto: PlaceOrderDto = {
         ...baseDto,
         venue: 'USD_M',
-        reduceOnly: true,
+        stopLossPrice: 42000,
+        takeProfitPrice: 51000,
       };
       const result = mapPlaceOrderDtoToRouterRequest(dto);
-      expect(result.reduceOnly).toBe(true);
+      expect(result.venue).toBe('USD_M');
+      expect(result.stopLossPrice).toBe(42000);
+      expect(result.takeProfitPrice).toBe(51000);
     });
   });
 

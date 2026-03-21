@@ -20,7 +20,7 @@ describe('loadConfiguration', () => {
     expect(config.engine.host).toBe('localhost');
     expect(config.engine.port).toBe(6379);
     expect(config.engine.type).toBe('redis');
-    expect(config.router.url).toBe('http://localhost:8080');
+    expect(config.router.url).toBe('http://localhost:8001');
     expect(config.router.timeout).toBe(30000);
     expect(config.router.retryAttempts).toBe(3);
     expect(config.router.retryDelay).toBe(1000);

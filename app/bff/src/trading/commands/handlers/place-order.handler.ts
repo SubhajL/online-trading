@@ -25,7 +25,15 @@ export class PlaceOrderHandler implements ICommandHandler<PlaceOrderCommand> {
   }
 
   private validateOrder(order: OrderRequest): void {
-    if (!order.symbol || !order.side || !order.type || !order.quantity || !order.venue) {
+    if (
+      !order.symbol ||
+      !order.side ||
+      !order.type ||
+      !order.quantity ||
+      !order.venue ||
+      !order.stopLossPrice ||
+      !order.takeProfitPrice
+    ) {
       throw new BadRequestException('Missing required order fields');
     }
 
@@ -47,6 +55,14 @@ export class PlaceOrderHandler implements ICommandHandler<PlaceOrderCommand> {
 
     if (order.type === 'LIMIT' && !order.price) {
       throw new BadRequestException('LIMIT order requires price');
+    }
+
+    if (order.stopLossPrice <= 0) {
+      throw new BadRequestException('Stop loss must be positive');
+    }
+
+    if (order.takeProfitPrice <= 0) {
+      throw new BadRequestException('Take profit must be positive');
     }
   }
 
