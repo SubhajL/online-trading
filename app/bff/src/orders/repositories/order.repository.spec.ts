@@ -170,14 +170,14 @@ describe('OrderRepository', () => {
   });
 
   describe('findByExchangeOrderId', () => {
-    it('should find order by exchange order ID', async () => {
-      const mockOrder = { exchangeOrderId: 'exchange-1' } as OrderEntity;
+    it('should find order by exchange order ID and venue', async () => {
+      const mockOrder = { exchangeOrderId: 'exchange-1', venue: 'USD_M' as Venue } as OrderEntity;
       (mockRepository.findOne as jest.Mock).mockResolvedValue(mockOrder);
 
-      const result = await orderRepository.findByExchangeOrderId('exchange-1');
+      const result = await orderRepository.findByExchangeOrderId('exchange-1', 'USD_M' as Venue);
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { exchangeOrderId: 'exchange-1' },
+        where: { exchangeOrderId: 'exchange-1', venue: 'USD_M' as Venue },
       });
       expect(result).toEqual(mockOrder);
     });
