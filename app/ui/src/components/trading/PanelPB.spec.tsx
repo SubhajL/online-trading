@@ -10,6 +10,17 @@ import type { Balance } from '@/types'
 vi.mock('@/hooks/useBalances')
 vi.mock('@/hooks/useOrders')
 
+async function fillBracketProtectionFields(
+  user: ReturnType<typeof userEvent.setup>,
+  stopLossPrice = '49000',
+  takeProfitPrice = '51000',
+) {
+  await user.clear(screen.getByLabelText('Stop Loss'))
+  await user.type(screen.getByLabelText('Stop Loss'), stopLossPrice)
+  await user.clear(screen.getByLabelText('Take Profit'))
+  await user.type(screen.getByLabelText('Take Profit'), takeProfitPrice)
+}
+
 describe('PanelPB', () => {
   const mockBalances: Balance[] = [
     { asset: 'USDT', free: 10000, locked: 0, total: 10000, venue: 'SPOT', usdValue: 10000 },
@@ -68,6 +79,8 @@ describe('PanelPB', () => {
 
       expect(screen.getByLabelText('Side')).toBeInTheDocument()
       expect(screen.getByLabelText('Type')).toBeInTheDocument()
+      expect(screen.getByLabelText('Stop Loss')).toBeInTheDocument()
+      expect(screen.getByLabelText('Take Profit')).toBeInTheDocument()
       expect(screen.getByLabelText('Quantity')).toBeInTheDocument()
     })
 
@@ -119,7 +132,7 @@ describe('PanelPB', () => {
       expect(screen.queryByLabelText('Price')).not.toBeInTheDocument()
     })
 
-    it('should show stop price for stop orders', async () => {
+    it('should keep bracket protection fields visible for supported entry types', async () => {
       const user = userEvent.setup()
       render(
         <ToastProvider>
@@ -128,9 +141,10 @@ describe('PanelPB', () => {
       )
 
       const typeSelect = screen.getByLabelText('Type')
-      await user.selectOptions(typeSelect, 'STOP_LIMIT')
+      await user.selectOptions(typeSelect, 'LIMIT')
 
-      expect(screen.getByLabelText('Stop Price')).toBeInTheDocument()
+      expect(screen.getByLabelText('Stop Loss')).toBeInTheDocument()
+      expect(screen.getByLabelText('Take Profit')).toBeInTheDocument()
       expect(screen.getByLabelText('Price')).toBeInTheDocument()
     })
   })
@@ -147,6 +161,7 @@ describe('PanelPB', () => {
       const quantityInput = screen.getByLabelText('Quantity')
       await user.clear(quantityInput)
       await user.type(quantityInput, '0.001')
+      await fillBracketProtectionFields(user)
 
       const buyButton = screen.getByTestId('buy-button')
       await user.click(buyButton)
@@ -156,6 +171,8 @@ describe('PanelPB', () => {
         side: 'BUY',
         type: 'MARKET',
         quantity: 0.001,
+        stopLossPrice: 49000,
+        takeProfitPrice: 51000,
       })
     })
 
@@ -172,6 +189,7 @@ describe('PanelPB', () => {
       await user.type(screen.getByLabelText('Quantity'), '0.001')
       await user.clear(screen.getByLabelText('Price'))
       await user.type(screen.getByLabelText('Price'), '45000')
+      await fillBracketProtectionFields(user, '44000', '47000')
 
       const sellButton = screen.getByTestId('sell-button')
       await user.click(sellButton)
@@ -182,10 +200,12 @@ describe('PanelPB', () => {
         type: 'LIMIT',
         quantity: 0.001,
         price: 45000,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
       })
     })
 
-    it('should place stop limit order with all fields', async () => {
+    it('should place limit order with bracket protection fields', async () => {
       const user = userEvent.setup()
       render(
         <ToastProvider>
@@ -193,13 +213,12 @@ describe('PanelPB', () => {
         </ToastProvider>,
       )
 
-      await user.selectOptions(screen.getByLabelText('Type'), 'STOP_LIMIT')
+      await user.selectOptions(screen.getByLabelText('Type'), 'LIMIT')
       await user.clear(screen.getByLabelText('Quantity'))
       await user.type(screen.getByLabelText('Quantity'), '0.002')
       await user.clear(screen.getByLabelText('Price'))
       await user.type(screen.getByLabelText('Price'), '44000')
-      await user.clear(screen.getByLabelText('Stop Price'))
-      await user.type(screen.getByLabelText('Stop Price'), '44500')
+      await fillBracketProtectionFields(user, '43000', '46000')
 
       const buyButton = screen.getByTestId('buy-button')
       await user.click(buyButton)
@@ -207,10 +226,11 @@ describe('PanelPB', () => {
       expect(mockUseOrders.placeOrder).toHaveBeenCalledWith({
         symbol: 'BTCUSDT',
         side: 'BUY',
-        type: 'STOP_LIMIT',
+        type: 'LIMIT',
         quantity: 0.002,
         price: 44000,
-        stopPrice: 44500,
+        stopLossPrice: 43000,
+        takeProfitPrice: 46000,
       })
     })
   })
@@ -259,6 +279,21 @@ describe('PanelPB', () => {
       expect(screen.getByText(/Price is required for limit orders/)).toBeInTheDocument()
     })
 
+    it('should show error for missing stop loss price', async () => {
+      const user = userEvent.setup()
+      render(
+        <ToastProvider>
+          <PanelPB symbol="BTCUSDT" />
+        </ToastProvider>,
+      )
+
+      await user.type(screen.getByLabelText('Quantity'), '0.001')
+      await user.type(screen.getByLabelText('Take Profit'), '51000')
+      await user.click(screen.getByTestId('buy-button'))
+
+      expect(screen.getByText(/Stop loss price is required/)).toBeInTheDocument()
+    })
+
     it('should show error for insufficient balance', async () => {
       const user = userEvent.setup()
       render(
@@ -269,6 +304,7 @@ describe('PanelPB', () => {
 
       await user.clear(screen.getByLabelText('Quantity'))
       await user.type(screen.getByLabelText('Quantity'), '1') // 1 BTC at $50,000 = $50,000 > $10,000 balance
+      await fillBracketProtectionFields(user)
       await user.click(screen.getByTestId('buy-button'))
 
       expect(screen.getByText(/Insufficient balance/)).toBeInTheDocument()
@@ -408,6 +444,7 @@ describe('PanelPB', () => {
       )
 
       await user.type(screen.getByLabelText('Quantity'), '0.001')
+      await fillBracketProtectionFields(user)
       await user.click(screen.getByTestId('buy-button'))
 
       await waitFor(() => {
