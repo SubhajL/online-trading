@@ -136,6 +136,8 @@ describe('TradingGateway', () => {
         side: 'BUY' as const,
         type: 'MARKET' as const,
         quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M' as const,
       };
 
@@ -158,6 +160,8 @@ describe('TradingGateway', () => {
         side: 'BUY' as const,
         type: 'MARKET' as const,
         quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M' as const,
       };
 

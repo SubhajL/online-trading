@@ -67,6 +67,8 @@ describe('TradingController', () => {
         side: 'BUY',
         type: 'MARKET',
         quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M',
       };
 

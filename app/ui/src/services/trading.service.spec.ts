@@ -27,6 +27,8 @@ describe('TradingService', () => {
         side: 'BUY' as const,
         type: 'MARKET' as const,
         quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M' as Venue,
       }
 
@@ -57,6 +59,8 @@ describe('TradingService', () => {
         type: 'LIMIT' as const,
         quantity: 1,
         price: 3000,
+        stopLossPrice: 3100,
+        takeProfitPrice: 2800,
         venue: 'SPOT' as Venue,
       }
 
@@ -88,10 +92,57 @@ describe('TradingService', () => {
         type: 'LIMIT' as const,
         quantity: 0.01,
         // Missing price for LIMIT order
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M' as Venue,
       }
 
       await expect(service.placeOrder(invalidOrder)).rejects.toThrow('LIMIT order requires price')
+    })
+
+    it('requires stop loss price', async () => {
+      const invalidOrder = {
+        symbol: 'BTCUSDT' as Symbol,
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.01,
+        takeProfitPrice: 47000,
+        venue: 'USD_M' as Venue,
+      }
+
+      await expect(service.placeOrder(invalidOrder)).rejects.toThrow('Order requires stopLossPrice')
+    })
+
+    it('requires take profit price', async () => {
+      const invalidOrder = {
+        symbol: 'BTCUSDT' as Symbol,
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.01,
+        stopLossPrice: 44000,
+        venue: 'USD_M' as Venue,
+      }
+
+      await expect(service.placeOrder(invalidOrder)).rejects.toThrow(
+        'Order requires takeProfitPrice',
+      )
+    })
+
+    it('rejects unsupported stop entry types', async () => {
+      const invalidOrder = {
+        symbol: 'BTCUSDT' as Symbol,
+        side: 'BUY' as const,
+        type: 'STOP_MARKET' as const,
+        quantity: 0.01,
+        stopPrice: 45000,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'USD_M' as Venue,
+      }
+
+      await expect(service.placeOrder(invalidOrder)).rejects.toThrow(
+        'Only MARKET and LIMIT entries are supported',
+      )
     })
 
     it('validates quantity is positive', async () => {

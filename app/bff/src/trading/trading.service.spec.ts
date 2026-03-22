@@ -18,7 +18,6 @@ describe('TradingService', () => {
 
   const mockRouterClientService = {
     placeOrder: jest.fn(),
-    getOrderStatus: jest.fn(),
     cancelOrder: jest.fn(),
     closeAllPositions: jest.fn(),
   };
@@ -30,9 +29,10 @@ describe('TradingService', () => {
 
   const mockOrderRepository = {
     save: jest.fn(),
-    findOne: jest.fn(),
+    findByOrderId: jest.fn(),
     find: jest.fn(),
     findActiveOrders: jest.fn().mockResolvedValue([]),
+    update: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -76,25 +76,57 @@ describe('TradingService', () => {
         side: 'BUY' as const,
         type: 'MARKET' as const,
         quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M' as const,
       };
 
       const orderResponse = {
-        orderId: '123456',
-        status: 'NEW',
+        bracket_order_id: '123456',
+        client_order_ids: {
+          main: 'main-1',
+          take_profits: ['tp-1'],
+          stop_loss: 'sl-1',
+        },
         symbol: 'BTCUSDT',
         side: 'BUY',
-        type: 'MARKET',
         quantity: 0.01,
+        created_at: '2026-03-21T20:00:00Z',
       };
 
       mockRouterClientService.placeOrder.mockResolvedValue(orderResponse);
 
       const result = await service.placeOrder(orderRequest);
 
-      expect(result).toEqual(orderResponse);
+      expect(result).toEqual(
+        expect.objectContaining({
+          orderId: '123456',
+          status: 'NEW',
+          symbol: 'BTCUSDT',
+          side: 'BUY',
+          type: 'MARKET',
+          quantity: 0.01,
+          venue: 'USD_M',
+        }),
+      );
       expect(routerClient.placeOrder).toHaveBeenCalledWith(orderRequest);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderResponse);
+      expect(mockOrderRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: '123456',
+          clientOrderId: 'main-1',
+          symbol: 'BTCUSDT',
+          side: 'BUY',
+          type: 'MARKET',
+          quantity: 0.01,
+          stopPrice: 44000,
+          venue: 'USD_M',
+          status: 'NEW',
+        }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CONTRACT_TOPICS.orderUpdateV1,
+        expect.objectContaining({ orderId: '123456', status: 'NEW' }),
+      );
     });
 
     it('should place a limit order with price', async () => {
@@ -104,25 +136,43 @@ describe('TradingService', () => {
         type: 'LIMIT' as const,
         quantity: 1,
         price: 3000,
+        stopLossPrice: 3100,
+        takeProfitPrice: 2800,
         venue: 'SPOT' as const,
       };
 
       const orderResponse = {
-        orderId: '789012',
-        status: 'NEW',
+        bracket_order_id: '789012',
+        client_order_ids: {
+          main: 'main-2',
+          take_profits: ['tp-2'],
+          stop_loss: 'sl-2',
+        },
         symbol: 'ETHUSDT',
         side: 'SELL',
-        type: 'LIMIT',
         quantity: 1,
-        price: 3000,
+        created_at: '2026-03-21T20:00:00Z',
       };
 
       mockRouterClientService.placeOrder.mockResolvedValue(orderResponse);
 
       const result = await service.placeOrder(orderRequest);
 
-      expect(result).toEqual(orderResponse);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, orderResponse);
+      expect(result).toEqual(
+        expect.objectContaining({
+          orderId: '789012',
+          status: 'NEW',
+          symbol: 'ETHUSDT',
+          side: 'SELL',
+          type: 'LIMIT',
+          quantity: 1,
+          price: 3000,
+        }),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CONTRACT_TOPICS.orderUpdateV1,
+        expect.objectContaining({ orderId: '789012', status: 'NEW' }),
+      );
     });
 
     it('should handle order placement errors', async () => {
@@ -131,6 +181,8 @@ describe('TradingService', () => {
         side: 'BUY' as const,
         type: 'MARKET' as const,
         quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M' as const,
       };
 
@@ -152,17 +204,33 @@ describe('TradingService', () => {
 
       const orderStatus = {
         orderId: '123456',
+        clientOrderId: 'main-1',
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        type: 'LIMIT',
+        quantity: 0.01,
+        price: 45000,
         status: 'FILLED',
-        executedQty: 0.01,
-        cummulativeQuoteQty: 450,
+        venue,
+        filledQuantity: 0.01,
+        averageFillPrice: 45000,
+        createdAt: new Date('2026-03-21T20:00:00Z'),
+        updatedAt: new Date('2026-03-21T20:01:00Z'),
       };
 
-      mockRouterClientService.getOrderStatus.mockResolvedValue(orderStatus);
+      mockOrderRepository.findByOrderId.mockResolvedValue(orderStatus);
 
       const result = await service.getOrderStatus(orderId, venue);
 
-      expect(result).toEqual(orderStatus);
-      expect(routerClient.getOrderStatus).toHaveBeenCalledWith(orderId, venue);
+      expect(result).toEqual(
+        expect.objectContaining({
+          orderId: '123456',
+          status: 'FILLED',
+          executedQty: 0.01,
+          price: 45000,
+        }),
+      );
+      expect(mockOrderRepository.findByOrderId).toHaveBeenCalledWith(orderId, venue);
     });
   });
 
@@ -172,18 +240,73 @@ describe('TradingService', () => {
       const symbol = 'BTCUSDT';
       const venue = 'USD_M' as const;
 
-      const cancelResponse = {
+      mockOrderRepository.findByOrderId.mockResolvedValue({
         orderId: '123456',
-        status: 'CANCELED',
-      };
+        clientOrderId: 'main-1',
+        exchangeOrderId: '987654',
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        type: 'LIMIT',
+        quantity: 0.01,
+        price: 45000,
+        status: 'NEW',
+        venue,
+        filledQuantity: 0,
+        createdAt: new Date('2026-03-21T20:00:00Z'),
+        updatedAt: new Date('2026-03-21T20:01:00Z'),
+      });
 
-      mockRouterClientService.cancelOrder.mockResolvedValue(cancelResponse);
+      mockRouterClientService.cancelOrder.mockResolvedValue({ success: true });
 
       const result = await service.cancelOrder(orderId, symbol, venue);
 
-      expect(result).toEqual(cancelResponse);
-      expect(routerClient.cancelOrder).toHaveBeenCalledWith(orderId, symbol, venue);
-      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderUpdateV1, cancelResponse);
+      expect(result).toEqual(
+        expect.objectContaining({
+          orderId: '123456',
+          status: 'CANCELED',
+        }),
+      );
+      expect(routerClient.cancelOrder).toHaveBeenCalledWith({
+        symbol: 'BTCUSDT',
+        venue,
+        orderId: '123456',
+        exchangeOrderId: '987654',
+        clientOrderId: 'main-1',
+      });
+      expect(mockOrderRepository.update).toHaveBeenCalledWith('123456', expect.any(Object));
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        CONTRACT_TOPICS.orderUpdateV1,
+        expect.objectContaining({ orderId: '123456', status: 'CANCELED' }),
+      );
+    });
+
+    it('should fall back to client order id when exchange id is unavailable', async () => {
+      mockOrderRepository.findByOrderId.mockResolvedValue({
+        orderId: 'order-spot-1',
+        clientOrderId: 'main-spot-1',
+        exchangeOrderId: null,
+        symbol: 'ETHUSDT',
+        side: 'SELL',
+        type: 'LIMIT',
+        quantity: 0.5,
+        price: 3000,
+        status: 'NEW',
+        venue: 'SPOT',
+        filledQuantity: 0,
+        createdAt: new Date('2026-03-21T20:00:00Z'),
+        updatedAt: new Date('2026-03-21T20:01:00Z'),
+      });
+      mockRouterClientService.cancelOrder.mockResolvedValue({ success: true });
+
+      await service.cancelOrder('order-spot-1', 'IGNORED', 'SPOT');
+
+      expect(routerClient.cancelOrder).toHaveBeenCalledWith({
+        symbol: 'ETHUSDT',
+        venue: 'SPOT',
+        orderId: 'order-spot-1',
+        exchangeOrderId: null,
+        clientOrderId: 'main-spot-1',
+      });
     });
   });
 
@@ -267,16 +390,22 @@ describe('TradingService', () => {
         quantity: 0.01,
         venue: 'USD_M' as const,
         type: 'MARKET' as const,
+        stopLoss: 44000,
+        takeProfit: 47000,
         confidence: 0.85,
       };
 
       const orderResponse = {
-        orderId: '123456',
-        status: 'NEW',
+        bracket_order_id: '123456',
+        client_order_ids: {
+          main: 'main-1',
+          take_profits: ['tp-1'],
+          stop_loss: 'sl-1',
+        },
         symbol: 'BTCUSDT',
         side: 'BUY',
-        type: 'MARKET',
         quantity: 0.01,
+        created_at: '2026-03-21T20:00:00Z',
       };
 
       mockRouterClientService.placeOrder.mockResolvedValue(orderResponse);
@@ -288,6 +417,8 @@ describe('TradingService', () => {
         side: 'BUY',
         type: 'MARKET',
         quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M',
       });
     });

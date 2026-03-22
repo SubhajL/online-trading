@@ -7,7 +7,7 @@ from decimal import Decimal
 import enum
 import hashlib
 import logging
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Protocol, cast
 
 from app.engine.core.zone_identity import extract_zone_identity
 from app.engine.decision.pretrade_risk import (
@@ -195,6 +195,10 @@ class RouterExecutionSubscriber:
         bff_client: _BffClient | None = None,
         min_confidence: Decimal = Decimal("0.70"),
         max_position_size: Decimal | None = None,
+        execution_readiness_check: Callable[
+            [], Awaitable[tuple[bool, str | None, dict[str, object]]]
+        ]
+        | None = None,
         router_max_attempts: int = 3,
         router_backoff_config: BackoffConfig | None = None,
     ) -> None:
@@ -209,6 +213,7 @@ class RouterExecutionSubscriber:
         self._bff_client = bff_client
         self._min_confidence = min_confidence
         self._max_position_size = max_position_size
+        self._execution_readiness_check = execution_readiness_check
         if router_max_attempts < 1:
             raise ValueError("router_max_attempts must be >= 1")
         self._router_max_attempts = router_max_attempts
@@ -224,28 +229,54 @@ class RouterExecutionSubscriber:
         timeframe: str | None,
         zone_identity: Any,
     ) -> str | None:
-        get_active_position_for_setup = getattr(self._db_adapter, "get_active_position_for_setup", None)
+        get_active_position_for_setup = getattr(
+            self._db_adapter, "get_active_position_for_setup", None
+        )
         get_active_positions = getattr(self._db_adapter, "get_active_positions", None)
-        if (
-            timeframe is not None
-            and zone_identity is not None
-            and callable(get_active_position_for_setup)
-        ):
-            try:
-                active_position = await get_active_position_for_setup(
-                    venue=self._venue,
-                    symbol=symbol,
-                    side=side,
-                    timeframe=timeframe,
-                    zone_id=zone_identity.zone_id,
+        get_active_order_for_setup = getattr(self._db_adapter, "get_active_order_for_setup", None)
+        if timeframe is not None and zone_identity is not None:
+            lookup_tasks: dict[str, asyncio.Task[Any]] = {}
+            if callable(get_active_position_for_setup):
+                lookup_tasks["setup_position"] = asyncio.create_task(
+                    get_active_position_for_setup(
+                        venue=self._venue,
+                        symbol=symbol,
+                        side=side,
+                        timeframe=timeframe,
+                        zone_id=zone_identity.zone_id,
+                    ),
                 )
-            except Exception:
-                logger.exception(
+            if callable(get_active_positions):
+                lookup_tasks["active_positions"] = asyncio.create_task(
+                    get_active_positions(self._venue),
+                )
+            if callable(get_active_order_for_setup):
+                lookup_tasks["setup_order"] = asyncio.create_task(
+                    get_active_order_for_setup(
+                        venue=self._venue,
+                        symbol=symbol,
+                        side=side,
+                        timeframe=timeframe,
+                        zone_id=zone_identity.zone_id,
+                    ),
+                )
+            lookup_results = dict(
+                zip(
+                    lookup_tasks,
+                    await asyncio.gather(*lookup_tasks.values(), return_exceptions=True),
+                    strict=True,
+                ),
+            )
+
+            active_position = lookup_results.get("setup_position")
+            if isinstance(active_position, Exception):
+                logger.error(
                     "Duplicate guard setup-position lookup failed for %s %s %s %s",
                     symbol,
                     timeframe,
                     zone_identity.zone_id,
                     side,
+                    exc_info=active_position,
                 )
                 return f"Duplicate guard state unavailable for {symbol}"
             if active_position is not None:
@@ -253,16 +284,18 @@ class RouterExecutionSubscriber:
                     f"Active setup position already exists for "
                     f"{symbol} {timeframe} {zone_identity.zone_id} {side}"
                 )
-            if callable(get_active_positions):
-                try:
-                    active_positions = await get_active_positions(self._venue)
-                except Exception:
-                    logger.exception(
-                        "Duplicate guard active-position lookup failed for %s",
-                        symbol,
-                    )
-                    return f"Duplicate guard state unavailable for {symbol}"
-                for position in active_positions:
+
+            active_positions = lookup_results.get("active_positions")
+            if isinstance(active_positions, Exception):
+                logger.error(
+                    "Duplicate guard active-position lookup failed for %s",
+                    symbol,
+                    exc_info=active_positions,
+                )
+                return f"Duplicate guard state unavailable for {symbol}"
+            active_position_rows = cast(list[dict[str, Any]] | None, active_positions)
+            if active_position_rows is not None:
+                for position in active_position_rows:
                     if str(position.get("symbol")) != symbol:
                         continue
                     position_side = str(position.get("side") or "").strip().upper()
@@ -271,7 +304,23 @@ class RouterExecutionSubscriber:
                     entry_order_id = str(position.get("entry_order_id") or "").strip()
                     if not entry_order_id:
                         return f"Active position already exists for {symbol}"
-        elif callable(get_active_positions):
+
+            active_order = lookup_results.get("setup_order")
+            if isinstance(active_order, Exception):
+                logger.error(
+                    "Duplicate guard setup-order lookup failed for %s %s %s %s",
+                    symbol,
+                    timeframe,
+                    zone_identity.zone_id,
+                    side,
+                    exc_info=active_order,
+                )
+                return f"Duplicate guard state unavailable for {symbol}"
+            if active_order is None:
+                return None
+            return f"Active setup already exists for {symbol} {timeframe} {zone_identity.zone_id} {side}"
+
+        if callable(get_active_positions):
             try:
                 active_positions = await get_active_positions(self._venue)
             except Exception:
@@ -282,32 +331,7 @@ class RouterExecutionSubscriber:
                 return f"Duplicate guard state unavailable for {symbol}"
             if any(str(position.get("symbol")) == symbol for position in active_positions):
                 return f"Active position already exists for {symbol}"
-
-        get_active_order_for_setup = getattr(self._db_adapter, "get_active_order_for_setup", None)
-        if timeframe is None or zone_identity is None or not callable(get_active_order_for_setup):
-            return None
-
-        try:
-            active_order = await get_active_order_for_setup(
-                venue=self._venue,
-                symbol=symbol,
-                side=side,
-                timeframe=timeframe,
-                zone_id=zone_identity.zone_id,
-            )
-        except Exception:
-            logger.exception(
-                "Duplicate guard setup-order lookup failed for %s %s %s %s",
-                symbol,
-                timeframe,
-                zone_identity.zone_id,
-                side,
-            )
-            return f"Duplicate guard state unavailable for {symbol}"
-        if active_order is None:
-            return None
-
-        return f"Active setup already exists for {symbol} {timeframe} {zone_identity.zone_id} {side}"
+        return None
 
     async def _place_bracket_with_retries(self, payload: dict[str, Any]) -> dict[str, Any]:
         backoff = ExponentialBackoff(
@@ -449,6 +473,17 @@ class RouterExecutionSubscriber:
                 self._min_confidence,
             )
             return
+        if self._execution_readiness_check is not None:
+            ready, reason, metadata = await self._execution_readiness_check()
+            if not ready:
+                await _emit_execution_error(
+                    self._bus,
+                    event,
+                    reason or "Execution blocked: ingest health unavailable",
+                    "execution_blocked_unhealthy_ingest",
+                    extra_metadata=metadata,
+                )
+                return
 
         metadata_timeframe = event.metadata.get("timeframe")
         timeframe = (
@@ -710,9 +745,11 @@ class RouterExecutionSubscriber:
                         "zone": sanitized_zone,
                     },
                 )
+        if not order_rows:
+            return
+
         try:
-            for row in order_rows:
-                await self._db_adapter.upsert_order(row)
+            await asyncio.gather(*(self._db_adapter.upsert_order(row) for row in order_rows))
         except Exception:
             logger.exception(
                 "Failed to persist order legs to DB (orders may be orphaned on exchange)",

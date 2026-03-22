@@ -273,7 +273,7 @@ async def verify_service_connectivity() -> CheckResult:
         import aiohttp
 
         async with aiohttp.ClientSession() as session:
-            router_url = os.environ.get("ROUTER_URL", "http://localhost:8080")
+            router_url = os.environ.get("ROUTER_URL", "http://localhost:8001")
             try:
                 async with session.get(
                     f"{router_url}/healthz",

@@ -48,7 +48,7 @@ export function loadConfiguration(): Configuration {
       type: (process.env.ENGINE_TYPE as 'redis' | 'tcp') || 'redis',
     },
     router: {
-      url: process.env.ROUTER_URL || 'http://localhost:8080',
+      url: process.env.ROUTER_URL || 'http://localhost:8001',
       timeout: parseIntWithDefault(process.env.ROUTER_TIMEOUT, 30000),
       retryAttempts: parseIntWithDefault(process.env.ROUTER_RETRY_ATTEMPTS, 3),
       retryDelay: parseIntWithDefault(process.env.ROUTER_RETRY_DELAY, 1000),

@@ -34,6 +34,8 @@ describe('PlaceOrderHandler', () => {
     side: 'BUY',
     type: 'MARKET',
     quantity: 0.001,
+    stopLossPrice: 44000,
+    takeProfitPrice: 47000,
     venue: 'SPOT',
   };
 
@@ -93,6 +95,28 @@ describe('PlaceOrderHandler', () => {
     it('should require price for LIMIT orders', async () => {
       const limitOrder = { ...validOrderRequest, type: 'LIMIT' as const, price: undefined };
       const command = new PlaceOrderCommand('user-123', limitOrder);
+
+      await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
+      expect(tradingService.placeOrder).not.toHaveBeenCalled();
+    });
+
+    it('should require stop loss price', async () => {
+      const invalidOrder = {
+        ...validOrderRequest,
+        stopLossPrice: undefined,
+      } as unknown as OrderRequest;
+      const command = new PlaceOrderCommand('user-123', invalidOrder);
+
+      await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
+      expect(tradingService.placeOrder).not.toHaveBeenCalled();
+    });
+
+    it('should require take profit price', async () => {
+      const invalidOrder = {
+        ...validOrderRequest,
+        takeProfitPrice: undefined,
+      } as unknown as OrderRequest;
+      const command = new PlaceOrderCommand('user-123', invalidOrder);
 
       await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
       expect(tradingService.placeOrder).not.toHaveBeenCalled();

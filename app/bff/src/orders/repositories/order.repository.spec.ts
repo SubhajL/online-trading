@@ -183,6 +183,20 @@ describe('OrderRepository', () => {
     });
   });
 
+  describe('findByOrderId', () => {
+    it('should find order by BFF order ID and venue', async () => {
+      const mockOrder = { orderId: 'order-1', venue: 'SPOT' as Venue } as OrderEntity;
+      (mockRepository.findOne as jest.Mock).mockResolvedValue(mockOrder);
+
+      const result = await orderRepository.findByOrderId('order-1', 'SPOT' as Venue);
+
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { orderId: 'order-1', venue: 'SPOT' as Venue },
+      });
+      expect(result).toEqual(mockOrder);
+    });
+  });
+
   describe('save', () => {
     it('should save order', async () => {
       const orderData = { symbol: 'BTCUSDT' } as Partial<OrderEntity>;

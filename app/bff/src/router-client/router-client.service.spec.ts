@@ -14,6 +14,7 @@ describe('RouterClientService', () => {
     get: jest.fn((key: string) => {
       const config: any = {
         ROUTER_URL: 'http://localhost:8080',
+        ROUTER_API_KEY: 'router-secret',
         ROUTER_TIMEOUT: 5000,
         ROUTER_RETRY_ATTEMPTS: 3,
         ROUTER_RETRY_DELAY: 10, // Very short delay for tests
@@ -65,18 +66,23 @@ describe('RouterClientService', () => {
         type: 'LIMIT' as const,
         quantity: 0.001,
         price: 45000,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'SPOT' as const,
       };
 
       const mockResponse: AxiosResponse = {
         data: {
-          orderId: '123456',
-          status: 'NEW',
+          bracket_order_id: '123456',
+          client_order_ids: {
+            main: 'main-1',
+            take_profits: ['tp-1'],
+            stop_loss: 'sl-1',
+          },
           symbol: 'BTCUSDT',
           side: 'BUY',
-          type: 'LIMIT',
           quantity: 0.001,
-          price: 45000,
+          created_at: '2026-03-21T20:00:00Z',
         },
         status: 200,
         statusText: 'OK',
@@ -90,9 +96,22 @@ describe('RouterClientService', () => {
 
       expect(result).toEqual(mockResponse.data);
       expect(httpService.post).toHaveBeenCalledWith(
-        'http://localhost:8080/api/orders/spot',
-        orderRequest,
-        expect.any(Object),
+        'http://localhost:8080/place_bracket',
+        {
+          symbol: 'BTCUSDT',
+          side: 'BUY',
+          quantity: 0.001,
+          entry_price: 45000,
+          take_profit_prices: [47000],
+          stop_loss_price: 44000,
+          order_type: 'LIMIT',
+          is_futures: false,
+        },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer router-secret',
+          }),
+        }),
       );
     });
 
@@ -102,17 +121,23 @@ describe('RouterClientService', () => {
         side: 'BUY' as const,
         type: 'MARKET' as const,
         quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'USD_M' as const,
       };
 
       const mockResponse: AxiosResponse = {
         data: {
-          orderId: '789012',
-          status: 'NEW',
+          bracket_order_id: '789012',
+          client_order_ids: {
+            main: 'main-2',
+            take_profits: ['tp-2'],
+            stop_loss: 'sl-2',
+          },
           symbol: 'BTCUSDT',
           side: 'BUY',
-          type: 'MARKET',
           quantity: 0.01,
+          created_at: '2026-03-21T20:01:00Z',
         },
         status: 200,
         statusText: 'OK',
@@ -126,8 +151,17 @@ describe('RouterClientService', () => {
 
       expect(result).toEqual(mockResponse.data);
       expect(httpService.post).toHaveBeenCalledWith(
-        'http://localhost:8080/api/orders/futures',
-        orderRequest,
+        'http://localhost:8080/place_bracket',
+        {
+          symbol: 'BTCUSDT',
+          side: 'BUY',
+          quantity: 0.01,
+          entry_price: undefined,
+          take_profit_prices: [47000],
+          stop_loss_price: 44000,
+          order_type: 'MARKET',
+          is_futures: true,
+        },
         expect.any(Object),
       );
     });
@@ -139,6 +173,8 @@ describe('RouterClientService', () => {
         type: 'LIMIT' as const,
         quantity: 0.001,
         price: 50000,
+        stopLossPrice: 51000,
+        takeProfitPrice: 48000,
         venue: 'SPOT' as const,
       };
 
@@ -167,6 +203,8 @@ describe('RouterClientService', () => {
         type: 'LIMIT' as const,
         quantity: 0.001,
         price: 45000,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
         venue: 'SPOT' as const,
       };
 
@@ -175,38 +213,8 @@ describe('RouterClientService', () => {
 
       await expect(service.placeOrder(orderRequest)).rejects.toThrow('Network error');
       expect(httpService.post).toHaveBeenCalledWith(
-        'http://localhost:8080/api/orders/spot',
-        orderRequest,
+        'http://localhost:8080/place_bracket',
         expect.any(Object),
-      );
-    });
-  });
-
-  describe('getOrderStatus', () => {
-    it('should get order status successfully', async () => {
-      const orderId = '123456';
-      const venue = 'SPOT' as const;
-
-      const mockResponse: AxiosResponse = {
-        data: {
-          orderId: '123456',
-          status: 'FILLED',
-          executedQty: 0.001,
-          cummulativeQuoteQty: 45,
-        },
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {},
-      } as any;
-
-      mockHttpService.get.mockReturnValue(of(mockResponse));
-
-      const result = await service.getOrderStatus(orderId, venue);
-
-      expect(result).toEqual(mockResponse.data);
-      expect(httpService.get).toHaveBeenCalledWith(
-        `http://localhost:8080/api/orders/spot/${orderId}`,
         expect.any(Object),
       );
     });
@@ -214,14 +222,16 @@ describe('RouterClientService', () => {
 
   describe('cancelOrder', () => {
     it('should cancel order successfully', async () => {
-      const orderId = '123456';
-      const symbol = 'BTCUSDT';
-      const venue = 'USD_M' as const;
+      const cancelRequest = {
+        symbol: 'BTCUSDT',
+        venue: 'USD_M' as const,
+        orderId: '123456',
+        exchangeOrderId: '987654',
+      };
 
       const cancelResponse: AxiosResponse = {
         data: {
-          orderId: '123456',
-          status: 'CANCELED',
+          success: true,
         },
         status: 200,
         statusText: 'OK',
@@ -231,12 +241,48 @@ describe('RouterClientService', () => {
 
       mockHttpService.post.mockReturnValueOnce(of(cancelResponse));
 
-      const result = await service.cancelOrder(orderId, symbol, venue);
+      const result = await service.cancelOrder(cancelRequest);
 
       expect(result).toEqual(cancelResponse.data);
       expect(httpService.post).toHaveBeenCalledWith(
-        `http://localhost:8080/api/orders/futures/${orderId}/cancel`,
-        { symbol },
+        'http://localhost:8080/cancel',
+        {
+          symbol: 'BTCUSDT',
+          order_id: 987654,
+        },
+        expect.any(Object),
+      );
+    });
+
+    it('should fall back to client_order_id when exchange order id is unavailable', async () => {
+      const cancelRequest = {
+        symbol: 'ETHUSDT',
+        venue: 'SPOT' as const,
+        orderId: 'abc-123',
+        clientOrderId: 'main-spot-1',
+      };
+
+      const cancelResponse: AxiosResponse = {
+        data: {
+          success: true,
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {},
+      } as any;
+
+      mockHttpService.post.mockReturnValueOnce(of(cancelResponse));
+
+      const result = await service.cancelOrder(cancelRequest);
+
+      expect(result).toEqual(cancelResponse.data);
+      expect(httpService.post).toHaveBeenCalledWith(
+        'http://localhost:8080/cancel',
+        {
+          symbol: 'ETHUSDT',
+          client_order_id: 'main-spot-1',
+        },
         expect.any(Object),
       );
     });

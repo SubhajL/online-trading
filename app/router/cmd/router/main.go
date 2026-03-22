@@ -37,6 +37,9 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to load config")
 	}
+	if strings.TrimSpace(cfg.Security.RequiredAPIKey) == "" {
+		logger.Fatal().Msg("SECURITY_REQUIRED_API_KEY must be configured for active router runtime")
+	}
 
 	// Apply testnet URLs if enabled
 	cfg.GetBinanceTestnetURLs()
@@ -224,7 +227,7 @@ func main() {
 	// Create server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      loggingMiddleware(mux),
+		Handler:      loggingMiddleware(authMiddleware(mux, cfg.Security.RequiredAPIKey)),
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
@@ -344,6 +347,42 @@ func newFuturesClientFromConfig(cfg *config.BinanceConfig, logger zerolog.Logger
 		),
 	)
 	return client, nil
+}
+
+var unauthenticatedPaths = map[string]struct{}{
+	"/health":  {},
+	"/healthz": {},
+	"/ready":   {},
+	"/readyz":  {},
+}
+
+func authMiddleware(next http.Handler, requiredToken string) http.Handler {
+	requiredToken = strings.TrimSpace(requiredToken)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := unauthenticatedPaths[r.URL.Path]; ok || r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if providedToken(r) != requiredToken {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func providedToken(r *http.Request) string {
+	if token := strings.TrimSpace(r.Header.Get("X-API-Key")); token != "" {
+		return token
+	}
+
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	if !strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(authHeader[len("Bearer "):])
 }
 
 // loggingMiddleware logs HTTP requests

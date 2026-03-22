@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -46,6 +48,9 @@ func (e *HTTPEventEmitter) EmitOrderUpdate(ctx context.Context, update *OrderUpd
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if token := strings.TrimSpace(os.Getenv("ENGINE_INTERNAL_API_TOKEN")); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	// Send request
 	resp, err := e.client.Do(req)

@@ -135,6 +135,8 @@ export type OrderFormValues = {
   quantity: number
   price?: number
   stopPrice?: number
+  stopLossPrice?: number
+  takeProfitPrice?: number
 }
 
 export type SmcEventType = 'CHOCH' | 'BOS' | 'ORDER_BLOCK' | 'FVG'

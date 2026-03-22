@@ -60,6 +60,12 @@ export class OrderRepository {
     });
   }
 
+  async findByOrderId(orderId: string, venue: Venue): Promise<OrderEntity | null> {
+    return this.repository.findOne({
+      where: { orderId, venue },
+    });
+  }
+
   async findByExchangeOrderId(exchangeOrderId: string): Promise<OrderEntity | null> {
     return this.repository.findOne({
       where: { exchangeOrderId },
