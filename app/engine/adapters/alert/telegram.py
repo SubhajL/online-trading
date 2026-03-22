@@ -44,6 +44,7 @@ class TelegramAlertAdapter:
             ttl_seconds=int(os.getenv("TELEGRAM_STARTUP_DEDUP_TTL_SECONDS", "3600")),
             key_prefix="alert:dedup:startup",
         )
+        self._audit_tasks: set[asyncio.Task[None]] = set()
 
         # Rate limiting
         self._message_times: list[datetime] = []
@@ -98,6 +99,21 @@ class TelegramAlertAdapter:
         except Exception:
             logger.exception("Failed to persist outbound alert audit")
 
+    def _schedule_audit_record(self, **kwargs: Any) -> None:
+        task = asyncio.create_task(self._record_audit(**kwargs))
+        self._audit_tasks.add(task)
+
+        def _finalize(done: asyncio.Task[None]) -> None:
+            self._audit_tasks.discard(done)
+            if done.cancelled():
+                return
+            try:
+                done.result()
+            except Exception:
+                logger.exception("Background outbound alert audit task failed")
+
+        task.add_done_callback(_finalize)
+
     async def start(self) -> None:
         """Initialize HTTP session for sending Telegram alerts.
 
@@ -108,6 +124,8 @@ class TelegramAlertAdapter:
 
     async def stop(self) -> None:
         """Clean up resources."""
+        if self._audit_tasks:
+            await asyncio.gather(*self._audit_tasks, return_exceptions=True)
         if self.session:
             await self.session.close()
             self.session = None
@@ -201,7 +219,7 @@ class TelegramAlertAdapter:
             key = f"decision:{symbol}:{side}:{timestamp}"
             if not self.deduplicator.reserve(key):
                 logger.debug("Skipping duplicate decision alert: %s", key)
-                await self._record_audit(
+                self._schedule_audit_record(
                     alert_type="decision",
                     delivery_method="text",
                     status="skipped",
@@ -302,10 +320,14 @@ class TelegramAlertAdapter:
             symbols = startup_data.get("symbols")
             timeframes = startup_data.get("timeframes")
             key: str | None = None
-            if isinstance(phase, str) and isinstance(symbols, list) and isinstance(timeframes, list):
+            if (
+                isinstance(phase, str)
+                and isinstance(symbols, list)
+                and isinstance(timeframes, list)
+            ):
                 key = f"{phase}:{','.join(sorted(map(str, symbols)))}:{','.join(sorted(map(str, timeframes)))}"
                 if not self.startup_deduplicator.reserve(key):
-                    await self._record_audit(
+                    self._schedule_audit_record(
                         alert_type="startup",
                         delivery_method="text",
                         status="skipped",
@@ -356,7 +378,7 @@ class TelegramAlertAdapter:
     ) -> bool:
         """Send a message to Telegram."""
         if not await self._check_rate_limit():
-            await self._record_audit(
+            self._schedule_audit_record(
                 alert_type=alert_type,
                 delivery_method="text",
                 status="skipped",
@@ -387,7 +409,7 @@ class TelegramAlertAdapter:
                         response.status,
                         text,
                     )
-                    await self._record_audit(
+                    self._schedule_audit_record(
                         alert_type=alert_type,
                         delivery_method="text",
                         status="failed",
@@ -405,7 +427,7 @@ class TelegramAlertAdapter:
                     logger.debug("Telegram alert sent successfully")
                     result = data.get("result") or {}
                     message_id = result.get("message_id")
-                    await self._record_audit(
+                    self._schedule_audit_record(
                         alert_type=alert_type,
                         delivery_method="text",
                         status="sent",
@@ -418,7 +440,7 @@ class TelegramAlertAdapter:
                     return True
 
                 logger.error("Telegram API error: %s", data)
-                await self._record_audit(
+                self._schedule_audit_record(
                     alert_type=alert_type,
                     delivery_method="text",
                     status="failed",
@@ -433,7 +455,7 @@ class TelegramAlertAdapter:
 
         except Exception:
             logger.exception("Error sending Telegram alert")
-            await self._record_audit(
+            self._schedule_audit_record(
                 alert_type=alert_type,
                 delivery_method="text",
                 status="failed",
@@ -447,7 +469,7 @@ class TelegramAlertAdapter:
     async def send_error_alert(self, message: str, *, dedup_key: str | None = None) -> bool:
         """Send an error alert with optional Redis-backed deduplication."""
         if dedup_key and not self.error_deduplicator.reserve(dedup_key):
-            await self._record_audit(
+            self._schedule_audit_record(
                 alert_type="error",
                 delivery_method="text",
                 status="skipped",
@@ -479,7 +501,7 @@ class TelegramAlertAdapter:
     ) -> bool:
         """Send a photo with caption to Telegram."""
         if not await self._check_rate_limit():
-            await self._record_audit(
+            self._schedule_audit_record(
                 alert_type=alert_type,
                 delivery_method="photo",
                 status="skipped",
@@ -517,7 +539,7 @@ class TelegramAlertAdapter:
                         response.status,
                         text,
                     )
-                    await self._record_audit(
+                    self._schedule_audit_record(
                         alert_type=alert_type,
                         delivery_method="photo",
                         status="failed",
@@ -535,7 +557,7 @@ class TelegramAlertAdapter:
                     logger.debug("Telegram photo alert sent successfully")
                     response_payload = result.get("result") or {}
                     message_id = response_payload.get("message_id")
-                    await self._record_audit(
+                    self._schedule_audit_record(
                         alert_type=alert_type,
                         delivery_method="photo",
                         status="sent",
@@ -548,7 +570,7 @@ class TelegramAlertAdapter:
                     return True
 
                 logger.error("Telegram API error: %s", result)
-                await self._record_audit(
+                self._schedule_audit_record(
                     alert_type=alert_type,
                     delivery_method="photo",
                     status="failed",
@@ -563,7 +585,7 @@ class TelegramAlertAdapter:
 
         except Exception:
             logger.exception("Error sending Telegram photo alert")
-            await self._record_audit(
+            self._schedule_audit_record(
                 alert_type=alert_type,
                 delivery_method="photo",
                 status="failed",

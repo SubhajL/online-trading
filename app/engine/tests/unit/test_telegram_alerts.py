@@ -1,5 +1,6 @@
 """Unit tests for Telegram alert adapter."""
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,6 +16,18 @@ class _FakeAuditAdapter:
 
     async def insert_outbound_alert_audit(self, **kwargs: object) -> None:  # noqa: D401
         self.calls.append(kwargs)
+
+
+class _BlockingAuditAdapter:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+        self.calls: list[dict[str, object]] = []
+
+    async def insert_outbound_alert_audit(self, **kwargs: object) -> None:  # noqa: D401
+        self.calls.append(kwargs)
+        self.started.set()
+        await self.release.wait()
 
 
 @pytest.fixture
@@ -145,6 +158,7 @@ async def test_send_alert_persists_successful_text_audit(telegram_adapter):
         alert_type="order_update",
         payload={"symbol": "BTCUSDT", "event_type": "order_update.v1"},
     )
+    await asyncio.sleep(0)
 
     assert success is True
     audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
@@ -179,6 +193,7 @@ async def test_send_alert_persists_http_failure_audit(telegram_adapter):
         alert_type="error",
         payload={"component": "pipeline_health"},
     )
+    await asyncio.sleep(0)
 
     assert success is False
     audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
@@ -209,6 +224,7 @@ async def test_handle_decision_persists_dedup_skip_audit(telegram_adapter):
     }
 
     await telegram_adapter._handle_decision(event)
+    await asyncio.sleep(0)
 
     audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
     assert len(audit_calls) == 1
@@ -229,6 +245,7 @@ async def test_send_alert_persists_rate_limit_skip_audit(telegram_adapter):
         alert_type="startup",
         payload={"phase": "backfill_complete"},
     )
+    await asyncio.sleep(0)
 
     assert success is False
     audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
@@ -260,6 +277,7 @@ async def test_send_photo_alert_persists_failure_audit(telegram_adapter):
         payload={"signal_id": "sig-1"},
         dedup_key="decision:BTCUSDT:long:now",
     )
+    await asyncio.sleep(0)
 
     assert success is False
     audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
@@ -281,6 +299,7 @@ async def test_send_error_alert_persists_dedup_skip_audit(telegram_adapter):
         "Pipeline failure",
         dedup_key="error:pipeline_health:websocket_stale",
     )
+    await asyncio.sleep(0)
 
     assert success is False
     audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
@@ -290,6 +309,111 @@ async def test_send_error_alert_persists_dedup_skip_audit(telegram_adapter):
     assert call["status"] == "skipped"
     assert call["reason"] == "deduplicated"
     assert call["dedup_key"] == "error:pipeline_health:websocket_stale"
+
+
+@pytest.mark.asyncio
+async def test_send_alert_does_not_block_on_audit_write():
+    audit_adapter = _BlockingAuditAdapter()
+    adapter = TelegramAlertAdapter(
+        bot_token="test-bot-token",
+        chat_id="test-chat-id",
+        rate_limit_per_minute=30,
+        db_adapter=audit_adapter,
+    )
+    adapter.deduplicator.redis_client = None
+    adapter.error_deduplicator.redis_client = None
+    adapter.startup_deduplicator.redis_client = None
+
+    mock_response = MagicMock()
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={"ok": True, "result": {"message_id": 123}})
+
+    mock_context = AsyncMock()
+    mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_context.__aexit__ = AsyncMock(return_value=None)
+
+    mock_session = MagicMock()
+    mock_session.post = MagicMock(return_value=mock_context)
+    adapter.session = mock_session
+
+    success = await asyncio.wait_for(
+        adapter._send_alert("Test outbound message", alert_type="order_update"),
+        timeout=0.05,
+    )
+
+    assert success is True
+    await asyncio.wait_for(audit_adapter.started.wait(), timeout=0.05)
+    audit_adapter.release.set()
+    await asyncio.sleep(0)
+    assert len(audit_adapter.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_decision_dedup_skip_does_not_block_on_audit_write():
+    audit_adapter = _BlockingAuditAdapter()
+    adapter = TelegramAlertAdapter(
+        bot_token="test-bot-token",
+        chat_id="test-chat-id",
+        rate_limit_per_minute=30,
+        db_adapter=audit_adapter,
+    )
+    adapter.deduplicator.redis_client = None
+    adapter.error_deduplicator.redis_client = None
+    adapter.startup_deduplicator.redis_client = None
+    adapter.deduplicator.reserve = MagicMock(return_value=False)
+    adapter.session = MagicMock()
+
+    event = {
+        "symbol": "BTCUSDT",
+        "side": "long",
+        "timestamp": "2025-01-26T10:00:00Z",
+        "signal_id": "test-signal-123",
+        "entry_price": Decimal(50000),
+        "stop_loss": Decimal(49000),
+        "take_profit": Decimal(52000),
+        "quantity": Decimal("0.01"),
+        "confidence": 0.85,
+        "reasons": ["SMC Break", "Trend Alignment"],
+    }
+
+    await asyncio.wait_for(adapter._handle_decision(event), timeout=0.05)
+
+    await asyncio.wait_for(audit_adapter.started.wait(), timeout=0.05)
+    audit_adapter.release.set()
+    await asyncio.sleep(0)
+    assert len(audit_adapter.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_stop_waits_for_pending_audit_tasks() -> None:
+    audit_adapter = _BlockingAuditAdapter()
+    adapter = TelegramAlertAdapter(
+        bot_token="test-bot-token",
+        chat_id="test-chat-id",
+        rate_limit_per_minute=30,
+        db_adapter=audit_adapter,
+    )
+    session = MagicMock()
+    session.close = AsyncMock()
+    adapter.session = session
+
+    adapter._schedule_audit_record(
+        alert_type="error",
+        delivery_method="text",
+        status="failed",
+        reason="test",
+    )
+    await asyncio.wait_for(audit_adapter.started.wait(), timeout=0.05)
+
+    stop_task = asyncio.create_task(adapter.stop())
+    await asyncio.sleep(0)
+    assert not stop_task.done()
+    session.close.assert_not_awaited()
+
+    audit_adapter.release.set()
+    await asyncio.wait_for(stop_task, timeout=0.05)
+
+    session.close.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -411,6 +535,7 @@ async def test_send_photo_alert(telegram_adapter):
     telegram_adapter.session = mock_session
 
     success = await telegram_adapter._send_photo_alert(b"image-data", "Test caption")
+    await asyncio.sleep(0)
 
     assert success is True
     audit_calls = telegram_adapter._test_audit_adapter.calls  # type: ignore[attr-defined]
