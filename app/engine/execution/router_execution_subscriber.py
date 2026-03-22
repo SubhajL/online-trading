@@ -7,7 +7,7 @@ from decimal import Decimal
 import enum
 import hashlib
 import logging
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Protocol
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Protocol, cast
 
 from app.engine.core.zone_identity import extract_zone_identity
 from app.engine.decision.pretrade_risk import (
@@ -293,8 +293,9 @@ class RouterExecutionSubscriber:
                     exc_info=active_positions,
                 )
                 return f"Duplicate guard state unavailable for {symbol}"
-            if active_positions is not None:
-                for position in active_positions:
+            active_position_rows = cast(list[dict[str, Any]] | None, active_positions)
+            if active_position_rows is not None:
+                for position in active_position_rows:
                     if str(position.get("symbol")) != symbol:
                         continue
                     position_side = str(position.get("side") or "").strip().upper()
