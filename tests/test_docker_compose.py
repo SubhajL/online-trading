@@ -84,3 +84,20 @@ def test_monitoring_services_configured():
     volumes = grafana["volumes"]
     assert any("provisioning" in v for v in volumes)
     assert any("dashboards" in v for v in volumes)
+
+
+@pytest.mark.parametrize("compose_file", ["docker-compose.yml", "docker-compose.dev.yml"])
+def test_engine_and_router_auth_env_are_wired(compose_file: str):
+    """Verify engine/router runtime auth variables are passed through compose."""
+    docker_compose_path = Path(__file__).parent.parent / compose_file
+
+    with open(docker_compose_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    engine_env = config["services"]["engine"].get("environment", [])
+    router_env = config["services"]["router"].get("environment", [])
+
+    assert any("ROUTER_API_KEY" in str(var) for var in engine_env)
+    assert any("ENGINE_INTERNAL_API_TOKEN" in str(var) for var in engine_env)
+    assert any("SECURITY_REQUIRED_API_KEY" in str(var) for var in router_env)
+    assert any("ENGINE_INTERNAL_API_TOKEN" in str(var) for var in router_env)
