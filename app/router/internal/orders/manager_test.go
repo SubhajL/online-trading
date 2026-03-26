@@ -12,6 +12,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"router/internal/binance"
 )
 
 // mockFailingEmitter is an EventEmitter that always returns an error
@@ -414,4 +415,79 @@ func TestManager_emitOrderUpdateWithLogging_CallsEmitterOnSuccess(t *testing.T) 
 	assert.True(t, emitter.called, "emitter should be called")
 	assert.Equal(t, "SOLUSDT", emitter.update.Symbol)
 	assert.Equal(t, "test-order-sol", emitter.update.ClientOrderID)
+}
+
+func TestCountAlgoOrders_CountsOnlyAlgoTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		types    []string
+		wantAlgo int
+	}{
+		{
+			name:     "mixed order types",
+			types:    []string{"LIMIT", "STOP_LOSS_LIMIT", "MARKET", "TAKE_PROFIT", "LIMIT"},
+			wantAlgo: 2,
+		},
+		{
+			name:     "all algo types",
+			types:    []string{"STOP_LOSS", "STOP_LOSS_LIMIT", "TAKE_PROFIT", "TAKE_PROFIT_LIMIT"},
+			wantAlgo: 4,
+		},
+		{
+			name:     "no algo orders",
+			types:    []string{"LIMIT", "MARKET", "LIMIT_MAKER"},
+			wantAlgo: 0,
+		},
+		{
+			name:     "empty",
+			types:    []string{},
+			wantAlgo: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orders := make([]*binance.Order, len(tt.types))
+			for i, typ := range tt.types {
+				orders[i] = &binance.Order{Type: typ, Symbol: "ETHUSDT"}
+			}
+			count := 0
+			for _, o := range orders {
+				if algoOrderTypes[o.Type] {
+					count++
+				}
+			}
+			assert.Equal(t, tt.wantAlgo, count)
+		})
+	}
+}
+
+func TestGenerateClientOrderID_AllSuffixesWithin36Chars(t *testing.T) {
+	logger := zerolog.Nop()
+	manager := NewManager(nil, nil, nil, logger)
+	bracketID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" // 36-char UUID
+
+	suffixes := []string{"MAIN", "SL", "TP1", "TP2", "TP3", "FAILSAFE"}
+	binanceRegex := `^[a-zA-Z0-9\-_]{1,36}$`
+
+	for _, suffix := range suffixes {
+		t.Run(suffix, func(t *testing.T) {
+			id := manager.generateClientOrderID(bracketID, suffix)
+			assert.LessOrEqual(t, len(id), 36, "ID %q is %d chars, exceeds 36", id, len(id))
+			assert.Regexp(t, binanceRegex, id, "ID %q does not match Binance regex", id)
+		})
+	}
+}
+
+func TestGenerateClientOrderID_Uniqueness(t *testing.T) {
+	logger := zerolog.Nop()
+	manager := NewManager(nil, nil, nil, logger)
+	bracketID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+	ids := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		id := manager.generateClientOrderID(bracketID, "MAIN")
+		assert.False(t, ids[id], "duplicate ID generated: %s", id)
+		ids[id] = true
+	}
 }

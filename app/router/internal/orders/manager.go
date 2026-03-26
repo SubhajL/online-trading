@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +12,10 @@ import (
 	"github.com/shopspring/decimal"
 	"router/internal/binance"
 )
+
+// clientOrderIDSeq provides a monotonically increasing counter to guarantee
+// uniqueness even when consecutive calls land in the same nanosecond.
+var clientOrderIDSeq atomic.Uint64
 
 // Manager manages order lifecycle with idempotency
 type Manager struct {
@@ -289,6 +294,16 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		StopLossPrice:    req.StopLossPrice,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
+	}
+
+	// Pre-check algo order count to avoid Binance MAX_NUM_ALGO_ORDERS rejection.
+	// Binance allows 5 algo orders per symbol; a bracket needs at least 1 SL slot.
+	algoCount, algoErr := countAlgoOrders(ctx, client, req.Symbol)
+	if algoErr != nil {
+		m.logger.Warn().Err(algoErr).Str("symbol", req.Symbol).
+			Msg("Algo order count check failed; proceeding with placement")
+	} else if algoCount >= 5 {
+		return nil, fmt.Errorf("too many open algo orders for %s: %d/5", req.Symbol, algoCount)
 	}
 
 	// Place the bracket orders
@@ -573,9 +588,40 @@ func (m *Manager) validateBracketRequest(req *PlaceBracketRequest) error {
 	return nil
 }
 
-// generateClientOrderID generates a unique client order ID
+// generateClientOrderID generates a unique client order ID that fits within
+// Binance's 36-character limit: ^[a-zA-Z0-9-_]{1,36}$
+// Format: {bracket8}_{suffix4}_{seq6hex}_{nano10hex}  = 8+1+4+1+6+1+10 = 31 max.
 func (m *Manager) generateClientOrderID(bracketID, orderType string) string {
-	return fmt.Sprintf("%s_%s_%d", bracketID[:8], orderType, time.Now().UnixNano())
+	suffix := orderType
+	if len(suffix) > 4 {
+		suffix = suffix[:4]
+	}
+	seq := clientOrderIDSeq.Add(1)
+	nano := uint64(time.Now().UnixNano())
+	return fmt.Sprintf("%s_%s_%06x_%010x", bracketID[:8], suffix, seq%0xFFFFFF, nano%0xFFFFFFFFFF)
+}
+
+// algoOrderTypes are Binance order types that count towards the MAX_NUM_ALGO_ORDERS limit.
+var algoOrderTypes = map[string]bool{
+	"STOP_LOSS":        true,
+	"STOP_LOSS_LIMIT":  true,
+	"TAKE_PROFIT":      true,
+	"TAKE_PROFIT_LIMIT": true,
+}
+
+// countAlgoOrders returns the number of open algo orders for the given symbol.
+func countAlgoOrders(ctx context.Context, client *binance.Client, symbol string) (int, error) {
+	orders, err := client.GetOpenOrders(ctx, symbol)
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, o := range orders {
+		if algoOrderTypes[o.Type] {
+			count++
+		}
+	}
+	return count, nil
 }
 
 // emitOrderUpdateWithLogging emits an order update and logs any errors.
