@@ -8,4 +8,3 @@ func RegisterHealthRoutes(mux *http.ServeMux, handlers *Handlers) {
 	mux.HandleFunc("/ready", handlers.ReadyzHandler)
 	mux.HandleFunc("/readyz", handlers.ReadyzHandler)
 }
-

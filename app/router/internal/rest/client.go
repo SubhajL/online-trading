@@ -709,18 +709,21 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 			params = url.Values{}
 		}
 
-		// Sign request if required
+		// Sign a fresh copy per attempt: reusing the signed set would compute
+		// attempt N's HMAC over a query still containing attempt N-1's
+		// signature, which Binance rejects with -1022 on every retry.
+		attemptParams := cloneValues(params)
 		if signed {
 			if c.signer == nil {
 				return nil, fmt.Errorf("signer required for signed request")
 			}
-			params = c.signer.SignedRequest(params)
+			attemptParams = c.signer.SignedRequest(attemptParams)
 		}
 
 		// Binance API expects all parameters in query string, even for POST
 		requestURL = c.baseURL + path
-		if len(params) > 0 {
-			requestURL += "?" + params.Encode()
+		if len(attemptParams) > 0 {
+			requestURL += "?" + attemptParams.Encode()
 		}
 
 		// Create request
@@ -738,6 +741,12 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			lastErr = err
+			// A POST that failed mid-flight may already have executed on the
+			// exchange; blind re-POSTing can double-execute an order. Surface
+			// the ambiguity so callers resolve via order lookup instead.
+			if method == http.MethodPost {
+				return nil, fmt.Errorf("%w: %s %s: %v", ErrAmbiguousSubmit, method, path, err)
+			}
 			if attempt < c.maxRetries && isNetworkError(err) {
 				c.waitForRetry(attempt)
 				continue
@@ -775,8 +784,12 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 		apiErr := ParseAPIError(resp)
 		lastErr = apiErr
 
-		// Retry if error is retryable
+		// Retry if error is retryable. Server errors on a POST are ambiguous
+		// (the order may have executed before the 5xx) and must not re-POST.
 		if attempt < c.maxRetries && IsRetryableError(apiErr) {
+			if method == http.MethodPost && resp.StatusCode >= 500 {
+				return nil, fmt.Errorf("%w: %s %s: %v", ErrAmbiguousSubmit, method, path, apiErr)
+			}
 			c.waitForRetry(attempt)
 			continue
 		}
@@ -828,4 +841,39 @@ func isNetworkError(err error) bool {
 	}
 
 	return false
+}
+
+// cloneValues copies url.Values so per-attempt mutation (signing) cannot
+// leak into subsequent retry attempts.
+func cloneValues(src url.Values) url.Values {
+	dst := make(url.Values, len(src))
+	for k, vs := range src {
+		dst[k] = append([]string(nil), vs...)
+	}
+	return dst
+}
+
+// GetOrderByClientID queries an order by its client order id, resolving
+// ambiguous submits without re-POSTing. isFutures selects the venue path.
+func (c *Client) GetOrderByClientID(ctx context.Context, symbol, origClientOrderID string, isFutures bool) (*OrderResponse, error) {
+	params := url.Values{}
+	params.Set("symbol", symbol)
+	params.Set("origClientOrderId", origClientOrderID)
+
+	path := "/api/v3/order"
+	if isFutures {
+		path = "/fapi/v1/order"
+	}
+
+	body, err := c.doRequest(ctx, "GET", path, params, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetOrderByClientID")
+	}
+
+	var order OrderResponse
+	if err := json.Unmarshal(body, &order); err != nil {
+		return nil, ErrorWithContext(err, "GetOrderByClientID")
+	}
+
+	return &order, nil
 }

@@ -92,6 +92,24 @@ func ParseAPIError(resp *http.Response) error {
 }
 
 // IsRetryableError determines if an error should trigger a retry
+// ErrAmbiguousSubmit marks a POST whose outcome is unknown: the request may
+// have executed on the exchange before the failure. Callers must resolve by
+// querying the order (GetOrderByClientID) rather than re-submitting.
+var ErrAmbiguousSubmit = errors.New("ambiguous order submit")
+
+// IsDuplicateClientOrderID reports whether the error is Binance rejecting a
+// reused newClientOrderId, which means the original submit succeeded.
+func IsDuplicateClientOrderID(err error) bool {
+	var binanceErr *BinanceError
+	if !errors.As(err, &binanceErr) {
+		return false
+	}
+	if binanceErr.Code == -2010 && strings.Contains(binanceErr.Message, "Duplicate order sent") {
+		return true
+	}
+	return binanceErr.Code == -4116
+}
+
 func IsRetryableError(err error) bool {
 	if err == nil {
 		return false
