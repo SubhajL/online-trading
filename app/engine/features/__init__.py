@@ -9,12 +9,10 @@ Implements various technical indicators including:
 - BB (Bollinger Bands)
 """
 
-from .engine import FeatureEngine
 from .feature_service import FeatureService
 from .indicators import TechnicalIndicatorsCalculator
 
 __all__ = [
-    "FeatureEngine",
     "FeatureService",
     "TechnicalIndicatorsCalculator",
 ]

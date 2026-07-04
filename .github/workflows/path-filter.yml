@@ -34,7 +34,6 @@ jobs:
               - 'app/router/**'
             features:
               - 'app/engine/features/**'
-              - 'app/engine/shared/technical/**'
 
   run-relevant-tests:
     name: Trigger Relevant Tests
