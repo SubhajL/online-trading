@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { Candle, Symbol, Timeframe, SmcEvent, Zone } from '@/types'
 import { useWebSocket } from './useWebSocket'
+import { marketDataService } from '@/services/market-data'
+import { marketDataWebsocketService } from '@/services/websocket'
 
 type IndicatorData = {
   time: number
@@ -72,8 +74,26 @@ type UseMarketDataReturn = {
   setSymbol: (symbol: Symbol) => void
 }
 
+const MAX_CANDLES = 500
+const BACKFILL_WINDOW_MS = 3 * 24 * 60 * 60 * 1000
+
+function upsertCandle(prev: Candle[], candle: Candle): Candle[] {
+  // Closed candles can be re-emitted on reconnect replay; Lightweight Charts
+  // rejects duplicate or non-ascending timestamps, so upsert by time and
+  // keep the buffer bounded.
+  const last = prev[prev.length - 1]
+  if (last && candle.time === last.time) {
+    return [...prev.slice(0, -1), candle]
+  }
+  if (last && candle.time < last.time) {
+    return prev
+  }
+  const next = [...prev, candle]
+  return next.length > MAX_CANDLES ? next.slice(next.length - MAX_CANDLES) : next
+}
+
 export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDataReturn {
-  const { service, connected } = useWebSocket()
+  const { service, connected } = useWebSocket(marketDataWebsocketService)
   const [currentSymbol, setCurrentSymbol] = useState<Symbol>(symbol)
   const [currentTimeframe, setCurrentTimeframe] = useState<Timeframe>(timeframe)
   const [candles, setCandles] = useState<Candle[]>([])
@@ -120,20 +140,49 @@ export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDa
 
     service.emit('subscribe', { symbol: currentSymbol, timeframe: currentTimeframe })
 
+    // Seed the chart from REST so history exists on first load and gaps
+    // heal after a reconnect; live updates then merge on top.
+    let cancelled = false
+    marketDataService
+      .getHistoricalCandles(
+        currentSymbol,
+        currentTimeframe,
+        new Date(Date.now() - BACKFILL_WINDOW_MS),
+        new Date(),
+      )
+      .then(history => {
+        if (cancelled || history.length === 0) return
+        setCandles(prev => {
+          const merged = [...history]
+          for (const candle of prev) {
+            const index = merged.findIndex(existing => existing.time === candle.time)
+            if (index >= 0) {
+              merged[index] = candle
+            } else if (candle.time > (merged[merged.length - 1]?.time ?? 0)) {
+              merged.push(candle)
+            }
+          }
+          return merged.slice(-MAX_CANDLES)
+        })
+        setLoading(false)
+      })
+      .catch(() => {
+        // Backfill is best-effort; live updates still populate the chart.
+      })
+
     // Listen for candle updates
     const unsubscribeCandles = service.subscribe<CandlesV1>('candles.v1', data => {
       if (data.symbol !== currentSymbol || data.timeframe !== currentTimeframe) return
-      setCandles(prev => [
-        ...prev,
-        {
+      setCandles(prev =>
+        upsertCandle(prev, {
           time: Date.parse(data.close_time),
           open: Number(data.open),
           high: Number(data.high),
           low: Number(data.low),
           close: Number(data.close),
           volume: Number(data.volume),
-        },
-      ])
+        }),
+      )
       setLoading(false)
     })
 
@@ -194,6 +243,7 @@ export function useMarketData(symbol: Symbol, timeframe: Timeframe): UseMarketDa
 
     // Cleanup
     return () => {
+      cancelled = true
       service.emit('unsubscribe', { symbol: currentSymbol, timeframe: currentTimeframe })
       unsubscribeCandles()
       unsubscribeFeatures()

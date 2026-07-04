@@ -15,6 +15,7 @@ vi.mock('./websocket.service', () => ({
 vi.mock('@/config/constants', () => ({
   getWebSocketUrl: () => 'ws://localhost:3001/trading',
   getAlertsWebSocketUrl: () => 'ws://localhost:3001/alerts',
+  getMarketDataWebSocketUrl: () => 'ws://localhost:3001/market-data',
 }))
 
 describe('websocket lifecycle module', () => {
@@ -30,16 +31,17 @@ describe('websocket lifecycle module', () => {
     expect(connectMock).not.toHaveBeenCalled()
   })
 
-  it('initWebsockets connects both namespaces and disconnectWebsockets closes both', async () => {
+  it('initWebsockets connects all namespaces and disconnectWebsockets closes all', async () => {
     vi.resetModules()
     const websocketModule = await import('./websocket')
 
     websocketModule.initWebsockets()
-    expect(connectMock).toHaveBeenCalledTimes(2)
+    expect(connectMock).toHaveBeenCalledTimes(3)
     expect(connectMock).toHaveBeenNthCalledWith(1, 'ws://localhost:3001/trading')
     expect(connectMock).toHaveBeenNthCalledWith(2, 'ws://localhost:3001/alerts')
+    expect(connectMock).toHaveBeenNthCalledWith(3, 'ws://localhost:3001/market-data')
 
     websocketModule.disconnectWebsockets()
-    expect(disconnectMock).toHaveBeenCalledTimes(2)
+    expect(disconnectMock).toHaveBeenCalledTimes(3)
   })
 })

@@ -29,10 +29,7 @@ interface SubscriptionData {
 }
 
 @WebSocketGateway({
-  // COLLISION: TradingGateway also declares '/trading'. This module is
-  // currently disabled in app.module.ts; move to its own namespace (or merge
-  // into TradingGateway) before re-enabling, or both connection handlers fire.
-  namespace: '/trading',
+  namespace: '/market-data',
   cors: {
     origin: true,
     credentials: true,

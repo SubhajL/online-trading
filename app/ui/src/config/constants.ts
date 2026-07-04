@@ -10,6 +10,12 @@ export function getWebSocketUrl(): string {
   return `${websocketBase}/trading`
 }
 
+export function getMarketDataWebSocketUrl(): string {
+  // BFF Socket.IO server namespace for realtime candles/features/smc/zones
+  const { websocketBase } = resolveApiEndpoints()
+  return `${websocketBase}/market-data`
+}
+
 export function getAlertsWebSocketUrl(): string {
   // BFF Socket.IO server namespace for realtime alerts
   const { websocketBase } = resolveApiEndpoints()

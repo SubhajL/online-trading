@@ -20,13 +20,26 @@ vi.mock('./useWebSocket', () => ({
   })),
 }))
 
+vi.mock('@/services/market-data', () => ({
+  marketDataService: {
+    getHistoricalCandles: vi.fn(async () => []),
+  },
+}))
+
 describe('useMarketData', () => {
   const mockSymbol = 'BTCUSDT' as Symbol
   const mockTimeframe = '1m' as Timeframe
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mockSubscribe.mockReturnValue(vi.fn()) // Return unsubscribe function
+    const { useWebSocket } = await import('./useWebSocket')
+    vi.mocked(useWebSocket).mockReturnValue({
+      service: mockService,
+      connected: true,
+      connecting: false,
+      reconnectAttempts: 0,
+    })
   })
 
   it('subscribes to candle data on mount', () => {
@@ -205,5 +218,77 @@ describe('useMarketData', () => {
 
     expect(mockEmit).not.toHaveBeenCalled()
     expect(mockSubscribe).not.toHaveBeenCalled()
+  })
+  it('upserts a re-emitted closed candle instead of duplicating it', async () => {
+    let capturedCallback: ((data: any) => void) | null = null
+    mockSubscribe.mockImplementation((event, callback) => {
+      if (event === 'candles.v1') {
+        capturedCallback = callback
+      }
+      return vi.fn()
+    })
+
+    const { result } = renderHook(() => useMarketData(mockSymbol, mockTimeframe))
+    const closeTime = '2026-01-31T00:00:00.000Z'
+    const emit = (close: string) =>
+      capturedCallback?.({
+        symbol: mockSymbol,
+        timeframe: mockTimeframe,
+        close_time: closeTime,
+        open: '50000',
+        high: '50100',
+        low: '49900',
+        close,
+        volume: '100',
+      })
+
+    act(() => {
+      emit('50050')
+    })
+    await waitFor(() => expect(result.current.candles).toHaveLength(1))
+
+    act(() => {
+      emit('50075')
+    })
+    await waitFor(() => {
+      expect(result.current.candles).toHaveLength(1)
+      expect(result.current.candles[0].close).toBe(50075)
+    })
+  })
+
+  it('drops an out-of-order candle older than the latest', async () => {
+    let capturedCallback: ((data: any) => void) | null = null
+    mockSubscribe.mockImplementation((event, callback) => {
+      if (event === 'candles.v1') {
+        capturedCallback = callback
+      }
+      return vi.fn()
+    })
+
+    const { result } = renderHook(() => useMarketData(mockSymbol, mockTimeframe))
+    const emit = (close_time: string, close: string) =>
+      capturedCallback?.({
+        symbol: mockSymbol,
+        timeframe: mockTimeframe,
+        close_time,
+        open: '50000',
+        high: '50100',
+        low: '49900',
+        close,
+        volume: '100',
+      })
+
+    act(() => {
+      emit('2026-01-31T00:01:00.000Z', '50100')
+    })
+    await waitFor(() => expect(result.current.candles).toHaveLength(1))
+
+    act(() => {
+      emit('2026-01-31T00:00:00.000Z', '49000')
+    })
+    await waitFor(() => {
+      expect(result.current.candles).toHaveLength(1)
+      expect(result.current.candles[0].close).toBe(50100)
+    })
   })
 })
