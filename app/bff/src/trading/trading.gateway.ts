@@ -8,6 +8,8 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Logger, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommandBus } from '@nestjs/cqrs';
@@ -15,6 +17,7 @@ import { TradingService } from './trading.service';
 import { OrderRequest } from '../router-client/router-client.service';
 import { CONTRACT_TOPICS } from '../contracts/topics';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { createWsAuthMiddleware } from '../auth/ws-auth.middleware';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PlaceOrderCommand } from './commands/place-order.command';
 import { CancelOrderCommand } from './commands/cancel-order.command';
@@ -42,10 +45,15 @@ export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGat
     private readonly tradingService: TradingService,
     private readonly eventEmitter: EventEmitter2,
     private readonly commandBus: CommandBus,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   afterInit(server: Server) {
     this.server = server;
+    // Guards never run at connection time; without handshake auth anonymous
+    // sockets would join 'trading' and receive every broadcast.
+    server.use(createWsAuthMiddleware(this.jwtService, this.configService));
     this.logger.log('Trading WebSocket Gateway initialized');
 
     // Subscribe to trading events and forward to clients

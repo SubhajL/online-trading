@@ -58,6 +58,7 @@ describe('MarketDataGateway', () => {
     // Mock Socket.io server
     mockServer = {
       emit: jest.fn(),
+      use: jest.fn(),
       to: jest.fn().mockReturnThis(),
       in: jest.fn().mockReturnThis(),
     } as any;
@@ -262,6 +263,28 @@ describe('MarketDataGateway', () => {
           { symbol: 'ETHUSDT', timeframe: '5m' },
         ],
       });
+    });
+  });
+
+  describe('handshake auth middleware', () => {
+    it('registers a middleware that rejects token-less sockets with an error', async () => {
+      gateway.afterInit(mockServer);
+
+      const useMock = (mockServer as unknown as { use: jest.Mock }).use;
+      expect(useMock).toHaveBeenCalledTimes(1);
+      const middleware = useMock.mock.calls[0][0] as (
+        socket: unknown,
+        next: (err?: Error) => void,
+      ) => Promise<void>;
+
+      const next = jest.fn();
+      await middleware(
+        { id: 'anon', handshake: { auth: {}, headers: {}, query: {} }, data: {} },
+        next,
+      );
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledWith(expect.any(Error));
     });
   });
 });
