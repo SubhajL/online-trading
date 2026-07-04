@@ -7,11 +7,14 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Logger, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CONTRACT_TOPICS } from '../contracts/topics';
 import { AlertsService } from './alerts.service';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { createWsAuthMiddleware } from '../auth/ws-auth.middleware';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import type { Alert } from './dto/alert.dto';
 import type { DecisionEvent, OrderUpdateEvent } from '../trading/trading.service';
@@ -31,10 +34,15 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   constructor(
     private readonly alertsService: AlertsService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   afterInit(server: Server) {
     this.server = server;
+    // Populates socket.data.user before handleConnection runs; without it
+    // the user check below rejected every client, authenticated or not.
+    server.use(createWsAuthMiddleware(this.jwtService, this.configService));
     this.logger.log('Alerts WebSocket Gateway initialized');
 
     // Subscribe to alert events

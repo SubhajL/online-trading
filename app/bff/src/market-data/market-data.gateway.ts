@@ -8,10 +8,12 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Logger, UseGuards } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { EngineClientService } from '../engine-client/engine-client.service';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { createWsAuthMiddleware } from '../auth/ws-auth.middleware';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import type {
   CandlesV1,
@@ -27,6 +29,9 @@ interface SubscriptionData {
 }
 
 @WebSocketGateway({
+  // COLLISION: TradingGateway also declares '/trading'. This module is
+  // currently disabled in app.module.ts; move to its own namespace (or merge
+  // into TradingGateway) before re-enabling, or both connection handlers fire.
   namespace: '/trading',
   cors: {
     origin: true,
@@ -41,10 +46,12 @@ export class MarketDataGateway implements OnGatewayInit, OnGatewayConnection, On
   constructor(
     private readonly engineClient: EngineClientService,
     private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
   ) {}
 
   afterInit(server: Server) {
     this.server = server;
+    server.use(createWsAuthMiddleware(this.jwtService, this.configService));
     this.logger.log('MarketData WebSocket Gateway initialized');
 
     // Subscribe to engine events
