@@ -23,6 +23,7 @@ from typing import Any
 import numpy as np
 import yaml
 
+from ..models import TimeFrame
 from .charts import ChartGenerator
 from .metrics import MetricsCalculator
 from .runner import BacktestRunner
@@ -90,6 +91,7 @@ class WFOResult:
         self.parameter_stability: dict[str, float] = {}
         self.total_runtime_ms: int = 0
         self.optimization_summary: dict[str, Any] = {}
+        self.timeframe: TimeFrame | None = None
 
     def get_test_only_metrics(self) -> BacktestMetrics:
         """Get metrics from test periods only (true out-of-sample performance)"""
@@ -111,7 +113,7 @@ class WFOResult:
 
         # Calculate aggregate metrics
         initial_balance = Decimal(10000)  # Should match config
-        metrics_calc = MetricsCalculator(initial_balance)
+        metrics_calc = MetricsCalculator(initial_balance, timeframe=self.timeframe)
 
         return metrics_calc.calculate_metrics(
             all_trades,
@@ -263,6 +265,7 @@ class WFORunner:
 
         # Initialize result
         result = WFOResult()
+        result.timeframe = TimeFrame(timeframe)
         result.windows = windows
 
         # Set max workers

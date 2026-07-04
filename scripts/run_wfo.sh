@@ -10,7 +10,7 @@
 set -e
 
 # Default values
-CONFIG_FILE="config.yaml"
+CONFIG_FILE="app/engine/config.yaml"
 DATA_SOURCE="timescale"
 DATABASE_URL="postgresql://postgres:password@localhost:5432/trading"
 BALANCE=10000
@@ -259,8 +259,8 @@ if [[ -n "$MAX_WORKERS" ]]; then
     CMD_ARGS+=(--max-workers "$MAX_WORKERS")
 fi
 
-# Set Python path
-export PYTHONPATH="$(pwd)/app/engine:$PYTHONPATH"
+# Run from repo root so app.engine relative imports resolve
+export PYTHONPATH="$(pwd):$PYTHONPATH"
 
 # Run WFO
 echo "Starting Walk-Forward Optimization..."
@@ -269,7 +269,7 @@ echo ""
 
 start_time=$(date +%s)
 
-python -m backtest.wfo_runner "${CMD_ARGS[@]}"
+python -m app.engine.backtest.wfo_runner "${CMD_ARGS[@]}"
 
 end_time=$(date +%s)
 runtime=$(( end_time - start_time ))

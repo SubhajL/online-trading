@@ -17,7 +17,7 @@ import yaml
 
 from ..models import TimeFrame
 from .charts import ChartGenerator
-from .dataset import StreamingDataset, create_dataset
+from .dataset import StreamingDataset, create_dataset, parse_utc_date
 from .metrics import MetricsCalculator
 from .serializers import ResultSerializer
 from .simulator import BacktestSimulator
@@ -44,11 +44,26 @@ class BacktestRunner:
 
     def _load_config(self) -> BacktestConfig:
         """Load configuration from YAML file."""
+        if not self.config_path.exists():
+            raise FileNotFoundError(f"Backtest config file not found: {self.config_path}")
+
         try:
             with open(self.config_path) as file:
-                data = yaml.safe_load(file)
+                data = yaml.safe_load(file) or {}
 
-            backtest_data = data.get("backtest", {})
+            backtest_data = data.get("backtest")
+            if backtest_data is None and "backtesting" in data:
+                logger.warning(
+                    "Config %s has no 'backtest' section; falling back to the 'backtesting' alias",
+                    self.config_path,
+                )
+                backtest_data = data["backtesting"]
+            if backtest_data is None:
+                logger.warning(
+                    "Config %s has no 'backtest' section; using BacktestConfig defaults",
+                    self.config_path,
+                )
+                backtest_data = {}
 
             return BacktestConfig(
                 fee_bps_spot=Decimal(str(backtest_data.get("fee_bps_spot", 10))),
@@ -122,8 +137,8 @@ class BacktestRunner:
 
         # Parse parameters
         tf = TimeFrame(timeframe)
-        start_dt = datetime.fromisoformat(start_date)
-        end_dt = datetime.fromisoformat(end_date)
+        start_dt = parse_utc_date(start_date)
+        end_dt = parse_utc_date(end_date, end_of_day=True)
 
         # Create dataset
         dataset = create_dataset(data_source, **data_source_kwargs)
@@ -142,7 +157,7 @@ class BacktestRunner:
         end_time = time.time()
         runtime_ms = int((end_time - start_time) * 1000)
 
-        metrics_calc = MetricsCalculator(initial_balance)
+        metrics_calc = MetricsCalculator(initial_balance, timeframe=tf)
         metrics = metrics_calc.calculate_metrics(
             simulator.completed_trades,
             simulator.equity_history,

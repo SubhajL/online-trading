@@ -10,7 +10,7 @@
 set -e
 
 # Default values
-CONFIG_FILE="config.yaml"
+CONFIG_FILE="app/engine/config.yaml"
 DATA_SOURCE="timescale"
 DATABASE_URL="postgresql://postgres:password@localhost:5432/trading"
 BALANCE=10000
@@ -176,14 +176,14 @@ if [[ -n "$SAVE_DB" ]]; then
     CMD_ARGS+=(--save-db)
 fi
 
-# Set Python path to include engine
-export PYTHONPATH="$(pwd)/app/engine:$PYTHONPATH"
+# Run from repo root so app.engine relative imports resolve
+export PYTHONPATH="$(pwd):$PYTHONPATH"
 
 # Run backtest
 echo "Starting backtest..."
 echo ""
 
-python -m backtest.runner "${CMD_ARGS[@]}"
+python -m app.engine.backtest.runner "${CMD_ARGS[@]}"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════════════════════╗"

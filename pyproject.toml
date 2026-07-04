@@ -62,6 +62,7 @@ dependencies = [
     # Data processing
     "pandas>=2.1.0",
     "numpy>=1.25.0",
+    "matplotlib>=3.8.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
 
