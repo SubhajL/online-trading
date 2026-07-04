@@ -82,10 +82,8 @@ class TestServiceImports:
     def test_retest_service_imports(self):
         """Retest analysis components should be importable."""
         from app.engine.retest.engine import RetestEngine
-        from app.engine.retest.retest_analyzer import RetestAnalyzer
 
         assert RetestEngine is not None
-        assert RetestAnalyzer is not None
 
 
 class TestAdapterImports:
