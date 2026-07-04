@@ -327,7 +327,8 @@ def load_configuration() -> EngineConfig:
             max_position_size=Decimal(os.getenv("MAX_POSITION_SIZE", "0.1")),
             max_daily_loss=Decimal(os.getenv("MAX_DAILY_LOSS", "0.05")),
             max_drawdown=Decimal(os.getenv("MAX_DRAWDOWN", "0.15")),
-            risk_per_trade=Decimal(os.getenv("RISK_PER_TRADE", "0.02")),
+            # 0.5% fixed-fractional per trade — the documented risk profile.
+            risk_per_trade=Decimal(os.getenv("RISK_PER_TRADE", "0.005")),
             max_correlation=Decimal(os.getenv("MAX_CORRELATION", "0.7")),
             max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "5")),
             max_total_exposure_leverage=Decimal(

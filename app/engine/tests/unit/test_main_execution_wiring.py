@@ -426,3 +426,33 @@ class TestTelegramExecutionDecisionAlertsDefault:
         monkeypatch.setenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", value)
 
         assert main_mod._telegram_execution_decision_alerts_enabled_from_env() is False
+
+
+class TestRiskPerTradeDefault:
+    """Documented risk is 0.5% fixed-fractional per trade (CLAUDE.md)."""
+
+    def test_load_configuration_defaults_risk_per_trade_to_half_percent(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.delenv("RISK_PER_TRADE", raising=False)
+        monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
+
+        cfg = main_mod.load_configuration()
+
+        assert cfg.risk_parameters.risk_per_trade == Decimal("0.005")
+
+    def test_load_configuration_env_overrides_risk_per_trade(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.setenv("RISK_PER_TRADE", "0.02")
+        monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
+
+        cfg = main_mod.load_configuration()
+
+        assert cfg.risk_parameters.risk_per_trade == Decimal("0.02")
