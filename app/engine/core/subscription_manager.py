@@ -8,11 +8,13 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import logging
 from typing import Any
 from uuid import uuid4
 
 from app.engine.models import BaseEvent, EventType
 
+from .clock import Clock, SystemClock
 from .error_handling import (
     ErrorCategory,
     ErrorSeverity,
@@ -20,6 +22,8 @@ from .error_handling import (
     create_error_context,
     handle_error,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,6 +33,9 @@ class SubscriptionConfig:
     max_subscriptions: int = 1000
     default_priority: int = 0
     default_max_retries: int = 3
+    # How long a subscription that exceeded max_retries stays deactivated
+    # before the dispatch-time lookup reactivates it with reset retry state.
+    reactivation_cooldown_seconds: float = 60.0
 
 
 @dataclass
@@ -46,6 +53,10 @@ class EventSubscription:
     retry_count: int = 0
     last_error: str | None = None
     is_active: bool = True
+    # Monotonic deadline after which a failure-deactivated subscription is
+    # reactivated; None on an inactive subscription means manually disabled
+    # (never auto-reactivated).
+    deactivated_until: float | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def __lt__(self, other: "EventSubscription") -> bool:
@@ -66,9 +77,14 @@ class SubscriptionManager:
     with proper priority ordering and retry tracking.
     """
 
-    def __init__(self, config: SubscriptionConfig | None = None):
+    def __init__(
+        self,
+        config: SubscriptionConfig | None = None,
+        clock: Clock | None = None,
+    ):
         """Initialize subscription manager with optional config."""
         self._config = config or SubscriptionConfig()
+        self._clock = clock if clock is not None else SystemClock()
 
         # Subscriptions by event type
         self._specific_subscriptions: dict[EventType, list[EventSubscription]] = defaultdict(list)
@@ -221,17 +237,22 @@ class SubscriptionManager:
             list[Any] of active subscriptions sorted by priority (descending)
         """
         async with self._lock:
+            now = self._clock.monotonic()
             subscriptions = []
 
             # Add specific event type subscriptions
             if event_type in self._specific_subscriptions:
                 subscriptions.extend(
-                    [sub for sub in self._specific_subscriptions[event_type] if sub.is_active],
+                    [
+                        sub
+                        for sub in self._specific_subscriptions[event_type]
+                        if self._is_dispatchable(sub, now)
+                    ],
                 )
 
             # Add all-events subscriptions
             subscriptions.extend(
-                [sub for sub in self._all_event_subscriptions if sub.is_active],
+                [sub for sub in self._all_event_subscriptions if self._is_dispatchable(sub, now)],
             )
 
             # Remove duplicates and sort by priority
@@ -243,6 +264,29 @@ class SubscriptionManager:
             )
 
             return sorted_subscriptions
+
+    def _is_dispatchable(self, sub: EventSubscription, now: float) -> bool:
+        """Check dispatch eligibility, reactivating expired cooldowns.
+
+        Must be called under self._lock. A subscription deactivated by
+        failure tracking carries a deactivated_until deadline; once it
+        passes, the subscription is reactivated with reset retry state.
+        Inactive subscriptions without a deadline stay off permanently.
+        """
+        if sub.is_active:
+            return True
+        if sub.deactivated_until is None or now < sub.deactivated_until:
+            return False
+
+        sub.is_active = True
+        sub.retry_count = 0
+        sub.deactivated_until = None
+        logger.warning(
+            "Reactivating subscription %s (subscriber %s) after failure cooldown",
+            sub.subscription_id,
+            sub.subscriber_id,
+        )
+        return True
 
     async def get_subscription_count(self) -> int:
         """Get total number of subscriptions."""
@@ -290,9 +334,21 @@ class SubscriptionManager:
             subscription.retry_count += 1
             subscription.last_error = error_message
 
-            # Disable if max retries exceeded
-            if subscription.retry_count > subscription.max_retries:
+            # Deactivate for a cooldown if max retries exceeded; the
+            # dispatch-time lookup reactivates it once the cooldown expires.
+            if subscription.retry_count > subscription.max_retries and subscription.is_active:
+                cooldown = self._config.reactivation_cooldown_seconds
                 subscription.is_active = False
+                subscription.deactivated_until = self._clock.monotonic() + cooldown
+                logger.warning(
+                    "Deactivating subscription %s (subscriber %s) after %d failures; "
+                    "last error: %s; reactivating in %.0fs",
+                    subscription_id,
+                    subscription.subscriber_id,
+                    subscription.retry_count,
+                    error_message,
+                    cooldown,
+                )
 
     async def record_subscription_success(self, subscription_id: str) -> None:
         """
@@ -324,6 +380,11 @@ class SubscriptionManager:
 
             subscription.retry_count = 0
             subscription.last_error = None
+            # Only clear the cooldown on an active subscription: a stale
+            # success from an in-flight dispatch racing a deactivation must
+            # not erase the deadline, which would deactivate it permanently.
+            if subscription.is_active:
+                subscription.deactivated_until = None
 
     async def get_subscription_by_id(
         self,

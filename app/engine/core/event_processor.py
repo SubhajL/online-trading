@@ -31,6 +31,9 @@ class EventProcessingConfig:
     timeout_seconds: float = 60.0
 
 
+CIRCUIT_BREAKER_OPEN_ERROR_TYPE = "CircuitBreakerOpen"
+
+
 @dataclass
 class EventProcessingError:
     """Error information for failed event processing."""
@@ -145,7 +148,7 @@ class EventProcessor:
                         subscription.subscriber_id,
                     )
                     if not await circuit_breaker.should_allow_request():
-                        return False, subscription, RuntimeError("CircuitBreakerOpen")
+                        return False, subscription, RuntimeError(CIRCUIT_BREAKER_OPEN_ERROR_TYPE)
 
                 # Process with semaphore + timeout
                 await self._process_subscription(event, subscription)
@@ -202,8 +205,8 @@ class EventProcessor:
                 failed_handlers += 1
                 error_type = type(exc).__name__ if exc is not None else "ProcessingError"
                 error_message = str(exc) if exc is not None else "Unknown error"
-                if error_message == "CircuitBreakerOpen":
-                    error_type = "CircuitBreakerOpen"
+                if error_message == CIRCUIT_BREAKER_OPEN_ERROR_TYPE:
+                    error_type = CIRCUIT_BREAKER_OPEN_ERROR_TYPE
                 errors.append(
                     EventProcessingError(
                         subscription_id=sub.subscription_id,
