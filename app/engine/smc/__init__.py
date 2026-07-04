@@ -29,7 +29,13 @@ from .pivots import (
     detect_n_bar_pivots,
     detect_zigzag_pivots,
 )
-from .structure import detect_bos, detect_choch, get_key_levels, update_structure_state
+from .structure import (
+    detect_bos,
+    detect_choch,
+    get_key_levels,
+    register_new_pivots,
+    update_structure_state,
+)
 from .zones import (
     detect_fair_value_gap,
     detect_order_block,
@@ -47,6 +53,7 @@ __all__ = [
     "detect_n_bar_pivots",
     "detect_zigzag_pivots",
     "classify_pivot_relationship",
+    "register_new_pivots",
     "update_structure_state",
     "detect_choch",
     "detect_bos",
