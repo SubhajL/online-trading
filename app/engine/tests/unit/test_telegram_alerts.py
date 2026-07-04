@@ -188,11 +188,12 @@ async def test_send_alert_persists_http_failure_audit(telegram_adapter):
     mock_session.post = MagicMock(return_value=mock_context)
     telegram_adapter.session = mock_session
 
-    success = await telegram_adapter._send_alert(
-        "Failure outbound message",
-        alert_type="error",
-        payload={"component": "pipeline_health"},
-    )
+    with patch("asyncio.sleep", new_callable=AsyncMock):
+        success = await telegram_adapter._send_alert(
+            "Failure outbound message",
+            alert_type="error",
+            payload={"component": "pipeline_health"},
+        )
     await asyncio.sleep(0)
 
     assert success is False
@@ -706,3 +707,125 @@ async def test_rate_limiting(telegram_adapter):
     # Next message should be rate limited
     success = await telegram_adapter._send_alert("Test message")
     assert success is False
+
+
+def _response_context(status: int, *, json_body: dict | None = None, text: str = "") -> AsyncMock:
+    response = MagicMock()
+    response.status = status
+    response.json = AsyncMock(return_value=json_body if json_body is not None else {})
+    response.text = AsyncMock(return_value=text or str(json_body))
+    context = AsyncMock()
+    context.__aenter__ = AsyncMock(return_value=response)
+    context.__aexit__ = AsyncMock(return_value=None)
+    return context
+
+
+def _session_with_responses(*contexts: AsyncMock) -> MagicMock:
+    session = MagicMock()
+    session.post = MagicMock(side_effect=list(contexts))
+    return session
+
+
+class TestSendAlertRetries:
+    """Transient send failures retry with backoff; permanent ones do not."""
+
+    @pytest.mark.asyncio
+    async def test_retries_on_500_then_succeeds(self, telegram_adapter) -> None:
+        telegram_adapter.session = _session_with_responses(
+            _response_context(500, text="Server error"),
+            _response_context(200, json_body={"ok": True, "result": {"message_id": 7}}),
+        )
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as sleep_mock:
+            success = await telegram_adapter._send_alert("msg", alert_type="error")
+        await asyncio.sleep(0)
+
+        assert success is True
+        assert telegram_adapter.session.post.call_count == 2
+        assert sleep_mock.await_count == 1
+        audit_calls = telegram_adapter._test_audit_adapter.calls
+        assert len(audit_calls) == 1
+        assert audit_calls[0]["status"] == "sent"
+
+    @pytest.mark.asyncio
+    async def test_429_honors_retry_after(self, telegram_adapter) -> None:
+        telegram_adapter.session = _session_with_responses(
+            _response_context(
+                429,
+                json_body={"ok": False, "error_code": 429, "parameters": {"retry_after": 2}},
+                text='{"ok":false,"error_code":429}',
+            ),
+            _response_context(200, json_body={"ok": True, "result": {"message_id": 8}}),
+        )
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as sleep_mock:
+            success = await telegram_adapter._send_alert("msg")
+        await asyncio.sleep(0)
+
+        assert success is True
+        sleep_mock.assert_awaited_once_with(2)
+
+    @pytest.mark.asyncio
+    async def test_does_not_retry_client_4xx(self, telegram_adapter) -> None:
+        telegram_adapter.session = _session_with_responses(
+            _response_context(400, text="Bad Request: chat not found"),
+        )
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as sleep_mock:
+            success = await telegram_adapter._send_alert("msg")
+        await asyncio.sleep(0)
+
+        assert success is False
+        assert telegram_adapter.session.post.call_count == 1
+        assert sleep_mock.await_count == 0
+
+    @pytest.mark.asyncio
+    async def test_retries_on_network_error_then_succeeds(self, telegram_adapter) -> None:
+        import aiohttp
+
+        ok_context = _response_context(200, json_body={"ok": True, "result": {"message_id": 9}})
+        session = MagicMock()
+        session.post = MagicMock(
+            side_effect=[aiohttp.ClientConnectionError("dns failure"), ok_context],
+        )
+        telegram_adapter.session = session
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            success = await telegram_adapter._send_alert("msg")
+        await asyncio.sleep(0)
+
+        assert success is True
+        assert session.post.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_gives_up_after_max_attempts_with_single_audit(self, telegram_adapter) -> None:
+        telegram_adapter.session = _session_with_responses(
+            _response_context(500, text="Server error"),
+            _response_context(502, text="Bad gateway"),
+            _response_context(503, text="Unavailable"),
+        )
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            success = await telegram_adapter._send_alert("msg", alert_type="error")
+        await asyncio.sleep(0)
+
+        assert success is False
+        assert telegram_adapter.session.post.call_count == 3
+        audit_calls = telegram_adapter._test_audit_adapter.calls
+        assert len(audit_calls) == 1
+        assert audit_calls[0]["status"] == "failed"
+        assert audit_calls[0]["response_status"] == 503
+
+    @pytest.mark.asyncio
+    async def test_retried_send_consumes_single_rate_limit_slot(self, telegram_adapter) -> None:
+        telegram_adapter.session = _session_with_responses(
+            _response_context(500, text="Server error"),
+            _response_context(200, json_body={"ok": True, "result": {"message_id": 10}}),
+        )
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            success = await telegram_adapter._send_alert("msg")
+        await asyncio.sleep(0)
+
+        assert success is True
+        assert len(telegram_adapter._message_times) == 1

@@ -883,3 +883,53 @@ class TestErrorEventToText:
         assert "Total Exposure:" in text
         assert "New Notional:" in text
         assert "Entry:" in text
+
+
+class TestAlertSubscriberDropLogging:
+    """Dropped trade alerts must be observable, not silent."""
+
+    @pytest.mark.asyncio
+    async def test_drop_logs_warning_with_event_type_symbol_and_source(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_decision = AsyncMock()
+        subscriber = AlertSubscriber(telegram_adapter=mock_telegram)
+
+        event = _make_trading_decision_event(timestamp=datetime.now(UTC))
+        event.metadata.pop("decision_source", None)
+
+        with caplog.at_level("WARNING", logger="app.engine.adapters.alert.alert_subscriber"):
+            await subscriber._handle_event(event)
+
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 1
+        message = warnings[0].getMessage()
+        assert "BTCUSDT" in message
+        assert "None" in message
+
+    @pytest.mark.asyncio
+    async def test_repeated_drop_same_source_logs_warning_once(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_decision = AsyncMock()
+        subscriber = AlertSubscriber(telegram_adapter=mock_telegram)
+
+        first = _make_trading_decision_event(timestamp=datetime.now(UTC))
+        first.metadata.pop("decision_source", None)
+        second = _make_trading_decision_event(timestamp=datetime.now(UTC))
+        second.metadata.pop("decision_source", None)
+        third = _make_trading_decision_event(timestamp=datetime.now(UTC))
+        third.metadata["decision_source"] = "signal_emitter_bypass"
+
+        with caplog.at_level("WARNING", logger="app.engine.adapters.alert.alert_subscriber"):
+            await subscriber._handle_event(first)
+            await subscriber._handle_event(second)
+            await subscriber._handle_event(third)
+
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        # One per distinct (event_type, source): missing-source once, bypass once.
+        assert len(warnings) == 2

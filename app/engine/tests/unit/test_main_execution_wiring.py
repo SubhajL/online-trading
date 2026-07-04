@@ -400,3 +400,29 @@ class TestMainExecutionWiring:
         assert _CapturingAlertSubscriber.last_kwargs["execution_decision_alerts_enabled"] is True
         assert _StubTelegramAdapter.last_kwargs is not None
         assert _StubTelegramAdapter.last_kwargs["db_adapter"] is not None
+
+
+class TestTelegramExecutionDecisionAlertsDefault:
+    """Decision alerts in execution mode are opt-out (default enabled)."""
+
+    def test_helper_defaults_to_enabled_when_env_unset(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.delenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", raising=False)
+
+        assert main_mod._telegram_execution_decision_alerts_enabled_from_env() is True
+
+    @pytest.mark.parametrize("value", ["0", "false", "no", "off"])
+    def test_helper_opt_out_values_disable(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        value: str,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        monkeypatch.setenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", value)
+
+        assert main_mod._telegram_execution_decision_alerts_enabled_from_env() is False

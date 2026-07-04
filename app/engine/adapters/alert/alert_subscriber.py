@@ -245,6 +245,7 @@ def _error_event_to_text(event: ErrorEvent) -> str:
             "quantity",
         )
     ):
+
         def _pct(label: str, raw: object) -> str:
             try:
                 v = Decimal(str(raw))
@@ -297,9 +298,7 @@ def _error_event_to_text(event: ErrorEvent) -> str:
                     )
                 else:
                     lines.append(
-                        "Symbol Exposure: "
-                        f"{symbol_exposure} "
-                        f"({_pct('', ratio)} of equity)",
+                        f"Symbol Exposure: {symbol_exposure} ({_pct('', ratio)} of equity)",
                     )
             else:
                 lines.append(f"Symbol Exposure: {symbol_exposure}")
@@ -319,9 +318,7 @@ def _error_event_to_text(event: ErrorEvent) -> str:
                     )
                 else:
                     lines.append(
-                        "Total Exposure: "
-                        f"{total_exposure} "
-                        f"({ratio:.2f}x equity)",
+                        f"Total Exposure: {total_exposure} ({ratio:.2f}x equity)",
                     )
             else:
                 lines.append(f"Total Exposure: {total_exposure}")
@@ -444,6 +441,7 @@ class AlertSubscriber:
 
         self._subscription_id: str | None = None
         self._event_bus: _EventBus | None = None
+        self._dropped_source_log_keys: set[tuple[str, str]] = set()
 
     async def register(self, event_bus: _EventBus) -> None:
         """
@@ -546,9 +544,22 @@ class AlertSubscriber:
         event: TradingDecisionEvent | OrderUpdateEvent,
     ) -> bool:
         decision_source = event.metadata.get("decision_source")
-        if not isinstance(decision_source, str):
-            return False
-        return decision_source in self._allowed_decision_sources
+        if isinstance(decision_source, str) and decision_source in self._allowed_decision_sources:
+            return True
+
+        # Dropped alerts must be observable: WARN once per (event_type, source)
+        # so post-restart bursts (correlation metadata lost) do not storm logs.
+        log_key = (event.event_type.value, str(decision_source))
+        log = logger.debug if log_key in self._dropped_source_log_keys else logger.warning
+        self._dropped_source_log_keys.add(log_key)
+        log(
+            "Dropping %s alert for %s: decision_source=%r not in allowed sources %s",
+            event.event_type.value,
+            event.symbol,
+            decision_source,
+            sorted(self._allowed_decision_sources),
+        )
+        return False
 
     async def _notify_snapshot_for_decision(self, event: TradingDecisionEvent) -> None:
         """Trigger snapshot generation via BFF client for decision alerts.

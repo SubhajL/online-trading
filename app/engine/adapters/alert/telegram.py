@@ -16,6 +16,31 @@ logger = logging.getLogger(__name__)
 
 _HTTP_OK = 200
 _HTTP_NOT_FOUND = 404
+_HTTP_TOO_MANY_REQUESTS = 429
+_HTTP_SERVER_ERROR = 500
+
+
+class _SendAttemptOutcome:
+    """Result of one sendMessage POST: sent, retryable failure, or fatal."""
+
+    __slots__ = ("kind", "message_id", "reason", "response_body", "response_status", "retry_after")
+
+    def __init__(
+        self,
+        kind: str,
+        *,
+        reason: str | None = None,
+        response_status: int | None = None,
+        response_body: str | None = None,
+        message_id: int | None = None,
+        retry_after: float | None = None,
+    ) -> None:
+        self.kind = kind  # "sent" | "retryable" | "fatal"
+        self.reason = reason
+        self.response_status = response_status
+        self.response_body = response_body
+        self.message_id = message_id
+        self.retry_after = retry_after
 
 
 class TelegramAlertAdapter:
@@ -27,11 +52,17 @@ class TelegramAlertAdapter:
         chat_id: str,
         rate_limit_per_minute: int = 30,
         db_adapter: Any | None = None,
+        send_max_attempts: int = 3,
+        send_retry_base_delay: float = 0.5,
+        send_retry_max_delay: float = 5.0,
     ) -> None:
         self.bot_token = bot_token
         self.chat_id = chat_id
         self.rate_limit_per_minute = rate_limit_per_minute
         self.db_adapter = db_adapter
+        self._send_max_attempts = max(1, send_max_attempts)
+        self._send_retry_base_delay = send_retry_base_delay
+        self._send_retry_max_delay = send_retry_max_delay
 
         self.base_url = f"https://api.telegram.org/bot{bot_token}"
         self.session: aiohttp.ClientSession | None = None
@@ -389,82 +420,118 @@ class TelegramAlertAdapter:
             )
             return False
 
-        try:
-            if not self.session:
-                logger.error("TelegramAlertAdapter session not initialized")
-                return False
+        if not self.session:
+            logger.error("TelegramAlertAdapter session not initialized")
+            return False
 
-            url = f"{self.base_url}/sendMessage"
-            request_payload = {
-                "chat_id": self.chat_id,
-                "text": message,
-                "parse_mode": "HTML",
-            }
+        # Rate-limit budget is consumed once per logical alert (already done
+        # above): retries deliver at most one message, and Telegram-side
+        # pressure is governed by 429 retry_after below.
+        outcome = _SendAttemptOutcome("fatal", reason="exception")
+        attempts = 0
+        for attempt in range(1, self._send_max_attempts + 1):
+            attempts = attempt
+            outcome = await self._post_send_message_once(message)
+            if outcome.kind != "retryable" or attempt == self._send_max_attempts:
+                break
+            delay = outcome.retry_after
+            if delay is None:
+                delay = self._send_retry_base_delay * (2 ** (attempt - 1))
+            await asyncio.sleep(min(delay, self._send_retry_max_delay))
 
-            async with self.session.post(url, json=request_payload) as response:
-                if response.status != _HTTP_OK:
-                    text = await response.text()
-                    logger.error(
-                        "Telegram HTTP error %s: %s",
-                        response.status,
-                        text,
-                    )
-                    self._schedule_audit_record(
-                        alert_type=alert_type,
-                        delivery_method="text",
-                        status="failed",
-                        reason="http_error",
-                        dedup_key=dedup_key,
-                        message_text=message,
-                        response_status=response.status,
-                        response_body=text,
-                        payload=payload,
-                    )
-                    return False
-
-                data = await response.json()
-                if data.get("ok"):
-                    logger.debug("Telegram alert sent successfully")
-                    result = data.get("result") or {}
-                    message_id = result.get("message_id")
-                    self._schedule_audit_record(
-                        alert_type=alert_type,
-                        delivery_method="text",
-                        status="sent",
-                        dedup_key=dedup_key,
-                        telegram_message_id=message_id if isinstance(message_id, int) else None,
-                        message_text=message,
-                        response_status=response.status,
-                        payload=payload,
-                    )
-                    return True
-
-                logger.error("Telegram API error: %s", data)
-                self._schedule_audit_record(
-                    alert_type=alert_type,
-                    delivery_method="text",
-                    status="failed",
-                    reason="api_error",
-                    dedup_key=dedup_key,
-                    message_text=message,
-                    response_status=response.status,
-                    response_body=str(data),
-                    payload=payload,
-                )
-                return False
-
-        except Exception:
-            logger.exception("Error sending Telegram alert")
+        if outcome.kind == "sent":
+            logger.debug("Telegram alert sent successfully")
             self._schedule_audit_record(
                 alert_type=alert_type,
                 delivery_method="text",
-                status="failed",
-                reason="exception",
+                status="sent",
+                reason=f"sent_after_retry(attempts={attempts})" if attempts > 1 else None,
                 dedup_key=dedup_key,
+                telegram_message_id=outcome.message_id,
                 message_text=message,
+                response_status=outcome.response_status,
                 payload=payload,
             )
-            return False
+            return True
+
+        reason = outcome.reason or "exception"
+        if attempts > 1:
+            reason = f"{reason};attempts={attempts}"
+        self._schedule_audit_record(
+            alert_type=alert_type,
+            delivery_method="text",
+            status="failed",
+            reason=reason,
+            dedup_key=dedup_key,
+            message_text=message,
+            response_status=outcome.response_status,
+            response_body=outcome.response_body,
+            payload=payload,
+        )
+        return False
+
+    async def _post_send_message_once(self, message: str) -> _SendAttemptOutcome:
+        """POST one sendMessage and classify the outcome for the retry loop."""
+        assert self.session is not None
+        url = f"{self.base_url}/sendMessage"
+        request_payload = {
+            "chat_id": self.chat_id,
+            "text": message,
+            "parse_mode": "HTML",
+        }
+
+        try:
+            async with self.session.post(url, json=request_payload) as response:
+                if response.status == _HTTP_OK:
+                    data = await response.json()
+                    if data.get("ok"):
+                        result = data.get("result") or {}
+                        message_id = result.get("message_id")
+                        return _SendAttemptOutcome(
+                            "sent",
+                            response_status=response.status,
+                            message_id=message_id if isinstance(message_id, int) else None,
+                        )
+                    logger.error("Telegram API error: %s", data)
+                    return _SendAttemptOutcome(
+                        "fatal",
+                        reason="api_error",
+                        response_status=response.status,
+                        response_body=str(data),
+                    )
+
+                text = await response.text()
+                logger.error("Telegram HTTP error %s: %s", response.status, text)
+                if response.status == _HTTP_TOO_MANY_REQUESTS:
+                    retry_after: float | None = None
+                    try:
+                        body = await response.json()
+                        raw = (body.get("parameters") or {}).get("retry_after")
+                        if isinstance(raw, (int, float)):
+                            retry_after = float(raw)
+                    except Exception:
+                        retry_after = None
+                    return _SendAttemptOutcome(
+                        "retryable",
+                        reason="http_error",
+                        response_status=response.status,
+                        response_body=text,
+                        retry_after=retry_after,
+                    )
+                kind = "retryable" if response.status >= _HTTP_SERVER_ERROR else "fatal"
+                return _SendAttemptOutcome(
+                    kind,
+                    reason="http_error",
+                    response_status=response.status,
+                    response_body=text,
+                )
+
+        except (aiohttp.ClientError, TimeoutError):
+            logger.exception("Network error sending Telegram alert")
+            return _SendAttemptOutcome("retryable", reason="exception")
+        except Exception:
+            logger.exception("Error sending Telegram alert")
+            return _SendAttemptOutcome("fatal", reason="exception")
 
     async def send_error_alert(self, message: str, *, dedup_key: str | None = None) -> bool:
         """Send an error alert with optional Redis-backed deduplication."""
