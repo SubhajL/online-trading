@@ -22,6 +22,7 @@ from .core.error_handling import (
     handle_error,
 )
 from .core.event_bus_factory import EventBusConfig
+from .core.event_processor import CIRCUIT_BREAKER_OPEN_ERROR_TYPE
 from .core.interfaces import (
     EventProcessorInterface,
     SubscriptionManagerInterface,
@@ -252,12 +253,15 @@ class EventBus:
             event.metadata["published_at"] = asyncio.get_event_loop().time()
 
             # Add to processing queue respecting queue mode
+            # put_nowait keeps the hot publish path non-blocking: a full
+            # queue sheds the event via the QueueFull handler below instead of
+            # stalling the WebSocket ingest caller.
             if self._use_priority_queue:
-                await self._event_queue.put(
+                self._event_queue.put_nowait(
                     (-priority, asyncio.get_event_loop().time(), event),
                 )
             else:
-                await self._event_queue.put(event)
+                self._event_queue.put_nowait(event)
             logger.debug(f"Published event {event.event_type} for {event.symbol}")
             return True
 
@@ -276,6 +280,7 @@ class EventBus:
                 context=context,
             )
             await handle_error(error)
+            await self._maybe_enqueue_dead_letter(event, "publish_queue_full")
             return False
         except Exception as e:
             context = create_error_context(
@@ -491,6 +496,11 @@ class EventBus:
 
         # Update subscription manager with success/failure tracking
         for error in result.errors:
+            # An open breaker owns recovery via half-open probes; recording it
+            # as a failure would deactivate the subscription before the
+            # breaker can recover.
+            if error.error_type == CIRCUIT_BREAKER_OPEN_ERROR_TYPE:
+                continue
             await self._subscription_manager.record_subscription_failure(
                 error.subscription_id,
                 error.error_message,
@@ -512,7 +522,7 @@ class EventBus:
             event.metadata["dead_letter_timestamp"] = datetime.now(
                 UTC,
             ).isoformat()
-            await self._dead_letter_queue.put(event)
+            self._dead_letter_queue.put_nowait(event)
         except asyncio.QueueFull:
             logger.error("Dead letter queue full, dropping event")
 
@@ -528,7 +538,7 @@ class EventBus:
             except asyncio.QueueEmpty:
                 break
         for ev in tmp:
-            await self._dead_letter_queue.put(ev)
+            self._dead_letter_queue.put_nowait(ev)
             if len(events) < limit:
                 events.append(ev)
         return events

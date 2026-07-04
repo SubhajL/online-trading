@@ -117,6 +117,10 @@ class EventBusConfig:
             "default_max_retries": int(
                 secure_config.get("SUBSCRIPTION_DEFAULT_RETRIES", 3),
             ),
+            "reactivation_cooldown_seconds": max(
+                1.0,
+                float(secure_config.get("SUBSCRIPTION_REACTIVATION_COOLDOWN_SECONDS", 60.0)),
+            ),
         }
 
     @staticmethod
