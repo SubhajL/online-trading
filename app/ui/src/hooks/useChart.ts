@@ -50,6 +50,10 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
     new Map(),
   )
   const priceLinesRef = useRef<Map<string, IPriceLine>>(new Map())
+  const candleSeedRef = useRef<{ length: number; firstTime: number | null }>({
+    length: 0,
+    firstTime: null,
+  })
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -130,9 +134,27 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
   }, [containerRef])
 
   const updateCandles = (candles: CandlestickData[]) => {
-    if (!candlestickSeries) return
-    candlestickSeries.setData(candles)
-    chart?.timeScale().fitContent()
+    if (!candlestickSeries || candles.length === 0) return
+
+    const firstBar = candles[0]
+    if (!firstBar) return
+    const firstTime = firstBar.time as number
+    const seed = candleSeedRef.current
+    const isAppendOrUpdate =
+      seed.firstTime === firstTime && candles.length >= seed.length && seed.length > 0
+
+    // Incremental tick: update only the newest bar. A full setData plus
+    // fitContent on every tick is O(n) and resets the viewport; reserve it
+    // for the initial load and reconnect-driven resets.
+    const lastBar = candles[candles.length - 1]
+    if (isAppendOrUpdate && lastBar) {
+      candlestickSeries.update(lastBar)
+    } else {
+      candlestickSeries.setData(candles)
+      chart?.timeScale().fitContent()
+    }
+
+    candleSeedRef.current = { length: candles.length, firstTime }
   }
 
   const addIndicator = (

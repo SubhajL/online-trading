@@ -215,6 +215,18 @@ export class WebSocketService {
       }
     })
 
+    // A rejected handshake (e.g. expired token) fires connect_error, never
+    // connect/disconnect; without this handler the UI hangs at "connecting".
+    this.socket.on('connect_error', (error: Error) => {
+      console.error('WebSocket connect_error:', error.message)
+      this.emitConnectionState({
+        connected: false,
+        connecting: false,
+        reconnectAttempts: this.reconnectAttempts,
+      })
+      this.attemptReconnect()
+    })
+
     this.socket.on('error', (error: Error) => {
       console.error('WebSocket error:', error)
     })

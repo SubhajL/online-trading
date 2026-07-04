@@ -142,6 +142,42 @@ describe('useChart', () => {
     expect(mockSetData).toHaveBeenCalledWith(candles)
   })
 
+  it('updates only the newest bar on incremental ticks', () => {
+    const mockSetData = vi.fn()
+    const mockUpdate = vi.fn()
+    const mockFitContent = vi.fn()
+    mockChart.addCandlestickSeries.mockReturnValueOnce({
+      setData: mockSetData,
+      update: mockUpdate,
+    })
+    mockChart.timeScale.mockReturnValue({ fitContent: mockFitContent })
+
+    const { result } = renderHook(() => useChart(containerRef))
+
+    const initial = [
+      { time: 1000 as any, open: 100, high: 110, low: 90, close: 105 },
+      { time: 2000 as any, open: 105, high: 115, low: 100, close: 110 },
+    ]
+    act(() => {
+      result.current.updateCandles(initial)
+    })
+
+    // First load seeds via setData + fitContent.
+    expect(mockSetData).toHaveBeenCalledTimes(1)
+    expect(mockFitContent).toHaveBeenCalledTimes(1)
+
+    const appended = [...initial, { time: 3000 as any, open: 110, high: 120, low: 108, close: 118 }]
+    act(() => {
+      result.current.updateCandles(appended)
+    })
+
+    // Live tick updates only the last bar; no full redraw, no viewport reset.
+    expect(mockUpdate).toHaveBeenCalledTimes(1)
+    expect(mockUpdate).toHaveBeenCalledWith(appended[2])
+    expect(mockSetData).toHaveBeenCalledTimes(1)
+    expect(mockFitContent).toHaveBeenCalledTimes(1)
+  })
+
   it('adds indicator series', () => {
     const { result } = renderHook(() => useChart(containerRef))
 

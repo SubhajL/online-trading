@@ -20,7 +20,7 @@ describe('MarketDataGateway', () => {
   const mockConfigService = {
     get: jest.fn((key: string) => {
       const config: any = {
-        'websocket.namespace': '/trading',
+        'websocket.namespace': '/market-data',
         'jwt.secret': 'test-secret',
       };
       return config[key];
