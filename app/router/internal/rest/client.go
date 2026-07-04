@@ -119,6 +119,21 @@ func (c *Client) GetExchangeInfo(ctx context.Context) (*ExchangeInfo, error) {
 	return &exchangeInfo, nil
 }
 
+// GetFuturesExchangeInfo retrieves USD-M futures exchange information
+func (c *Client) GetFuturesExchangeInfo(ctx context.Context) (*FuturesExchangeInfo, error) {
+	body, err := c.doRequest(ctx, "GET", "/fapi/v1/exchangeInfo", nil, false)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesExchangeInfo")
+	}
+
+	var exchangeInfo FuturesExchangeInfo
+	if err := json.Unmarshal(body, &exchangeInfo); err != nil {
+		return nil, ErrorWithContext(err, "GetFuturesExchangeInfo")
+	}
+
+	return &exchangeInfo, nil
+}
+
 // GetOrderBook retrieves order book depth for a symbol
 func (c *Client) GetOrderBook(ctx context.Context, symbol string, limit int) (*OrderBook, error) {
 	if symbol == "" {

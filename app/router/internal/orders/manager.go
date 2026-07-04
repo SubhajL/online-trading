@@ -258,17 +258,21 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		req.EntryPrice = roundedPrice
 	}
 
-	// Round TP prices
+	// Round TP away from entry and SL away from entry so tick rounding can
+	// never collapse the validated TP > entry > SL (or mirrored) relation.
+	tpDir, slDir := binance.RoundUp, binance.RoundDown
+	if req.Side == "SELL" {
+		tpDir, slDir = binance.RoundDown, binance.RoundUp
+	}
 	for i, tp := range req.TakeProfitPrices {
-		rounded, err := client.RoundPrice(ctx, req.Symbol, tp)
+		rounded, err := client.RoundPriceDirection(ctx, req.Symbol, tp, tpDir)
 		if err != nil {
 			return nil, fmt.Errorf("failed to round TP price %d: %w", i, err)
 		}
 		req.TakeProfitPrices[i] = rounded
 	}
 
-	// Round SL price
-	roundedSL, err := client.RoundPrice(ctx, req.Symbol, req.StopLossPrice)
+	roundedSL, err := client.RoundPriceDirection(ctx, req.Symbol, req.StopLossPrice, slDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to round SL price: %w", err)
 	}
@@ -603,9 +607,9 @@ func (m *Manager) generateClientOrderID(bracketID, orderType string) string {
 
 // algoOrderTypes are Binance order types that count towards the MAX_NUM_ALGO_ORDERS limit.
 var algoOrderTypes = map[string]bool{
-	"STOP_LOSS":        true,
-	"STOP_LOSS_LIMIT":  true,
-	"TAKE_PROFIT":      true,
+	"STOP_LOSS":         true,
+	"STOP_LOSS_LIMIT":   true,
+	"TAKE_PROFIT":       true,
 	"TAKE_PROFIT_LIMIT": true,
 }
 
