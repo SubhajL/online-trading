@@ -76,13 +76,17 @@ async def analyze_retest(  # noqa: PLR0913
         if time_diff > max_time_diff:
             continue
 
+        # Bullish/bearish applies to BOS and CHOCH break types alike; matching
+        # on the exact BOS names sent every CHOCH down the SHORT path.
+        is_bullish_break = bos["type"].startswith("BULLISH_")
+
         # Check zones for retest
         for zone in zones:
-            # Skip zones that don't match BOS direction (demand vs supply)
+            # Skip zones that don't match break direction (demand vs supply)
             zone_side = zone.get("side")
-            if bos["type"] == "BULLISH_BOS" and zone_side != "LOW":
+            if is_bullish_break and zone_side != "LOW":
                 continue
-            if bos["type"] == "BEARISH_BOS" and zone_side != "HIGH":
+            if not is_bullish_break and zone_side != "HIGH":
                 continue
 
             # Check if price is within zone
@@ -90,7 +94,7 @@ async def analyze_retest(  # noqa: PLR0913
                 continue
 
             # Determine direction
-            direction = "LONG" if bos["type"] == "BULLISH_BOS" else "SHORT"
+            direction = "LONG" if is_bullish_break else "SHORT"
 
             # Check confirmation
             if not has_confirmation(latest_candle, zone, None, direction):
