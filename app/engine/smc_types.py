@@ -122,3 +122,12 @@ class StructureTracker(BaseModel):
     last_ll: Pivot | None = None
     pivots: list[StructurePoint] = Field(default_factory=list)
     max_pivots: int = 100
+    # Per-kind registration watermarks: pivots confirm half_n bars late and are
+    # re-detected every candle over the rolling window, so registration accepts
+    # only bar indices above the highest already accepted for each pivot kind.
+    last_registered_high_bar_index: int | None = None
+    last_registered_low_bar_index: int | None = None
+    # Reference pivots (by bar_index) that already emitted a BOS; the same
+    # broken level must not re-fire on every subsequent close beyond it.
+    last_bos_bull_ref_bar_index: int | None = None
+    last_bos_bear_ref_bar_index: int | None = None

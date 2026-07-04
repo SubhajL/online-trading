@@ -14,7 +14,7 @@ from .atr import atr
 from .events import create_smc_event, create_zone_event, publish_events
 from .numutils import to_float_ohlc_arrays
 from .pivots import PivotMethod, detect_n_bar_pivots, detect_zigzag_pivots
-from .structure import detect_bos, detect_choch, get_key_levels, update_structure_state
+from .structure import detect_bos, detect_choch, get_key_levels, register_new_pivots
 from .zones import detect_fair_value_gap, detect_order_block, expire_old_zones
 
 logger = logging.getLogger(__name__)
@@ -108,10 +108,15 @@ class SMCEngine:
         # 1. Detect pivots
         pivots = self._detect_pivots(candles)
 
-        # 2. Update structure state with new pivots
-        for pivot in pivots:
-            if pivot.bar_index == candle.bar_index:  # Only process new pivots
-                update_structure_state(tracker, pivot)
+        # 2. Register newly confirmed pivots (confirmation lags the pivot bar,
+        # so matching against the current bar_index would register nothing).
+        newly_registered = register_new_pivots(tracker, pivots)
+        if newly_registered:
+            logger.debug(
+                "Registered %d new pivot(s) for %s",
+                len(newly_registered),
+                key,
+            )
 
         # 3. Check for CHOCH/BOS
         close_price = candle.close_price
