@@ -214,7 +214,12 @@ def _pipeline_health_alerts_enabled_from_env() -> bool:
 
 
 def _telegram_execution_decision_alerts_enabled_from_env() -> bool:
-    value = os.getenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", "0").strip().lower()
+    """Decision alerts in execution mode are opt-out: unset means enabled.
+
+    Switching EXECUTION_MODE must not silently stop signal alerts; set
+    TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED=0 to opt out explicitly.
+    """
+    value = os.getenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", "1").strip().lower()
     return value in {"1", "true", "yes", "on"}
 
 
@@ -439,7 +444,10 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
             correlation_ttl_seconds = int(
                 os.getenv("ORDER_UPDATE_CORRELATION_TTL_SECONDS", "21600")
             )
-            correlation_store = OrderUpdateCorrelationStore(ttl_seconds=correlation_ttl_seconds)
+            correlation_store = OrderUpdateCorrelationStore(
+                ttl_seconds=correlation_ttl_seconds,
+                redis=redis_adapter,
+            )
             services["order_update_correlation_store"] = correlation_store
 
             async def execution_readiness_check() -> tuple[bool, str | None, dict[str, object]]:
