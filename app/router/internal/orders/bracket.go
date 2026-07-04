@@ -226,8 +226,9 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 		StopPrice:        req.StopLossPrice, // Stop trigger price
 		TimeInForce:      "GTC",
 		NewClientOrderID: slID,
-		ReduceOnly:       true, // SL reduces position
-		ClosePosition:    true, // Close entire position on stop
+		// closePosition and reduceOnly are mutually exclusive on USD-M
+		// (-1106 "Parameter reduceonly sent when not required").
+		ClosePosition: true, // Close entire position on stop
 	}
 
 	slResp, err := client.PlaceFuturesOrder(ctx, slOrder)

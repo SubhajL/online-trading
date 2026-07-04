@@ -195,3 +195,166 @@ func TestManager_PlaceBracketOrder_IsIdempotentByProvidedMainClientOrderID(t *te
 	assert.Equal(t, first.BracketOrderID, second.BracketOrderID)
 	assert.Equal(t, first.ClientOrderIDs, second.ClientOrderIDs)
 }
+
+func TestManager_PlaceBracketOrder_ConcurrentSameClientIDPlacesOnce(t *testing.T) {
+	var mainPosts atomic.Int64
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/fapi/v1/order" {
+			q := r.URL.Query()
+			if q.Get("newClientOrderId") == "race_entry" {
+				mainPosts.Add(1)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"orderId":       1,
+				"symbol":        q.Get("symbol"),
+				"status":        "NEW",
+				"clientOrderId": q.Get("newClientOrderId"),
+				"price":         "50000",
+				"avgPrice":      "0",
+				"origQty":       "0.001",
+				"executedQty":   "0",
+				"cumQty":        "0",
+				"cumQuote":      "0",
+				"timeInForce":   "GTC",
+				"type":          q.Get("type"),
+			})
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSignerWithRecvWindow("key", "secret", 5000)
+	logger := zerolog.Nop()
+	futuresRest := rest.NewClient(server.URL, signer)
+	futuresClient, err := binance.NewFuturesClient(server.URL, signer, futuresRest, logger)
+	assert.NoError(t, err)
+	manager := NewManager(nil, futuresClient, nil, logger)
+
+	makeReq := func() *PlaceBracketRequest {
+		return &PlaceBracketRequest{
+			Symbol:           "BTCUSDT",
+			Side:             "SELL",
+			Quantity:         decimal.RequireFromString("0.001"),
+			EntryPrice:       decimal.RequireFromString("50000"),
+			TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("49000")},
+			StopLossPrice:    decimal.RequireFromString("51000"),
+			OrderType:        "LIMIT",
+			IsFutures:        true,
+			ClientOrderIDs: &ClientOrderIDs{
+				Main:        "race_entry",
+				TakeProfits: []string{"race_tp1"},
+				StopLoss:    "race_sl",
+			},
+		}
+	}
+
+	const racers = 8
+	var wg sync.WaitGroup
+	for i := 0; i < racers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = manager.PlaceBracketOrder(context.Background(), makeReq())
+		}()
+	}
+	wg.Wait()
+
+	// The check-and-reserve write lock guarantees exactly one racer POSTs
+	// the main order; the rest observe the reservation or the stored bracket.
+	assert.Equal(t, int64(1), mainPosts.Load())
+}
+
+func TestManager_PlaceBracketOrder_ReservationReleasedOnFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":-1013,"msg":"Filter failure: PRICE_FILTER"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSignerWithRecvWindow("key", "secret", 5000)
+	logger := zerolog.Nop()
+	futuresRest := rest.NewClient(server.URL, signer)
+	futuresClient, err := binance.NewFuturesClient(server.URL, signer, futuresRest, logger)
+	assert.NoError(t, err)
+	manager := NewManager(nil, futuresClient, nil, logger)
+
+	req := &PlaceBracketRequest{
+		Symbol:           "BTCUSDT",
+		Side:             "SELL",
+		Quantity:         decimal.RequireFromString("0.001"),
+		EntryPrice:       decimal.RequireFromString("50000"),
+		TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("49000")},
+		StopLossPrice:    decimal.RequireFromString("51000"),
+		OrderType:        "LIMIT",
+		IsFutures:        true,
+		ClientOrderIDs: &ClientOrderIDs{
+			Main:        "fail_entry",
+			TakeProfits: []string{"fail_tp1"},
+			StopLoss:    "fail_sl",
+		},
+	}
+
+	_, err = manager.PlaceBracketOrder(context.Background(), req)
+	assert.Error(t, err)
+
+	// A failed placement must not leave a dangling reservation that bricks
+	// every retry with "is being placed".
+	_, err = manager.PlaceBracketOrder(context.Background(), req)
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), "is being placed")
+}
+
+func TestManager_FuturesStopLossSendsClosePositionWithoutReduceOnly(t *testing.T) {
+	var slQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/fapi/v1/order" {
+			q := r.URL.Query()
+			if q.Get("type") == "STOP_MARKET" {
+				slQuery = r.URL.RawQuery
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"orderId":       1,
+				"symbol":        q.Get("symbol"),
+				"status":        "NEW",
+				"clientOrderId": q.Get("newClientOrderId"),
+				"price":         "0",
+				"avgPrice":      "0",
+				"origQty":       "0.001",
+				"executedQty":   "0",
+				"cumQty":        "0",
+				"cumQuote":      "0",
+				"timeInForce":   "GTC",
+				"type":          q.Get("type"),
+			})
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSignerWithRecvWindow("key", "secret", 5000)
+	logger := zerolog.Nop()
+	futuresRest := rest.NewClient(server.URL, signer)
+	futuresClient, err := binance.NewFuturesClient(server.URL, signer, futuresRest, logger)
+	assert.NoError(t, err)
+	manager := NewManager(nil, futuresClient, nil, logger)
+
+	_, err = manager.PlaceBracketOrder(context.Background(), &PlaceBracketRequest{
+		Symbol:           "BTCUSDT",
+		Side:             "SELL",
+		Quantity:         decimal.RequireFromString("0.001"),
+		EntryPrice:       decimal.RequireFromString("50000"),
+		TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("49000")},
+		StopLossPrice:    decimal.RequireFromString("51000"),
+		OrderType:        "LIMIT",
+		IsFutures:        true,
+		ClientOrderIDs: &ClientOrderIDs{
+			Main:        "cp_entry",
+			TakeProfits: []string{"cp_tp1"},
+			StopLoss:    "cp_sl",
+		},
+	})
+	assert.NoError(t, err)
+
+	// USD-M rejects closePosition together with reduceOnly (-1106).
+	assert.Contains(t, slQuery, "closePosition=true")
+	assert.NotContains(t, slQuery, "reduceOnly")
+}

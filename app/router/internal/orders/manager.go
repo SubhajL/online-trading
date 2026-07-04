@@ -214,13 +214,34 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	}
 
 	if req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
-		m.mu.RLock()
+		// Check-and-reserve under one write lock: with a read-lock check two
+		// concurrent identical requests both miss and both POST to Binance.
+		m.mu.Lock()
 		bracketID, exists := m.ordersByClient[req.ClientOrderIDs.Main]
 		var existing *BracketOrder
 		if exists {
 			existing = m.orders[bracketID]
+		} else {
+			m.ordersByClient[req.ClientOrderIDs.Main] = ""
 		}
-		m.mu.RUnlock()
+		m.mu.Unlock()
+
+		if exists && existing == nil {
+			return nil, fmt.Errorf("bracket for client order id %s is being placed", req.ClientOrderIDs.Main)
+		}
+
+		if !exists {
+			// Release the reservation on any failure path; success overwrites
+			// the placeholder with the real bracket id.
+			mainID := req.ClientOrderIDs.Main
+			defer func() {
+				m.mu.Lock()
+				if id, ok := m.ordersByClient[mainID]; ok && id == "" {
+					delete(m.ordersByClient, mainID)
+				}
+				m.mu.Unlock()
+			}()
+		}
 
 		if exists && existing != nil {
 			return &PlaceBracketResponse{

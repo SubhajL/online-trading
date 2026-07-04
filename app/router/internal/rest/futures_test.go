@@ -277,22 +277,14 @@ func TestGetFuturesAccount_Success(t *testing.T) {
 	assert.Len(t, resp.Positions, 1)
 }
 
-func TestPlaceFuturesOrder_RetryOn5xx(t *testing.T) {
+func TestPlaceFuturesOrder_5xxIsAmbiguousNotRetried(t *testing.T) {
+	// A 5xx on an order POST is ambiguous: the order may have executed
+	// before the failure. Blind re-POSTing can double-execute, so the
+	// client must surface ErrAmbiguousSubmit after exactly one attempt.
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
-		if attempts < 3 {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
-
-		// Success on third attempt
-		resp := &FuturesOrderResponse{
-			OrderID: 999,
-			Symbol:  "BTCUSDT",
-			Status:  "NEW",
-		}
-		_ = json.NewEncoder(w).Encode(resp)
+		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer server.Close()
 
@@ -306,10 +298,9 @@ func TestPlaceFuturesOrder_RetryOn5xx(t *testing.T) {
 		Quantity: decimal.RequireFromString("0.001"),
 	}
 
-	resp, err := client.PlaceFuturesOrder(context.Background(), req)
-	require.NoError(t, err)
-	assert.Equal(t, int64(999), resp.OrderID)
-	assert.Equal(t, 3, attempts)
+	_, err := client.PlaceFuturesOrder(context.Background(), req)
+	require.ErrorIs(t, err, ErrAmbiguousSubmit)
+	assert.Equal(t, 1, attempts)
 }
 
 func TestPlaceFuturesOrder_TimeSync(t *testing.T) {
