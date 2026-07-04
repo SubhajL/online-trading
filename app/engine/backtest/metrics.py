@@ -9,7 +9,35 @@ import math
 
 import numpy as np
 
+from ..models import TimeFrame
 from .types import BacktestMetrics, BacktestTrade
+
+_MINUTES_PER_YEAR = 365 * 24 * 60
+_MINUTES_PER_BAR: dict[TimeFrame, int] = {
+    TimeFrame.M1: 1,
+    TimeFrame.M3: 3,
+    TimeFrame.M5: 5,
+    TimeFrame.M15: 15,
+    TimeFrame.M30: 30,
+    TimeFrame.H1: 60,
+    TimeFrame.H2: 120,
+    TimeFrame.H4: 240,
+    TimeFrame.H6: 360,
+    TimeFrame.H8: 480,
+    TimeFrame.H12: 720,
+    TimeFrame.D1: 1440,
+    TimeFrame.D3: 4320,
+    TimeFrame.W1: 10080,
+    TimeFrame.MONTH1: 43200,
+}
+_LEGACY_TRADING_DAYS_PER_YEAR = 252
+
+
+def bars_per_year(timeframe: TimeFrame) -> float:
+    """
+    Bars per year on the continuous crypto calendar (365 days, 24/7).
+    """
+    return _MINUTES_PER_YEAR / _MINUTES_PER_BAR[timeframe]
 
 
 class MetricsCalculator:
@@ -17,14 +45,24 @@ class MetricsCalculator:
     Calculates comprehensive backtesting performance metrics.
     """
 
-    def __init__(self, initial_balance: Decimal = Decimal(10000)):
+    def __init__(
+        self,
+        initial_balance: Decimal = Decimal(10000),
+        timeframe: TimeFrame | None = None,
+    ):
         """
         Initialize metrics calculator.
 
         Args:
             initial_balance: Starting account balance
+            timeframe: Bar timeframe of the equity curve; annualization
+                falls back to 252 daily periods when omitted
         """
         self.initial_balance = initial_balance
+        if timeframe is not None:
+            self._annualization_factor = math.sqrt(bars_per_year(timeframe))
+        else:
+            self._annualization_factor = math.sqrt(_LEGACY_TRADING_DAYS_PER_YEAR)
 
     def calculate_metrics(
         self,
@@ -211,7 +249,7 @@ class MetricsCalculator:
         # Sharpe ratio (assuming 0% risk-free rate)
         if returns_array.std() > 0:
             metrics.sharpe_ratio = Decimal(
-                str(returns_array.mean() / returns_array.std() * math.sqrt(252)),
+                str(returns_array.mean() / returns_array.std() * self._annualization_factor),
             )
 
         # Sortino ratio (downside deviation)
@@ -220,7 +258,7 @@ class MetricsCalculator:
             downside_std = downside_returns.std()
             if downside_std > 0:
                 metrics.sortino_ratio = Decimal(
-                    str(returns_array.mean() / downside_std * math.sqrt(252)),
+                    str(returns_array.mean() / downside_std * self._annualization_factor),
                 )
 
         # Calmar ratio (return / max drawdown)

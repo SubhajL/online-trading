@@ -3,7 +3,7 @@ Dataset adapters for backtesting: TimescaleDB fetcher and CSV loader.
 """
 
 import csv
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import logging
 from pathlib import Path
@@ -15,6 +15,27 @@ from sqlalchemy.orm import sessionmaker
 from ..models import Candle, TimeFrame
 
 logger = logging.getLogger(__name__)
+
+_DATE_ONLY_LENGTH = len("YYYY-MM-DD")
+
+
+def parse_utc_date(value: str, *, end_of_day: bool = False) -> datetime:
+    """
+    Parse a CLI date/datetime string into a tz-aware UTC datetime.
+
+    Args:
+        value: ISO date or datetime string
+        end_of_day: Treat a bare date as the inclusive end of that day
+
+    Returns:
+        Timezone-aware UTC datetime
+    """
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    if end_of_day and len(value) == _DATE_ONLY_LENGTH:
+        parsed = parsed + timedelta(days=1) - timedelta(microseconds=1)
+    return parsed
 
 
 class CandleDataset:
@@ -253,6 +274,11 @@ class CSVDataset(CandleDataset):
             logger.error(f"CSV file not found: {csv_path}")
             return []
 
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=UTC)
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=UTC)
+
         try:
             candles = []
 
@@ -270,11 +296,14 @@ class CSVDataset(CandleDataset):
                         open_time = datetime.fromisoformat(
                             timestamp_str.replace("Z", "+00:00"),
                         )
+                        if open_time.tzinfo is None:
+                            open_time = open_time.replace(tzinfo=UTC)
                     except ValueError:
                         # Try Unix timestamp
                         try:
                             open_time = datetime.fromtimestamp(
                                 int(timestamp_str) / 1000,
+                                tz=UTC,
                             )
                         except ValueError:
                             logger.warning(
