@@ -66,7 +66,12 @@ func writeSpotExchangeInfo(w http.ResponseWriter) {
 				"icebergAllowed":false,
 				"ocoAllowed":false,
 				"isSpotTradingAllowed":true,
-				"isMarginTradingAllowed":false
+				"isMarginTradingAllowed":false,
+				"filters":[
+					{"filterType":"PRICE_FILTER","minPrice":"0.01","maxPrice":"1000000","tickSize":"0.01"},
+					{"filterType":"LOT_SIZE","minQty":"0.00001","maxQty":"9000","stepSize":"0.00001"},
+					{"filterType":"NOTIONAL","minNotional":"5"}
+				]
 			}
 		]
 	}`))

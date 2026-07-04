@@ -53,11 +53,14 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 
 	// 2. Place take profit orders (as limit orders)
 	// For spot, we can place these immediately
+	tpStep, err := client.StepSize(ctx, req.Symbol)
+	if err != nil {
+		return result, fmt.Errorf("failed to resolve step size: %w", err)
+	}
+	tpQuantities := splitTakeProfitQuantities(req.Quantity, len(req.TakeProfitPrices), tpStep)
 	for i, tpPrice := range req.TakeProfitPrices {
 		tpID := plannedIDs.TakeProfits[i]
-
-		// Calculate quantity for this TP (split evenly for simplicity)
-		tpQuantity := req.Quantity.Div(decimal.NewFromInt(int64(len(req.TakeProfitPrices))))
+		tpQuantity := tpQuantities[i]
 
 		tpOrder := binance.SpotOrderRequest{
 			Symbol:           req.Symbol,
@@ -178,11 +181,14 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 	result.Main = mainResp
 
 	// 2. Place take profit orders with ReduceOnly
+	tpStep, err := client.StepSize(ctx, req.Symbol)
+	if err != nil {
+		return result, fmt.Errorf("failed to resolve step size: %w", err)
+	}
+	tpQuantities := splitTakeProfitQuantities(req.Quantity, len(req.TakeProfitPrices), tpStep)
 	for i, tpPrice := range req.TakeProfitPrices {
 		tpID := plannedIDs.TakeProfits[i]
-
-		// Calculate quantity for this TP
-		tpQuantity := req.Quantity.Div(decimal.NewFromInt(int64(len(req.TakeProfitPrices))))
+		tpQuantity := tpQuantities[i]
 
 		tpOrder := binance.FuturesOrderRequest{
 			Symbol:           req.Symbol,
@@ -466,4 +472,30 @@ func (m *Manager) CloseAllPositions(ctx context.Context, req *CloseAllRequest) e
 	}
 
 	return lastErr
+}
+
+// splitTakeProfitQuantities splits a total quantity into n step-aligned
+// slices, assigning the rounding remainder to the last slice so the sum is
+// exactly the total. A zero step returns an even unrounded split.
+func splitTakeProfitQuantities(total decimal.Decimal, n int, step decimal.Decimal) []decimal.Decimal {
+	if n <= 0 {
+		return nil
+	}
+	quantities := make([]decimal.Decimal, n)
+	even := total.Div(decimal.NewFromInt(int64(n)))
+	if !step.IsPositive() {
+		for i := range quantities {
+			quantities[i] = even
+		}
+		return quantities
+	}
+
+	slice := even.Div(step).Floor().Mul(step)
+	allocated := decimal.Zero
+	for i := 0; i < n-1; i++ {
+		quantities[i] = slice
+		allocated = allocated.Add(slice)
+	}
+	quantities[n-1] = total.Sub(allocated)
+	return quantities
 }

@@ -607,6 +607,28 @@ func (c *Client) RoundPrice(ctx context.Context, symbol string, price decimal.De
 	return c.exchangeInfoCache.RoundPrice(ctx, symbol, price, c.isFutures)
 }
 
+// RoundPriceDirection rounds a price onto the tick grid in a fixed
+// direction (see ExchangeInfoCache.RoundPriceDirectional).
+func (c *Client) RoundPriceDirection(ctx context.Context, symbol string, price decimal.Decimal, dir RoundDir) (decimal.Decimal, error) {
+	if c.exchangeInfoCache == nil {
+		return price, nil // No rounding if cache not available
+	}
+	return c.exchangeInfoCache.RoundPriceDirectional(ctx, symbol, price, dir, c.isFutures)
+}
+
+// StepSize returns the lot step size for a symbol, or zero when no
+// exchange info cache is wired (permissive test mode).
+func (c *Client) StepSize(ctx context.Context, symbol string) (decimal.Decimal, error) {
+	if c.exchangeInfoCache == nil {
+		return decimal.Zero, nil
+	}
+	info, err := c.exchangeInfoCache.GetSymbolInfo(ctx, symbol, c.isFutures)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return info.StepSize, nil
+}
+
 // RoundQuantity rounds a quantity according to symbol rules
 func (c *Client) RoundQuantity(ctx context.Context, symbol string, quantity decimal.Decimal) (decimal.Decimal, error) {
 	if c.exchangeInfoCache == nil {

@@ -103,17 +103,50 @@ type ExchangeInfo struct {
 
 // Symbol represents trading symbol information
 type Symbol struct {
-	Symbol                 string   `json:"symbol"`
-	Status                 string   `json:"status"`
-	BaseAsset              string   `json:"baseAsset"`
-	BaseAssetPrecision     int      `json:"baseAssetPrecision"`
-	QuoteAsset             string   `json:"quoteAsset"`
-	QuoteAssetPrecision    int      `json:"quoteAssetPrecision"`
-	OrderTypes             []string `json:"orderTypes"`
-	IcebergAllowed         bool     `json:"icebergAllowed"`
-	OcoAllowed             bool     `json:"ocoAllowed"`
-	IsSpotTradingAllowed   bool     `json:"isSpotTradingAllowed"`
-	IsMarginTradingAllowed bool     `json:"isMarginTradingAllowed"`
+	Symbol                 string      `json:"symbol"`
+	Status                 string      `json:"status"`
+	BaseAsset              string      `json:"baseAsset"`
+	BaseAssetPrecision     int         `json:"baseAssetPrecision"`
+	QuoteAsset             string      `json:"quoteAsset"`
+	QuoteAssetPrecision    int         `json:"quoteAssetPrecision"`
+	OrderTypes             []string    `json:"orderTypes"`
+	IcebergAllowed         bool        `json:"icebergAllowed"`
+	OcoAllowed             bool        `json:"ocoAllowed"`
+	IsSpotTradingAllowed   bool        `json:"isSpotTradingAllowed"`
+	IsMarginTradingAllowed bool        `json:"isMarginTradingAllowed"`
+	Filters                []RawFilter `json:"filters"`
+}
+
+// RawFilter is a symbol filter as returned by exchangeInfo. Numeric fields
+// arrive as strings; spot MIN_NOTIONAL/NOTIONAL uses minNotional while
+// futures MIN_NOTIONAL uses notional.
+type RawFilter struct {
+	FilterType  string `json:"filterType"`
+	MinPrice    string `json:"minPrice,omitempty"`
+	MaxPrice    string `json:"maxPrice,omitempty"`
+	TickSize    string `json:"tickSize,omitempty"`
+	MinQty      string `json:"minQty,omitempty"`
+	MaxQty      string `json:"maxQty,omitempty"`
+	StepSize    string `json:"stepSize,omitempty"`
+	MinNotional string `json:"minNotional,omitempty"`
+	Notional    string `json:"notional,omitempty"`
+}
+
+// FuturesExchangeInfo represents USD-M futures exchange information
+type FuturesExchangeInfo struct {
+	ServerTime int64           `json:"serverTime"`
+	Symbols    []FuturesSymbol `json:"symbols"`
+}
+
+// FuturesSymbol represents a USD-M futures trading symbol
+type FuturesSymbol struct {
+	Symbol            string      `json:"symbol"`
+	Status            string      `json:"status"`
+	BaseAsset         string      `json:"baseAsset"`
+	QuoteAsset        string      `json:"quoteAsset"`
+	PricePrecision    int         `json:"pricePrecision"`
+	QuantityPrecision int         `json:"quantityPrecision"`
+	Filters           []RawFilter `json:"filters"`
 }
 
 // OrderBook represents order book depth

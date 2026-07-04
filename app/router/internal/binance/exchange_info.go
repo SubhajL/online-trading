@@ -2,6 +2,7 @@ package binance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ type ExchangeInfoCache struct {
 	spotClient    *rest.Client
 	futuresClient *rest.Client
 	cache         map[string]*SymbolInfo
+	futuresCache  map[string]*SymbolInfo
 	cacheMu       sync.RWMutex
 	cacheTime     time.Time
 	cacheTTL      time.Duration
@@ -53,12 +55,29 @@ type Filter struct {
 	MinNotional decimal.Decimal `json:"minNotional,omitempty"`
 }
 
+// Rounding-boundary violations are surfaced as errors instead of silently
+// clamping: inflating a quantity to minQty would violate risk sizing.
+var (
+	ErrQtyBelowMin = errors.New("quantity below symbol minimum")
+	ErrQtyAboveMax = errors.New("quantity above symbol maximum")
+)
+
+// RoundDir selects the tick-rounding direction for trigger-sensitive prices.
+type RoundDir int
+
+const (
+	RoundNearest RoundDir = iota
+	RoundDown
+	RoundUp
+)
+
 // NewExchangeInfoCache creates a new exchange info cache
 func NewExchangeInfoCache(spotClient, futuresClient *rest.Client, cacheTTL time.Duration, logger zerolog.Logger) *ExchangeInfoCache {
 	return &ExchangeInfoCache{
 		spotClient:    spotClient,
 		futuresClient: futuresClient,
 		cache:         make(map[string]*SymbolInfo),
+		futuresCache:  make(map[string]*SymbolInfo),
 		cacheTTL:      cacheTTL,
 		logger:        logger,
 	}
@@ -68,9 +87,9 @@ func NewExchangeInfoCache(spotClient, futuresClient *rest.Client, cacheTTL time.
 func (e *ExchangeInfoCache) GetSymbolInfo(ctx context.Context, symbol string, isFutures bool) (*SymbolInfo, error) {
 	e.cacheMu.RLock()
 	if time.Since(e.cacheTime) < e.cacheTTL {
-		info, exists := e.cache[symbol]
+		info, exists := e.marketCache(isFutures)[symbol]
 		e.cacheMu.RUnlock()
-		if exists && info.IsFutures == isFutures {
+		if exists {
 			return info, nil
 		}
 	} else {
@@ -83,19 +102,22 @@ func (e *ExchangeInfoCache) GetSymbolInfo(ctx context.Context, symbol string, is
 	}
 
 	e.cacheMu.RLock()
-	info, exists := e.cache[symbol]
+	info, exists := e.marketCache(isFutures)[symbol]
 	e.cacheMu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("symbol %s not found", symbol)
-	}
-
-	if info.IsFutures != isFutures {
-		return nil, fmt.Errorf("symbol %s is %s but requested %s", symbol,
-			boolToMarket(info.IsFutures), boolToMarket(isFutures))
+		return nil, fmt.Errorf("symbol %s not found on %s", symbol, boolToMarket(isFutures))
 	}
 
 	return info, nil
+}
+
+// marketCache must be called with cacheMu held.
+func (e *ExchangeInfoCache) marketCache(isFutures bool) map[string]*SymbolInfo {
+	if isFutures {
+		return e.futuresCache
+	}
+	return e.cache
 }
 
 // RoundPrice rounds price according to symbol filters
@@ -130,22 +152,59 @@ func (e *ExchangeInfoCache) RoundQuantity(ctx context.Context, symbol string, qu
 		return decimal.Zero, err
 	}
 
-	// Check quantity bounds
-	if quantity.LessThan(info.MinQuantity) {
-		return info.MinQuantity, nil
-	}
-	if quantity.GreaterThan(info.MaxQuantity) {
-		return info.MaxQuantity, nil
-	}
-
-	// Round to step size
+	// Round to step size first, then enforce bounds: silently inflating a
+	// below-minimum quantity to minQty would violate risk sizing.
+	rounded := quantity
 	if info.StepSize.IsPositive() {
 		steps := quantity.Div(info.StepSize).Floor()
-		return steps.Mul(info.StepSize), nil
+		rounded = steps.Mul(info.StepSize)
+	} else if info.QuantityPrecision > 0 {
+		rounded = quantity.Truncate(int32(info.QuantityPrecision))
 	}
 
-	// Fallback to precision rounding
-	return quantity.Truncate(int32(info.QuantityPrecision)), nil
+	if rounded.LessThan(info.MinQuantity) {
+		return decimal.Zero, fmt.Errorf("%w: %s < %s for %s",
+			ErrQtyBelowMin, rounded, info.MinQuantity, symbol)
+	}
+	if info.MaxQuantity.IsPositive() && rounded.GreaterThan(info.MaxQuantity) {
+		return decimal.Zero, fmt.Errorf("%w: %s > %s for %s",
+			ErrQtyAboveMax, rounded, info.MaxQuantity, symbol)
+	}
+
+	return rounded, nil
+}
+
+// RoundPriceDirectional rounds a price onto the tick grid in a fixed
+// direction so that rounding can never move a stop or take-profit across
+// its trigger relation.
+func (e *ExchangeInfoCache) RoundPriceDirectional(ctx context.Context, symbol string, price decimal.Decimal, dir RoundDir, isFutures bool) (decimal.Decimal, error) {
+	info, err := e.GetSymbolInfo(ctx, symbol, isFutures)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	if !info.TickSize.IsPositive() {
+		return price.Round(int32(info.PricePrecision)), nil
+	}
+
+	ticks := price.Div(info.TickSize)
+	switch dir {
+	case RoundDown:
+		ticks = ticks.Floor()
+	case RoundUp:
+		ticks = ticks.Ceil()
+	default:
+		ticks = ticks.Round(0)
+	}
+	rounded := ticks.Mul(info.TickSize)
+
+	if info.MinPrice.IsPositive() && rounded.LessThan(info.MinPrice) {
+		return info.MinPrice, nil
+	}
+	if info.MaxPrice.IsPositive() && rounded.GreaterThan(info.MaxPrice) {
+		return info.MaxPrice, nil
+	}
+	return rounded, nil
 }
 
 // ValidateNotional checks if order value meets minimum notional requirement
@@ -199,35 +258,96 @@ func (e *ExchangeInfoCache) refreshCache(ctx context.Context) error {
 				QuoteAssetPrecision: symbol.QuoteAssetPrecision,
 				IsFutures:           false,
 			}
-
-			// TODO: Parse filters when Symbol type includes them
-			// For now, set default values
-			info.MinPrice = decimal.RequireFromString("0.01")
-			info.MaxPrice = decimal.RequireFromString("1000000")
-			info.TickSize = decimal.RequireFromString("0.01")
-			info.MinQuantity = decimal.RequireFromString("0.001")
-			info.MaxQuantity = decimal.RequireFromString("10000")
-			info.StepSize = decimal.RequireFromString("0.001")
-			info.MinNotional = decimal.RequireFromString("10")
-			info.PricePrecision = 2
-			info.QuantityPrecision = 3
+			applyRawFilters(info, symbol.Filters)
 
 			newCache[symbol.Symbol] = info
 		}
 	}
 
-	// For futures, we would need to make a different API call
-	// Since the REST client doesn't support futures exchange info yet,
-	// we'll skip it for now
+	// A futures outage must not take down spot ordering: keep the previous
+	// futures entries and refresh spot only.
+	newFuturesCache := e.futuresCache
+	if e.futuresClient != nil {
+		e.logger.Debug().Msg("Fetching futures exchange info")
+		futuresInfo, err := e.futuresClient.GetFuturesExchangeInfo(ctx)
+		if err != nil {
+			e.logger.Error().Err(err).Msg("Failed to get futures exchange info; keeping previous futures entries")
+			futuresInfo = &rest.FuturesExchangeInfo{}
+		} else {
+			newFuturesCache = make(map[string]*SymbolInfo)
+		}
+
+		for _, symbol := range futuresInfo.Symbols {
+			if symbol.Status != "TRADING" {
+				continue
+			}
+
+			info := &SymbolInfo{
+				Symbol:            symbol.Symbol,
+				BaseAsset:         symbol.BaseAsset,
+				QuoteAsset:        symbol.QuoteAsset,
+				PricePrecision:    symbol.PricePrecision,
+				QuantityPrecision: symbol.QuantityPrecision,
+				IsFutures:         true,
+			}
+			applyRawFilters(info, symbol.Filters)
+
+			newFuturesCache[symbol.Symbol] = info
+		}
+	}
 
 	e.cache = newCache
+	e.futuresCache = newFuturesCache
 	e.cacheTime = time.Now()
 
 	e.logger.Info().
-		Int("symbol_count", len(newCache)).
+		Int("spot_symbol_count", len(newCache)).
+		Int("futures_symbol_count", len(newFuturesCache)).
 		Msg("Exchange info cache refreshed")
 
 	return nil
+}
+
+// applyRawFilters populates trading rules from exchangeInfo filters.
+func applyRawFilters(info *SymbolInfo, rawFilters []rest.RawFilter) {
+	parse := func(v string) decimal.Decimal {
+		if v == "" {
+			return decimal.Zero
+		}
+		d, err := decimal.NewFromString(v)
+		if err != nil {
+			return decimal.Zero
+		}
+		return d
+	}
+
+	for _, f := range rawFilters {
+		switch f.FilterType {
+		case "PRICE_FILTER":
+			info.MinPrice = parse(f.MinPrice)
+			info.MaxPrice = parse(f.MaxPrice)
+			info.TickSize = parse(f.TickSize)
+			if info.PricePrecision == 0 {
+				info.PricePrecision = calculatePrecision(info.TickSize)
+			}
+		case "LOT_SIZE":
+			info.MinQuantity = parse(f.MinQty)
+			info.MaxQuantity = parse(f.MaxQty)
+			info.StepSize = parse(f.StepSize)
+			if info.QuantityPrecision == 0 {
+				info.QuantityPrecision = calculatePrecision(info.StepSize)
+			}
+		case "MIN_NOTIONAL":
+			// Spot uses minNotional, futures uses notional.
+			if f.MinNotional != "" {
+				info.MinNotional = parse(f.MinNotional)
+			} else {
+				info.MinNotional = parse(f.Notional)
+			}
+		case "NOTIONAL":
+			info.MinNotional = parse(f.MinNotional)
+		}
+	}
 }
 
 // calculatePrecision calculates decimal precision from step size
