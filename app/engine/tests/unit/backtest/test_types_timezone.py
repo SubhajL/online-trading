@@ -1,6 +1,6 @@
 from datetime import timezone
 
-from app.engine.backtest.types import BacktestOrder, BacktestFill, BacktestTrade
+from app.engine.backtest.types import BacktestFill, BacktestOrder, BacktestTrade
 
 
 def test_backtest_order_time_timezone_aware():

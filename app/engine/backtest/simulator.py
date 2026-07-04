@@ -1,70 +1,130 @@
 """
 Event-driven backtesting simulator.
-Reuses exact same math as live trading system with no lookahead.
+
+Runs the real strategy pipeline per closed bar: SMC structure/zones captured
+through the global event bus, retest analysis, live sizing and pretrade risk
+gates, signal cooldown, next-bar-open fills and OCO bracket exits.
 """
 
-import asyncio
-from datetime import datetime
+from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass
+from datetime import date, datetime
 from decimal import Decimal
 import logging
+from typing import TYPE_CHECKING, Any, cast
 
-from ..decision.engine import DecisionEngine  # type: ignore[attr-defined]
+from ..bus import set_event_bus
+from ..core.signal_cooldown import SignalCooldown
+from ..decision.pretrade_risk import evaluate_pretrade_risk
+from ..decision.risk_state import RiskSnapshot
+from ..decision.sizing import size_with_exposure_caps
 from ..features.indicators import TechnicalIndicatorsCalculator
-from ..models import Candle, TechnicalIndicators
+from ..models import Candle, RiskParameters, TimeFrame, TradingDecision
+from ..retest.engine import analyze_retest
 from ..smc.engine import SMCEngine
+from ..smc_types import StructureBreakEvent
+from .capture_bus import CapturingEventBus
 from .costs import CostCalculator
 from .fills import FillEngine
 from .policies import TradingPolicyManager
 from .types import (
     BacktestConfig,
+    BacktestFill,
     BacktestOrder,
     BacktestPosition,
     BacktestTrade,
     ExitReason,
+    FillReason,
     OrderSide,
     OrderStatus,
     OrderType,
 )
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from ..bus import EventBus
+
 logger = logging.getLogger(__name__)
+
+_BAR_MINUTES: dict[str, int] = {
+    "1m": 1,
+    "5m": 5,
+    "15m": 15,
+    "30m": 30,
+    "1h": 60,
+    "4h": 240,
+    "1d": 1440,
+}
+
+_EXIT_REASONS: dict[FillReason, ExitReason] = {
+    FillReason.STOP: ExitReason.SL,
+    FillReason.LIMIT: ExitReason.TP,
+}
+
+
+class _SimClock:
+    def __init__(self) -> None:
+        self._now = 0.0
+
+    def set_time(self, now: float) -> None:
+        self._now = now
+
+    def monotonic(self) -> float:
+        return self._now
+
+
+@dataclass(frozen=True)
+class _BracketSpec:
+    stop_loss: Decimal
+    take_profit: Decimal
+    direction: str
 
 
 class BacktestSimulator:
-    """
-    Event-driven backtesting simulator that processes candles sequentially
-    and reuses the exact same math as live trading.
-    """
-
     def __init__(
         self,
         config: BacktestConfig,
         initial_balance: Decimal = Decimal(10000),
     ):
-        """
-        Initialize backtest simulator.
-
-        Args:
-            config: Backtesting configuration
-            initial_balance: Starting capital
-        """
         self.config = config
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
 
-        # Core engines - REUSE SAME MATH AS LIVE
-        self.indicators_calc = TechnicalIndicatorsCalculator()
-        self.smc_engine = SMCEngine()
-        self.decision_engine = DecisionEngine()
+        # SMCEngine resolves the global bus in its constructor, so the
+        # capturing bus must be installed first.
+        self._capture_bus = CapturingEventBus()
+        set_event_bus(cast("EventBus", self._capture_bus))
+        self.smc_engine = SMCEngine(pivot_n=config.pivot_n, db_adapter=None)
 
-        # Backtest-specific engines
+        self.indicators_calc = TechnicalIndicatorsCalculator()
         self.fill_engine = FillEngine(config.slippage_bps)
         self.cost_calculator = CostCalculator(
             fee_bps_spot=config.fee_bps_spot,
             funding_model=config.funding_model,
         )
         self.policy_manager = TradingPolicyManager()
+        self._clock = _SimClock()
+        self.cooldown = SignalCooldown(
+            cooldown_seconds=config.cooldown_seconds,
+            clock=self._clock,
+        )
+        self._risk = RiskParameters(
+            max_position_size=Decimal(1_000_000_000),
+            max_daily_loss=Decimal(1),
+            max_drawdown=Decimal(1),
+            risk_per_trade=config.risk_per_trade,
+            max_correlation=Decimal(1),
+            max_open_positions=10,
+            max_total_exposure_leverage=Decimal(3),
+            max_symbol_exposure_pct=Decimal(1),
+            max_position_notional_pct=Decimal(1),
+            risk_data_max_age_seconds=86400,
+            drawdown_lookback_days=30,
+        )
 
-        # State tracking
         self.current_time: datetime | None = None
         self.active_orders: list[BacktestOrder] = []
         self.positions: dict[str, BacktestPosition] = {}
@@ -72,243 +132,360 @@ class BacktestSimulator:
         self.equity_history: list[tuple[datetime, Decimal]] = []
         self.drawdown_history: list[tuple[datetime, Decimal]] = []
 
-        # Performance tracking
         self.peak_balance = initial_balance
         self.total_fees = Decimal(0)
         self.total_slippage = Decimal(0)
         self.total_funding = Decimal(0)
 
-    def process_candle(self, candle: Candle) -> None:
-        """
-        Process a single candle through the complete trading pipeline.
+        self._candles: deque[Candle] = deque(maxlen=200)
+        self._bos_events: list[dict[str, Any]] = []
+        self._prev_macd_hist: Decimal | None = None
+        self._pending_brackets: dict[UUID, _BracketSpec] = {}
+        self._oco_pairs: dict[UUID, UUID] = {}
+        self._day_start_equity = initial_balance
+        self._current_day: date | None = None
 
-        Args:
-            candle: Market candle to process
-        """
+    async def process_candle(self, candle: Candle) -> None:
         self.current_time = candle.close_time
-        symbol = candle.symbol
+        self._clock.set_time(candle.close_time.timestamp())
+        self._roll_trading_day(candle)
 
-        logger.debug(f"Processing candle: {symbol} at {candle.close_time}")
-
-        # 1. Update market data and calculate indicators
-        indicators = self._calculate_indicators(
-            [candle],
-        )  # In real backtest, use history
-        if not indicators:
-            return
-
-        # 2. Process SMC analysis
-        asyncio.run(self.smc_engine.process_candle(candle, emit_events=False))
-
-        # 3. Check and execute fills for existing orders
         self._process_order_fills(candle)
-
-        # 4. Update positions with current prices
         self._update_positions(candle)
-
-        # 5. Process funding (if futures)
         self._process_funding(candle)
 
-        # 6. Check for signal generation
-        signal = self._generate_trading_signal(candle, indicators)
+        self._candles.append(candle)
+        features = self._calculate_features()
 
-        # 7. Apply trading policies and filters
-        if signal:
-            allowed, reasons = self.policy_manager.is_trading_allowed(
-                candle.close_time,
-                symbol,
-                signal.get("direction"),
-                signal.get("regime"),
-                indicators,
+        await self.smc_engine.process_candle(candle, emit_events=True)
+        self._capture_structure_breaks()
+        self._prune_bos_events(candle)
+
+        if features is not None:
+            signal = await analyze_retest(
+                venue=candle.venue,
+                symbol=candle.symbol,
+                timeframe=candle.timeframe.value,
+                candles=[self._candle_to_dict(c) for c in self._candles],
+                zones=self._zones_as_dicts(candle.symbol, candle.timeframe),
+                bos_events=self._bos_events,
+                features=features,
             )
+            if signal:
+                await self._execute_signal(signal, candle)
 
-            if allowed:
-                self._execute_signal(signal, candle, indicators)
-            else:
-                logger.debug(f"Signal blocked: {reasons}")
-
-        # 8. Update equity curve and drawdown
         self._update_equity_curve()
 
-        # 9. Check for position management (TP/SL adjustments)
-        self._manage_positions(candle)
-
-    def _calculate_indicators(
-        self,
-        candles: list[Candle],
-    ) -> TechnicalIndicators | None:
-        """
-        Calculate technical indicators using the same calculator as live trading.
-
-        Args:
-            candles: List of candles for calculation
-
-        Returns:
-            Technical indicators or None if insufficient data
-        """
-        if len(candles) < 50:  # Need enough data for indicators
+    def _calculate_features(self) -> dict[str, Decimal] | None:
+        if len(self._candles) < self.config.warmup_bars:
             return None
 
-        try:
-            # Extract price data
-            closes = [c.close_price for c in candles]
-            highs = [c.high_price for c in candles]
-            lows = [c.low_price for c in candles]
-            volumes = [c.volume for c in candles]
+        indicators = self.indicators_calc.calculate_all_indicators(
+            list(self._candles),
+            ema_periods=[9, 21, 50],
+            rsi_period=14,
+            macd_params=(12, 26, 9),
+            atr_period=14,
+            bb_period=20,
+            bb_std_dev=2.0,
+        )
 
-            # Use the exact same calculation as live
-            return self.indicators_calc.calculate_all(  # type: ignore[attr-defined]
-                candles=candles,
-                ema_periods=[9, 21, 50],
-                rsi_period=14,
-                macd_fast=12,
-                macd_slow=26,
-                macd_signal=9,
-                bb_period=20,
-                bb_std=2.0,
-                atr_period=14,
+        macd_hist = indicators.macd_histogram
+        macd_hist_prev = self._prev_macd_hist
+        self._prev_macd_hist = macd_hist
+
+        if (
+            macd_hist is None
+            or macd_hist_prev is None
+            or indicators.atr_14 is None
+            or indicators.rsi_14 is None
+        ):
+            return None
+
+        return {
+            "atr": indicators.atr_14,
+            "macd_hist": macd_hist,
+            "macd_hist_prev": macd_hist_prev,
+            "rsi": indicators.rsi_14,
+        }
+
+    def _capture_structure_breaks(self) -> None:
+        for event in self._capture_bus.drain():
+            if not isinstance(event, StructureBreakEvent):
+                continue
+            smc_event = event.smc_event
+            if smc_event.kind.value not in {"BOS", "CHOCH"}:
+                continue
+            is_bullish = event.current_state.value == "BULLISH"
+            self._bos_events.append(
+                {
+                    "timestamp": smc_event.timestamp,
+                    "type": ("BULLISH_BOS" if is_bullish else "BEARISH_BOS")
+                    if smc_event.kind.value == "BOS"
+                    else ("BULLISH_CHOCH" if is_bullish else "BEARISH_CHOCH"),
+                    "level": smc_event.price,
+                    "strength": smc_event.strength,
+                },
             )
 
-        except Exception as e:
-            logger.error(f"Error calculating indicators: {e}")
-            return None
+    def _prune_bos_events(self, candle: Candle) -> None:
+        bar_minutes = _BAR_MINUTES.get(candle.timeframe.value, 5)
+        max_age_seconds = bar_minutes * 60 * min(self.config.retest_max_wait_bars, 8)
+        self._bos_events = [
+            bos
+            for bos in self._bos_events
+            if (candle.open_time - bos["timestamp"]).total_seconds() <= max_age_seconds
+        ]
 
-    def _process_order_fills(self, candle: Candle) -> None:
-        """
-        Process fills for active orders based on current candle.
+    def _zones_as_dicts(self, symbol: str, timeframe: TimeFrame) -> list[dict[str, Any]]:
+        return [
+            {
+                "zone_id": str(zone.zone_id),
+                "zone_type": zone.zone_type,
+                "side": zone.side.value,
+                "top_price": zone.top_price,
+                "bottom_price": zone.bottom_price,
+                "created_at": zone.created_at,
+                "strength": zone.strength,
+            }
+            for zone in self.smc_engine.get_zones(symbol, timeframe)
+        ]
 
-        Args:
-            candle: Current market candle
-        """
-        fills = self.fill_engine.process_order_fills(self.active_orders, candle)
+    def _candle_to_dict(self, candle: Candle) -> dict[str, Any]:
+        return {
+            "open_time": candle.open_time,
+            "close": candle.close_price,
+            "open": candle.open_price,
+            "high": candle.high_price,
+            "low": candle.low_price,
+            "volume": candle.volume,
+        }
 
-        for fill in fills:
-            self._execute_fill(fill, candle)
+    async def _execute_signal(self, signal: dict[str, Any], candle: Candle) -> None:
+        direction = signal["direction"]
 
-    def _execute_fill(self, fill, candle: Candle) -> None:
-        """
-        Execute a fill and update positions.
-
-        Args:
-            fill: Fill to execute
-            candle: Current candle
-        """
-        # Find and update the order
-        order = next((o for o in self.active_orders if o.id == fill.order_id), None)
-        if not order:
-            logger.error(f"Order not found for fill: {fill.order_id}")
+        allowed, reasons = self.policy_manager.is_trading_allowed(
+            candle.close_time,
+            candle.symbol,
+            direction,
+            None,
+            None,
+        )
+        if not allowed:
+            logger.debug(f"Signal blocked by policies: {reasons}")
             return
 
-        # Calculate fees
+        equity = self._current_equity()
+        symbol_exposure = self._symbol_exposure_usd()
+        total_exposure = sum(symbol_exposure.values(), Decimal(0))
+
+        sized = size_with_exposure_caps(
+            equity=equity,
+            entry_price=signal["entry"],
+            stop_loss=signal["stop_loss"],
+            risk=self._risk,
+            existing_symbol_exposure_usd=symbol_exposure.get(candle.symbol, Decimal(0)),
+            existing_total_exposure_usd=total_exposure,
+        )
+        if sized is None or sized.quantity <= 0:
+            return
+
+        decision = TradingDecision(
+            venue=candle.venue,
+            symbol=candle.symbol,
+            timestamp=signal["timestamp"],
+            action="BUY" if direction == "LONG" else "SELL",
+            entry_price=signal["entry"],
+            quantity=sized.quantity,
+            stop_loss=signal["stop_loss"],
+            take_profit=signal["tp1"],
+            confidence=Decimal("0.7"),
+            reasoning="bos_confirmation; macd_uptick; rsi_bounce",
+        )
+        snapshot = RiskSnapshot(
+            equity=equity,
+            equity_ts=candle.close_time,
+            start_of_day_equity=self._day_start_equity,
+            peak_equity=self.peak_balance,
+            open_positions_count=len(symbol_exposure),
+            total_exposure_usd=total_exposure,
+            symbol_exposure_usd=symbol_exposure,
+        )
+        ok, reasons = evaluate_pretrade_risk(
+            snapshot=snapshot,
+            decision=decision,
+            risk=self._risk,
+        )
+        if not ok:
+            logger.debug(f"Signal blocked by pretrade risk: {reasons}")
+            return
+
+        acquired = await self.cooldown.try_acquire_async(
+            candle.symbol,
+            candle.timeframe.value,
+            str(signal["zone_id"]),
+            direction,
+            venue=candle.venue,
+        )
+        if not acquired:
+            logger.debug(f"Signal blocked by cooldown: {signal['zone_id']}")
+            return
+
+        order = BacktestOrder(
+            symbol=candle.symbol,
+            side=OrderSide.BUY if direction == "LONG" else OrderSide.SELL,
+            type=OrderType.MARKET,
+            quantity=sized.quantity,
+            order_time=candle.close_time,
+        )
+        self.active_orders.append(order)
+        self._pending_brackets[order.id] = _BracketSpec(
+            stop_loss=signal["stop_loss"],
+            take_profit=signal["tp1"],
+            direction=direction,
+        )
+        logger.info(
+            f"Signal executed: {direction} {candle.symbol} size={sized.quantity}",
+        )
+
+    def _process_order_fills(self, candle: Candle) -> None:
+        fills = self.fill_engine.process_order_fills(self.active_orders, candle)
+        for fill in self._stop_first(fills):
+            self._execute_fill(fill, candle)
+
+    def _stop_first(self, fills: list[BacktestFill]) -> list[BacktestFill]:
+        stop_filled_orders = {
+            fill.order_id for fill in fills if fill.fill_reason == FillReason.STOP
+        }
+        return [
+            fill
+            for fill in fills
+            if not (
+                fill.fill_reason == FillReason.LIMIT
+                and self._oco_pairs.get(fill.order_id) in stop_filled_orders
+            )
+        ]
+
+    def _execute_fill(self, fill: BacktestFill, candle: Candle) -> None:
+        order = next((o for o in self.active_orders if o.id == fill.order_id), None)
+        if order is None:
+            return
+
         fee = self.cost_calculator.calculate_fill_fee(fill)
         fill.fee = fee
         self.total_fees += fee
         self.total_slippage += fill.slippage
+        self.current_balance -= fee
 
-        # Update order status
         order.filled_quantity += fill.quantity
         order.remaining_quantity -= fill.quantity
         order.fill_time = fill.fill_time
-
         if order.remaining_quantity <= Decimal(0):
             order.status = OrderStatus.FILLED
             self.active_orders.remove(order)
         else:
             order.status = OrderStatus.PARTIALLY_FILLED
 
-        # Update position
-        self._update_position_from_fill(fill, candle)
+        bracket = self._pending_brackets.pop(order.id, None)
+        if bracket is not None:
+            self._open_position(fill, candle, bracket)
+            self._place_bracket_orders(fill, bracket)
+            return
 
-        logger.info(
-            f"Fill executed: {fill.symbol} {fill.side} {fill.quantity}@{fill.price}",
+        sibling_id = self._oco_pairs.pop(order.id, None)
+        if sibling_id is not None:
+            self._oco_pairs.pop(sibling_id, None)
+            self._cancel_order(sibling_id)
+        self._close_position(
+            fill,
+            exit_reason=_EXIT_REASONS.get(fill.fill_reason, ExitReason.MANUAL),
         )
 
-    def _update_position_from_fill(self, fill, candle: Candle) -> None:
-        """
-        Update position based on fill.
+    def _cancel_order(self, order_id: UUID) -> None:
+        order = next((o for o in self.active_orders if o.id == order_id), None)
+        if order is None:
+            return
+        order.status = OrderStatus.CANCELLED
+        self.active_orders.remove(order)
 
-        Args:
-            fill: Executed fill
-            candle: Current candle
-        """
-        symbol = fill.symbol
-        position = self.positions.get(symbol)
+    def _open_position(
+        self,
+        fill: BacktestFill,
+        candle: Candle,
+        bracket: _BracketSpec,
+    ) -> None:
+        side = "LONG" if fill.side == OrderSide.BUY else "SHORT"
+        position = self.positions.get(fill.symbol)
 
-        if not position:
-            # Create new position
+        if position is None or not position.side or position.quantity <= 0:
             position = BacktestPosition(
-                symbol=symbol,
+                symbol=fill.symbol,
+                side=side,
+                quantity=fill.quantity,
+                entry_price=fill.price,
                 opened_at=fill.fill_time,
             )
-            self.positions[symbol] = position
-
-        # Update position based on fill
-        fill_value = fill.quantity * fill.price
-
-        if fill.side == OrderSide.BUY:
-            if position.side == "SHORT":
-                # Closing short position
-                self._close_position_partially(position, fill.quantity, fill.price)
-            else:
-                # Opening/adding to long position
-                position.side = "LONG"
-                old_value = (
-                    position.quantity * position.entry_price
-                    if position.quantity > 0
-                    else Decimal(0)
-                )
-                new_quantity = position.quantity + fill.quantity
-                new_value = old_value + fill_value
-                position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal(0)
-                position.quantity = new_quantity
-
-        elif position.side == "LONG":
-            # Closing long position
-            self._close_position_partially(position, fill.quantity, fill.price)
-        else:
-            # Opening/adding to short position
-            position.side = "SHORT"
-            old_value = (
-                position.quantity * position.entry_price if position.quantity > 0 else Decimal(0)
-            )
+            self.positions[fill.symbol] = position
+        elif position.side == side:
+            old_value = position.quantity * position.entry_price
             new_quantity = position.quantity + fill.quantity
-            new_value = old_value + fill_value
-            position.entry_price = new_value / new_quantity if new_quantity > 0 else Decimal(0)
+            position.entry_price = (old_value + fill.quantity * fill.price) / new_quantity
             position.quantity = new_quantity
+        else:
+            logger.warning(
+                f"Opposite-side entry fill ignored for {fill.symbol}; netting unsupported",
+            )
+            return
 
         position.mark_price = candle.close_price
         position.total_fees += fill.fee
+        position.stop_loss = bracket.stop_loss
+        position.take_profit = bracket.take_profit
 
-    def _close_position_partially(
-        self,
-        position: BacktestPosition,
-        close_quantity: Decimal,
-        close_price: Decimal,
-    ) -> None:
-        """
-        Partially or fully close a position.
+    def _place_bracket_orders(self, fill: BacktestFill, bracket: _BracketSpec) -> None:
+        exit_side = OrderSide.SELL if fill.side == OrderSide.BUY else OrderSide.BUY
+        stop_order = BacktestOrder(
+            symbol=fill.symbol,
+            side=exit_side,
+            type=OrderType.STOP_MARKET,
+            quantity=fill.quantity,
+            stop_price=bracket.stop_loss,
+            reduce_only=True,
+            order_time=fill.fill_time,
+        )
+        tp_order = BacktestOrder(
+            symbol=fill.symbol,
+            side=exit_side,
+            type=OrderType.LIMIT,
+            quantity=fill.quantity,
+            price=bracket.take_profit,
+            reduce_only=True,
+            order_time=fill.fill_time,
+        )
+        self.active_orders.append(stop_order)
+        self.active_orders.append(tp_order)
+        self._oco_pairs[stop_order.id] = tp_order.id
+        self._oco_pairs[tp_order.id] = stop_order.id
 
-        Args:
-            position: Position to close
-            close_quantity: Quantity to close
-            close_price: Price to close at
-        """
+    def _close_position(self, fill: BacktestFill, exit_reason: ExitReason) -> None:
+        position = self.positions.get(fill.symbol)
+        if position is None or not position.side or position.quantity <= 0:
+            return
+
+        position.total_fees += fill.fee
+        close_quantity = min(fill.quantity, position.quantity)
+
         if close_quantity >= position.quantity:
-            # Full close
-            pnl = self._calculate_position_pnl(position, close_price)
+            pnl = self._calculate_position_pnl(position, fill.price)
             position.realized_pnl += pnl
             self.current_balance += pnl
-
-            # Create completed trade record
-            self._record_completed_trade(position, close_price)
-
-            # Reset position
+            self._record_completed_trade(position, fill.price, exit_reason)
             position.quantity = Decimal(0)
             position.side = None
+            position.unrealized_pnl = Decimal(0)
         else:
-            # Partial close
             close_ratio = close_quantity / position.quantity
-            partial_pnl = self._calculate_position_pnl(position, close_price) * close_ratio
+            partial_pnl = self._calculate_position_pnl(position, fill.price) * close_ratio
             position.realized_pnl += partial_pnl
             position.quantity -= close_quantity
             self.current_balance += partial_pnl
@@ -318,16 +495,6 @@ class BacktestSimulator:
         position: BacktestPosition,
         current_price: Decimal,
     ) -> Decimal:
-        """
-        Calculate position PnL at current price.
-
-        Args:
-            position: Position to calculate PnL for
-            current_price: Current market price
-
-        Returns:
-            PnL amount
-        """
         if position.quantity == Decimal(0) or not position.side:
             return Decimal(0)
 
@@ -335,18 +502,46 @@ class BacktestSimulator:
 
         if position.side == "LONG":
             return position.quantity * price_diff
-        # SHORT
         return position.quantity * -price_diff
 
-    def _update_positions(self, candle: Candle) -> None:
-        """
-        Update all positions with current market prices.
+    def _record_completed_trade(
+        self,
+        position: BacktestPosition,
+        exit_price: Decimal,
+        exit_reason: ExitReason,
+    ) -> None:
+        if not position.opened_at or not position.side:
+            return
 
-        Args:
-            candle: Current market candle
-        """
+        trade = BacktestTrade(
+            symbol=position.symbol,
+            side=position.side.lower(),
+            entry_time=position.opened_at,
+            exit_time=self.current_time,
+            entry_price=position.entry_price,
+            exit_price=exit_price,
+            size=position.quantity,
+            fees=position.total_fees,
+            funding=position.total_funding,
+            stop_loss=position.stop_loss,
+            exit_reason=exit_reason,
+        )
+
+        trade.gross_pnl = position.realized_pnl
+        trade.net_pnl = trade.gross_pnl - trade.fees - trade.funding
+
+        stop_distance = abs(
+            trade.entry_price - (position.stop_loss or trade.entry_price),
+        )
+        if stop_distance > 0:
+            trade.gross_pnl_r = trade.gross_pnl / (stop_distance * trade.size)
+            trade.net_pnl_r = trade.net_pnl / (stop_distance * trade.size)
+
+        self.completed_trades.append(trade)
+
+    def _update_positions(self, candle: Candle) -> None:
         for symbol, position in self.positions.items():
-            if symbol == candle.symbol:
+            if symbol == candle.symbol and position.side and position.quantity > 0:
                 position.mark_price = candle.close_price
                 position.unrealized_pnl = self._calculate_position_pnl(
                     position,
@@ -354,24 +549,15 @@ class BacktestSimulator:
                 )
 
     def _process_funding(self, candle: Candle) -> None:
-        """
-        Process funding payments for futures positions.
-
-        Args:
-            candle: Current candle
-        """
-        # Skip if funding is disabled
         if self.config.funding_model == "disabled":
             return
 
         for symbol, position in self.positions.items():
             if position.quantity == Decimal(0) or not position.side:
                 continue
-
             if not position.opened_at:
                 continue
 
-            # Check if funding should be charged
             if self.cost_calculator.should_charge_funding(
                 candle.close_time,
                 position.opened_at,
@@ -389,172 +575,42 @@ class BacktestSimulator:
 
                 position.total_funding += funding_payment
                 self.total_funding += funding_payment
-                self.current_balance -= funding_payment  # Funding is a cost
+                self.current_balance -= funding_payment
 
                 logger.debug(f"Funding payment: {symbol} {funding_payment}")
 
-    def _generate_trading_signal(
-        self,
-        candle: Candle,
-        indicators: TechnicalIndicators,
-    ) -> dict | None:
-        """
-        Generate trading signal using decision engine.
-
-        Args:
-            candle: Current candle
-            indicators: Technical indicators
-
-        Returns:
-            Trading signal or None
-        """
-        try:
-            # This would use the actual decision engine logic
-            # For now, return a simple mock signal
-            # TODO: Integrate with real decision engine
-
-            return {
-                "direction": "long",
-                "confidence": Decimal("0.75"),
-                "entry_price": candle.close_price,
-                "stop_loss": candle.close_price * Decimal("0.98"),
-                "take_profits": [
-                    {
-                        "price": candle.close_price * Decimal("1.015"),
-                        "size": Decimal("0.4"),
-                    },
-                    {
-                        "price": candle.close_price * Decimal("1.02"),
-                        "size": Decimal("0.3"),
-                    },
-                    {
-                        "price": candle.close_price * Decimal("1.03"),
-                        "size": Decimal("0.3"),
-                    },
-                ],
-                "regime": "trending",
-            }
-        except Exception as e:
-            logger.error(f"Error generating signal: {e}")
-            return None
-
-    def _execute_signal(
-        self,
-        signal: dict,
-        candle: Candle,
-        indicators: TechnicalIndicators,
-    ) -> None:
-        """
-        Execute a trading signal by placing orders.
-
-        Args:
-            signal: Trading signal to execute
-            candle: Current candle
-            indicators: Technical indicators
-        """
-        symbol = candle.symbol
-        direction = signal["direction"]
-        entry_price = signal["entry_price"]
-
-        # Calculate position size (simplified)
-        risk_per_trade = self.current_balance * Decimal("0.01")  # 1% risk
-        stop_distance = abs(entry_price - signal["stop_loss"])
-        position_size = risk_per_trade / stop_distance if stop_distance > 0 else Decimal(100)
-
-        # Place entry order
-        entry_order = BacktestOrder(
-            symbol=symbol,
-            side=OrderSide.BUY if direction == "long" else OrderSide.SELL,
-            type=OrderType.MARKET,
-            quantity=position_size,
-            order_time=candle.close_time,
+    def _current_equity(self) -> Decimal:
+        return self.current_balance + sum(
+            (position.unrealized_pnl for position in self.positions.values()),
+            Decimal(0),
         )
 
-        self.active_orders.append(entry_order)
+    def _symbol_exposure_usd(self) -> dict[str, Decimal]:
+        return {
+            symbol: abs(position.quantity * position.mark_price)
+            for symbol, position in self.positions.items()
+            if position.side and position.quantity > 0
+        }
 
-        logger.info(f"Signal executed: {direction} {symbol} size={position_size}")
+    def _roll_trading_day(self, candle: Candle) -> None:
+        day = candle.close_time.date()
+        if self._current_day != day:
+            self._current_day = day
+            self._day_start_equity = self._current_equity()
 
     def _update_equity_curve(self) -> None:
-        """
-        Update equity curve and drawdown tracking.
-        """
         if not self.current_time:
             return
 
-        # Calculate current equity
-        unrealized_pnl = sum(pos.unrealized_pnl for pos in self.positions.values())
-        current_equity = self.current_balance + unrealized_pnl
-
-        # Update equity curve
+        current_equity = self._current_equity()
         self.equity_history.append((self.current_time, current_equity))
 
-        # Update peak and drawdown
         self.peak_balance = max(self.peak_balance, current_equity)
 
         drawdown = (self.peak_balance - current_equity) / self.peak_balance
         self.drawdown_history.append((self.current_time, drawdown))
 
-    def _manage_positions(self, candle: Candle) -> None:
-        """
-        Manage existing positions (move to breakeven, trailing stops, etc.).
-
-        Args:
-            candle: Current candle
-        """
-        # TODO: Implement position management logic
-        # - Move to breakeven at TP1
-        # - Trailing stops after TP2
-        # - Partial exits at TP levels
-
-    def _record_completed_trade(
-        self,
-        position: BacktestPosition,
-        exit_price: Decimal,
-    ) -> None:
-        """
-        Record a completed trade.
-
-        Args:
-            position: Closed position
-            exit_price: Exit price
-        """
-        if not position.opened_at or not position.side:
-            return
-
-        trade = BacktestTrade(
-            symbol=position.symbol,
-            side=position.side.lower(),
-            entry_time=position.opened_at,
-            exit_time=self.current_time,
-            entry_price=position.entry_price,
-            exit_price=exit_price,
-            size=position.quantity,
-            fees=position.total_fees,
-            funding=position.total_funding,
-            exit_reason=ExitReason.MANUAL,  # TODO: Determine actual reason
-        )
-
-        # Calculate PnL
-        trade.gross_pnl = position.realized_pnl
-        trade.net_pnl = trade.gross_pnl - trade.fees - trade.funding
-
-        # Calculate R multiples (risk-reward)
-        stop_distance = abs(
-            trade.entry_price - (position.stop_loss or trade.entry_price),
-        )
-        if stop_distance > 0:
-            trade.gross_pnl_r = trade.gross_pnl / (stop_distance * trade.size)
-            trade.net_pnl_r = trade.net_pnl / (stop_distance * trade.size)
-
-        self.completed_trades.append(trade)
-
-    def get_current_state(self) -> dict:
-        """
-        Get current simulator state for debugging/monitoring.
-
-        Returns:
-            Dictionary with current state
-        """
+    def get_current_state(self) -> dict[str, Any]:
         return {
             "current_time": self.current_time,
             "balance": self.current_balance,
@@ -564,6 +620,5 @@ class BacktestSimulator:
             "total_fees": self.total_fees,
             "total_slippage": self.total_slippage,
             "total_funding": self.total_funding,
-            "current_equity": self.current_balance
-            + sum(p.unrealized_pnl for p in self.positions.values()),
+            "current_equity": self._current_equity(),
         }

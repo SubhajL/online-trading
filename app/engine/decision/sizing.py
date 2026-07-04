@@ -1,6 +1,74 @@
 """Position sizing module for risk management"""
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 from decimal import Decimal
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.engine.models import RiskParameters
+
+
+@dataclass(frozen=True)
+class RiskCappedSize:
+    quantity: Decimal
+    original_quantity: Decimal
+
+    @property
+    def capped(self) -> bool:
+        return self.quantity != self.original_quantity
+
+
+def size_with_exposure_caps(
+    *,
+    equity: Decimal,
+    entry_price: Decimal,
+    stop_loss: Decimal,
+    risk: RiskParameters,
+    existing_symbol_exposure_usd: Decimal = Decimal(0),
+    existing_total_exposure_usd: Decimal = Decimal(0),
+) -> RiskCappedSize | None:
+    stop_distance = abs(entry_price - stop_loss)
+
+    if stop_distance == 0:
+        return None
+
+    risk_amount = equity * risk.risk_per_trade
+    quantity = risk_amount / stop_distance
+    original_quantity = quantity
+
+    # Cap sizing to notional/exposure limits instead of rejecting outright.
+    # This intentionally risks *less* than risk_per_trade when stops are too tight.
+    if entry_price and entry_price > 0 and quantity > 0:
+        max_qty_candidates = []
+
+        if risk.max_position_size > 0:
+            max_qty_candidates.append(risk.max_position_size)
+
+        if risk.max_position_notional_pct > 0:
+            max_qty_candidates.append((equity * risk.max_position_notional_pct) / entry_price)
+
+        if risk.max_symbol_exposure_pct > 0:
+            remaining_symbol_notional = (
+                equity * risk.max_symbol_exposure_pct
+            ) - existing_symbol_exposure_usd
+            if remaining_symbol_notional > 0:
+                max_qty_candidates.append(remaining_symbol_notional / entry_price)
+
+        if risk.max_total_exposure_leverage > 0:
+            remaining_total_notional = (
+                equity * risk.max_total_exposure_leverage
+            ) - existing_total_exposure_usd
+            if remaining_total_notional > 0:
+                max_qty_candidates.append(remaining_total_notional / entry_price)
+
+        if max_qty_candidates:
+            capped_qty = min(max_qty_candidates)
+            if capped_qty > 0 and capped_qty < quantity:
+                quantity = capped_qty
+
+    return RiskCappedSize(quantity=quantity, original_quantity=original_quantity)
 
 
 def calculate_position_size(
