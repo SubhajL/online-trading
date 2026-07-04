@@ -17,6 +17,7 @@ from app.engine.decision.pretrade_risk import (
     evaluate_pretrade_risk,
 )
 from app.engine.decision.risk_state import build_risk_snapshot
+from app.engine.decision.sizing import size_with_exposure_caps
 from app.engine.models import (
     ErrorEvent,
     EventType,
@@ -105,54 +106,23 @@ class DecisionPublisher:
 
         entry_price = signal.level_price
         stop_loss = signal.stop_loss
-        stop_distance = abs(entry_price - stop_loss)
 
-        if stop_distance == 0:
-            return
-
-        risk_amount = snapshot.equity * self._risk.risk_per_trade
-        quantity = risk_amount / stop_distance
-        original_quantity = quantity
-
-        # Cap sizing to notional/exposure limits instead of rejecting outright.
-        # This intentionally risks *less* than risk_per_trade when stops are too tight.
-        if signal.level_price and signal.level_price > 0 and quantity > 0:
-            entry_price = signal.level_price
-            equity = snapshot.equity
-            existing_symbol_exposure = snapshot.symbol_exposure_usd.get(
+        sized = size_with_exposure_caps(
+            equity=snapshot.equity,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            risk=self._risk,
+            existing_symbol_exposure_usd=snapshot.symbol_exposure_usd.get(
                 signal.symbol,
                 Decimal(0),
-            )
-            existing_total_exposure = snapshot.total_exposure_usd
+            ),
+            existing_total_exposure_usd=snapshot.total_exposure_usd,
+        )
+        if sized is None:
+            return
 
-            max_qty_candidates = []
-
-            if self._risk.max_position_size > 0:
-                max_qty_candidates.append(self._risk.max_position_size)
-
-            if self._risk.max_position_notional_pct > 0:
-                max_qty_candidates.append(
-                    (equity * self._risk.max_position_notional_pct) / entry_price
-                )
-
-            if self._risk.max_symbol_exposure_pct > 0:
-                remaining_symbol_notional = (
-                    equity * self._risk.max_symbol_exposure_pct
-                ) - existing_symbol_exposure
-                if remaining_symbol_notional > 0:
-                    max_qty_candidates.append(remaining_symbol_notional / entry_price)
-
-            if self._risk.max_total_exposure_leverage > 0:
-                remaining_total_notional = (
-                    equity * self._risk.max_total_exposure_leverage
-                ) - existing_total_exposure
-                if remaining_total_notional > 0:
-                    max_qty_candidates.append(remaining_total_notional / entry_price)
-
-            if max_qty_candidates:
-                capped_qty = min(max_qty_candidates)
-                if capped_qty > 0 and capped_qty < quantity:
-                    quantity = capped_qty
+        quantity = sized.quantity
+        original_quantity = sized.original_quantity
 
         decision = TradingDecision(
             venue=self._venue,

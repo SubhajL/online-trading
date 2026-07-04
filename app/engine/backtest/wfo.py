@@ -11,6 +11,7 @@ This prevents overfitting by ensuring parameters work on unseen data.
 """
 
 from collections.abc import Iterator
+import dataclasses
 from datetime import datetime, timedelta
 from decimal import Decimal
 import itertools
@@ -408,21 +409,25 @@ class WFORunner:
         )
 
     def _update_config_with_params(self, params: dict[str, Any]) -> BacktestConfig:
-        """Update base config with optimization parameters"""
-        # Start with base config
-        config = self.base_runner.config
+        """Build a new config from the base config plus optimization parameters"""
+        updates: dict[str, Any] = {}
 
-        # Update with parameters - this would be strategy-specific
-        # For now, just handle common parameters
         if "fee_bps_spot" in params:
-            config.fee_bps_spot = Decimal(str(params["fee_bps_spot"]))
+            updates["fee_bps_spot"] = Decimal(str(params["fee_bps_spot"]))
         if "slippage_bps" in params:
-            config.slippage_bps = Decimal(str(params["slippage_bps"]))
+            updates["slippage_bps"] = Decimal(str(params["slippage_bps"]))
+        if "pivot_n" in params:
+            updates["pivot_n"] = int(params["pivot_n"])
+        if "retest_max_wait_bars" in params:
+            updates["retest_max_wait_bars"] = int(params["retest_max_wait_bars"])
+        if "cooldown_seconds" in params:
+            updates["cooldown_seconds"] = int(params["cooldown_seconds"])
+        if "risk_per_trade" in params:
+            updates["risk_per_trade"] = Decimal(str(params["risk_per_trade"]))
+        if "warmup_bars" in params:
+            updates["warmup_bars"] = int(params["warmup_bars"])
 
-        # Add parameter mapping for strategy-specific parameters
-        # This would be extended based on actual strategy parameters
-
-        return config
+        return dataclasses.replace(self.base_runner.config, **updates)
 
     def _score_result(self, result: BacktestResult) -> float:
         """Score a backtest result for optimization"""

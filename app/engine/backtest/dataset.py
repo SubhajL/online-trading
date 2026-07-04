@@ -202,15 +202,17 @@ class CSVDataset(CandleDataset):
     Loads candle data from CSV files.
     """
 
-    def __init__(self, data_directory: str):
+    def __init__(self, data_directory: str, venue: str = "SPOT"):
         """
         Initialize CSV dataset.
 
         Args:
             data_directory: Directory containing CSV files
+            venue: Venue tag stamped on loaded candles
         """
         super().__init__()
         self.data_directory = Path(data_directory)
+        self.venue = venue
 
     def _get_csv_path(self, symbol: str, timeframe: TimeFrame) -> Path:
         """
@@ -287,7 +289,8 @@ class CSVDataset(CandleDataset):
                     # Calculate close time (approximate)
                     close_time = self._calculate_close_time(open_time, timeframe)
 
-                    candle = Candle(  # type: ignore[call-arg]
+                    candle = Candle(
+                        venue=self.venue,
                         symbol=symbol,
                         timeframe=timeframe,
                         open_time=open_time,

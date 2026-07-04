@@ -174,6 +174,13 @@ class BacktestConfig:
     move_to_breakeven_on: str = "TP1"
     trail_after: str = "TP2"
 
+    # Strategy pipeline
+    pivot_n: int = 3
+    retest_max_wait_bars: int = 8
+    cooldown_seconds: int = 300
+    risk_per_trade: Decimal = Decimal("0.005")
+    warmup_bars: int = 50
+
     # WFO settings
     train_days: int = 90
     test_days: int = 30

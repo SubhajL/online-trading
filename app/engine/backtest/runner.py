@@ -3,6 +3,7 @@ Single backtest runner with CLI interface.
 """
 
 import argparse
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 import hashlib
@@ -76,6 +77,11 @@ class BacktestRunner:
                     "TP1",
                 ),
                 trail_after=backtest_data.get("rr", {}).get("trail_after", "TP2"),
+                pivot_n=int(backtest_data.get("pivot_n", 3)),
+                retest_max_wait_bars=int(backtest_data.get("retest_max_wait_bars", 8)),
+                cooldown_seconds=int(backtest_data.get("cooldown_seconds", 300)),
+                risk_per_trade=Decimal(str(backtest_data.get("risk_per_trade", "0.005"))),
+                warmup_bars=int(backtest_data.get("warmup_bars", 50)),
                 train_days=backtest_data.get("wfo", {}).get("train_days", 90),
                 test_days=backtest_data.get("wfo", {}).get("test_days", 30),
             )
@@ -129,17 +135,8 @@ class BacktestRunner:
         # Start data stream
         streaming_dataset.start_stream(symbol, tf, start_dt, end_dt)
 
-        # Run simulation
-        candle_count = 0
-        while streaming_dataset.has_more():
-            candle = streaming_dataset.next_candle()
-            if candle:
-                simulator.process_candle(candle)
-                candle_count += 1
-
-                if candle_count % 1000 == 0:
-                    progress = streaming_dataset.get_progress()
-                    logger.info(f"Progress: {progress:.1f}% ({candle_count} candles)")
+        # Run simulation in a single event loop for the whole stream
+        asyncio.run(self._run_simulation(simulator, streaming_dataset))
 
         # Calculate metrics
         end_time = time.time()
@@ -175,6 +172,23 @@ class BacktestRunner:
         logger.info(f"Profit Factor: {metrics.profit_factor}")
 
         return result
+
+    async def _run_simulation(
+        self,
+        simulator: BacktestSimulator,
+        streaming_dataset: StreamingDataset,
+    ) -> int:
+        candle_count = 0
+        while streaming_dataset.has_more():
+            candle = streaming_dataset.next_candle()
+            if candle:
+                await simulator.process_candle(candle)
+                candle_count += 1
+
+                if candle_count % 1000 == 0:
+                    progress = streaming_dataset.get_progress()
+                    logger.info(f"Progress: {progress:.1f}% ({candle_count} candles)")
+        return candle_count
 
     def save_results(
         self,
