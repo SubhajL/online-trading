@@ -30,6 +30,9 @@ func (f *fakeSpotExecutionLedger) callCount() int {
 func (f *fakeSpotExecutionLedger) latestSnapshot() SpotExecutionSnapshot {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if len(f.snapshots) == 0 {
+		return SpotExecutionSnapshot{}
+	}
 	return f.snapshots[len(f.snapshots)-1]
 }
 

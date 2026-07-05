@@ -653,6 +653,43 @@ func (c *Client) GetSymbolInfo(ctx context.Context, symbol string) (*SymbolInfo,
 	return c.exchangeInfoCache.GetSymbolInfo(ctx, symbol, c.isFutures)
 }
 
+// GetOrderByClientID queries an order by its client order id, used to resolve
+// ambiguous or duplicate submits without re-POSTing.
+func (c *Client) GetOrderByClientID(
+	ctx context.Context,
+	symbol, clientOrderID string,
+) (*OrderResponse, error) {
+	if c.restClient == nil {
+		return nil, fmt.Errorf("rest client not available")
+	}
+	restResp, err := c.restClient.GetOrderByClientID(ctx, symbol, clientOrderID, c.isFutures)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query order by client id: %w", err)
+	}
+
+	// The order-query response carries no fills and, for market orders, a
+	// zero price; derive the average fill price so adopters don't record 0.
+	price := restResp.Price
+	if price.IsZero() && restResp.ExecutedQty.IsPositive() && restResp.CummulativeQuoteQty.IsPositive() {
+		price = restResp.CummulativeQuoteQty.Div(restResp.ExecutedQty)
+	}
+
+	return &OrderResponse{
+		Symbol:        restResp.Symbol,
+		OrderID:       restResp.OrderID,
+		ClientOrderID: restResp.ClientOrderID,
+		TransactTime:  restResp.TransactTime,
+		Price:         price,
+		OrigQty:       restResp.OrigQty,
+		ExecutedQty:   restResp.ExecutedQty,
+		Status:        restResp.Status,
+		TimeInForce:   restResp.TimeInForce,
+		Type:          restResp.Type,
+		Side:          restResp.Side,
+		Fills:         convertFills(restResp.Fills),
+	}, nil
+}
+
 // GetTickerLastPrice returns the last traded price for a spot symbol (e.g. BTCUSDT).
 func (c *Client) GetTickerLastPrice(ctx context.Context, symbol string) (decimal.Decimal, error) {
 	if c.restClient == nil {

@@ -754,11 +754,15 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 			return nil, err
 		}
 
-		// Read response body
+		// Read response body. A read/close failure after Do succeeded is the
+		// strongest signal a POST executed — never blind re-POST from here.
 		respBody, readErr := io.ReadAll(resp.Body)
 		closeErr := resp.Body.Close()
 		if readErr != nil {
 			lastErr = readErr
+			if method == http.MethodPost {
+				return nil, fmt.Errorf("%w: %s %s: %v", ErrAmbiguousSubmit, method, path, readErr)
+			}
 			if attempt < c.maxRetries {
 				c.waitForRetry(attempt)
 				continue
@@ -767,6 +771,9 @@ func (c *Client) doRequest(ctx context.Context, method, path string, params url.
 		}
 		if closeErr != nil {
 			lastErr = closeErr
+			if method == http.MethodPost {
+				return nil, fmt.Errorf("%w: %s %s: %v", ErrAmbiguousSubmit, method, path, closeErr)
+			}
 			if attempt < c.maxRetries {
 				c.waitForRetry(attempt)
 				continue
