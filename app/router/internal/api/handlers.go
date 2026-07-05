@@ -27,6 +27,12 @@ type Handlers struct {
 	intentPersister    IntentPersister
 	executionPersister SpotExecutionPersister
 	logger             zerolog.Logger
+	executionEnv       string
+}
+
+// SetExecutionEnv records the execution environment exposed on health responses.
+func (h *Handlers) SetExecutionEnv(env string) {
+	h.executionEnv = env
 }
 
 type SpotExecutionPersister interface {
@@ -367,10 +373,14 @@ func (h *Handlers) HealthzHandler(w http.ResponseWriter, r *http.Request) {
 		Str("remote_addr", r.RemoteAddr).
 		Msg("Health check requested")
 
-	writeJSON(w, http.StatusOK, map[string]string{
+	body := map[string]string{
 		"status":  "healthy",
 		"service": "order-router",
-	})
+	}
+	if h.executionEnv != "" {
+		body["execution_env"] = h.executionEnv
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 // ReadyzHandler handles GET /readyz

@@ -202,6 +202,11 @@ func main() {
 
 	// Create HTTP handlers
 	handlers := api.NewHandlers(orderManager, logger, intentPersister, spotTradeProcessor)
+	if cfg.Binance.Testnet {
+		handlers.SetExecutionEnv("testnet")
+	} else {
+		handlers.SetExecutionEnv("mainnet")
+	}
 
 	// Create and configure HTTP server
 	mux := http.NewServeMux()

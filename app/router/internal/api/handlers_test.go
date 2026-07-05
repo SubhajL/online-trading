@@ -927,3 +927,21 @@ func TestParseDecimalArray(t *testing.T) {
 		})
 	}
 }
+
+func TestHealthzHandler_IncludesExecutionEnv(t *testing.T) {
+	logger := zerolog.Nop()
+	handlers := NewHandlers(new(MockOrderManager), logger, nil, nil)
+	handlers.SetExecutionEnv("testnet")
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rr := httptest.NewRecorder()
+	handlers.HealthzHandler(rr, req)
+
+	var body map[string]string
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, map[string]string{
+		"status":        "healthy",
+		"service":       "order-router",
+		"execution_env": "testnet",
+	}, body)
+}

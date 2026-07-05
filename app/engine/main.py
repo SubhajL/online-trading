@@ -204,6 +204,10 @@ def _binance_data_testnet_from_env() -> bool:
     if data_source == "mainnet":
         return False
     if data_source == "testnet":
+        logger.warning(
+            "BINANCE_DATA_SOURCE=testnet: testnet market data is thin and unrealistic "
+            "for signal generation; prefer mainnet data with ROUTER_EXECUTION_ENV=testnet",
+        )
         return True
     raise ValueError("BINANCE_DATA_SOURCE must be 'mainnet' or 'testnet'")
 
@@ -508,6 +512,7 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
                 min_confidence=min_confidence,
                 max_position_size=config.risk_parameters.max_position_size,
                 execution_readiness_check=execution_readiness_check,
+                router_env_probe_attempts=5,
             )
             logger.info(
                 "Execution subscriber enabled: %s (min_confidence=%s, cooldown=%ss)",
