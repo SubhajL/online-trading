@@ -1,8 +1,8 @@
-import json
 from datetime import datetime, timezone
 from decimal import Decimal
+import json
 
-from app.engine.paper.broker import PlaceBracketResponse, ClientOrderIDs, OrderUpdate
+from app.engine.paper.broker import ClientOrderIDs, OrderUpdate, PlaceBracketResponse
 
 
 def test_place_bracket_response_serialization():

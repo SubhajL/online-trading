@@ -55,6 +55,12 @@ def _raise_http(status_code: int, detail: str) -> NoReturn:
 # ============================================================================
 
 
+class ClientOrderIDs(BaseModel):
+    main: str
+    take_profits: list[str]
+    stop_loss: str
+
+
 class PlaceBracketRequest(BaseModel):
     symbol: str
     side: str  # BUY or SELL
@@ -64,12 +70,7 @@ class PlaceBracketRequest(BaseModel):
     stop_loss_price: Decimal
     order_type: str = "MARKET"  # LIMIT or MARKET
     is_futures: bool = False
-
-
-class ClientOrderIDs(BaseModel):
-    main: str
-    take_profits: list[str]
-    stop_loss: str
+    client_order_ids: ClientOrderIDs | None = None
 
 
 class PlaceBracketResponse(BaseModel):
@@ -109,6 +110,7 @@ class OrderUpdate(BaseModel):
 
     event_type: str
     symbol: str
+    venue: str | None = None
     order_id: int
     client_order_id: str
     status: str
@@ -223,6 +225,7 @@ class PaperBroker:
         # In-memory state
         self.active_orders: dict[str, BacktestOrder] = {}  # client_order_id -> order
         self._order_bracket_ids: dict[str, UUID] = {}  # client_order_id -> bracket id
+        self._order_venues: dict[str, str] = {}  # client_order_id -> venue
         # Positions keyed by (symbol, bracket_id).
         self.positions: dict[tuple[str, UUID], PaperPosition] = {}
 
@@ -459,6 +462,7 @@ class PaperBroker:
         # Remove from active orders
         del self.active_orders[order.client_order_id]
         del self._order_bracket_ids[order.client_order_id]
+        self._order_venues.pop(order.client_order_id, None)
 
         logger.info(
             "Filled order %s: %s %s @ %s",
@@ -576,19 +580,21 @@ class PaperBroker:
                 order.status = OrderStatus.CANCELLED
                 del self.active_orders[client_order_id]
                 del self._order_bracket_ids[client_order_id]
+                self._order_venues.pop(client_order_id, None)
 
     async def _publish_order_update(
         self,
         order: BacktestOrder,
         event_type: str,
     ) -> None:
-        """Publish order update event."""
+        """Publish order update event; failures must never break the fill path."""
         if not self.event_publisher:
             return
 
         update = OrderUpdate(
             event_type=event_type,
             symbol=order.symbol,
+            venue=self._order_venues.get(order.client_order_id),
             order_id=hash(order.id) % 1000000,  # Convert UUID to int
             client_order_id=order.client_order_id,
             status=order.status.value,
@@ -602,7 +608,12 @@ class PaperBroker:
         )
 
         payload: dict[str, object] = update.model_dump()
-        await self.event_publisher("order_update.v1", payload)
+        try:
+            await self.event_publisher("order_update.v1", payload)
+        except Exception:
+            logger.exception(
+                f"Order update publish failed (client_order_id={order.client_order_id})",
+            )
 
     # ============================================================================
     # API Endpoints (Same as Go Router)
@@ -622,11 +633,23 @@ class PaperBroker:
 
         now = datetime.now(UTC)
         bracket_id = uuid4()
-        client_order_ids = ClientOrderIDs(
-            main=f"paper_{uuid4().hex[:8]}",
-            take_profits=[f"paper_tp_{uuid4().hex[:8]}"],
-            stop_loss=f"paper_sl_{uuid4().hex[:8]}",
-        )
+        if request.client_order_ids is not None:
+            if len(request.client_order_ids.take_profits) != len(request.take_profit_prices):
+                _raise_http(400, "client_order_ids.take_profits must match take_profit_prices")
+            client_order_ids = request.client_order_ids
+        else:
+            client_order_ids = ClientOrderIDs(
+                main=f"paper_{uuid4().hex[:8]}",
+                take_profits=[f"paper_tp_{uuid4().hex[:8]}"],
+                stop_loss=f"paper_sl_{uuid4().hex[:8]}",
+            )
+        venue = "USD_M" if request.is_futures else "SPOT"
+        for client_order_id in (
+            client_order_ids.main,
+            *client_order_ids.take_profits,
+            client_order_ids.stop_loss,
+        ):
+            self._order_venues[client_order_id] = venue
 
         orders: list[BacktestOrder] = []
         errors: list[str] = []
@@ -742,6 +765,7 @@ class PaperBroker:
 
             # Publish event
             await self._publish_order_update(order, "CANCELLED")
+            self._order_venues.pop(client_order_id, None)
 
             logger.info("Cancelled order %s", client_order_id)
 

@@ -8,18 +8,21 @@ Can be started alongside or instead of the real router for paper trading.
 import argparse
 import asyncio
 from contextlib import asynccontextmanager
+from decimal import Decimal
 import logging
+import os
 from pathlib import Path
 import signal
 import sys
 from typing import Optional
 
+import aiohttp
 import uvicorn
 import yaml
 
 from ..backtest.costs import CostCalculator
 from ..backtest.fills import FillEngine
-from .broker import PaperBroker, create_paper_broker_app
+from .broker import EventPublisher, PaperBroker, create_paper_broker_app
 
 # Setup logging
 logging.basicConfig(
@@ -27,6 +30,62 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+_ORDER_UPDATE_TOPIC = "order_update.v1"
+_ORDER_UPDATE_TIMEOUT_SECONDS = 5
+
+
+def build_cost_calculator(backtest_config: dict) -> CostCalculator:
+    """Build the cost calculator from the config's backtest section."""
+    return CostCalculator(
+        fee_bps_spot=Decimal(str(backtest_config.get("fee_bps_spot", 10))),
+        fee_bps_futures=Decimal(str(backtest_config.get("fee_bps_futures", 4))),
+        funding_model=backtest_config.get("funding_model", "disabled"),
+    )
+
+
+def build_fill_engine(backtest_config: dict) -> FillEngine:
+    """Build the fill engine from the config's backtest section."""
+    return FillEngine(slippage_bps=Decimal(str(backtest_config.get("slippage_bps", 2))))
+
+
+def build_order_update_publisher_from_env(
+    environ: dict[str, str],
+    timeout_seconds: float = _ORDER_UPDATE_TIMEOUT_SECONDS,
+) -> EventPublisher | None:
+    """
+    Build an order-update publisher POSTing to the engine, mirroring the
+    Go router's HTTPEventEmitter (ORDER_UPDATE_URL + ENGINE_INTERNAL_API_TOKEN).
+    Returns None when ORDER_UPDATE_URL is unset.
+    """
+    url = environ.get("ORDER_UPDATE_URL")
+    if not url:
+        return None
+    token = environ.get("ENGINE_INTERNAL_API_TOKEN", "")
+
+    async def publish(topic: str, payload: dict[str, object]) -> bool:
+        if topic != _ORDER_UPDATE_TOPIC:
+            return True
+
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+        try:
+            async with (
+                aiohttp.ClientSession(timeout=timeout) as session,
+                session.post(url, json=payload, headers=headers) as response,
+            ):
+                if response.status >= 300:
+                    body = await response.text()
+                    logger.warning(
+                        f"Engine rejected order update ({response.status}): {body[:200]}",
+                    )
+                    return False
+                return True
+        except (TimeoutError, aiohttp.ClientError) as exc:
+            logger.warning(f"Failed to POST order update to engine: {exc!r}")
+            return False
+
+    return publish
 
 
 class PaperBrokerServer:
@@ -58,22 +117,19 @@ class PaperBrokerServer:
 
     async def initialize(self):
         """Initialize broker and FastAPI app"""
-        # Create cost calculator from config
         backtest_config = self.config.get("backtest", {})
-        cost_calc = CostCalculator(
-            spot_fee_rate=backtest_config.get("fee_bps_spot", 10) / 10000,
-            futures_fee_rate=backtest_config.get("fee_bps_futures", 4) / 10000,
-            slippage_bps=backtest_config.get("slippage_bps", 2),
-        )
 
-        # Create fill engine
-        fill_engine = FillEngine()
+        event_publisher = build_order_update_publisher_from_env(dict(os.environ))
+        if event_publisher is None:
+            logger.info(
+                "ORDER_UPDATE_URL not set; order updates will not reach the engine",
+            )
 
-        # Create broker
         self.broker = PaperBroker(
             database_url=self.config["database_url"],
-            cost_calculator=cost_calc,
-            fill_engine=fill_engine,
+            cost_calculator=build_cost_calculator(backtest_config),
+            fill_engine=build_fill_engine(backtest_config),
+            event_publisher=event_publisher,
         )
 
         await self.broker.initialize()
