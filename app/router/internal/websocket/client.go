@@ -26,6 +26,28 @@ type Client struct {
 	tickerHandlers map[string]func(*TickerEvent) error
 	userHandlers   map[string]*UserDataHandler
 	handlersMu     sync.RWMutex
+
+	userDataReconnectHandler func(listenKey string)
+	reconnectHandlerMu       sync.RWMutex
+}
+
+// SetUserDataReconnectHandler registers a callback invoked when a user-data
+// socket reconnects (or exhausts its reconnect attempts); the listen-key
+// owner must rotate and resubscribe. The key identifies which stream fired
+// so stale connections cannot disturb a healthy successor.
+func (c *Client) SetUserDataReconnectHandler(fn func(listenKey string)) {
+	c.reconnectHandlerMu.Lock()
+	defer c.reconnectHandlerMu.Unlock()
+	c.userDataReconnectHandler = fn
+}
+
+func (c *Client) notifyUserDataReconnect(listenKey string) {
+	c.reconnectHandlerMu.RLock()
+	fn := c.userDataReconnectHandler
+	c.reconnectHandlerMu.RUnlock()
+	if fn != nil {
+		fn(listenKey)
+	}
 }
 
 // ClientOption configures the client
@@ -271,6 +293,7 @@ func (c *Client) SubscribeToUserData(ctx context.Context, listenKey string, hand
 		client:    c,
 		listenKey: listenKey,
 	})
+	userMgr.SetReconnectHandler(func() { c.notifyUserDataReconnect(listenKey) })
 
 	// Connect if not already connected
 	if userMgr.State() != StateConnected {
