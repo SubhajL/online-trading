@@ -26,6 +26,7 @@ from app.engine.paper.broker import PaperBroker
 def mock_pool() -> tuple[MagicMock, AsyncMock]:
     pool = MagicMock()
     conn = AsyncMock()
+    conn.transaction = MagicMock(return_value=AsyncMock())
     pool.acquire.return_value.__aenter__.return_value = conn
     pool.acquire.return_value.__aexit__.return_value = None
     return pool, conn
