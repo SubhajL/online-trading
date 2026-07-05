@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 	"router/internal/binance"
+	"router/internal/storage"
 )
 
 // clientOrderIDSeq provides a monotonically increasing counter to guarantee
@@ -32,6 +33,9 @@ type Manager struct {
 
 	spotReconciler spotOrderTracker
 
+	// Durable reservation store; nil keeps in-memory-only idempotency
+	bracketStore BracketStore
+
 	// Logger
 	logger zerolog.Logger
 }
@@ -39,6 +43,19 @@ type Manager struct {
 // EventEmitter defines interface for emitting order events
 type EventEmitter interface {
 	EmitOrderUpdate(ctx context.Context, update *OrderUpdate) error
+}
+
+// BracketStore persists bracket reservations and leg state so idempotency
+// and replay repair survive router restarts.
+type BracketStore interface {
+	Reserve(ctx context.Context, rec storage.BracketRecord) (*storage.BracketRecord, bool, error)
+	UpdateBracketStatus(ctx context.Context, bracketID uuid.UUID, status string) error
+	UpdateLegStatus(ctx context.Context, bracketID uuid.UUID, clientOrderID, status string, exchangeOrderID int64) error
+}
+
+// SetBracketStore installs the durable reservation store.
+func (m *Manager) SetBracketStore(store BracketStore) {
+	m.bracketStore = store
 }
 
 // NewManager creates a new order manager
@@ -264,6 +281,32 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		orderType = OrderTypeFutures
 	}
 
+	// Durable check-and-reserve: survives restarts, and on replay the entry
+	// is verified against the exchange so it is adopted, never re-POSTed.
+	var reservedBracketID uuid.UUID
+	var adoptedEntry *binance.OrderResponse
+	if m.bracketStore != nil && req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
+		record, inserted, reserveErr := m.bracketStore.Reserve(ctx, bracketRecordFromRequest(req))
+		switch {
+		case reserveErr != nil:
+			m.logger.Warn().Err(reserveErr).
+				Str("client_order_id", req.ClientOrderIDs.Main).
+				Msg("Bracket store reserve failed; continuing with in-memory idempotency only")
+		case inserted:
+			reservedBracketID = record.BracketID
+		default:
+			if divergeErr := validateReplayMatchesReservation(record, req); divergeErr != nil {
+				return nil, divergeErr
+			}
+			reservedBracketID = record.BracketID
+			entry, replayErr := m.replayEntryState(ctx, client, req.Symbol, record.EntryClientOrderID)
+			if replayErr != nil {
+				return nil, replayErr
+			}
+			adoptedEntry = entry
+		}
+	}
+
 	// Round prices and quantities
 	roundedQty, err := client.RoundQuantity(ctx, req.Symbol, req.Quantity)
 	if err != nil {
@@ -304,8 +347,12 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		return nil, fmt.Errorf("notional validation failed: %w", err)
 	}
 
-	// Generate bracket order ID
+	// Generate bracket order ID (reuse the durable reservation's id so the
+	// in-memory bracket and the brackets row stay correlated)
 	bracketID := uuid.New().String()
+	if reservedBracketID != uuid.Nil {
+		bracketID = reservedBracketID.String()
+	}
 
 	// Create bracket order
 	bracket := &BracketOrder{
@@ -342,9 +389,9 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 
 	var placement *bracketPlacementResult
 	if req.IsFutures {
-		placement, err = m.placeFuturesBracket(ctx, client, req, bracketID)
+		placement, err = m.placeFuturesBracket(ctx, client, req, bracketID, adoptedEntry)
 	} else {
-		placement, err = m.placeSpotBracket(ctx, client, req, bracketID)
+		placement, err = m.placeSpotBracket(ctx, client, req, bracketID, adoptedEntry)
 	}
 	if placement != nil {
 		bracket.ClientOrderIDs = placement.IDs
@@ -372,6 +419,8 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 			return nil, fmt.Errorf("failed to place bracket order: %w", err)
 		}
 	}
+
+	m.persistPlacementOutcome(ctx, reservedBracketID, placement, criticalPlacementErr != nil)
 
 	// Store order (only store successfully placed order IDs)
 	m.mu.Lock()

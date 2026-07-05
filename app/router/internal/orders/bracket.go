@@ -17,8 +17,10 @@ type bracketPlacementResult struct {
 	StopLossLimitPrice decimal.Decimal
 }
 
-// placeSpotBracket places a bracket order for spot trading
-func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string) (*bracketPlacementResult, error) {
+// placeSpotBracket places a bracket order for spot trading. A non-nil
+// adoptedEntry is a replayed entry already live on the exchange: it is used
+// as the main order instead of POSTing, and exit legs place idempotently.
+func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string, adoptedEntry *binance.OrderResponse) (*bracketPlacementResult, error) {
 	result := &bracketPlacementResult{
 		IDs: ClientOrderIDs{
 			TakeProfits: make([]string, len(req.TakeProfitPrices)),
@@ -42,15 +44,19 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 		NewClientOrderID: mainOrderID,
 	}
 
-	mainResp, err := submitResolvingAmbiguity(
-		ctx, m.logger, client, req.Symbol, mainOrderID, mainOrder.Type != "MARKET",
-		func(ctx context.Context) (*binance.OrderResponse, error) {
-			return client.PlaceSpotOrder(ctx, mainOrder)
-		})
-	if err != nil {
-		bracketErr.Add("MAIN", err)
-		// Return immediately if main order fails as it's critical
-		return result, bracketErr
+	mainResp := adoptedEntry
+	if mainResp == nil {
+		var err error
+		mainResp, err = submitResolvingAmbiguity(
+			ctx, m.logger, client, req.Symbol, mainOrderID, mainOrder.Type != "MARKET",
+			func(ctx context.Context) (*binance.OrderResponse, error) {
+				return client.PlaceSpotOrder(ctx, mainOrder)
+			})
+		if err != nil {
+			bracketErr.Add("MAIN", err)
+			// Return immediately if main order fails as it's critical
+			return result, bracketErr
+		}
 	}
 	result.IDs.Main = mainOrderID
 	result.Main = mainResp
@@ -157,8 +163,10 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	return result, nil
 }
 
-// placeFuturesBracket places a bracket order for futures trading
-func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string) (*bracketPlacementResult, error) {
+// placeFuturesBracket places a bracket order for futures trading. A non-nil
+// adoptedEntry is a replayed entry already live on the exchange: it is used
+// as the main order instead of POSTing, and exit legs place idempotently.
+func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string, adoptedEntry *binance.OrderResponse) (*bracketPlacementResult, error) {
 	result := &bracketPlacementResult{
 		IDs: ClientOrderIDs{
 			TakeProfits: make([]string, len(req.TakeProfitPrices)),
@@ -183,15 +191,19 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 		ReduceOnly:       false, // Opening position
 	}
 
-	mainResp, err := submitResolvingAmbiguity(
-		ctx, m.logger, client, req.Symbol, mainOrderID, mainOrder.Type != "MARKET",
-		func(ctx context.Context) (*binance.OrderResponse, error) {
-			return client.PlaceFuturesOrder(ctx, mainOrder)
-		})
-	if err != nil {
-		bracketErr.Add("MAIN", err)
-		// Return immediately if main order fails as it's critical
-		return result, bracketErr
+	mainResp := adoptedEntry
+	if mainResp == nil {
+		var err error
+		mainResp, err = submitResolvingAmbiguity(
+			ctx, m.logger, client, req.Symbol, mainOrderID, mainOrder.Type != "MARKET",
+			func(ctx context.Context) (*binance.OrderResponse, error) {
+				return client.PlaceFuturesOrder(ctx, mainOrder)
+			})
+		if err != nil {
+			bracketErr.Add("MAIN", err)
+			// Return immediately if main order fails as it's critical
+			return result, bracketErr
+		}
 	}
 	result.IDs.Main = mainOrderID
 	result.Main = mainResp

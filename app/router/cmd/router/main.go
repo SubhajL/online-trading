@@ -178,6 +178,10 @@ func main() {
 
 	// Create order manager
 	orderManager := orders.NewManager(spotClient, futuresClient, eventEmitter, logger)
+	if dbPool != nil {
+		orderManager.SetBracketStore(storage.NewBracketRepo(dbPool))
+		logger.Info().Msg("Durable bracket reservations enabled")
+	}
 	var spotReconciler *orders.SpotReconciler
 	if spotClient != nil {
 		if enabled, err := strconv.ParseBool(os.Getenv("SPOT_RECONCILIATION_ENABLED")); err == nil && enabled {
