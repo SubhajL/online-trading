@@ -32,10 +32,15 @@ func newBracketTestRepo(t *testing.T) (*BracketRepo, context.Context) {
 	// with a unique-suffix-free schema and clean up after ourselves.
 	_, err = pool.Exec(ctx, `CREATE EXTENSION IF NOT EXISTS pgcrypto`)
 	require.NoError(t, err)
-	migration, err := os.ReadFile("../../../../db/migrations/030_brackets.sql")
-	require.NoError(t, err)
-	_, err = pool.Exec(ctx, string(migration))
-	require.NoError(t, err)
+	for _, file := range []string{
+		"../../../../db/migrations/030_brackets.sql",
+		"../../../../db/migrations/031_bracket_leg_placing.sql",
+	} {
+		migration, err := os.ReadFile(file)
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, string(migration))
+		require.NoError(t, err)
+	}
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
@@ -147,4 +152,62 @@ func TestBracketRepo_StatusTransitionsAndOpenBracketScan(t *testing.T) {
 	for i := range open {
 		assert.NotEqual(t, entryID, open[i].EntryClientOrderID, "closed bracket must leave the open scan")
 	}
+}
+
+func TestBracketRepo_TryMarkLegPlacingClaimsExactlyOnce(t *testing.T) {
+	repo, ctx := newBracketTestRepo(t)
+	entryID := "it-" + uuid.NewString()[:8]
+	rec, inserted, err := repo.Reserve(ctx, sampleBracket(entryID))
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	first, err := repo.TryMarkLegPlacing(ctx, rec.BracketID, entryID+"-sl")
+	require.NoError(t, err)
+	second, err := repo.TryMarkLegPlacing(ctx, rec.BracketID, entryID+"-sl")
+	require.NoError(t, err)
+	assert.Equal(t, [2]bool{true, false}, [2]bool{first, second})
+
+	// FAILED legs are re-claimable so transient errors cannot strand a position
+	require.NoError(t, repo.UpdateLegStatus(ctx, rec.BracketID, entryID+"-sl", LegStatusFailed, 0))
+	reclaimed, err := repo.TryMarkLegPlacing(ctx, rec.BracketID, entryID+"-sl")
+	require.NoError(t, err)
+	assert.True(t, reclaimed)
+}
+
+func TestBracketRepo_GetByLegClientOrderIDRoundTrips(t *testing.T) {
+	repo, ctx := newBracketTestRepo(t)
+	entryID := "it-" + uuid.NewString()[:8]
+	rec, inserted, err := repo.Reserve(ctx, sampleBracket(entryID))
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	found, err := repo.GetByLegClientOrderID(ctx, "SPOT", entryID+"-tp1")
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, rec.BracketID, found.BracketID)
+	assert.Len(t, found.Legs, 3)
+
+	missing, err := repo.GetByLegClientOrderID(ctx, "SPOT", "no-such-leg")
+	require.NoError(t, err)
+	assert.Nil(t, missing)
+
+	wrongVenue, err := repo.GetByLegClientOrderID(ctx, "USD_M", entryID+"-tp1")
+	require.NoError(t, err)
+	assert.Nil(t, wrongVenue)
+}
+
+func TestBracketRepo_UpdateBracketStatusIfGuardsTransition(t *testing.T) {
+	repo, ctx := newBracketTestRepo(t)
+	entryID := "it-" + uuid.NewString()[:8]
+	rec, inserted, err := repo.Reserve(ctx, sampleBracket(entryID))
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	applied, err := repo.UpdateBracketStatusIf(ctx, rec.BracketID, BracketStatusReserved, BracketStatusEntryPlaced)
+	require.NoError(t, err)
+	assert.True(t, applied)
+
+	notApplied, err := repo.UpdateBracketStatusIf(ctx, rec.BracketID, BracketStatusReserved, BracketStatusEntryPlaced)
+	require.NoError(t, err)
+	assert.False(t, notApplied, "guarded transition must not fire from the wrong state")
 }

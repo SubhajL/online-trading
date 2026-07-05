@@ -25,6 +25,7 @@ const (
 // Bracket leg statuses.
 const (
 	LegStatusPlanned  = "PLANNED"
+	LegStatusPlacing  = "PLACING"
 	LegStatusPlaced   = "PLACED"
 	LegStatusFilled   = "FILLED"
 	LegStatusCanceled = "CANCELED"
@@ -175,6 +176,88 @@ func (r *BracketRepo) UpdateLegStatus(
 		return fmt.Errorf("update bracket leg status: no leg %s in bracket %s", clientOrderID, bracketID)
 	}
 	return nil
+}
+
+// TryMarkLegPlacing claims a leg for placement (compare-and-set to PLACING).
+// Exactly one caller wins per leg, making duplicate fill events unable to
+// double-place protective legs. FAILED legs are re-claimable: a transient
+// POST failure must not permanently strand a position unprotected, and
+// #193's submit resolution dedupes any raced re-POST against the exchange.
+func (r *BracketRepo) TryMarkLegPlacing(ctx context.Context, bracketID uuid.UUID, clientOrderID string) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE bracket_legs
+		SET status = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1 AND client_order_id = $2 AND status IN ($4, $5)`,
+		bracketID, clientOrderID, LegStatusPlacing, LegStatusPlanned, LegStatusFailed)
+	if err != nil {
+		return false, fmt.Errorf("mark bracket leg placing: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// UpdateBracketStatusIf transitions a bracket's status only from an expected
+// prior state; reports whether the transition applied.
+func (r *BracketRepo) UpdateBracketStatusIf(ctx context.Context, bracketID uuid.UUID, expected, status string) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE brackets SET status = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1 AND status = $2`,
+		bracketID, expected, status)
+	if err != nil {
+		return false, fmt.Errorf("conditional bracket status update: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// GetByEntryClientOrderID loads a bracket (with legs) by its entry client
+// order id; returns nil when none exists.
+func (r *BracketRepo) GetByEntryClientOrderID(ctx context.Context, venue, entryClientOrderID string) (*BracketRecord, error) {
+	rec, err := r.getByEntryClientOrderID(ctx, venue, entryClientOrderID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return rec, nil
+}
+
+// GetByLegClientOrderID loads the bracket (with legs) owning any leg with the
+// given client order id; returns nil when none exists.
+func (r *BracketRepo) GetByLegClientOrderID(ctx context.Context, venue, clientOrderID string) (*BracketRecord, error) {
+	var bracketID uuid.UUID
+	err := r.pool.QueryRow(ctx, `
+		SELECT l.bracket_id
+		FROM bracket_legs l
+		JOIN brackets b ON b.bracket_id = l.bracket_id
+		WHERE b.venue = $1 AND l.client_order_id = $2`,
+		venue, clientOrderID,
+	).Scan(&bracketID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load bracket by leg client order id: %w", err)
+	}
+
+	var rec BracketRecord
+	err = r.pool.QueryRow(ctx, `
+		SELECT bracket_id, venue, symbol, side, quantity, entry_price,
+		       stop_loss_price, entry_client_order_id, status, legs_on_fill, created_at
+		FROM brackets WHERE bracket_id = $1`, bracketID,
+	).Scan(
+		&rec.BracketID, &rec.Venue, &rec.Symbol, &rec.Side, &rec.Quantity,
+		&rec.EntryPrice, &rec.StopLossPrice, &rec.EntryClientOrderID,
+		&rec.Status, &rec.LegsOnFill, &rec.CreatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load bracket by id: %w", err)
+	}
+	legs, err := r.loadLegs(ctx, rec.BracketID)
+	if err != nil {
+		return nil, err
+	}
+	rec.Legs = legs
+	return &rec, nil
 }
 
 // LoadOpenBrackets returns non-terminal brackets created within lookback,

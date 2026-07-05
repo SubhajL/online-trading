@@ -36,6 +36,10 @@ type Manager struct {
 	// Durable reservation store; nil keeps in-memory-only idempotency
 	bracketStore BracketStore
 
+	// Defer futures TP/SL placement until the entry fills (requires the
+	// bracket store: planned legs must survive a crash)
+	legsOnFill bool
+
 	// Logger
 	logger zerolog.Logger
 }
@@ -50,12 +54,28 @@ type EventEmitter interface {
 type BracketStore interface {
 	Reserve(ctx context.Context, rec storage.BracketRecord) (*storage.BracketRecord, bool, error)
 	UpdateBracketStatus(ctx context.Context, bracketID uuid.UUID, status string) error
+	UpdateBracketStatusIf(ctx context.Context, bracketID uuid.UUID, expected, status string) (bool, error)
 	UpdateLegStatus(ctx context.Context, bracketID uuid.UUID, clientOrderID, status string, exchangeOrderID int64) error
 }
 
 // SetBracketStore installs the durable reservation store.
 func (m *Manager) SetBracketStore(store BracketStore) {
 	m.bracketStore = store
+}
+
+// SetLegsOnFill defers futures protective legs until the entry fills.
+func (m *Manager) SetLegsOnFill(enabled bool) {
+	m.legsOnFill = enabled
+}
+
+// futuresLegsDeferred reports whether this request's exit legs are placed by
+// the leg armer on entry fill instead of synchronously.
+func (m *Manager) futuresLegsDeferred(req *PlaceBracketRequest) bool {
+	return m.legsOnFill &&
+		m.bracketStore != nil &&
+		req.IsFutures &&
+		req.ClientOrderIDs != nil &&
+		req.ClientOrderIDs.Main != ""
 }
 
 // NewManager creates a new order manager
@@ -281,33 +301,10 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		orderType = OrderTypeFutures
 	}
 
-	// Durable check-and-reserve: survives restarts, and on replay the entry
-	// is verified against the exchange so it is adopted, never re-POSTed.
-	var reservedBracketID uuid.UUID
-	var adoptedEntry *binance.OrderResponse
-	if m.bracketStore != nil && req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
-		record, inserted, reserveErr := m.bracketStore.Reserve(ctx, bracketRecordFromRequest(req))
-		switch {
-		case reserveErr != nil:
-			m.logger.Warn().Err(reserveErr).
-				Str("client_order_id", req.ClientOrderIDs.Main).
-				Msg("Bracket store reserve failed; continuing with in-memory idempotency only")
-		case inserted:
-			reservedBracketID = record.BracketID
-		default:
-			if divergeErr := validateReplayMatchesReservation(record, req); divergeErr != nil {
-				return nil, divergeErr
-			}
-			reservedBracketID = record.BracketID
-			entry, replayErr := m.replayEntryState(ctx, client, req.Symbol, record.EntryClientOrderID)
-			if replayErr != nil {
-				return nil, replayErr
-			}
-			adoptedEntry = entry
-		}
-	}
-
-	// Round prices and quantities
+	// Round prices and quantities BEFORE reserving: the durable record is
+	// what the leg armer later POSTs from, so it must hold exchange-valid
+	// (tick-aligned) values or deferred legs get PRICE_FILTER-rejected at
+	// the exact moment a position opens.
 	roundedQty, err := client.RoundQuantity(ctx, req.Symbol, req.Quantity)
 	if err != nil {
 		return nil, fmt.Errorf("failed to round quantity: %w", err)
@@ -345,6 +342,43 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	// Validate notional
 	if err := client.ValidateNotional(ctx, req.Symbol, req.EntryPrice, req.Quantity); err != nil {
 		return nil, fmt.Errorf("notional validation failed: %w", err)
+	}
+
+	// Durable check-and-reserve: survives restarts, and on replay the entry
+	// is verified against the exchange so it is adopted, never re-POSTed.
+	var reservedBracketID uuid.UUID
+	var adoptedEntry *binance.OrderResponse
+	legsDeferred := m.futuresLegsDeferred(req)
+	if m.bracketStore != nil && req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
+		record, inserted, reserveErr := m.bracketStore.Reserve(ctx, bracketRecordFromRequest(req, legsDeferred))
+		switch {
+		case reserveErr != nil:
+			m.logger.Warn().Err(reserveErr).
+				Str("client_order_id", req.ClientOrderIDs.Main).
+				Msg("Bracket store reserve failed; continuing with in-memory idempotency only")
+			// Without a durable record the armer could never find the legs
+			legsDeferred = false
+		case inserted:
+			reservedBracketID = record.BracketID
+		default:
+			if divergeErr := validateReplayMatchesReservation(record, req); divergeErr != nil {
+				return nil, divergeErr
+			}
+			reservedBracketID = record.BracketID
+			entry, replayErr := m.replayEntryState(ctx, client, req.Symbol, record.EntryClientOrderID)
+			if replayErr != nil {
+				return nil, replayErr
+			}
+			adoptedEntry = entry
+			if adoptedEntry != nil &&
+				(isTerminalOrderStatus(normalizeOrderStatus(adoptedEntry.Status)) ||
+					adoptedEntry.ExecutedQty.IsPositive()) {
+				// The fill event was consumed (or lost) in a previous process
+				// life and will never arrive again — place exit legs now.
+				// A position exists, so ReduceOnly cannot -2022.
+				legsDeferred = false
+			}
+		}
 	}
 
 	// Generate bracket order ID (reuse the durable reservation's id so the
@@ -389,10 +423,11 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 
 	var placement *bracketPlacementResult
 	if req.IsFutures {
-		placement, err = m.placeFuturesBracket(ctx, client, req, bracketID, adoptedEntry)
+		placement, err = m.placeFuturesBracket(ctx, client, req, bracketID, adoptedEntry, legsDeferred)
 	} else {
 		placement, err = m.placeSpotBracket(ctx, client, req, bracketID, adoptedEntry)
 	}
+	response.LegsPendingTrigger = legsDeferred && err == nil
 	if placement != nil {
 		bracket.ClientOrderIDs = placement.IDs
 		bracket.StopLossLimitPrice = placement.StopLossLimitPrice
@@ -420,7 +455,7 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		}
 	}
 
-	m.persistPlacementOutcome(ctx, reservedBracketID, placement, criticalPlacementErr != nil)
+	m.persistPlacementOutcome(ctx, reservedBracketID, placement, criticalPlacementErr != nil, legsDeferred)
 
 	// Store order (only store successfully placed order IDs)
 	m.mu.Lock()

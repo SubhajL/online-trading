@@ -73,6 +73,20 @@ func main() {
 	var userDataIngestor *execution.Ingestor
 	var spotTradeProcessor *execution.SpotTradeProcessor
 	var fundingCancel context.CancelFunc
+	var legArmer *orders.LegArmer
+
+	// Create event emitter (needed by the leg armer inside the DB block)
+	var eventEmitter orders.EventEmitter
+	orderUpdateURL := os.Getenv("ORDER_UPDATE_URL")
+	if orderUpdateURL != "" {
+		eventEmitter = orders.NewHTTPEventEmitter(orderUpdateURL)
+		logger.Info().Str("url", orderUpdateURL).Msg("Order updates will be sent via HTTP")
+	} else {
+		eventEmitter = orders.NewLogEventEmitter(logger)
+		logger.Info().Msg("Order updates will be logged to console")
+	}
+
+	legsOnFill, _ := strconv.ParseBool(os.Getenv("BRACKET_LEGS_ON_FILL"))
 
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -125,12 +139,26 @@ func main() {
 				logger.Fatal().Err(err).Msg("Failed to initialize trade processor")
 			}
 
+			if legsOnFill && futuresClient != nil {
+				legArmer = orders.NewLegArmer(
+					storage.NewBracketRepo(dbPool),
+					futuresClient,
+					eventEmitter,
+					logger.With().Str("component", "leg_armer").Logger(),
+				)
+				logger.Info().Msg("BRACKET_LEGS_ON_FILL enabled: futures exit legs placed on entry fill")
+			}
+
 			userDataIngestor = execution.NewIngestor(
 				futuresRestClient,
 				wsClient,
 				logger.With().Str("component", "user_stream").Logger(),
 				execution.WithOrderTradeUpdateHandler(func(event *websocket.FuturesOrderTradeUpdateEvent) error {
-					return processor.HandleFuturesOrderTradeUpdate(context.Background(), event)
+					err := processor.HandleFuturesOrderTradeUpdate(context.Background(), event)
+					if legArmer != nil {
+						legArmer.OnOrderTradeUpdate(context.Background(), event)
+					}
+					return err
 				}),
 			)
 			wsClient.SetUserDataReconnectHandler(userDataIngestor.OnSocketReconnected)
@@ -166,22 +194,18 @@ func main() {
 		logger.Warn().Msg("DATABASE_URL not set; router persistence disabled")
 	}
 
-	// Create event emitter
-	var eventEmitter orders.EventEmitter
-	orderUpdateURL := os.Getenv("ORDER_UPDATE_URL")
-	if orderUpdateURL != "" {
-		eventEmitter = orders.NewHTTPEventEmitter(orderUpdateURL)
-		logger.Info().Str("url", orderUpdateURL).Msg("Order updates will be sent via HTTP")
-	} else {
-		eventEmitter = orders.NewLogEventEmitter(logger)
-		logger.Info().Msg("Order updates will be logged to console")
-	}
-
 	// Create order manager
 	orderManager := orders.NewManager(spotClient, futuresClient, eventEmitter, logger)
 	if dbPool != nil {
 		orderManager.SetBracketStore(storage.NewBracketRepo(dbPool))
 		logger.Info().Msg("Durable bracket reservations enabled")
+	}
+	if legArmer != nil {
+		// Deferring legs is only safe when an armer exists to place them
+		orderManager.SetLegsOnFill(true)
+	} else if legsOnFill {
+		logger.Warn().Msg("BRACKET_LEGS_ON_FILL set but DATABASE_URL or futures trading " +
+			"is missing; exit legs will place synchronously")
 	}
 	var spotReconciler *orders.SpotReconciler
 	if spotClient != nil {
