@@ -47,7 +47,9 @@ export class WsJwtGuard implements CanActivate {
   }
 
   private extractToken(client: Socket): string | undefined {
-    let token = client.handshake.auth?.token || (client.handshake.query?.token as string);
+    // Handshake auth only: query-string tokens leak into logs and proxies
+    const raw: unknown = client.handshake.auth?.token;
+    let token = typeof raw === 'string' ? raw : undefined;
 
     if (token?.startsWith('Bearer ')) {
       token = token.slice(7);

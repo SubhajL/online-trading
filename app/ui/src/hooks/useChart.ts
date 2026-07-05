@@ -11,7 +11,6 @@ import {
   type IPriceLine,
   type UTCTimestamp,
 } from 'lightweight-charts'
-import type { SmcEvent, Zone } from '@/types'
 
 type IndicatorType = 'EMA' | 'SMA' | 'RSI' | 'VOLUME' | 'MACD' | 'BB'
 
@@ -32,11 +31,6 @@ export type UseChartReturn = {
   ) => ISeriesApi<'Line'> | ISeriesApi<'Histogram'> | null
   removeIndicator: (type: IndicatorType) => void
   fitContent: () => void
-  setChartType: (type: string) => void
-  addSmcOverlay: (events: SmcEvent[]) => void
-  removeSmcOverlay: () => void
-  addZoneOverlay: (zones: Zone[]) => void
-  removeZoneOverlay: () => void
   addMarkers: (markers: Array<{ time: number | string; type: 'BUY' | 'SELL' }>) => void
   addPriceLevels: (levels: { entry?: number; stopLoss?: number; takeProfit?: number }) => void
   removePriceLevels: () => void
@@ -164,6 +158,15 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
   ): ISeriesApi<'Line'> | ISeriesApi<'Histogram'> | null => {
     if (!chart) return null
 
+    const existing = indicatorSeriesRef.current.get(type)
+    if (existing) {
+      if (options.color) {
+        existing.applyOptions({ color: options.color })
+      }
+      existing.setData(data as LineData[])
+      return existing
+    }
+
     let series: ISeriesApi<'Line'> | ISeriesApi<'Histogram'>
 
     if (type === 'VOLUME' || type === 'RSI') {
@@ -185,7 +188,7 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
     }
 
     series.setData(data as LineData[])
-    indicatorSeriesRef.current.set(`${type}-${Date.now()}`, series)
+    indicatorSeriesRef.current.set(type, series)
 
     return series
   }
@@ -195,43 +198,10 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
   }
 
   const removeIndicator = (type: IndicatorType) => {
-    // Find and remove all indicators of this type
-    const keysToRemove: string[] = []
-    indicatorSeriesRef.current.forEach((series, key) => {
-      if (key.startsWith(type)) {
-        chart?.removeSeries(series)
-        keysToRemove.push(key)
-      }
-    })
-    keysToRemove.forEach(key => indicatorSeriesRef.current.delete(key))
-  }
-
-  const setChartType = (type: string) => {
-    // Chart type change not implemented in current version
-    // TODO: Implement chart type switching
-    void type // Acknowledge parameter for future implementation
-  }
-
-  const addSmcOverlay = (events: SmcEvent[]) => {
-    // SMC overlay not implemented in current version
-    // TODO: Implement SMC overlay rendering
-    void events // Acknowledge parameter for future implementation
-  }
-
-  const removeSmcOverlay = () => {
-    // SMC overlay removal not implemented in current version
-    // TODO: Implement SMC overlay removal
-  }
-
-  const addZoneOverlay = (zones: Zone[]) => {
-    // Zone overlay not implemented in current version
-    // TODO: Implement zone overlay rendering
-    void zones // Acknowledge parameter for future implementation
-  }
-
-  const removeZoneOverlay = () => {
-    // Zone overlay removal not implemented in current version
-    // TODO: Implement zone overlay removal
+    const series = indicatorSeriesRef.current.get(type)
+    if (!series) return
+    chart?.removeSeries(series)
+    indicatorSeriesRef.current.delete(type)
   }
 
   const addMarkers = (markers: Array<{ time: number | string; type: 'BUY' | 'SELL' }>) => {
@@ -321,11 +291,6 @@ export function useChart(containerRef: RefObject<HTMLDivElement>): UseChartRetur
     addIndicator,
     removeIndicator,
     fitContent,
-    setChartType,
-    addSmcOverlay,
-    removeSmcOverlay,
-    addZoneOverlay,
-    removeZoneOverlay,
     addMarkers,
     addPriceLevels,
     removePriceLevels,
