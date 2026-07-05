@@ -245,6 +245,7 @@ class RetestEngine:
         self._zones: dict[str, list[Any]] = {}
         self._bos_events: dict[str, deque[Any]] = {}
         self._features: dict[str, TechnicalIndicators] = {}
+        self._prev_macd_hist: dict[str, Decimal | None] = {}
 
         # Configuration
         self.max_wait_bars = config.get("retest", {}).get("max_wait_bars", 8)
@@ -336,6 +337,8 @@ class RetestEngine:
         try:
             features = event.features
             key = f"{features.symbol}:{features.timeframe.value}"
+            previous = self._features.get(key)
+            self._prev_macd_hist[key] = previous.macd_histogram if previous is not None else None
             self._features[key] = features
 
         except Exception:
@@ -417,6 +420,16 @@ class RetestEngine:
         if not features or not candles:
             return
 
+        # Incomplete indicators: skip the bar, mirroring the simulator's warm-up
+        macd_hist_prev = self._prev_macd_hist.get(key)
+        if (
+            macd_hist_prev is None
+            or features.macd_histogram is None
+            or features.atr_14 is None
+            or features.rsi_14 is None
+        ):
+            return
+
         # Analyze retest
         signal_data = await analyze_retest(
             venue=candle.venue,
@@ -426,10 +439,10 @@ class RetestEngine:
             zones=zones,
             bos_events=bos_events,
             features={
-                "atr": features.atr_14 or Decimal(0),
-                "macd_hist": features.macd_histogram or Decimal(0),
-                "macd_hist_prev": Decimal(0),  # Would need to track previous
-                "rsi": features.rsi_14 or Decimal(50),
+                "atr": features.atr_14,
+                "macd_hist": features.macd_histogram,
+                "macd_hist_prev": macd_hist_prev,
+                "rsi": features.rsi_14,
             },
         )
 
