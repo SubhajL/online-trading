@@ -105,12 +105,15 @@ class BacktestPosition:
     symbol: str = ""
     side: str | None = None  # "LONG" or "SHORT"
     quantity: Decimal = Decimal(0)
+    entry_quantity: Decimal = Decimal(0)
     entry_price: Decimal = Decimal(0)
     mark_price: Decimal = Decimal(0)
     unrealized_pnl: Decimal = Decimal(0)
     realized_pnl: Decimal = Decimal(0)
     total_fees: Decimal = Decimal(0)
     total_funding: Decimal = Decimal(0)
+    total_slippage: Decimal = Decimal(0)
+    risked_amount: Decimal = Decimal(0)
     stop_loss: Decimal | None = None
     take_profit: Decimal | None = None
     breakeven_moved: bool = False
@@ -121,7 +124,12 @@ class BacktestPosition:
 
 @dataclass
 class BacktestTrade:
-    """Completed trade for reporting."""
+    """Completed trade for reporting.
+
+    For merged/partially-exited positions this is an aggregate row: size is the
+    total entered quantity, entry_price the final average, exit_price the last
+    fill — so (exit-entry)*size need not equal gross_pnl.
+    """
 
     id: UUID = field(default_factory=uuid4)
     symbol: str = ""

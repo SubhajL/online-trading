@@ -49,7 +49,7 @@ async def test_entry_fills_next_bar_open_plus_slippage_and_places_oco(
     position = simulator.positions["BTCUSDT"]
     assert (position.side, position.quantity, position.entry_price) == (
         "LONG",
-        Decimal(25),
+        Decimal(10),
         Decimal("100.03"),
     )
     assert (position.stop_loss, position.take_profit) == (Decimal(98), Decimal(103))
@@ -71,9 +71,9 @@ async def test_tp_limit_exit_records_tp_cancels_stop_and_deducts_fees(
 
     assert len(simulator.completed_trades) == 1
     trade = simulator.completed_trades[0]
-    entry_fee = Decimal("100.03") * Decimal(25) * Decimal("0.001")
-    exit_fee = Decimal(103) * Decimal(25) * Decimal("0.001")
-    gross_pnl = (Decimal(103) - Decimal("100.03")) * Decimal(25)
+    entry_fee = Decimal("100.03") * Decimal(10) * Decimal("0.001")
+    exit_fee = Decimal(103) * Decimal(10) * Decimal("0.001")
+    gross_pnl = (Decimal(103) - Decimal("100.03")) * Decimal(10)
     stop_distance = Decimal("100.03") - Decimal(98)
     assert (
         trade.exit_reason,
@@ -89,12 +89,12 @@ async def test_tp_limit_exit_records_tp_cancels_stop_and_deducts_fees(
         ExitReason.TP,
         Decimal(103),
         Decimal("100.03"),
-        Decimal(25),
+        Decimal(10),
         gross_pnl,
         entry_fee + exit_fee,
         gross_pnl - entry_fee - exit_fee,
-        gross_pnl / (stop_distance * Decimal(25)),
-        (gross_pnl - entry_fee - exit_fee) / (stop_distance * Decimal(25)),
+        gross_pnl / (stop_distance * Decimal(10)),
+        (gross_pnl - entry_fee - exit_fee) / (stop_distance * Decimal(10)),
     )
     assert stop_order.status == OrderStatus.CANCELLED
     assert simulator.active_orders == []
