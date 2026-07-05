@@ -541,3 +541,4 @@ artifacts/
 # Go compiled binaries
 app/router/main
 app/router/server
+data/backtest/
