@@ -589,14 +589,17 @@ func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
 
 	waitForEmitterStatus(t, emitter, "FILLED")
 	// FILLED is emitted before the trades-lag persist retry completes;
-	// wait on the ledger instead of racing it.
+	// wait on the ledger and the price-rewritten emission instead of racing.
 	require.Eventually(t, func() bool { return ledger.callCount() == 1 },
 		time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool {
+		_, current := emitter.snapshot()
+		return current != nil && decimal.RequireFromString("50010").Equal(current.Price)
+	}, time.Second, 5*time.Millisecond)
 
 	assert.GreaterOrEqual(t, getCalls.Load(), int64(2))
 	assert.Equal(t, int64(2), tradeCalls.Load())
 	require.Len(t, ledger.latestSnapshot().Trades, 1)
-	assert.True(t, decimal.RequireFromString("50010").Equal(emitter.update.Price))
 }
 
 func TestSpotReconciler_RewritesFilledPriceToTradeWeightedAverage(t *testing.T) {
