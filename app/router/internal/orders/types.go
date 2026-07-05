@@ -79,6 +79,7 @@ type PlaceBracketResponse struct {
 	CreatedAt              time.Time               `json:"created_at"`
 	PartialFailure         bool                    `json:"partial_failure,omitempty"`
 	Errors                 []string                `json:"errors,omitempty"`
+	LegsPendingTrigger     bool                    `json:"legs_pending_trigger,omitempty"`
 	SpotExecutionSnapshots []SpotExecutionSnapshot `json:"-"`
 }
 

@@ -166,7 +166,10 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 // placeFuturesBracket places a bracket order for futures trading. A non-nil
 // adoptedEntry is a replayed entry already live on the exchange: it is used
 // as the main order instead of POSTing, and exit legs place idempotently.
-func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string, adoptedEntry *binance.OrderResponse) (*bracketPlacementResult, error) {
+// With legsDeferred the exit legs stay PLANNED for the leg armer to place on
+// entry fill — a ReduceOnly TP POSTed before any position exists is rejected
+// with -2022, which is the bug this mode fixes.
+func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string, adoptedEntry *binance.OrderResponse, legsDeferred bool) (*bracketPlacementResult, error) {
 	result := &bracketPlacementResult{
 		IDs: ClientOrderIDs{
 			TakeProfits: make([]string, len(req.TakeProfitPrices)),
@@ -207,6 +210,17 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 	}
 	result.IDs.Main = mainOrderID
 	result.Main = mainResp
+
+	if legsDeferred {
+		// Report the reserved exit-leg ids; the leg armer places them on fill
+		copy(result.IDs.TakeProfits, plannedIDs.TakeProfits)
+		result.IDs.StopLoss = plannedIDs.StopLoss
+		m.logger.Info().
+			Str("symbol", req.Symbol).
+			Str("bracket_id", bracketID).
+			Msg("Exit legs deferred until entry fill")
+		return result, nil
+	}
 
 	// 2. Place take profit orders with ReduceOnly
 	tpStep, err := client.StepSize(ctx, req.Symbol)

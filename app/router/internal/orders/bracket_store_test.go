@@ -58,6 +58,13 @@ func (f *fakeBracketStore) UpdateBracketStatus(_ context.Context, _ uuid.UUID, s
 	return nil
 }
 
+func (f *fakeBracketStore) UpdateBracketStatusIf(_ context.Context, _ uuid.UUID, _, status string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.bracketUpdates = append(f.bracketUpdates, status)
+	return true, nil
+}
+
 func (f *fakeBracketStore) UpdateLegStatus(_ context.Context, _ uuid.UUID, clientOrderID, status string, _ int64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -67,11 +74,13 @@ func (f *fakeBracketStore) UpdateLegStatus(_ context.Context, _ uuid.UUID, clien
 
 // bracketExchange serves the futures order endpoints, recording POSTed ids.
 type bracketExchange struct {
-	mu         sync.Mutex
-	postedIDs  []string
-	getStatus  int             // GET /fapi/v1/order: 200 live NEW order, else -2013
-	postDupIDs map[string]bool // POSTs of these ids are rejected as -4116 duplicates
-	failPosts  bool            // all POSTs fail with a non-retryable -1102
+	mu             sync.Mutex
+	postedIDs      []string
+	getStatus      int             // GET /fapi/v1/order: 200 live order, else -2013
+	getOrderStatus string          // order status served on GET 200 (default NEW)
+	getExecutedQty string          // executed qty served on GET 200 (default "0")
+	postDupIDs     map[string]bool // POSTs of these ids are rejected as -4116 duplicates
+	failPosts      bool            // all POSTs fail with a non-retryable -1102
 }
 
 func (f *bracketExchange) posted() []string {
@@ -125,10 +134,18 @@ func (f *bracketExchange) handler() http.HandlerFunc {
 			})
 		case http.MethodGet:
 			if f.getStatus == http.StatusOK {
+				orderStatus := f.getOrderStatus
+				if orderStatus == "" {
+					orderStatus = "NEW"
+				}
+				executedQty := f.getExecutedQty
+				if executedQty == "" {
+					executedQty = "0"
+				}
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"orderId": 777, "symbol": q.Get("symbol"), "status": "NEW",
+					"orderId": 777, "symbol": q.Get("symbol"), "status": orderStatus,
 					"clientOrderId": q.Get("origClientOrderId"), "price": "50000", "avgPrice": "0",
-					"origQty": "0.02", "executedQty": "0", "cumQuote": "0",
+					"origQty": "0.02", "executedQty": executedQty, "cumQuote": "0",
 					"timeInForce": "GTC", "type": "LIMIT", "side": "BUY",
 					"stopPrice": "0", "updateTime": 1,
 				})
@@ -330,4 +347,73 @@ func TestPlaceBracketOrder_StoreErrorDegradesToInMemory(t *testing.T) {
 	assert.Len(t, fake.posted(), 3)
 	assert.Empty(t, store.bracketUpdates, "no reservation id, so no status writes")
 	assert.Equal(t, "engine-main-9", resp.ClientOrderIDs.Main)
+}
+
+func TestPlaceBracketOrder_LegsOnFillDefersExitLegs(t *testing.T) {
+	store := newFakeBracketStore()
+	fake := &bracketExchange{}
+	manager := newStoreFixture(t, fake, store)
+	manager.SetLegsOnFill(true)
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"engine-main-9"}, fake.posted(),
+		"only the entry may be POSTed before it fills")
+	assert.True(t, resp.LegsPendingTrigger)
+	assert.Equal(t, ClientOrderIDs{
+		Main:        "engine-main-9",
+		TakeProfits: []string{"engine-tp-9"},
+		StopLoss:    "engine-sl-9",
+	}, resp.ClientOrderIDs, "reserved exit-leg ids must still be reported")
+	require.Len(t, store.reserved, 1)
+	assert.True(t, store.reserved[0].LegsOnFill)
+	assert.Equal(t, []string{storage.BracketStatusEntryPlaced}, store.bracketUpdates)
+	assert.Equal(t, map[string]string{"engine-main-9": storage.LegStatusPlaced}, store.legUpdates,
+		"exit legs must stay PLANNED for the armer")
+}
+
+func TestPlaceBracketOrder_LegsOnFillWithoutStoreStaysSynchronous(t *testing.T) {
+	fake := &bracketExchange{}
+	server := httptest.NewServer(fake.handler())
+	t.Cleanup(server.Close)
+	signer := auth.NewSignerWithRecvWindow("key", "secret", 5000)
+	futuresRest := rest.NewClient(server.URL, signer)
+	futuresClient, err := binance.NewFuturesClient(server.URL, signer, futuresRest, zerolog.Nop())
+	require.NoError(t, err)
+	manager := NewManager(nil, futuresClient, nil, zerolog.Nop())
+	manager.SetLegsOnFill(true) // no bracket store installed
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
+
+	require.NoError(t, err)
+	assert.Len(t, fake.posted(), 3, "without durable legs, deferral would lose them on crash")
+	assert.False(t, resp.LegsPendingTrigger)
+}
+
+func TestPlaceBracketOrder_ReplayAdoptedFilledEntryPlacesLegsSynchronously(t *testing.T) {
+	store := newFakeBracketStore()
+	store.existingRecord = &storage.BracketRecord{
+		BracketID:          uuid.New(),
+		Venue:              "USD_M",
+		Symbol:             "BTCUSDT",
+		Side:               "BUY",
+		EntryClientOrderID: "engine-main-9",
+		Status:             storage.BracketStatusEntryPlaced,
+		LegsOnFill:         true,
+	}
+	fake := &bracketExchange{
+		getStatus:      http.StatusOK,
+		getOrderStatus: "FILLED",
+		getExecutedQty: "0.02",
+	}
+	manager := newStoreFixture(t, fake, store)
+	manager.SetLegsOnFill(true)
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
+
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"engine-tp-9", "engine-sl-9"}, fake.posted(),
+		"the fill event is gone forever; legs must place now, not wait for it")
+	assert.False(t, resp.LegsPendingTrigger)
 }

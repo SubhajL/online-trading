@@ -16,7 +16,7 @@ import (
 
 // bracketRecordFromRequest builds the durable reservation for a request that
 // carries caller-supplied client order ids (the engine contract).
-func bracketRecordFromRequest(req *PlaceBracketRequest) storage.BracketRecord {
+func bracketRecordFromRequest(req *PlaceBracketRequest, legsOnFill bool) storage.BracketRecord {
 	venue := "SPOT"
 	if req.IsFutures {
 		venue = "USD_M"
@@ -58,6 +58,7 @@ func bracketRecordFromRequest(req *PlaceBracketRequest) storage.BracketRecord {
 		StopLossPrice:      req.StopLossPrice,
 		EntryClientOrderID: req.ClientOrderIDs.Main,
 		Status:             storage.BracketStatusReserved,
+		LegsOnFill:         legsOnFill,
 		Legs:               legs,
 	}
 }
@@ -148,6 +149,7 @@ func (m *Manager) persistPlacementOutcome(
 	bracketID uuid.UUID,
 	placement *bracketPlacementResult,
 	critical bool,
+	legsDeferred bool,
 ) {
 	if m.bracketStore == nil || bracketID == uuid.Nil {
 		return
@@ -160,7 +162,17 @@ func (m *Manager) persistPlacementOutcome(
 	if !critical {
 		status = storage.BracketStatusLegsPlaced
 	}
-	if err := m.bracketStore.UpdateBracketStatus(ctx, bracketID, status); err != nil {
+	if !critical && legsDeferred {
+		// Exit legs stay PLANNED; the armer places them on fill. A MARKET
+		// entry can fill — and the armer can advance the bracket — before
+		// this bookkeeping runs, so never downgrade past RESERVED.
+		if _, err := m.bracketStore.UpdateBracketStatusIf(
+			ctx, bracketID, storage.BracketStatusReserved, storage.BracketStatusEntryPlaced,
+		); err != nil {
+			m.logger.Warn().Err(err).Str("bracket_id", bracketID.String()).
+				Msg("Failed to persist bracket status")
+		}
+	} else if err := m.bracketStore.UpdateBracketStatus(ctx, bracketID, status); err != nil {
 		m.logger.Warn().Err(err).Str("bracket_id", bracketID.String()).
 			Msg("Failed to persist bracket status")
 	}
@@ -185,6 +197,9 @@ func (m *Manager) persistPlacementOutcome(
 	}
 
 	update(placement.IDs.Main, placement.Main)
+	if legsDeferred {
+		return
+	}
 	for i, tpID := range placement.IDs.TakeProfits {
 		var resp *binance.OrderResponse
 		if i < len(placement.TakeProfits) {
