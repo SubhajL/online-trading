@@ -43,10 +43,31 @@ type Connection struct {
 	doneOnce  sync.Once
 	doneMutex sync.Mutex // Protects doneChan recreation
 
+	// Serialized dispatch: user-data ordering depends on one consumer.
+	// dispatchStop is never recreated (closeChan is, on reconnect).
+	dispatchChan     chan []byte
+	dispatchStop     chan struct{}
+	dispatchOnce     sync.Once
+	dispatchStopOnce sync.Once
+
+	reconnectHandler   func()
+	reconnectHandlerMu sync.RWMutex
+
 	// Reconnection state
 	reconnectAttempts int
 	reconnecting      bool
 	reconnectMu       sync.Mutex
+}
+
+const defaultDispatchBufferSize = 1024
+
+// WithDispatchBuffer sets the serialized-dispatch queue capacity.
+func WithDispatchBuffer(size int) ConnectionOption {
+	return func(c *Connection) {
+		if size > 0 {
+			c.dispatchChan = make(chan []byte, size)
+		}
+	}
 }
 
 // ConnectionOption configures connection behavior
@@ -115,13 +136,66 @@ func NewConnection(url string, opts ...ConnectionOption) *Connection {
 		reconnectInterval:    5 * time.Second,
 		closeChan:            make(chan struct{}),
 		doneChan:             make(chan struct{}),
+		dispatchStop:         make(chan struct{}),
 	}
 
 	for _, opt := range opts {
 		opt(conn)
 	}
 
+	if conn.dispatchChan == nil {
+		conn.dispatchChan = make(chan []byte, defaultDispatchBufferSize)
+	}
+
 	return conn
+}
+
+// SetReconnectHandler registers a callback invoked after a successful
+// automatic reconnection, and also when reconnection attempts are exhausted
+// (the listen-key owner must rotate and rebuild in both cases).
+func (c *Connection) SetReconnectHandler(fn func()) {
+	c.reconnectHandlerMu.Lock()
+	defer c.reconnectHandlerMu.Unlock()
+	c.reconnectHandler = fn
+}
+
+func (c *Connection) fireReconnectHandler() {
+	c.reconnectHandlerMu.RLock()
+	fn := c.reconnectHandler
+	c.reconnectHandlerMu.RUnlock()
+	if fn != nil {
+		go fn()
+	}
+}
+
+func (c *Connection) deliver(message []byte) {
+	c.handlerMu.RLock()
+	handler := c.messageHandler
+	c.handlerMu.RUnlock()
+	if handler != nil {
+		handler(message)
+	}
+}
+
+// dispatchLoop delivers messages to the handler one at a time, preserving
+// the exchange's per-connection ordering end to end. On stop it drains the
+// queue: already-read fill events must never be silently discarded.
+func (c *Connection) dispatchLoop() {
+	for {
+		select {
+		case message := <-c.dispatchChan:
+			c.deliver(message)
+		case <-c.dispatchStop:
+			for {
+				select {
+				case message := <-c.dispatchChan:
+					c.deliver(message)
+				default:
+					return
+				}
+			}
+		}
+	}
 }
 
 // URL returns the WebSocket URL
@@ -167,6 +241,19 @@ func (c *Connection) ReadTimeout() time.Duration {
 func (c *Connection) Connect(ctx context.Context) error {
 	if c.State() == StateConnected {
 		return fmt.Errorf("already connected")
+	}
+	if c.State() == StateClosed {
+		return fmt.Errorf("connection is closed")
+	}
+
+	// A prior socket may still be half-alive (pong timeout with data
+	// flowing); close it so only one read loop ever feeds the dispatcher.
+	c.connMu.Lock()
+	previous := c.conn
+	c.conn = nil
+	c.connMu.Unlock()
+	if previous != nil {
+		_ = previous.Close()
 	}
 
 	c.setState(StateConnecting)
@@ -223,9 +310,15 @@ func (c *Connection) Connect(ctx context.Context) error {
 		return err
 	}
 
+	if c.State() == StateClosed {
+		// Closed while dialing (e.g. a listen-key rotation raced us)
+		_ = conn.Close()
+		return fmt.Errorf("connection closed during connect")
+	}
 	c.setState(StateConnected)
 
-	// Start background goroutines
+	// Start background goroutines; one dispatch loop per Connection lifetime
+	c.dispatchOnce.Do(func() { go c.dispatchLoop() })
 	go c.startPingLoop()
 	go c.startReadLoop()
 
@@ -289,6 +382,7 @@ func (c *Connection) Close() error {
 	default:
 		close(c.closeChan)
 	}
+	c.dispatchStopOnce.Do(func() { close(c.dispatchStop) })
 
 	// Wait a moment for ongoing operations to complete
 	time.Sleep(10 * time.Millisecond)
@@ -453,13 +547,12 @@ func (c *Connection) startReadLoop() {
 			return
 		}
 
-		// Handle message
-		c.handlerMu.RLock()
-		handler := c.messageHandler
-		c.handlerMu.RUnlock()
-
-		if handler != nil {
-			go handler(message)
+		// Enqueue for serialized dispatch; a full queue backpressures the
+		// read loop (TCP flow control) rather than dropping or reordering.
+		select {
+		case c.dispatchChan <- message:
+		case <-c.dispatchStop:
+			return
 		}
 	}
 }
@@ -530,12 +623,15 @@ func (c *Connection) attemptReconnection() {
 		if err == nil {
 			// Connection established - but don't reset attempts yet
 			// Let the connection prove it's stable before declaring success
+			c.fireReconnectHandler()
 			return
 		}
 
 		// Continue loop to try again if we haven't exceeded max attempts
 	}
 
-	// All reconnection attempts failed
+	// All reconnection attempts failed: still fire the handler so the
+	// listen-key owner can rebuild from scratch instead of going deaf.
 	c.setState(StateDisconnected)
+	c.fireReconnectHandler()
 }

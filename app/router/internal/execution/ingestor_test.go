@@ -20,6 +20,7 @@ type mockListenKeyClient struct {
 	deleted        []string
 	nextListenKeys []string
 	createDelay    time.Duration // Optional delay to simulate network latency
+	failCreates    int           // Fail this many CreateFuturesListenKey calls first
 }
 
 func (m *mockListenKeyClient) CreateFuturesListenKey(ctx context.Context) (string, error) {
@@ -33,6 +34,10 @@ func (m *mockListenKeyClient) CreateFuturesListenKey(ctx context.Context) (strin
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.failCreates > 0 {
+		m.failCreates--
+		return "", fmt.Errorf("simulated listen key failure")
+	}
 	if len(m.nextListenKeys) == 0 {
 		return "", fmt.Errorf("no more listen keys available in mock")
 	}
@@ -255,4 +260,71 @@ func TestIngestor_ForwardsOrderTradeUpdatesToCallback(t *testing.T) {
 		defer mu.Unlock()
 		return got != nil && got.OrderTradeUpdate.TradeID == 123
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestIngestor_OnSocketReconnectedRotatesListenKey(t *testing.T) {
+	lk := &mockListenKeyClient{nextListenKeys: []string{"lk-1", "lk-2"}}
+	sub := &mockSubscriber{}
+	logger := zerolog.Nop()
+
+	ing := NewIngestor(lk, sub, logger, WithKeepAliveInterval(0))
+	require.NoError(t, ing.Start(context.Background()))
+	t.Cleanup(func() { _ = ing.Stop(context.Background()) })
+
+	ing.OnSocketReconnected("lk-1")
+
+	require.Eventually(t, func() bool {
+		sub.mu.Lock()
+		defer sub.mu.Unlock()
+		_, ok := sub.handlers["lk-2"]
+		return ok
+	}, 2*time.Second, 10*time.Millisecond, "socket reconnect must rotate to a fresh listen key")
+
+	lk.mu.Lock()
+	defer lk.mu.Unlock()
+	require.Equal(t, []string{"lk-1"}, lk.deleted, "stale listen key must be deleted")
+}
+
+func TestIngestor_OnSocketReconnectedIgnoresStaleListenKey(t *testing.T) {
+	lk := &mockListenKeyClient{nextListenKeys: []string{"lk-1", "lk-2"}}
+	sub := &mockSubscriber{}
+	logger := zerolog.Nop()
+
+	ing := NewIngestor(lk, sub, logger, WithKeepAliveInterval(0))
+	require.NoError(t, ing.Start(context.Background()))
+	t.Cleanup(func() { _ = ing.Stop(context.Background()) })
+
+	ing.OnSocketReconnected("lk-zombie")
+
+	time.Sleep(50 * time.Millisecond)
+	lk.mu.Lock()
+	defer lk.mu.Unlock()
+	require.Equal(t, []string{"lk-1"}, lk.created, "stale key signal must not rotate a healthy stream")
+	require.Empty(t, lk.deleted)
+}
+
+func TestIngestor_RestartRetriesUntilListenKeyAvailable(t *testing.T) {
+	lk := &mockListenKeyClient{nextListenKeys: []string{"lk-1", "lk-2"}}
+	sub := &mockSubscriber{}
+	logger := zerolog.Nop()
+
+	ing := NewIngestor(lk, sub, logger,
+		WithKeepAliveInterval(0),
+		WithRestartBackoff(5*time.Millisecond),
+	)
+	require.NoError(t, ing.Start(context.Background()))
+	t.Cleanup(func() { _ = ing.Stop(context.Background()) })
+	lk.mu.Lock()
+	lk.failCreates = 2
+	lk.mu.Unlock()
+
+	ing.OnSocketReconnected("lk-1")
+
+	require.Eventually(t, func() bool {
+		sub.mu.Lock()
+		defer sub.mu.Unlock()
+		_, ok := sub.handlers["lk-2"]
+		return ok
+	}, 2*time.Second, 5*time.Millisecond,
+		"rotation must retry through listen-key creation failures")
 }

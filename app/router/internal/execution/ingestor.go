@@ -28,6 +28,7 @@ type Ingestor struct {
 	logger          zerolog.Logger
 
 	keepAliveInterval  time.Duration
+	restartBackoff     time.Duration
 	onOrderTradeUpdate func(*websocket.FuturesOrderTradeUpdateEvent) error
 
 	mu        sync.Mutex
@@ -56,6 +57,15 @@ func WithOrderTradeUpdateHandler(
 	}
 }
 
+// WithRestartBackoff sets the base delay between stream-restart retries.
+func WithRestartBackoff(backoff time.Duration) IngestorOption {
+	return func(i *Ingestor) {
+		if backoff > 0 {
+			i.restartBackoff = backoff
+		}
+	}
+}
+
 func NewIngestor(
 	listenKeyClient ListenKeyClient,
 	subscriber UserDataSubscriber,
@@ -67,6 +77,7 @@ func NewIngestor(
 		subscriber:        subscriber,
 		logger:            logger,
 		keepAliveInterval: 30 * time.Minute,
+		restartBackoff:    time.Second,
 		done:              make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -166,6 +177,30 @@ func (i *Ingestor) startWithNewListenKey(ctx context.Context) error {
 	return nil
 }
 
+// OnSocketReconnected rotates the listen key after a socket-level reconnect
+// (or reconnect exhaustion). Binance invalidates the session server-side, so
+// without this only a listenKeyExpired event (which the dead socket cannot
+// deliver) would recover the user-data stream. Events for keys we no longer
+// own are ignored so a raced zombie connection cannot kill a healthy one.
+func (i *Ingestor) OnSocketReconnected(listenKey string) {
+	i.mu.Lock()
+	current := i.listenKey
+	i.mu.Unlock()
+	if listenKey != "" && current != "" && listenKey != current {
+		i.logger.Debug().
+			Str("listen_key", listenKey).
+			Str("current", current).
+			Msg("ignoring reconnect signal for stale listen key")
+		return
+	}
+
+	i.logger.Warn().Str("listen_key", listenKey).
+		Msg("user data socket reconnected; rotating listen key")
+	if err := i.restartSerialized(context.Background()); err != nil {
+		i.logger.Error().Err(err).Msg("failed to restart user data stream after reconnect")
+	}
+}
+
 // restartSerialized ensures only one restart runs at a time.
 // If a restart is already in progress, additional calls return immediately.
 func (i *Ingestor) restartSerialized(ctx context.Context) error {
@@ -197,7 +232,29 @@ func (i *Ingestor) restart(ctx context.Context) error {
 		_ = i.listenKeyClient.DeleteFuturesListenKey(ctx, oldKey)
 	}
 
-	return i.startWithNewListenKey(ctx)
+	// The failure that forced a rotation (network trouble) is exactly when
+	// the new listen-key request will also fail; a single silent failure
+	// here would leave orders flowing with fills invisible. Retry with
+	// backoff until the stream is back or the ingestor stops.
+	backoff := i.restartBackoff
+	for {
+		err := i.startWithNewListenKey(ctx)
+		if err == nil {
+			return nil
+		}
+		i.logger.Error().Err(err).Dur("retry_in", backoff).
+			Msg("failed to restart user data stream; retrying")
+		select {
+		case <-i.done:
+			return err
+		case <-ctx.Done():
+			return err
+		case <-time.After(backoff):
+		}
+		if backoff < 30*time.Second {
+			backoff *= 2
+		}
+	}
 }
 
 func (i *Ingestor) keepAliveLoop(ctx context.Context) {

@@ -133,6 +133,7 @@ func main() {
 					return processor.HandleFuturesOrderTradeUpdate(context.Background(), event)
 				}),
 			)
+			wsClient.SetUserDataReconnectHandler(userDataIngestor.OnSocketReconnected)
 
 			if err := userDataIngestor.Start(context.Background()); err != nil {
 				logger.Fatal().Err(err).Msg("Failed to start user data ingestor")

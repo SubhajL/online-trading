@@ -320,6 +320,11 @@ func (sm *StreamManager) SetUserStreamHandler(handler UserStreamHandler) {
 	sm.userHandler = handler
 }
 
+// SetReconnectHandler forwards a socket-reconnect callback to the connection.
+func (sm *StreamManager) SetReconnectHandler(fn func()) {
+	sm.conn.SetReconnectHandler(fn)
+}
+
 // SetEventHandler sets the generic event handler
 func (sm *StreamManager) SetEventHandler(handler EventHandler) {
 	sm.handlersMu.Lock()
