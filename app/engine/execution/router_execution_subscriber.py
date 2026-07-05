@@ -201,6 +201,8 @@ class RouterExecutionSubscriber:
         | None = None,
         router_max_attempts: int = 3,
         router_backoff_config: BackoffConfig | None = None,
+        router_env_probe_attempts: int = 1,
+        router_env_probe_delay_seconds: float = 3.0,
     ) -> None:
         self._bus = bus
         self._router_client = router_client
@@ -218,6 +220,10 @@ class RouterExecutionSubscriber:
             raise ValueError("router_max_attempts must be >= 1")
         self._router_max_attempts = router_max_attempts
         self._router_backoff_config = router_backoff_config
+        if router_env_probe_attempts < 1:
+            raise ValueError("router_env_probe_attempts must be >= 1")
+        self._router_env_probe_attempts = router_env_probe_attempts
+        self._router_env_probe_delay_seconds = router_env_probe_delay_seconds
         self._subscription_id: str | None = None
         self._symbol_locks: dict[str, asyncio.Lock] = {}
 
@@ -369,12 +375,69 @@ class RouterExecutionSubscriber:
         if self._execution_mode == ExecutionMode.DISABLED:
             return
 
+        await self._verify_router_execution_env()
+
         self._subscription_id = await self._bus.subscribe(
             subscriber_id="router-execution",
             handler=self._on_trading_decision,
             event_types=[EventType.TRADING_DECISION],
             priority=5,
         )
+
+    async def _verify_router_execution_env(self) -> None:
+        """Cross-check EXECUTION_MODE against the router's execution env.
+
+        Hard-fails only on a confirmed mismatch; an unreachable router or an
+        older router without the health field logs a warning and proceeds.
+        Probes retry so a router still booting (compose starts it after the
+        engine) can be observed before giving up.
+        """
+        health_check = getattr(self._router_client, "health_check", None)
+        if health_check is None:
+            return
+
+        router_env: str | None = None
+        last_health: dict[str, Any] | None = None
+        for attempt in range(self._router_env_probe_attempts):
+            try:
+                health = await health_check()
+            except Exception as exc:
+                health = {"status": "unreachable", "error": str(exc)}
+            if isinstance(health, dict):
+                last_health = health
+                value = health.get("execution_env")
+                if isinstance(value, str):
+                    router_env = value.strip().lower()
+                    break
+            if attempt < self._router_env_probe_attempts - 1:
+                await asyncio.sleep(self._router_env_probe_delay_seconds)
+
+        if router_env not in {"testnet", "mainnet"}:
+            detail = ""
+            if isinstance(last_health, dict):
+                detail = (
+                    f" (last status={last_health.get('status')!r},"
+                    f" error={last_health.get('error')!r})"
+                )
+            logger.warning(
+                "Router execution env unverified after %d probe(s)%s; EXECUTION_MODE=%s",
+                self._router_env_probe_attempts,
+                detail,
+                self._execution_mode.value,
+            )
+            return
+
+        mode_is_mainnet = self._execution_mode in {
+            ExecutionMode.SPOT_MAINNET,
+            ExecutionMode.FUTURES_MAINNET,
+        }
+        router_is_mainnet = router_env == "mainnet"
+        if mode_is_mainnet != router_is_mainnet:
+            raise RuntimeError(
+                f"EXECUTION_MODE={self._execution_mode.value} but the router at "
+                f"ROUTER_URL reports execution_env={router_env}; refusing to start "
+                "execution against the wrong venue",
+            )
 
     async def stop(self) -> None:
         if self._subscription_id is None:

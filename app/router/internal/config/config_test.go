@@ -108,6 +108,7 @@ func TestBinanceConfig_ExecutionEnv(t *testing.T) {
 
 	t.Run("mainnet execution env disables testnet URLs", func(t *testing.T) {
 		t.Setenv("ROUTER_EXECUTION_ENV", "mainnet")
+		t.Setenv("I_UNDERSTAND_LIVE_TRADING", "1")
 		t.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
 		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
 		t.Setenv("TRADING_MODE", "spot")
@@ -126,5 +127,47 @@ func TestBinanceConfig_ExecutionEnv(t *testing.T) {
 		_, err := Load()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "ROUTER_EXECUTION_ENV")
+	})
+}
+
+func TestLoad_LiveTradingAck(t *testing.T) {
+	setSpotCredentials := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("BINANCE_SPOT_API_KEY", "test-spot-key")
+		t.Setenv("BINANCE_SPOT_SECRET_KEY", "test-spot-secret")
+		t.Setenv("TRADING_MODE", "spot")
+	}
+
+	t.Run("mainnet without ack fails load", func(t *testing.T) {
+		setSpotCredentials(t)
+		t.Setenv("ROUTER_EXECUTION_ENV", "mainnet")
+		t.Setenv("I_UNDERSTAND_LIVE_TRADING", "")
+
+		_, err := Load()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "I_UNDERSTAND_LIVE_TRADING")
+	})
+
+	t.Run("mainnet with ack loads", func(t *testing.T) {
+		setSpotCredentials(t)
+		t.Setenv("ROUTER_EXECUTION_ENV", "mainnet")
+		t.Setenv("I_UNDERSTAND_LIVE_TRADING", "1")
+
+		config, err := Load()
+
+		require.NoError(t, err)
+		assert.False(t, config.Binance.Testnet)
+	})
+
+	t.Run("testnet loads without ack", func(t *testing.T) {
+		setSpotCredentials(t)
+		t.Setenv("ROUTER_EXECUTION_ENV", "testnet")
+		t.Setenv("I_UNDERSTAND_LIVE_TRADING", "")
+
+		config, err := Load()
+
+		require.NoError(t, err)
+		assert.True(t, config.Binance.Testnet)
 	})
 }

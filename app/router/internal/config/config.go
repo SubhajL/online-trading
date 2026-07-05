@@ -111,6 +111,9 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := validateLiveTradingAck(testnet, getEnv("I_UNDERSTAND_LIVE_TRADING", "")); err != nil {
+		return nil, err
+	}
 
 	config := &Config{
 		Server: ServerConfig{
@@ -197,6 +200,16 @@ func parseExecutionEnv(raw string) (bool, error) {
 	default:
 		return false, fmt.Errorf("ROUTER_EXECUTION_ENV must be 'mainnet' or 'testnet'")
 	}
+}
+
+func validateLiveTradingAck(testnet bool, ack string) error {
+	if testnet {
+		return nil
+	}
+	if strings.TrimSpace(ack) == "1" {
+		return nil
+	}
+	return fmt.Errorf("ROUTER_EXECUTION_ENV=mainnet requires I_UNDERSTAND_LIVE_TRADING=1")
 }
 
 // Validate validates the configuration
