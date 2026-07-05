@@ -9,13 +9,12 @@ import { getTokens } from '@/utils/getTokens'
 import {
   getIndicatorColor,
   getChartButtonStyles,
-  getChartSelectStyles,
   getIconButtonStyles,
   getOverlayStyles,
   getSpinnerStyles,
   getIconSizeStyles,
 } from '@/utils/stylingHelpers'
-import type { Symbol, Timeframe, ChartType, IndicatorType } from '@/types'
+import type { Symbol, Timeframe, IndicatorType } from '@/types'
 import type { UTCTimestamp } from 'lightweight-charts'
 
 type ChartProps = {
@@ -31,7 +30,6 @@ type ChartProps = {
 }
 
 const TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d']
-const CHART_TYPES: ChartType[] = ['candlestick', 'line', 'area']
 
 export function Chart({
   symbol,
@@ -46,7 +44,6 @@ export function Chart({
 }: ChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>(timeframe)
-  const [chartType, setChartType] = useState<ChartType>('candlestick')
   const [showIndicatorPanel, setShowIndicatorPanel] = useState(false)
   const [enabledIndicators, setEnabledIndicators] = useState<IndicatorType[]>(activeIndicators)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -59,11 +56,6 @@ export function Chart({
     addIndicator,
     removeIndicator,
     fitContent,
-    setChartType: updateChartType,
-    addSmcOverlay,
-    removeSmcOverlay,
-    addZoneOverlay,
-    removeZoneOverlay,
     addMarkers,
     addPriceLevels,
     removePriceLevels,
@@ -105,24 +97,6 @@ export function Chart({
     })
   }, [indicators, enabledIndicators, addIndicator, tokens])
 
-  // Update SMC overlays
-  useEffect(() => {
-    if (showSmc && smcEvents.length > 0) {
-      addSmcOverlay(smcEvents)
-    } else {
-      removeSmcOverlay()
-    }
-  }, [showSmc, smcEvents, addSmcOverlay, removeSmcOverlay])
-
-  // Update zone overlays
-  useEffect(() => {
-    if (showZones && zones.length > 0) {
-      addZoneOverlay(zones)
-    } else {
-      removeZoneOverlay()
-    }
-  }, [showZones, zones, addZoneOverlay, removeZoneOverlay])
-
   // Add markers
   useEffect(() => {
     if (markers && markers.length > 0) {
@@ -154,11 +128,6 @@ export function Chart({
   const handleTimeframeChange = (tf: Timeframe) => {
     setSelectedTimeframe(tf)
     setTimeframe(tf)
-  }
-
-  const handleChartTypeChange = (type: ChartType) => {
-    setChartType(type)
-    updateChartType(type)
   }
 
   const handleIndicatorToggle = (indicator: IndicatorType) => {
@@ -253,20 +222,6 @@ export function Chart({
         </div>
 
         <div style={headerRightStyles}>
-          {/* Chart type selector */}
-          <select
-            data-testid="chart-type-selector"
-            value={chartType}
-            onChange={e => handleChartTypeChange(e.target.value as ChartType)}
-            style={getChartSelectStyles(tokens)}
-          >
-            {CHART_TYPES.map(type => (
-              <option key={type} value={type}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </option>
-            ))}
-          </select>
-
           {/* Indicator toggle */}
           <button
             data-testid="indicator-panel-toggle"

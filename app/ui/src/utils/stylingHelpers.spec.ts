@@ -10,7 +10,6 @@ import {
   getIndicatorColor,
   applyFocusVisible,
   getChartButtonStyles,
-  getChartSelectStyles,
   getIconButtonStyles,
   getOverlayStyles,
   getSpinnerStyles,
@@ -354,21 +353,6 @@ describe('getChartButtonStyles', () => {
     const result = getChartButtonStyles(true, mockTokens)
     expect(result.backgroundColor).not.toMatch(/#[0-9a-fA-F]{6}/)
     expect(result.color).not.toMatch(/#[0-9a-fA-F]{6}/)
-  })
-})
-
-describe('getChartSelectStyles', () => {
-  test('uses surface tokens for background, border, and text', () => {
-    const styles = getChartSelectStyles(mockTokens)
-    expect(styles.backgroundColor).toBe(mockTokens.colors.surface.overlay)
-    expect(styles.border).toBe(`1px solid ${mockTokens.colors.border.subtle}`)
-    expect(styles.color).toBe(mockTokens.colors.text.primary)
-  })
-
-  test('applies spacing and radius tokens for padding', () => {
-    const styles = getChartSelectStyles(mockTokens)
-    expect(styles.padding).toBe(`${mockTokens.spacing[2]} ${mockTokens.spacing[3]}`)
-    expect(styles.borderRadius).toBe(mockTokens.radius.sm)
   })
 })
 

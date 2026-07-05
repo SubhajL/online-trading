@@ -24,6 +24,7 @@ const mockChart = {
     setData: vi.fn(),
     update: vi.fn(),
   })),
+  removeSeries: vi.fn(),
 }
 
 vi.mock('lightweight-charts', () => {
@@ -199,6 +200,48 @@ describe('useChart', () => {
         color: '#2962ff',
       }),
     )
+  })
+
+  it('re-adding an indicator type replaces its data instead of stacking a series', () => {
+    const { result } = renderHook(() => useChart(containerRef))
+    const firstData = [{ time: 1000 as any, value: 50 }]
+    const secondData = [{ time: 2000 as any, value: 55 }]
+
+    let firstSeries: unknown
+    let secondSeries: unknown
+    act(() => {
+      firstSeries = result.current.addIndicator('EMA', firstData)
+    })
+    act(() => {
+      secondSeries = result.current.addIndicator('EMA', secondData)
+    })
+
+    expect(mockChart.addLineSeries).toHaveBeenCalledTimes(1)
+    expect(secondSeries).toBe(firstSeries)
+    expect((firstSeries as { setData: ReturnType<typeof vi.fn> }).setData).toHaveBeenLastCalledWith(
+      secondData,
+    )
+  })
+
+  it('removeIndicator removes exactly the series for that type', () => {
+    const { result } = renderHook(() => useChart(containerRef))
+    const data = [{ time: 1000 as any, value: 50 }]
+
+    act(() => {
+      result.current.addIndicator('EMA', data)
+      result.current.addIndicator('RSI', data)
+    })
+    act(() => {
+      result.current.removeIndicator('EMA')
+    })
+
+    expect(mockChart.removeSeries).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.addIndicator('EMA', data)
+    })
+
+    expect(mockChart.addLineSeries).toHaveBeenCalledTimes(2)
   })
 
   it('fits content to screen', () => {

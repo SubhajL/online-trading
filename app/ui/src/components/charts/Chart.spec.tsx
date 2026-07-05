@@ -53,11 +53,6 @@ describe('Chart', () => {
     addIndicator: vi.fn(),
     removeIndicator: vi.fn(),
     fitContent: vi.fn(),
-    setChartType: vi.fn(),
-    addSmcOverlay: vi.fn(),
-    removeSmcOverlay: vi.fn(),
-    addZoneOverlay: vi.fn(),
-    removeZoneOverlay: vi.fn(),
     addMarkers: vi.fn(),
     addPriceLevels: vi.fn(),
     removePriceLevels: vi.fn(),
@@ -143,17 +138,6 @@ describe('Chart', () => {
       })
     })
 
-    it('applies token styles to chart type select', () => {
-      render(<Chart symbol="BTCUSDT" />)
-
-      const select = screen.getByTestId('chart-type-selector')
-      expect(select).toHaveStyle({
-        backgroundColor: DEFAULT_TOKENS.colors.surface.overlay,
-        border: `1px solid ${DEFAULT_TOKENS.colors.border.subtle}`,
-        color: DEFAULT_TOKENS.colors.text.primary,
-      })
-    })
-
     it('applies token styles to icon buttons', () => {
       render(<Chart symbol="BTCUSDT" />)
 
@@ -208,20 +192,10 @@ describe('Chart', () => {
   })
 
   describe('chart type selection', () => {
-    it('should render chart type selector', () => {
+    it('does not render the removed no-op chart type selector', () => {
       render(<Chart symbol="BTCUSDT" />)
 
-      expect(screen.getByTestId('chart-type-selector')).toBeInTheDocument()
-    })
-
-    it('should handle chart type change', async () => {
-      const user = userEvent.setup()
-      render(<Chart symbol="BTCUSDT" />)
-
-      const selector = screen.getByTestId('chart-type-selector')
-      await user.selectOptions(selector, 'line')
-
-      expect(mockUseChart.setChartType).toHaveBeenCalledWith('line')
+      expect(screen.queryByTestId('chart-type-selector')).not.toBeInTheDocument()
     })
   })
 
@@ -283,16 +257,17 @@ describe('Chart', () => {
       const user = userEvent.setup()
       render(<Chart symbol="BTCUSDT" />)
 
-      const smcToggle = screen.getByTestId('smc-overlay-toggle')
-      await user.click(smcToggle)
+      expect(screen.queryByTestId('smc-overlays')).not.toBeInTheDocument()
 
-      expect(mockUseChart.addSmcOverlay).toHaveBeenCalledWith(mockSmcEvents)
+      await user.click(screen.getByTestId('smc-overlay-toggle'))
+
+      expect(screen.getByTestId('smc-overlays')).toBeInTheDocument()
     })
 
-    it('should update SMC overlays when events change', () => {
+    it('should keep rendering SMC overlays when events change', () => {
       const { rerender } = render(<Chart symbol="BTCUSDT" showSmcOverlays />)
 
-      expect(mockUseChart.addSmcOverlay).toHaveBeenCalledWith(mockSmcEvents)
+      expect(screen.getByTestId('smc-overlays')).toBeInTheDocument()
 
       const newEvents = [
         ...mockSmcEvents,
@@ -314,7 +289,7 @@ describe('Chart', () => {
 
       rerender(<Chart symbol="BTCUSDT" showSmcOverlays />)
 
-      expect(mockUseChart.addSmcOverlay).toHaveBeenCalledWith(newEvents)
+      expect(screen.getByTestId('smc-overlay-BOS')).toBeInTheDocument()
     })
   })
 
@@ -329,10 +304,11 @@ describe('Chart', () => {
       const user = userEvent.setup()
       render(<Chart symbol="BTCUSDT" />)
 
-      const zoneToggle = screen.getByTestId('zone-overlay-toggle')
-      await user.click(zoneToggle)
+      expect(screen.queryByTestId('zone-overlays')).not.toBeInTheDocument()
 
-      expect(mockUseChart.addZoneOverlay).toHaveBeenCalledWith(mockZones)
+      await user.click(screen.getByTestId('zone-overlay-toggle'))
+
+      expect(screen.getByTestId('zone-overlays')).toBeInTheDocument()
     })
   })
 

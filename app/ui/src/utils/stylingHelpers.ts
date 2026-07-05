@@ -263,29 +263,6 @@ export function getChartButtonStyles(
 }
 
 /**
- * Returns inline styles for chart select control
- */
-export function getChartSelectStyles(tokens: DesignTokens): {
-  backgroundColor: string
-  border: string
-  color: string
-  padding: string
-  borderRadius: string
-  fontSize: string
-  appearance: 'none'
-} {
-  return {
-    backgroundColor: tokens.colors.surface.overlay,
-    border: `1px solid ${tokens.colors.border.subtle}`,
-    color: tokens.colors.text.primary,
-    padding: `${tokens.spacing[2]} ${tokens.spacing[3]}`,
-    borderRadius: tokens.radius.sm,
-    fontSize: tokens.typography.fontSize.sm,
-    appearance: 'none',
-  }
-}
-
-/**
  * Returns styles for icon-only chart toolbar buttons
  */
 export function getIconButtonStyles(

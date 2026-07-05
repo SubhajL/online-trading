@@ -111,12 +111,7 @@ describe('WsJwtGuard', () => {
       expect(jwtService.verifyAsync).not.toHaveBeenCalled();
     });
 
-    it('should check query params when no token in handshake auth', async () => {
-      const mockPayload: JwtPayload = {
-        sub: 'user-123',
-        username: 'testuser',
-        roles: ['operator'],
-      };
+    it('should reject query-param tokens (handshake auth only)', async () => {
       const mockToken = 'valid-jwt-token';
       const mockSecret = 'test-secret';
 
@@ -135,13 +130,11 @@ describe('WsJwtGuard', () => {
       } as unknown as ExecutionContext;
 
       jest.spyOn(configService, 'get').mockReturnValue(mockSecret);
-      jest.spyOn(jwtService, 'verifyAsync').mockResolvedValue(mockPayload);
 
       const result = await guard.canActivate(context);
 
-      expect(result).toBe(true);
-      expect(jwtService.verifyAsync).toHaveBeenCalledWith(mockToken, { secret: mockSecret });
-      expect(mockSocket.data.user).toEqual(mockPayload);
+      expect(result).toBe(false);
+      expect(jwtService.verifyAsync).not.toHaveBeenCalled();
     });
 
     it('should return false when no token is provided', async () => {
