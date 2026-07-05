@@ -588,10 +588,13 @@ func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
 	})
 
 	waitForEmitterStatus(t, emitter, "FILLED")
+	// FILLED is emitted before the trades-lag persist retry completes;
+	// wait on the ledger instead of racing it.
+	require.Eventually(t, func() bool { return ledger.callCount() == 1 },
+		time.Second, 5*time.Millisecond)
 
 	assert.GreaterOrEqual(t, getCalls.Load(), int64(2))
 	assert.Equal(t, int64(2), tradeCalls.Load())
-	assert.Equal(t, 1, ledger.callCount())
 	require.Len(t, ledger.latestSnapshot().Trades, 1)
 	assert.True(t, decimal.RequireFromString("50010").Equal(emitter.update.Price))
 }

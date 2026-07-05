@@ -110,6 +110,17 @@ func IsDuplicateClientOrderID(err error) bool {
 	return binanceErr.Code == -4116
 }
 
+// IsOrderNotFound reports whether the error is Binance saying the queried
+// order is not visible. NOT proof a submit never landed: freshly accepted
+// orders can lag the query path, so callers must re-poll before acting.
+func IsOrderNotFound(err error) bool {
+	var binanceErr *BinanceError
+	if !errors.As(err, &binanceErr) {
+		return false
+	}
+	return binanceErr.Code == -2013
+}
+
 func IsRetryableError(err error) bool {
 	if err == nil {
 		return false

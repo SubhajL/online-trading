@@ -42,7 +42,11 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 		NewClientOrderID: mainOrderID,
 	}
 
-	mainResp, err := client.PlaceSpotOrder(ctx, mainOrder)
+	mainResp, err := submitResolvingAmbiguity(
+		ctx, m.logger, client, req.Symbol, mainOrderID, mainOrder.Type != "MARKET",
+		func(ctx context.Context) (*binance.OrderResponse, error) {
+			return client.PlaceSpotOrder(ctx, mainOrder)
+		})
 	if err != nil {
 		bracketErr.Add("MAIN", err)
 		// Return immediately if main order fails as it's critical
@@ -72,7 +76,11 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 			NewClientOrderID: tpID,
 		}
 
-		tpResp, err := client.PlaceSpotOrder(ctx, tpOrder)
+		tpResp, err := submitResolvingAmbiguity(
+			ctx, m.logger, client, req.Symbol, tpID, true,
+			func(ctx context.Context) (*binance.OrderResponse, error) {
+				return client.PlaceSpotOrder(ctx, tpOrder)
+			})
 		if err != nil {
 			bracketErr.Add(fmt.Sprintf("TP%d", i+1), err)
 			m.logger.Error().
@@ -111,7 +119,11 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 		NewClientOrderID: slID,
 	}
 
-	slResp, err := client.PlaceSpotOrder(ctx, slOrder)
+	slResp, err := submitResolvingAmbiguity(
+		ctx, m.logger, client, req.Symbol, slID, true,
+		func(ctx context.Context) (*binance.OrderResponse, error) {
+			return client.PlaceSpotOrder(ctx, slOrder)
+		})
 	if err != nil {
 		bracketErr.Add("SL", err)
 		m.logger.Error().
@@ -171,7 +183,11 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 		ReduceOnly:       false, // Opening position
 	}
 
-	mainResp, err := client.PlaceFuturesOrder(ctx, mainOrder)
+	mainResp, err := submitResolvingAmbiguity(
+		ctx, m.logger, client, req.Symbol, mainOrderID, mainOrder.Type != "MARKET",
+		func(ctx context.Context) (*binance.OrderResponse, error) {
+			return client.PlaceFuturesOrder(ctx, mainOrder)
+		})
 	if err != nil {
 		bracketErr.Add("MAIN", err)
 		// Return immediately if main order fails as it's critical
@@ -201,7 +217,11 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 			ReduceOnly:       true, // TP orders reduce position
 		}
 
-		tpResp, err := client.PlaceFuturesOrder(ctx, tpOrder)
+		tpResp, err := submitResolvingAmbiguity(
+			ctx, m.logger, client, req.Symbol, tpID, true,
+			func(ctx context.Context) (*binance.OrderResponse, error) {
+				return client.PlaceFuturesOrder(ctx, tpOrder)
+			})
 		if err != nil {
 			bracketErr.Add(fmt.Sprintf("TP%d", i+1), err)
 			m.logger.Error().
@@ -231,7 +251,11 @@ func (m *Manager) placeFuturesBracket(ctx context.Context, client *binance.Clien
 		ClosePosition: true, // Close entire position on stop
 	}
 
-	slResp, err := client.PlaceFuturesOrder(ctx, slOrder)
+	slResp, err := submitResolvingAmbiguity(
+		ctx, m.logger, client, req.Symbol, slID, true,
+		func(ctx context.Context) (*binance.OrderResponse, error) {
+			return client.PlaceFuturesOrder(ctx, slOrder)
+		})
 	if err != nil {
 		bracketErr.Add("SL", err)
 		m.logger.Error().
