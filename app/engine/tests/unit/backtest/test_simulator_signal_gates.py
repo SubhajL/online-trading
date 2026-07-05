@@ -45,7 +45,7 @@ def _install_fake_analyze(
 
 
 @pytest.mark.asyncio
-async def test_signal_places_market_order_sized_fixed_fractional(
+async def test_signal_quantity_clamped_by_live_notional_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     candles = flat_candles(51)
@@ -58,13 +58,40 @@ async def test_signal_places_market_order_sized_fixed_fractional(
     market_orders = [order for order in simulator.active_orders if order.type == OrderType.MARKET]
     assert len(market_orders) == 1
     order = market_orders[0]
-    assert (order.symbol, order.side, order.quantity) == ("BTCUSDT", OrderSide.BUY, Decimal(25))
+    # risk-based qty would be 25 (0.5% of 10k over a 2-point stop), but the
+    # 10% notional cap (live parity) clamps to 1000/100 = 10
+    assert (order.symbol, order.side, order.quantity) == ("BTCUSDT", OrderSide.BUY, Decimal(10))
     bracket = simulator._pending_brackets[order.id]
     assert (bracket.stop_loss, bracket.take_profit, bracket.direction) == (
         Decimal(98),
         Decimal(103),
         "LONG",
     )
+
+
+@pytest.mark.asyncio
+async def test_signal_sized_fixed_fractional_when_below_notional_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candles = flat_candles(51)
+    fire_at = candles[-1].open_time
+
+    async def fake_analyze(**kwargs: Any) -> dict[str, Any] | None:
+        if kwargs["candles"][-1]["open_time"] == fire_at:
+            signal = make_signal(fire_at)
+            signal["stop_loss"] = Decimal(90)
+            return signal
+        return None
+
+    monkeypatch.setattr(simulator_module, "analyze_retest", fake_analyze)
+    simulator = BacktestSimulator(BacktestConfig())
+
+    for candle in candles:
+        await simulator.process_candle(candle)
+
+    market_orders = [order for order in simulator.active_orders if order.type == OrderType.MARKET]
+    # 0.5% of 10k over a 10-point stop → 5 units, notional 5% stays below the cap
+    assert [order.quantity for order in market_orders] == [Decimal(5)]
 
 
 @pytest.mark.asyncio
@@ -83,7 +110,7 @@ async def test_cooldown_blocks_identical_second_signal(
         OrderType.LIMIT,
     ]
     assert simulator._pending_brackets == {}
-    assert simulator.positions["BTCUSDT"].quantity == Decimal(25)
+    assert simulator.positions["BTCUSDT"].quantity == Decimal(10)
 
 
 @pytest.mark.asyncio

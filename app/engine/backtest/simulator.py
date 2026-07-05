@@ -111,16 +111,19 @@ class BacktestSimulator:
             cooldown_seconds=config.cooldown_seconds,
             clock=self._clock,
         )
+        # Notional/symbol-exposure/open-position caps mirror the live engine
+        # defaults (main.py risk_parameters); daily-loss/drawdown gates and
+        # max_position_size deliberately stay disabled here.
         self._risk = RiskParameters(
             max_position_size=Decimal(1_000_000_000),
             max_daily_loss=Decimal(1),
             max_drawdown=Decimal(1),
             risk_per_trade=config.risk_per_trade,
             max_correlation=Decimal(1),
-            max_open_positions=10,
+            max_open_positions=5,
             max_total_exposure_leverage=Decimal(3),
-            max_symbol_exposure_pct=Decimal(1),
-            max_position_notional_pct=Decimal(1),
+            max_symbol_exposure_pct=Decimal("0.25"),
+            max_position_notional_pct=Decimal("0.10"),
             risk_data_max_age_seconds=86400,
             drawdown_lookback_days=30,
         )
@@ -374,7 +377,8 @@ class BacktestSimulator:
         fee = self.cost_calculator.calculate_fill_fee(fill)
         fill.fee = fee
         self.total_fees += fee
-        self.total_slippage += fill.slippage
+        # fill.slippage is a per-unit price delta; cost is per-unit × quantity
+        self.total_slippage += fill.slippage * fill.quantity
         self.current_balance -= fee
 
         order.filled_quantity += fill.quantity
@@ -422,6 +426,7 @@ class BacktestSimulator:
                 symbol=fill.symbol,
                 side=side,
                 quantity=fill.quantity,
+                entry_quantity=fill.quantity,
                 entry_price=fill.price,
                 opened_at=fill.fill_time,
             )
@@ -431,6 +436,7 @@ class BacktestSimulator:
             new_quantity = position.quantity + fill.quantity
             position.entry_price = (old_value + fill.quantity * fill.price) / new_quantity
             position.quantity = new_quantity
+            position.entry_quantity += fill.quantity
         else:
             logger.warning(
                 f"Opposite-side entry fill ignored for {fill.symbol}; netting unsupported",
@@ -439,6 +445,8 @@ class BacktestSimulator:
 
         position.mark_price = candle.close_price
         position.total_fees += fill.fee
+        position.total_slippage += fill.slippage * fill.quantity
+        position.risked_amount += fill.quantity * abs(fill.price - bracket.stop_loss)
         position.stop_loss = bracket.stop_loss
         position.take_profit = bracket.take_profit
 
@@ -473,6 +481,7 @@ class BacktestSimulator:
             return
 
         position.total_fees += fill.fee
+        position.total_slippage += fill.slippage * fill.quantity
         close_quantity = min(fill.quantity, position.quantity)
 
         if close_quantity >= position.quantity:
@@ -520,8 +529,9 @@ class BacktestSimulator:
             exit_time=self.current_time,
             entry_price=position.entry_price,
             exit_price=exit_price,
-            size=position.quantity,
+            size=position.entry_quantity,
             fees=position.total_fees,
+            slippage=position.total_slippage,
             funding=position.total_funding,
             stop_loss=position.stop_loss,
             exit_reason=exit_reason,
@@ -530,12 +540,10 @@ class BacktestSimulator:
         trade.gross_pnl = position.realized_pnl
         trade.net_pnl = trade.gross_pnl - trade.fees - trade.funding
 
-        stop_distance = abs(
-            trade.entry_price - (position.stop_loss or trade.entry_price),
-        )
-        if stop_distance > 0:
-            trade.gross_pnl_r = trade.gross_pnl / (stop_distance * trade.size)
-            trade.net_pnl_r = trade.net_pnl / (stop_distance * trade.size)
+        # Initial risk summed per entry fill against its own bracket's stop
+        if position.risked_amount > 0:
+            trade.gross_pnl_r = trade.gross_pnl / position.risked_amount
+            trade.net_pnl_r = trade.net_pnl / position.risked_amount
 
         self.completed_trades.append(trade)
 
