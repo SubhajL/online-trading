@@ -1,0 +1,50 @@
+{
+  "metadata": {
+    "git_sha": "1c2d6a2dd8099cd1f025c055cae9e4243f89bcb6",
+    "config_hash": "ef4c3b988d99a00b",
+    "runtime_ms": 54121,
+    "generated_at": "2026-07-04T21:38:34.976794+00:00"
+  },
+  "config": {
+    "fee_bps_spot": 10.0,
+    "slippage_bps": 2.0,
+    "funding_model": "disabled",
+    "tp_ladder": [
+      {
+        "r": 1.5,
+        "size": 0.4
+      },
+      {
+        "r": 2.0,
+        "size": 0.3
+      },
+      {
+        "r": 3.0,
+        "size": 0.3
+      }
+    ]
+  },
+  "metrics": {
+    "total_pnl": -8168.079261188339,
+    "total_pnl_pct": -81.68079261188339,
+    "profit_factor": 0.48643064994009677,
+    "sharpe_ratio": -5.302411158638438,
+    "sortino_ratio": -4.041712848944828,
+    "calmar_ratio": -0.996186710798,
+    "max_drawdown_pct": 81.99345737753579,
+    "max_drawdown_duration_hours": 17394,
+    "total_trades": 689,
+    "winning_trades": 221,
+    "losing_trades": 468,
+    "hit_rate_pct": 32.075471698113205,
+    "avg_win_r": 7.090024534273394e+27,
+    "avg_loss_r": -6.431821071117463e+26,
+    "avg_r": 1.8372804005023553e+27,
+    "largest_win_r": 1.2906362761219452e+30,
+    "largest_loss_r": -6.51871414629375e+28,
+    "exposure_pct": 100.0,
+    "total_fees": 5780.357963673891,
+    "total_slippage": 0.0,
+    "total_funding": 0.0
+  }
+}
