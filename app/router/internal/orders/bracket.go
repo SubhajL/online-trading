@@ -20,7 +20,10 @@ type bracketPlacementResult struct {
 // placeSpotBracket places a bracket order for spot trading. A non-nil
 // adoptedEntry is a replayed entry already live on the exchange: it is used
 // as the main order instead of POSTing, and exit legs place idempotently.
-func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string, adoptedEntry *binance.OrderResponse) (*bracketPlacementResult, error) {
+// With legsDeferred the exits stay PLANNED for the entry-fill watcher to
+// place as OCO pairs — synchronous spot TP+SL double-reserve the base asset,
+// which is the bug this mode fixes.
+func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, req *PlaceBracketRequest, bracketID string, adoptedEntry *binance.OrderResponse, legsDeferred bool) (*bracketPlacementResult, error) {
 	result := &bracketPlacementResult{
 		IDs: ClientOrderIDs{
 			TakeProfits: make([]string, len(req.TakeProfitPrices)),
@@ -60,6 +63,17 @@ func (m *Manager) placeSpotBracket(ctx context.Context, client *binance.Client, 
 	}
 	result.IDs.Main = mainOrderID
 	result.Main = mainResp
+
+	if legsDeferred {
+		// Report the reserved exit ids; the watcher arms OCO pairs on fill
+		copy(result.IDs.TakeProfits, plannedIDs.TakeProfits)
+		result.IDs.StopLoss = plannedIDs.StopLoss
+		m.logger.Info().
+			Str("symbol", req.Symbol).
+			Str("bracket_id", bracketID).
+			Msg("Spot exits deferred until entry fill (OCO)")
+		return result, nil
+	}
 
 	// 2. Place take profit orders (as limit orders)
 	// For spot, we can place these immediately

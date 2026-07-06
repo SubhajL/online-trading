@@ -26,7 +26,8 @@ type fakeArmerStore struct {
 	mu             sync.Mutex
 	record         *storage.BracketRecord
 	bracketUpdates []string
-	legUpdates     []string // "clientOrderID:status"
+	legUpdates     []string         // "clientOrderID:status"
+	legExchangeIDs map[string]int64 // last exchange id written per leg
 }
 
 func (f *fakeArmerStore) get(clientOrderID string, entryOnly bool) *storage.BracketRecord {
@@ -79,6 +80,10 @@ func (f *fakeArmerStore) UpdateLegStatus(_ context.Context, _ uuid.UUID, clientO
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.legUpdates = append(f.legUpdates, clientOrderID+":"+status)
+	if f.legExchangeIDs == nil {
+		f.legExchangeIDs = map[string]int64{}
+	}
+	f.legExchangeIDs[clientOrderID] = exchangeOrderID
 	for i := range f.record.Legs {
 		if f.record.Legs[i].ClientOrderID == clientOrderID {
 			f.record.Legs[i].Status = status
@@ -95,6 +100,14 @@ func (f *fakeArmerStore) UpdateBracketStatus(_ context.Context, _ uuid.UUID, sta
 	defer f.mu.Unlock()
 	f.bracketUpdates = append(f.bracketUpdates, status)
 	f.record.Status = status
+	return nil
+}
+
+func (f *fakeArmerStore) InsertLeg(_ context.Context, leg storage.BracketLegRecord) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.legUpdates = append(f.legUpdates, leg.ClientOrderID+":"+leg.Status)
+	f.record.Legs = append(f.record.Legs, leg)
 	return nil
 }
 

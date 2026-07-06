@@ -178,6 +178,34 @@ func (r *BracketRepo) UpdateLegStatus(
 	return nil
 }
 
+// InsertLeg adds a leg to an existing bracket — used for stop slices derived
+// at arm time beyond the single reserved SL leg.
+func (r *BracketRepo) InsertLeg(ctx context.Context, leg BracketLegRecord) error {
+	if leg.BracketID == uuid.Nil || leg.ClientOrderID == "" {
+		return fmt.Errorf("bracket id and client order id are required")
+	}
+	legID := leg.LegID
+	if legID == uuid.Nil {
+		legID = uuid.New()
+	}
+	status := leg.Status
+	if status == "" {
+		status = LegStatusPlanned
+	}
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO bracket_legs (
+			leg_id, bracket_id, role, tp_index, client_order_id,
+			exchange_order_id, price, stop_price, quantity, status
+		) VALUES ($1,$2,$3,$4,$5,NULLIF($6,0),$7,$8,$9,$10)
+		ON CONFLICT (bracket_id, client_order_id) DO NOTHING`,
+		legID, leg.BracketID, leg.Role, leg.TPIndex, leg.ClientOrderID,
+		leg.ExchangeOrderID, leg.Price, leg.StopPrice, leg.Quantity, status)
+	if err != nil {
+		return fmt.Errorf("insert bracket leg: %w", err)
+	}
+	return nil
+}
+
 // TryMarkLegPlacing claims a leg for placement (compare-and-set to PLACING).
 // Exactly one caller wins per leg, making duplicate fill events unable to
 // double-place protective legs. FAILED legs are re-claimable: a transient
