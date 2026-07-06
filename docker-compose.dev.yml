@@ -1,6 +1,5 @@
 # Docker Compose configuration for development environment
 
-
 networks:
   trading-network:
     driver: bridge
@@ -34,7 +33,11 @@ services:
     networks:
       - trading-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trading_user} -d ${POSTGRES_DB:-trading_platform}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-trading_user} -d ${POSTGRES_DB:-trading_platform}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -169,6 +172,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-your_secure_password_here}@postgres:5432/${POSTGRES_DB:-trading_platform}
       - SPOT_RECONCILIATION_ENABLED=${SPOT_RECONCILIATION_ENABLED:-true}
+      # Deferred exit legs (futures leg armer + spot OCO watcher) and the
+      # startup reconciler; default ON here since this compose is testnet.
+      - BRACKET_LEGS_ON_FILL=${BRACKET_LEGS_ON_FILL:-true}
+      - ENTRY_FILL_POLL_INTERVAL=${ENTRY_FILL_POLL_INTERVAL:-2s}
       - BINANCE_API_KEY=${BINANCE_API_KEY}
       - BINANCE_SECRET_KEY=${BINANCE_SECRET_KEY}
       - BINANCE_API_SECRET=${BINANCE_API_SECRET}
@@ -202,7 +209,6 @@ services:
       retries: 5
       start_period: 15s
 
-
   bff:
     build:
       context: .
@@ -231,7 +237,7 @@ services:
       - "${BFF_PORT:-8002}:3001"
     volumes:
       - ./app/bff:/app
-      - /app/node_modules  # Exclude node_modules from volume mount
+      - /app/node_modules # Exclude node_modules from volume mount
     depends_on:
       engine:
         condition: service_healthy
@@ -248,7 +254,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "node -e \"fetch('http://localhost:3001/api/health/liveness',{cache:'no-store'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+          'node -e "fetch(''http://localhost:3001/api/health/liveness'',{cache:''no-store''}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
         ]
       interval: 10s
       timeout: 5s
@@ -288,8 +294,8 @@ services:
     container_name: trading-mailhog-dev
     restart: unless-stopped
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
     networks:
       - trading-network
 
@@ -301,7 +307,7 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@tradingplatform.com
       PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
       - "5050:80"
     volumes:

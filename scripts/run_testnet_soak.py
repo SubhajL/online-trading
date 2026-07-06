@@ -338,9 +338,57 @@ def build_health_urls(environ: dict[str, str]) -> dict[str, str]:
     return {
         "engine": f"http://localhost:{engine_port}/health/simple",
         "router": f"http://localhost:{router_port}/healthz",
+        "router_ready": f"http://localhost:{router_port}/readyz",
         "bff": f"http://localhost:{bff_port}/api/health",
         "ui": f"http://localhost:{ui_port}/api/health",
     }
+
+
+# Startup log markers proving the deferred-legs + reconciler stack (C4–C6)
+# is actually live during the soak. Without these the soak would pass while
+# exercising none of the code it exists to validate.
+DEFERRED_LEGS_LOG_MARKERS = (
+    ("Durable bracket reservations enabled", "router did not enable durable bracket reservations"),
+    (
+        "BRACKET_LEGS_ON_FILL enabled: spot exits placed as OCO on entry fill",
+        "router did not enable spot OCO deferred exits (BRACKET_LEGS_ON_FILL off?)",
+    ),
+    ("Entry fill watcher started", "router did not start the entry-fill watcher"),
+    ("Startup reconciliation complete", "router did not complete a startup reconciliation pass"),
+)
+
+# Log fragments that must NOT appear: each signals an unrepaired failure the
+# reconciler/watcher is supposed to prevent.
+FORBIDDEN_LOG_MARKERS = (
+    ("SECURITY_REQUIRED_API_KEY must be configured", "router log shows missing required API key"),
+    ("401 Unauthorized", "startup logs show unauthorized internal callback or router request"),
+    (
+        "Startup reconciliation exhausted retries",
+        "startup reconciliation failed every attempt — DB or router unhealthy",
+    ),
+    ("position UNPROTECTED", "an entry filled with no armer — position left unprotected"),
+)
+
+
+def evaluate_log_signatures(combined: str, *, require_deferred_legs: bool = True) -> list[str]:
+    """Return the list of log-signature failures (empty means pass).
+
+    Pure so it can be unit-tested without a running stack. The soak requires
+    the deferred-legs stack; callers may relax that for a bare-stack probe.
+    """
+    failures: list[str] = []
+    if "Execution subscriber enabled: spot_testnet" not in combined:
+        failures.append("engine log missing spot_testnet execution marker")
+    if "Order Router starting" not in combined or "testnet" not in combined.lower():
+        failures.append("router log missing testnet startup marker")
+    if require_deferred_legs:
+        for marker, message in DEFERRED_LEGS_LOG_MARKERS:
+            if marker not in combined:
+                failures.append(message)
+    for marker, message in FORBIDDEN_LOG_MARKERS:
+        if marker in combined:
+            failures.append(message)
+    return failures
 
 
 def resolve_project_python(project_root: Path) -> str:
@@ -745,6 +793,13 @@ class TestnetSoakRunner:
     def check_stack_health(self) -> bool:
         for name in ("engine", "router", "bff", "ui"):
             self._wait_for_http(name, self.health_urls[name])
+        # /readyz is 503 while the startup reconciler runs and flips to 200
+        # once it completes, so a passing probe proves C6 reconciliation ran
+        # to completion before the stack started taking work. Allow more time
+        # than the liveness probes: the reconciler retries up to 3x with a
+        # 2-minute timeout each before failing open (~6.5m worst case), and a
+        # slow first sweep must not spuriously fail an otherwise healthy soak.
+        self._wait_for_http("router_ready", self.health_urls["router_ready"], timeout_seconds=420)
         return all(
             result.status == "pass" for result in self.results if result.name.startswith("health:")
         )
@@ -757,15 +812,7 @@ class TestnetSoakRunner:
         if stdout_abs.exists():
             combined = stdout_abs.read_text(encoding="utf-8")
 
-        failures: list[str] = []
-        if "Execution subscriber enabled: spot_testnet" not in combined:
-            failures.append("engine log missing spot_testnet execution marker")
-        if "Order Router starting" not in combined or "testnet" not in combined.lower():
-            failures.append("router log missing testnet startup marker")
-        if "SECURITY_REQUIRED_API_KEY must be configured" in combined:
-            failures.append("router log shows missing required API key")
-        if "401 Unauthorized" in combined:
-            failures.append("startup logs show unauthorized internal callback or router request")
+        failures = evaluate_log_signatures(combined)
 
         status = "pass" if not failures else "fail"
         self._record(

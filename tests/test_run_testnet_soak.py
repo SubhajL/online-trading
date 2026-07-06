@@ -137,9 +137,79 @@ def test_build_health_urls_uses_configured_host_ports():
     assert urls == {
         "engine": "http://localhost:8100/health/simple",
         "router": "http://localhost:8101/healthz",
+        "router_ready": "http://localhost:8101/readyz",
         "bff": "http://localhost:3101/api/health",
         "ui": "http://localhost:3100/api/health",
     }
+
+
+def _soak_startup_logs() -> str:
+    """A minimal combined engine+router log that satisfies every marker."""
+    return "\n".join(
+        [
+            "engine | Execution subscriber enabled: spot_testnet",
+            "router | Order Router starting testnet",
+            "router | Durable bracket reservations enabled",
+            "router | BRACKET_LEGS_ON_FILL enabled: spot exits placed as OCO on entry fill",
+            "router | Entry fill watcher started",
+            "router | Startup reconciliation complete",
+        ]
+    )
+
+
+def test_evaluate_log_signatures_passes_for_full_deferred_legs_stack():
+    module = _load_run_testnet_soak_module()
+
+    assert module.evaluate_log_signatures(_soak_startup_logs()) == []
+
+
+def test_evaluate_log_signatures_flags_missing_deferred_legs_markers():
+    module = _load_run_testnet_soak_module()
+
+    # Flag off: no spot-OCO / watcher / reconciler markers
+    logs = "\n".join(
+        [
+            "engine | Execution subscriber enabled: spot_testnet",
+            "router | Order Router starting testnet",
+        ]
+    )
+    failures = module.evaluate_log_signatures(logs)
+
+    assert failures == [
+        "router did not enable durable bracket reservations",
+        "router did not enable spot OCO deferred exits (BRACKET_LEGS_ON_FILL off?)",
+        "router did not start the entry-fill watcher",
+        "router did not complete a startup reconciliation pass",
+    ]
+
+
+def test_evaluate_log_signatures_flags_forbidden_markers():
+    module = _load_run_testnet_soak_module()
+
+    logs = _soak_startup_logs() + "\n".join(
+        [
+            "",
+            "router | Startup reconciliation exhausted retries; serving anyway",
+            "router | entry fill watcher: entry filled but no armer; position UNPROTECTED",
+        ]
+    )
+    failures = module.evaluate_log_signatures(logs)
+
+    assert "startup reconciliation failed every attempt — DB or router unhealthy" in failures
+    assert "an entry filled with no armer — position left unprotected" in failures
+
+
+def test_evaluate_log_signatures_can_relax_deferred_legs_requirement():
+    module = _load_run_testnet_soak_module()
+
+    logs = "\n".join(
+        [
+            "engine | Execution subscriber enabled: spot_testnet",
+            "router | Order Router starting testnet",
+        ]
+    )
+
+    assert module.evaluate_log_signatures(logs, require_deferred_legs=False) == []
 
 
 def test_build_periodic_order_smoke_config_uses_defaults():
@@ -592,9 +662,15 @@ def test_build_recommendations_deduplicates_identical_entries():
     CheckResult = module.CheckResult
 
     results = [
-        CheckResult(name="order_smoke:periodic:1:ETHUSDT", status="fail", message="Order smoke failed"),
-        CheckResult(name="order_smoke:periodic:2:BTCUSDT", status="fail", message="Order smoke failed"),
-        CheckResult(name="order_smoke:periodic:3:ETHUSDT", status="fail", message="Order smoke failed"),
+        CheckResult(
+            name="order_smoke:periodic:1:ETHUSDT", status="fail", message="Order smoke failed"
+        ),
+        CheckResult(
+            name="order_smoke:periodic:2:BTCUSDT", status="fail", message="Order smoke failed"
+        ),
+        CheckResult(
+            name="order_smoke:periodic:3:ETHUSDT", status="fail", message="Order smoke failed"
+        ),
     ]
 
     recommendations = module.build_recommendations(results)
