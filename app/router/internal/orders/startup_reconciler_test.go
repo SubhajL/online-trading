@@ -474,6 +474,29 @@ func (b *blockingStore) LoadOpenBrackets(ctx context.Context, lookback time.Dura
 	return b.fakeWatcherStore.LoadOpenBrackets(ctx, lookback)
 }
 
+func TestStartupReconciler_StatusCachesLastCompletedPass(t *testing.T) {
+	store := &fakeWatcherStore{fakeArmerStore{record: legsPlacedRecord("SPOT")}}
+	fake := newReconExchange()
+	fake.set("arm-tp1", exchangeOrder("arm-tp1", "FILLED", "0.02", 101))
+	fake.set("arm-sl", exchangeOrder("arm-sl", "EXPIRED", "0", 102))
+	reconciler, _ := newReconcilerFixture(t, fake.handler(), store, "SPOT")
+
+	before := reconciler.Status()
+	require.False(t, before.HasRun, "no pass has run yet")
+
+	summary, err := reconciler.Reconcile(context.Background())
+	require.NoError(t, err)
+
+	after := reconciler.Status()
+	assert.True(t, after.HasRun)
+	require.NotNil(t, after.Summary)
+	assert.Equal(t, *summary, *after.Summary, "status must reflect the last pass")
+	require.NotNil(t, after.LastRunAt)
+	// The cached summary is a copy: mutating it must not change the source
+	after.Summary.BracketsClosed = 999
+	assert.NotEqual(t, 999, reconciler.Status().Summary.BracketsClosed)
+}
+
 func TestStartupReconciler_SingleFlight(t *testing.T) {
 	store := &blockingStore{
 		fakeWatcherStore: fakeWatcherStore{fakeArmerStore{record: nil}},

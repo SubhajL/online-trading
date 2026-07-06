@@ -68,6 +68,32 @@ export interface HealthCheckResult {
   };
 }
 
+export interface RouterReadiness {
+  ready: boolean;
+  // 'ready' | 'reconciling' | 'unreachable'
+  status: string;
+  error?: string;
+}
+
+// Mirrors the router's orders.ReconcileSummary (startup_reconciler.go).
+export interface ReconcileSummary {
+  brackets_swept: number;
+  entries_checked: number;
+  legs_resolved: number;
+  exit_legs_updated: number;
+  brackets_closed: number;
+  stale_reserved: number;
+  unrepaired_legs: number;
+  errors: number;
+}
+
+// Mirrors the router's orders.ReconcileStatus.
+export interface ReconcileStatus {
+  has_run: boolean;
+  last_run_at?: string;
+  summary?: ReconcileSummary;
+}
+
 export interface CloseAllRequest {
   symbol?: string;
   is_futures: boolean;
@@ -224,6 +250,42 @@ export class RouterClientService {
         },
       };
     }
+  }
+
+  async getReadiness(): Promise<RouterReadiness> {
+    const url = `${this.baseUrl}/readyz`;
+
+    try {
+      // /readyz returns 503 while the startup reconciler runs; treat that as
+      // a valid "reconciling" state, not a transport error.
+      const response = await firstValueFrom(
+        this.httpService.get<{ status?: string }>(url, {
+          timeout: 3000,
+          validateStatus: () => true,
+        }),
+      );
+      const ready = response.status >= 200 && response.status < 300;
+      // 200 -> ready, 503 -> reconciling; any other status is the router (or
+      // a proxy) misbehaving, which is not a "reconciling" state.
+      const fallback = ready ? 'ready' : response.status === 503 ? 'reconciling' : 'unreachable';
+      return {
+        ready,
+        status: response.data?.status ?? fallback,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { ready: false, status: 'unreachable', error: errorMessage };
+    }
+  }
+
+  async getReconcileStatus(): Promise<ReconcileStatus> {
+    const url = `${this.baseUrl}/internal/reconcile`;
+
+    // GET is the router's read-only view of the last pass — no side effects.
+    const response = await firstValueFrom(
+      this.httpService.get<ReconcileStatus>(url, this.requestConfig({ timeout: 3000 })),
+    );
+    return response.data;
   }
 
   async closeAllPositions(request: CloseAllRequest): Promise<CloseAllResponse> {

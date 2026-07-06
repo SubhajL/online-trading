@@ -10,31 +10,36 @@ import (
 	"router/internal/orders"
 )
 
-// ReconcileRunner runs one reconciliation pass over open brackets.
+// ReconcileRunner runs one reconciliation pass over open brackets and
+// exposes the last pass read-only.
 type ReconcileRunner interface {
 	Reconcile(ctx context.Context) (*orders.ReconcileSummary, error)
+	Status() orders.ReconcileStatus
 }
 
-// NewReconcileHandler serves POST /internal/reconcile: it runs a pass
+// NewReconcileHandler serves /internal/reconcile. GET returns the last
+// pass's summary read-only (no side effects); POST runs a pass
 // synchronously and returns its summary. Auth comes from the router's
 // shared token middleware.
 func NewReconcileHandler(runner ReconcileRunner, logger zerolog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
-			return
-		}
-
-		summary, err := runner.Reconcile(r.Context())
-		if err != nil {
-			if errors.Is(err, orders.ErrReconcileInFlight) {
-				writeError(w, http.StatusConflict, "reconcile already in flight")
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(w, http.StatusOK, runner.Status())
+		case http.MethodPost:
+			summary, err := runner.Reconcile(r.Context())
+			if err != nil {
+				if errors.Is(err, orders.ErrReconcileInFlight) {
+					writeError(w, http.StatusConflict, "reconcile already in flight")
+					return
+				}
+				logger.Error().Err(err).Msg("On-demand reconcile failed")
+				writeError(w, http.StatusInternalServerError, "reconcile failed")
 				return
 			}
-			logger.Error().Err(err).Msg("On-demand reconcile failed")
-			writeError(w, http.StatusInternalServerError, "reconcile failed")
-			return
+			writeJSON(w, http.StatusOK, summary)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
-		writeJSON(w, http.StatusOK, summary)
 	}
 }

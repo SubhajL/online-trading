@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { label: 'Trading', path: '/trades', icon: 'candlestick_chart' },
   { label: 'History', path: '/history', icon: 'history' },
   { label: 'Analytics', path: '/analytics', icon: 'bar_chart' },
+  { label: 'Soak', path: '/soak', icon: 'monitor_heart' },
   { label: 'Settings', path: '/settings', icon: 'settings' },
 ] as const
 
