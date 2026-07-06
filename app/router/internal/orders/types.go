@@ -48,6 +48,7 @@ type OrderUpdate struct {
 	Side          string          `json:"side"`
 	OrderType     string          `json:"order_type"`
 	Price         decimal.Decimal `json:"price"`
+	StopPrice     decimal.Decimal `json:"stop_price,omitempty"`
 	Quantity      decimal.Decimal `json:"quantity"`
 	ExecutedQty   decimal.Decimal `json:"executed_qty"`
 	UpdateTime    time.Time       `json:"update_time"`

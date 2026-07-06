@@ -3,4 +3,5 @@ export * from './indicators.entity';
 export * from './smc-events.entity';
 export * from './smc-events-v1.entity';
 export * from './zones.entity';
+export * from './alert-snapshot.entity';
 export * from '../../alerts/entities/alert.entity';

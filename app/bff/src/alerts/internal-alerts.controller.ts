@@ -3,8 +3,10 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { SignalPayloadDto } from './dto/signal-payload.dto';
 import { InternalApiGuard } from '../auth/guards/internal-api.guard';
+import { Public } from '../auth/decorators/public.decorator';
 import { SnapshotsService } from '../snapshots/snapshots.service';
 
+@Public()
 @Controller('internal/alerts')
 @UseGuards(InternalApiGuard)
 export class InternalAlertsController {

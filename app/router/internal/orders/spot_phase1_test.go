@@ -145,13 +145,19 @@ func TestPlaceBracketOrder_SpotImmediateFillEmitsFilled(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.True(t, emitter.called)
-	require.NotNil(t, emitter.update)
 	require.True(t, decimal.RequireFromString("48755").Equal(resp.StopLossLimitPrice))
-
-	assert.Equal(t, "FILLED", emitter.update.Status)
-	assert.True(t, decimal.RequireFromString("0.020").Equal(emitter.update.ExecutedQty))
-	assert.Equal(t, int64(100), emitter.update.OrderID)
-	assert.Equal(t, "LIMIT", emitter.update.OrderType)
+	var mainUpdate *OrderUpdate
+	for _, update := range emitter.updatesSnapshot() {
+		if update != nil && update.OrderID == 100 {
+			mainUpdate = update
+			break
+		}
+	}
+	require.NotNil(t, mainUpdate)
+	assert.Equal(t, "FILLED", mainUpdate.Status)
+	assert.True(t, decimal.RequireFromString("0.020").Equal(mainUpdate.ExecutedQty))
+	assert.Equal(t, int64(100), mainUpdate.OrderID)
+	assert.Equal(t, "LIMIT", mainUpdate.OrderType)
 }
 
 func TestPlaceBracketOrder_SpotImmediateFillReturnsExecutionSnapshot(t *testing.T) {
@@ -434,8 +440,15 @@ func TestPlaceBracketOrder_SpotStopLossFailureCancelsUnsafeOrders(t *testing.T) 
 	assert.Contains(t, resp.Errors, "SL: failed to place spot order: PlaceOrder: Binance API error -2010: stop loss rejected")
 	assert.Equal(t, []int64{200, 100}, deletedOrderIDs)
 	require.True(t, emitter.called)
-	require.NotNil(t, emitter.update)
-	assert.Equal(t, "CANCELED", emitter.update.Status)
+	var canceledUpdate *OrderUpdate
+	for _, update := range emitter.updatesSnapshot() {
+		if update != nil && update.Status == "CANCELED" {
+			canceledUpdate = update
+			break
+		}
+	}
+	require.NotNil(t, canceledUpdate)
+	assert.Equal(t, "CANCELED", canceledUpdate.Status)
 }
 
 func TestPlaceBracketOrder_SpotStopLossFailureClosesFilledEntry(t *testing.T) {

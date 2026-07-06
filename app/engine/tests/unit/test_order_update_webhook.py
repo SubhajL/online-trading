@@ -307,6 +307,97 @@ async def test_ingest_order_update_persists_db_hydrated_provenance() -> None:
 
 
 @pytest.mark.asyncio
+async def test_ingest_order_update_hydrates_sparse_order_fields_from_db_row() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        bus = _CapturingBus()
+        db = _CapturingDB()
+        db.lookup_row = {
+            "venue": "SPOT",
+            "symbol": "ETHUSDT",
+            "side": "SELL",
+            "type": "STOP_LOSS_LIMIT",
+            "quantity": Decimal("0.013"),
+            "price": Decimal("1794.79"),
+            "stop_price": Decimal("1804.10"),
+            "decision_id": str(uuid4()),
+            "signal_id": "sig-stop",
+            "timeframe": "15m",
+            "zone": {"zone_id": "zone-stop", "zone_type": "ORDER_BLOCK"},
+        }
+
+        services["event_bus"] = bus
+        services["database"] = db
+        services["order_update_correlation_store"] = OrderUpdateCorrelationStore(ttl_seconds=3600)
+
+        now = datetime.now(UTC).replace(microsecond=0)
+        payload = {
+            "event_type": "order_update.v1",
+            "venue": "SPOT",
+            "symbol": "ETHUSDT",
+            "order_id": 14581737,
+            "client_order_id": "abc_stop",
+            "status": "CANCELED",
+            "price": "1794.79",
+            "executed_qty": "0",
+            "update_time": now.isoformat(),
+        }
+
+        resp = await ingest_order_update(payload)
+
+        assert resp == {"status": "ok"}
+        assert db.lookup_calls == [("abc_stop", "SPOT")]
+        assert len(db.rows) == 1
+        assert db.rows[0]["side"] == "SELL"
+        assert db.rows[0]["type"] == "STOP_LOSS_LIMIT"
+        assert db.rows[0]["quantity"] == Decimal("0.013")
+        assert db.rows[0]["stop_price"] == Decimal("1804.10")
+        assert db.rows[0]["signal_id"] == "sig-stop"
+        assert db.rows[0]["timeframe"] == "15m"
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_ingest_order_update_persists_stop_price_from_payload() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        bus = _CapturingBus()
+        db = _CapturingDB()
+        services["event_bus"] = bus
+        services["database"] = db
+
+        now = datetime.now(UTC).replace(microsecond=0)
+        payload = {
+            "event_type": "order_update.v1",
+            "venue": "SPOT",
+            "symbol": "ETHUSDT",
+            "order_id": 14581737,
+            "client_order_id": "abc_stop",
+            "status": "NEW",
+            "side": "SELL",
+            "order_type": "STOP_LOSS_LIMIT",
+            "price": "1792.32",
+            "stop_price": "1801.33",
+            "quantity": "0.013",
+            "executed_qty": "0",
+            "update_time": now.isoformat(),
+        }
+
+        resp = await ingest_order_update(payload)
+
+        assert resp == {"status": "ok"}
+        assert len(db.rows) == 1
+        assert db.rows[0]["stop_price"] == Decimal("1801.33")
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
 async def test_ingest_order_update_deletes_terminal_correlation_after_successful_persist() -> None:
     previous = dict(services)
     services.clear()

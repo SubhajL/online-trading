@@ -2,9 +2,12 @@
 
 This guide documents the comprehensive operations control system implemented for the trading platform.
 
+For staged promotion into live trading, use `docs/LIVE_TRADING_ROLLOUT_RUNBOOK.md` as the source of truth for `backtest` -> `live paper/shadow` -> `testnet soak` -> `mainnet canary` -> `mainnet tiny-risk soak` -> `progressive ramp`.
+
 ## Overview
 
 The robust operations system provides:
+
 - Enhanced health checks with dependency verification
 - Process monitoring and automatic recovery
 - State management for backup and restore
@@ -16,61 +19,64 @@ The robust operations system provides:
 ### 1. Enhanced Health Checks
 
 #### Engine (Python)
+
 - **File**: `app/engine/monitoring/enhanced_health.py`
 - **Features**:
-  - Service dependency checks with latency tracking
-  - Event bus health monitoring (backlog size)
-  - Database replication lag detection
-  - Graceful degradation support
-  - Historical health tracking
+    - Service dependency checks with latency tracking
+    - Event bus health monitoring (backlog size)
+    - Database replication lag detection
+    - Graceful degradation support
+    - Historical health tracking
 
 #### Router (Go)
+
 - **File**: `app/router/internal/health/health.go`
 - **Features**:
-  - Binance API connectivity checks
-  - Redis cache health monitoring
-  - Order processing pipeline status
-  - Comprehensive health endpoint
+    - Binance API connectivity checks
+    - Redis cache health monitoring
+    - Order processing pipeline status
+    - Comprehensive health endpoint
 
 #### BFF (TypeScript)
+
 - **File**: `app/bff/src/health/health.controller.enhanced.ts`
 - **Features**:
-  - Multi-service dependency checks
-  - WebSocket connection monitoring
-  - Disk space verification
-  - Database pool status
+    - Multi-service dependency checks
+    - WebSocket connection monitoring
+    - Disk space verification
+    - Database pool status
 
 ### 2. Process Monitoring System
 
 - **File**: `scripts/process_monitor.py`
 - **Features**:
-  - Process lifecycle management (start/stop/restart)
-  - Health check intervals with thresholds
-  - Automatic recovery with exponential backoff
-  - CPU and memory usage tracking
-  - Configurable recovery policies
+    - Process lifecycle management (start/stop/restart)
+    - Health check intervals with thresholds
+    - Automatic recovery with exponential backoff
+    - CPU and memory usage tracking
+    - Configurable recovery policies
 
 ### 3. Recovery System
 
 - **File**: `scripts/recovery_system.py`
 - **Actions**:
-  - Log cleanup with age-based retention
-  - Temporary file cleanup
-  - Redis cache reset
-  - Service restart with retry logic
-  - Configuration restore from backup
-  - Lock file cleanup
-  - Database maintenance (planned)
+    - Log cleanup with age-based retention
+    - Temporary file cleanup
+    - Redis cache reset
+    - Service restart with retry logic
+    - Configuration restore from backup
+    - Lock file cleanup
+    - Database maintenance (planned)
 
 ### 4. State Management
 
 - **File**: `scripts/state_manager.py`
 - **Capabilities**:
-  - Save/restore process states
-  - Configuration state snapshots
-  - Trading state persistence
-  - System checkpoint creation
-  - Time-based snapshot retrieval
+    - Save/restore process states
+    - Configuration state snapshots
+    - Trading state persistence
+    - System checkpoint creation
+    - Time-based snapshot retrieval
 
 ## CLI Tools
 
@@ -191,16 +197,19 @@ The `ops_control.py recovery` command performs:
 ## Health Check Endpoints
 
 ### Engine
+
 - `GET /health` - Basic liveness check
 - `GET /health/ready` - Readiness with dependencies
 - `GET /health/comprehensive` - Full system status
 
 ### Router
+
 - `GET /health` - Basic health status
 - `GET /health/live` - Liveness probe
 - `GET /health/ready` - Readiness probe
 
 ### BFF
+
 - `GET /health` - Basic health check
 - `GET /health/live` - Kubernetes liveness
 - `GET /health/ready` - Kubernetes readiness
@@ -209,6 +218,7 @@ The `ops_control.py recovery` command performs:
 ## Monitoring Integration
 
 The system provides Prometheus-compatible metrics:
+
 - Process status and restart counts
 - Health check success/failure rates
 - Recovery action history
@@ -225,16 +235,19 @@ The system provides Prometheus-compatible metrics:
 ## Troubleshooting
 
 ### Service Won't Start
+
 1. Check prerequisites: `./ops_control.py health --detailed`
 2. Review logs in respective service directories
 3. Try emergency recovery: `./ops_control.py recovery`
 
 ### High Resource Usage
+
 1. Check performance: `./ops_control.py performance`
 2. Run cleanup: `./cleanup.py full`
 3. Review process metrics in monitoring dashboard
 
 ### State Restoration Issues
+
 1. List available checkpoints: `./state.py checkpoint list`
 2. Try older checkpoint if latest fails
 3. Manually restore individual states if needed
@@ -242,6 +255,7 @@ The system provides Prometheus-compatible metrics:
 ## Configuration
 
 All tools respect environment variables and config files:
+
 - Process monitor config in `MonitorConfig` class
 - Recovery system paths in `RecoverySystem` class
 - State directory: `~/.trading_platform/state/`
@@ -250,6 +264,7 @@ All tools respect environment variables and config files:
 ## Testing
 
 Comprehensive test suites ensure reliability:
+
 - `test_enhanced_health.py` - Health check tests
 - `test_process_monitor.py` - Process monitoring tests
 - `test_recovery_system.py` - Recovery system tests

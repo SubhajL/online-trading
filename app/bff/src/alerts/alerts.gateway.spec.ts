@@ -261,6 +261,32 @@ describe('AlertsGateway', () => {
       );
     });
 
+    it('logs and swallows decision alert creation failures', async () => {
+      const mockDecision = {
+        symbol: 'BTCUSDT',
+        action: 'BUY',
+        confidence: 0.85,
+        entry: 45000,
+        stopLoss: 44000,
+        takeProfit: 46000,
+      };
+      const loggerErrorSpy = jest.spyOn((gateway as any).logger, 'error').mockImplementation();
+      mockAlertsService.create.mockRejectedValue(new Error('relation "alerts" does not exist'));
+
+      const decisionCallback = mockEventEmitter.on.mock.calls.find(
+        (call) => call[0] === CONTRACT_TOPICS.decisionV1,
+      )[1];
+
+      expect(() => decisionCallback(mockDecision)).not.toThrow();
+      await new Promise(setImmediate);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to create decision alert'),
+        expect.any(String),
+      );
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith('alert.new', expect.anything());
+    });
+
     it('should create alert from order update', async () => {
       const mockOrderUpdate = {
         orderId: 'order-789',
@@ -293,6 +319,31 @@ describe('AlertsGateway', () => {
           title: 'Order FILLED: ETHUSDT',
         }),
       );
+    });
+
+    it('logs and swallows order alert creation failures', async () => {
+      const mockOrderUpdate = {
+        orderId: 'order-789',
+        symbol: 'ETHUSDT',
+        status: 'FILLED',
+        executedQty: 1.5,
+        executedPrice: 2500,
+      };
+      const loggerErrorSpy = jest.spyOn((gateway as any).logger, 'error').mockImplementation();
+      mockAlertsService.create.mockRejectedValue(new Error('relation "alerts" does not exist'));
+
+      const orderCallback = mockEventEmitter.on.mock.calls.find(
+        (call) => call[0] === CONTRACT_TOPICS.orderUpdateV1,
+      )[1];
+
+      expect(() => orderCallback(mockOrderUpdate)).not.toThrow();
+      await new Promise(setImmediate);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to create order alert'),
+        expect.any(String),
+      );
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith('alert.new', expect.anything());
     });
   });
 });

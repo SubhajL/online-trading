@@ -72,8 +72,8 @@ func buildBracketOrderIntents(
 
 	prov := extractProvenance(req.Metadata)
 
-	if resp.ClientOrderIDs.Main == "" || resp.ClientOrderIDs.StopLoss == "" {
-		return nil, fmt.Errorf("missing client order ids in response")
+	if resp.ClientOrderIDs.Main == "" {
+		return nil, fmt.Errorf("missing main client order id in response")
 	}
 	if len(resp.ClientOrderIDs.TakeProfits) != len(req.TakeProfitPrices) {
 		return nil, fmt.Errorf("tp count mismatch")
@@ -114,6 +114,9 @@ func buildBracketOrderIntents(
 	if tpCount > 0 {
 		perTP := req.Quantity.Div(decimal.NewFromInt(int64(tpCount)))
 		for i, tpPrice := range req.TakeProfitPrices {
+			if resp.ClientOrderIDs.TakeProfits[i] == "" {
+				continue
+			}
 			intents = append(intents, storage.OrderIntent{
 				Venue:          venue,
 				Symbol:         req.Symbol,
@@ -136,37 +139,39 @@ func buildBracketOrderIntents(
 		}
 	}
 
-	slType := "STOP_LOSS_LIMIT"
-	slPrice := resp.StopLossLimitPrice
-	slStop := req.StopLossPrice
-	reduceOnly := false
-	closePosition := false
-	if req.IsFutures {
-		slType = "STOP_MARKET"
-		slPrice = decimal.Zero
-		reduceOnly = true
-		closePosition = true
-	}
+	if resp.ClientOrderIDs.StopLoss != "" {
+		slType := "STOP_LOSS_LIMIT"
+		slPrice := resp.StopLossLimitPrice
+		slStop := req.StopLossPrice
+		reduceOnly := false
+		closePosition := false
+		if req.IsFutures {
+			slType = "STOP_MARKET"
+			slPrice = decimal.Zero
+			reduceOnly = true
+			closePosition = true
+		}
 
-	intents = append(intents, storage.OrderIntent{
-		Venue:          venue,
-		Symbol:         req.Symbol,
-		ClientOrderID:  resp.ClientOrderIDs.StopLoss,
-		Side:           oppositeSide(req.Side),
-		Type:           slType,
-		TimeInForce:    timeInForce,
-		Quantity:       req.Quantity,
-		Price:          slPrice,
-		StopPrice:      slStop,
-		ReduceOnly:     reduceOnly,
-		ClosePosition:  closePosition,
-		RequestedPrice: req.StopLossPrice,
-		SignalID:       prov.signalID,
-		Timeframe:      prov.timeframe,
-		Zone:           prov.zone,
-		DecisionTs:     prov.decisionTs,
-		ExpectedPrice:  req.StopLossPrice, // SL uses its own price as expected
-	})
+		intents = append(intents, storage.OrderIntent{
+			Venue:          venue,
+			Symbol:         req.Symbol,
+			ClientOrderID:  resp.ClientOrderIDs.StopLoss,
+			Side:           oppositeSide(req.Side),
+			Type:           slType,
+			TimeInForce:    timeInForce,
+			Quantity:       req.Quantity,
+			Price:          slPrice,
+			StopPrice:      slStop,
+			ReduceOnly:     reduceOnly,
+			ClosePosition:  closePosition,
+			RequestedPrice: req.StopLossPrice,
+			SignalID:       prov.signalID,
+			Timeframe:      prov.timeframe,
+			Zone:           prov.zone,
+			DecisionTs:     prov.decisionTs,
+			ExpectedPrice:  req.StopLossPrice, // SL uses its own price as expected
+		})
+	}
 
 	return intents, nil
 }

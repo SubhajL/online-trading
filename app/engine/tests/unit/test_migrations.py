@@ -1,15 +1,15 @@
 """Unit tests for migration system."""
 
+from contextlib import asynccontextmanager
 import hashlib
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
-from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
-import pytest
 from asyncpg import Connection
+import pytest
 
-from app.engine.adapters.db.migrations import Migration, MigrationRunner
 from app.engine.adapters.db.connection_pool import ConnectionPool
+from app.engine.adapters.db.migrations import Migration, MigrationRunner
 
 
 @pytest.fixture
@@ -60,6 +60,25 @@ def migrations_dir(tmp_path) -> Path:
 
 
 class TestMigration:
+    def test_alert_tables_migration_file_parses_and_contains_expected_schema(self) -> None:
+        """Alert tables migration exists in the canonical migration path."""
+        repo_root = Path(__file__).resolve().parents[4]
+        filepath = repo_root / "db" / "migrations" / "030_alert_tables.sql"
+
+        migration = Migration.from_file(filepath)
+
+        assert migration.version == 30
+        assert migration.name == "Alert Tables"
+        assert "CREATE TYPE alerts_type_enum AS ENUM" in migration.content
+        assert "CREATE TYPE alerts_priority_enum AS ENUM" in migration.content
+        assert "CREATE TABLE IF NOT EXISTS alerts" in migration.content
+        assert "CREATE TABLE IF NOT EXISTS alert_snapshots" in migration.content
+        assert "GRANT SELECT, INSERT, UPDATE, DELETE ON alerts TO trading_user;" in migration.content
+        assert (
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON alert_snapshots TO trading_user;"
+            in migration.content
+        )
+
     def test_from_file_valid(self, migrations_dir) -> None:
         """Test creating migration from valid file."""
         filepath = migrations_dir / "001_initial.sql"

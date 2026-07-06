@@ -26,9 +26,10 @@ func (m *mockFailingEmitter) EmitOrderUpdate(ctx context.Context, update *OrderU
 
 // mockSuccessEmitter is an EventEmitter that always succeeds
 type mockSuccessEmitter struct {
-	mu     sync.Mutex
-	called bool
-	update *OrderUpdate
+	mu      sync.Mutex
+	called  bool
+	update  *OrderUpdate
+	updates []*OrderUpdate
 }
 
 func (m *mockSuccessEmitter) EmitOrderUpdate(ctx context.Context, update *OrderUpdate) error {
@@ -41,6 +42,7 @@ func (m *mockSuccessEmitter) EmitOrderUpdate(ctx context.Context, update *OrderU
 	}
 	updateCopy := *update
 	m.update = &updateCopy
+	m.updates = append(m.updates, &updateCopy)
 	return nil
 }
 
@@ -52,6 +54,21 @@ func (m *mockSuccessEmitter) snapshot() (bool, *OrderUpdate) {
 	}
 	updateCopy := *m.update
 	return m.called, &updateCopy
+}
+
+func (m *mockSuccessEmitter) updatesSnapshot() []*OrderUpdate {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	updates := make([]*OrderUpdate, 0, len(m.updates))
+	for _, update := range m.updates {
+		if update == nil {
+			updates = append(updates, nil)
+			continue
+		}
+		updateCopy := *update
+		updates = append(updates, &updateCopy)
+	}
+	return updates
 }
 
 func TestManager_validateBracketRequest(t *testing.T) {
@@ -214,6 +231,69 @@ func TestManager_generateClientOrderID(t *testing.T) {
 	time.Sleep(time.Nanosecond) // Ensure different timestamp
 	id2 := manager.generateClientOrderID(bracketID, orderType)
 	assert.NotEqual(t, id1, id2)
+}
+
+func TestInitialPlacementOrderUpdates_SpotIncludesAllLegsAndStopPrice(t *testing.T) {
+	req := &PlaceBracketRequest{
+		Symbol:           "ETHUSDT",
+		Side:             "BUY",
+		Quantity:         decimal.RequireFromString("0.013"),
+		EntryPrice:       decimal.RequireFromString("1901.40"),
+		TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("2101.55")},
+		StopLossPrice:    decimal.RequireFromString("1801.33"),
+		OrderType:        "LIMIT",
+	}
+	placement := &bracketPlacementResult{
+		IDs: ClientOrderIDs{
+			Main:        "main-id",
+			TakeProfits: []string{"tp-id"},
+			StopLoss:    "sl-id",
+		},
+		Main: &binance.OrderResponse{
+			OrderID:      101,
+			Price:        decimal.RequireFromString("1901.40"),
+			OrigQty:      decimal.RequireFromString("0.013"),
+			ExecutedQty:  decimal.Zero,
+			TransactTime: time.Now().UnixMilli(),
+		},
+		TakeProfits: []*binance.OrderResponse{
+			{
+				OrderID:      102,
+				Price:        decimal.RequireFromString("2101.55"),
+				OrigQty:      decimal.RequireFromString("0.013"),
+				ExecutedQty:  decimal.Zero,
+				TransactTime: time.Now().UnixMilli(),
+			},
+		},
+		StopLoss: &binance.OrderResponse{
+			OrderID:      103,
+			Price:        decimal.RequireFromString("1792.32"),
+			OrigQty:      decimal.RequireFromString("0.013"),
+			ExecutedQty:  decimal.Zero,
+			TransactTime: time.Now().UnixMilli(),
+		},
+		StopLossLimitPrice: decimal.RequireFromString("1792.32"),
+	}
+
+	updates := initialPlacementOrderUpdates(req, "SPOT", placement)
+
+	require.Len(t, updates, 3)
+	assert.Equal(t, "main-id", updates[0].ClientOrderID)
+	assert.Equal(t, "BUY", updates[0].Side)
+	assert.Equal(t, "LIMIT", updates[0].OrderType)
+	assert.Equal(t, "NEW", updates[0].Status)
+
+	assert.Equal(t, "tp-id", updates[1].ClientOrderID)
+	assert.Equal(t, "SELL", updates[1].Side)
+	assert.Equal(t, "LIMIT", updates[1].OrderType)
+	assert.True(t, decimal.RequireFromString("2101.55").Equal(updates[1].Price))
+
+	assert.Equal(t, "sl-id", updates[2].ClientOrderID)
+	assert.Equal(t, "SELL", updates[2].Side)
+	assert.Equal(t, "STOP_LOSS_LIMIT", updates[2].OrderType)
+	assert.Equal(t, "NEW", updates[2].Status)
+	assert.True(t, decimal.RequireFromString("1792.32").Equal(updates[2].Price))
+	assert.True(t, decimal.RequireFromString("1801.33").Equal(updates[2].StopPrice))
 }
 
 func TestGetOrderType(t *testing.T) {

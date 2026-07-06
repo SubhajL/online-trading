@@ -47,12 +47,22 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     });
 
     // Subscribe to trading events to create alerts
-    this.eventEmitter.on(CONTRACT_TOPICS.decisionV1, async (decision: DecisionEvent) => {
-      await this.createDecisionAlert(decision);
+    this.eventEmitter.on(CONTRACT_TOPICS.decisionV1, (decision: DecisionEvent) => {
+      void this.createDecisionAlert(decision).catch((error: unknown) => {
+        this.logger.error(
+          `Failed to create decision alert: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      });
     });
 
-    this.eventEmitter.on(CONTRACT_TOPICS.orderUpdateV1, async (orderUpdate: OrderUpdateEvent) => {
-      await this.createOrderAlert(orderUpdate);
+    this.eventEmitter.on(CONTRACT_TOPICS.orderUpdateV1, (orderUpdate: OrderUpdateEvent) => {
+      void this.createOrderAlert(orderUpdate).catch((error: unknown) => {
+        this.logger.error(
+          `Failed to create order alert: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      });
     });
   }
 

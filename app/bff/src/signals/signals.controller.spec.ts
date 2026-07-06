@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
 import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SignalsController } from './signals.controller';
@@ -7,6 +8,10 @@ import { InternalApiGuard } from '../auth/guards/internal-api.guard';
 import { SignalPayloadDto, SignalSide } from '../alerts/dto/signal-payload.dto';
 
 describe('SignalsController', () => {
+  it('is public so internal token auth can bypass the global JWT guard', () => {
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, SignalsController)).toBe(true);
+  });
+
   let controller: SignalsController;
   let signalsService: jest.Mocked<SignalsService>;
 

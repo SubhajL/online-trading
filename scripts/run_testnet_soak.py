@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 import hashlib
 import hmac
@@ -57,6 +57,35 @@ class PeriodicOrderSmokeConfig:
     target_notional_usdt: Decimal
 
 
+CRITICAL_RUNTIME_INCIDENT_PATTERNS: tuple[tuple[str, str, str], ...] = (
+    (
+        "alert_auth_401",
+        "BffApiClient POST /api/signals/alert failed: 401",
+        "Internal alert auth failures were detected in the compose logs.",
+    ),
+    (
+        "engine_order_persistence",
+        "Error upserting order:",
+        "Engine order persistence failures were detected in the compose logs.",
+    ),
+    (
+        "router_bracket_intent_persistence",
+        "Failed to persist bracket intent",
+        "Router bracket intent persistence failures were detected in the compose logs.",
+    ),
+    (
+        "router_spot_execution_persistence",
+        "Failed to persist spot execution snapshot",
+        "Router spot execution persistence failures were detected in the compose logs.",
+    ),
+    (
+        "exchange_insufficient_balance",
+        "Account has insufficient balance for requested action",
+        "Exchange insufficient balance failures were detected in the compose logs.",
+    ),
+)
+
+
 def _parse_positive_int(value: str, *, name: str) -> int:
     parsed = int(value)
     if parsed <= 0:
@@ -92,11 +121,11 @@ def build_periodic_order_smoke_config(environ: dict[str, str]) -> PeriodicOrderS
         name="SOAK_SMOKE_INTERVAL_SECONDS",
     )
     cancel_after_seconds = _parse_positive_int(
-        environ.get("SOAK_SMOKE_CANCEL_AFTER_SECONDS", "75"),
+        environ.get("SOAK_SMOKE_CANCEL_AFTER_SECONDS", "10"),
         name="SOAK_SMOKE_CANCEL_AFTER_SECONDS",
     )
     entry_offset_bps = _parse_positive_int(
-        environ.get("SOAK_SMOKE_ENTRY_OFFSET_BPS", "150"),
+        environ.get("SOAK_SMOKE_ENTRY_OFFSET_BPS", "500"),
         name="SOAK_SMOKE_ENTRY_OFFSET_BPS",
     )
     target_notional_usdt = _parse_positive_decimal(
@@ -293,6 +322,11 @@ def build_recommendations(results: list[CheckResult]) -> list[str]:
                 "Inspect periodic order smoke failures; verify live price lookup, router placement, and cancel behavior for the configured symbols."
             )
             handled = True
+        elif result.status == "fail" and result.name == "runtime_incidents":
+            recommendations.append(
+                "Review current-run compose logs for alert auth failures, persistence drift, or exchange rejects before trusting this soak."
+            )
+            handled = True
 
         if result.status == "fail" and not handled:
             recommendations.append(result.message)
@@ -377,6 +411,19 @@ class TestnetSoakRunner:
         self.heartbeat_interval_seconds = max(
             1, int(getattr(args, "heartbeat_interval_seconds", 60))
         )
+        self.critical_health_failure_threshold = max(
+            1, int(getattr(args, "critical_health_failure_threshold", 3))
+        )
+        self.wall_clock_grace_seconds = max(
+            5,
+            int(
+                getattr(
+                    args,
+                    "wall_clock_grace_seconds",
+                    max(5, int(getattr(args, "poll_interval_seconds", 15)) * 2),
+                )
+            ),
+        )
         self.stop_requested = False
         self.termination_signal: str | None = None
         self.final_report_written = False
@@ -417,15 +464,33 @@ class TestnetSoakRunner:
         self._write_runtime_artifacts(run_state="interrupted")
 
     def _current_run_state(self) -> str:
+        if self.final_report_written:
+            return "interrupted" if self.stop_requested else "completed"
         return "interrupted" if self.stop_requested else "running"
 
-    def _build_report_payload(self, *, report_type: str, run_state: str) -> dict[str, Any]:
+    def _wall_clock_deadline(self) -> datetime:
+        return self.started_at + timedelta(
+            seconds=self.args.duration_seconds + self.wall_clock_grace_seconds
+        )
+
+    def _wall_clock_budget_exceeded(self) -> bool:
+        return datetime.now(UTC) >= self._wall_clock_deadline()
+
+    def _build_report_payload(
+        self,
+        *,
+        report_type: str,
+        run_state: str,
+        finished_at: str | None = None,
+    ) -> dict[str, Any]:
         overall_pass = run_state == "completed" and all(
             result.status == "pass" for result in self.results if result.status != "skip"
         )
+        finished_at_value = finished_at or datetime.now(UTC).isoformat()
         payload = {
             "started_at": self.started_at.isoformat(),
-            "finished_at": datetime.now(UTC).isoformat(),
+            "finished_at": finished_at_value,
+            "completed_at": finished_at_value if run_state in {"completed", "interrupted"} else None,
             "duration_seconds": self.args.duration_seconds,
             "overall_status": "pass" if overall_pass else "fail",
             "report_type": report_type,
@@ -436,18 +501,94 @@ class TestnetSoakRunner:
         }
         return payload
 
-    def _write_runtime_artifacts(self, *, run_state: str) -> None:
-        payload = self._build_report_payload(report_type="partial", run_state=run_state)
+    def _write_runtime_artifacts(self, *, run_state: str, finished_at: str | None = None) -> None:
+        payload = self._build_report_payload(
+            report_type="partial",
+            run_state=run_state,
+            finished_at=finished_at,
+        )
         self._write_json(self.partial_report_path, payload)
         heartbeat_payload = {
             "started_at": self.started_at.isoformat(),
             "updated_at": payload["finished_at"],
+            "completed_at": payload["completed_at"],
             "run_state": run_state,
             "termination_signal": self.termination_signal,
             "result_count": len(self.results),
             "latest_result": asdict(self.results[-1]) if self.results else None,
         }
         self._write_json(self.heartbeat_path, heartbeat_payload)
+
+    def _compose_logs_command(self, *services: str) -> list[str]:
+        return self._compose(
+            "logs",
+            "--no-color",
+            "--since",
+            self.started_at.isoformat(),
+            *services,
+        )
+
+    def _read_log_artifact(self, artifact_path: str) -> str:
+        path = Path(artifact_path)
+        if not path.is_absolute():
+            path = self.project_root / path
+        if not path.exists():
+            return ""
+        return path.read_text(encoding="utf-8")
+
+    def _record_runtime_incidents_from_log(self, artifact_path: str) -> None:
+        contents = self._read_log_artifact(artifact_path)
+        incidents: list[dict[str, Any]] = []
+        seen_keys: set[str] = set()
+        for line_number, line in enumerate(contents.splitlines(), start=1):
+            for key, pattern, recommendation in CRITICAL_RUNTIME_INCIDENT_PATTERNS:
+                if key in seen_keys or pattern not in line:
+                    continue
+                seen_keys.add(key)
+                incidents.append(
+                    {
+                        "key": key,
+                        "pattern": pattern,
+                        "line_number": line_number,
+                        "line_excerpt": line[:300],
+                        "recommendation": recommendation,
+                    }
+                )
+
+        status = "fail" if incidents else "pass"
+        self._record(
+            CheckResult(
+                name="runtime_incidents",
+                status=status,
+                message=(
+                    "Detected critical runtime incidents in current-run compose logs"
+                    if incidents
+                    else "No critical runtime incidents detected in current-run compose logs"
+                ),
+                details={"incident_count": len(incidents), "incidents": incidents},
+                artifacts=[artifact_path],
+            )
+        )
+
+    def _compose_service_was_restarted(self, service: str) -> bool:
+        container_name = f"trading-{service}-dev"
+        compose_up_result = next(
+            (result for result in reversed(self.results) if result.name == "compose_up"),
+            None,
+        )
+        if compose_up_result is None:
+            return True
+        for artifact_path in compose_up_result.artifacts:
+            contents = self._read_log_artifact(artifact_path)
+            for line in contents.splitlines():
+                if container_name not in line:
+                    continue
+                if any(
+                    keyword in line
+                    for keyword in (" Started", " Recreated", " Created", " Restarting", " Stopped")
+                ):
+                    return True
+        return False
 
     def _maybe_write_heartbeat(self) -> None:
         current_time = time.monotonic()
@@ -505,6 +646,26 @@ class TestnetSoakRunner:
     def _record(self, result: CheckResult) -> None:
         self.results.append(result)
         self._write_runtime_artifacts(run_state=self._current_run_state())
+
+    def _record_health_probe_failure(
+        self,
+        *,
+        name: str,
+        failure: str,
+        consecutive_failures: int,
+    ) -> None:
+        self._record(
+            CheckResult(
+                name=f"health:{name}",
+                status="fail",
+                message=f"{name} health probe failed during bounded soak monitoring",
+                details={
+                    "failure": failure,
+                    "consecutive_failures": consecutive_failures,
+                    "threshold": self.critical_health_failure_threshold,
+                },
+            )
+        )
 
     def _request_json(
         self,
@@ -600,7 +761,7 @@ class TestnetSoakRunner:
             raise RuntimeError("price lookup response missing price")
         return Decimal(str(price))
 
-    def _resolve_exchange_order_id(self, symbol: str, client_order_id: str) -> int:
+    def _fetch_exchange_order(self, symbol: str, client_order_id: str) -> dict[str, Any]:
         api_key = (os.getenv("BINANCE_API_KEY") or os.getenv("BINANCE_SPOT_API_KEY") or "").strip()
         api_secret = (
             os.getenv("BINANCE_SECRET_KEY")
@@ -632,7 +793,13 @@ class TestnetSoakRunner:
         parsed = self._parse_json_body(raw_body)
         if status >= 300:
             raise RuntimeError(f"order lookup failed with status {status}: {parsed}")
-        order_id = parsed.get("orderId") if isinstance(parsed, dict) else None
+        if not isinstance(parsed, dict):
+            raise RuntimeError("order lookup response was not an object")
+        return parsed
+
+    def _resolve_exchange_order_id(self, symbol: str, client_order_id: str) -> int:
+        order = self._fetch_exchange_order(symbol, client_order_id)
+        order_id = order.get("orderId")
         if order_id is None:
             raise RuntimeError("order lookup response missing orderId")
         return int(order_id)
@@ -750,36 +917,47 @@ class TestnetSoakRunner:
         )
 
     def assert_log_signatures(self) -> bool:
-        command = self._compose("logs", "--no-color", "engine", "router")
+        command = self._compose_logs_command("engine", "router")
         result = self._run_command("compose_logs_engine_router", command, cwd=self.project_root)
-        combined = ""
-        stdout_abs = self.project_root / result.stdout_path
-        if stdout_abs.exists():
-            combined = stdout_abs.read_text(encoding="utf-8")
+        combined = self._read_log_artifact(result.stdout_path)
 
         failures: list[str] = []
+        skipped_services: list[str] = []
         if "Execution subscriber enabled: spot_testnet" not in combined:
-            failures.append("engine log missing spot_testnet execution marker")
+            if self._compose_service_was_restarted("engine"):
+                failures.append("engine log missing spot_testnet execution marker")
+            else:
+                skipped_services.append("engine")
         if "Order Router starting" not in combined or "testnet" not in combined.lower():
-            failures.append("router log missing testnet startup marker")
+            if self._compose_service_was_restarted("router"):
+                failures.append("router log missing testnet startup marker")
+            else:
+                skipped_services.append("router")
         if "SECURITY_REQUIRED_API_KEY must be configured" in combined:
             failures.append("router log shows missing required API key")
         if "401 Unauthorized" in combined:
             failures.append("startup logs show unauthorized internal callback or router request")
 
-        status = "pass" if not failures else "fail"
+        if failures:
+            status = "fail"
+            message = "Startup log assertions failed"
+        elif skipped_services:
+            status = "skip"
+            message = "Startup log assertions skipped for services that were already running"
+        else:
+            status = "pass"
+            message = "Startup log assertions passed"
+
         self._record(
             CheckResult(
                 name="log_assertions",
                 status=status,
-                message="Startup log assertions passed"
-                if status == "pass"
-                else "Startup log assertions failed",
-                details={"failures": failures},
+                message=message,
+                details={"failures": failures, "skipped_services": skipped_services},
                 artifacts=[result.stdout_path, result.stderr_path],
             )
         )
-        return status == "pass"
+        return status != "fail"
 
     def maybe_run_order_smoke(self) -> None:
         if not self.args.enable_order_smoke:
@@ -850,9 +1028,10 @@ class TestnetSoakRunner:
             )
             return
 
-        client_order_id = (
-            parsed.get("client_order_ids", {}).get("main") if isinstance(parsed, dict) else None
-        )
+        client_order_ids = parsed.get("client_order_ids", {}) if isinstance(parsed, dict) else {}
+        if not isinstance(client_order_ids, dict):
+            client_order_ids = {}
+        client_order_id = client_order_ids.get("main")
         if not client_order_id:
             self._record(
                 CheckResult(
@@ -863,9 +1042,18 @@ class TestnetSoakRunner:
                 )
             )
             return
+        cleanup_legs: list[tuple[str, str]] = [("main", client_order_id)]
+        take_profit_client_order_ids = client_order_ids.get("take_profits", [])
+        if isinstance(take_profit_client_order_ids, list):
+            for index, take_profit_client_order_id in enumerate(take_profit_client_order_ids, start=1):
+                if take_profit_client_order_id:
+                    cleanup_legs.append((f"take_profit_{index}", str(take_profit_client_order_id)))
+        stop_loss_client_order_id = client_order_ids.get("stop_loss")
+        if stop_loss_client_order_id:
+            cleanup_legs.append(("stop_loss", str(stop_loss_client_order_id)))
 
         try:
-            exchange_order_id = self._resolve_exchange_order_id(symbol, client_order_id)
+            exchange_order = self._fetch_exchange_order(symbol, client_order_id)
         except Exception as exc:
             self._record(
                 CheckResult(
@@ -881,29 +1069,15 @@ class TestnetSoakRunner:
                 )
             )
             return
-
-        self._sleep_with_shutdown(config.cancel_after_seconds)
-        cancel_status, cancel_body = self._request_json(
-            f"{self.router_base_url}/cancel",
-            method="POST",
-            headers=headers,
-            body={
-                "symbol": symbol,
-                "order_id": exchange_order_id,
-                "client_order_id": client_order_id,
-            },
-            timeout=20,
-        )
-        parsed_cancel_body = self._parse_json_body(cancel_body)
-        if cancel_status >= 300:
+        exchange_order_id = exchange_order.get("orderId")
+        if exchange_order_id is None:
             self._record(
                 CheckResult(
                     name=result_name,
                     status="fail",
-                    message="Order smoke cancel failed",
+                    message="Order smoke could not resolve exchange order ID",
                     details={
-                        "status": cancel_status,
-                        "body": parsed_cancel_body,
+                        "error": "order lookup response missing orderId",
                         "client_order_id": client_order_id,
                         "symbol": symbol,
                         "trigger": trigger,
@@ -912,13 +1086,113 @@ class TestnetSoakRunner:
             )
             return
 
+        self._sleep_with_shutdown(config.cancel_after_seconds)
+        try:
+            exchange_order = self._fetch_exchange_order(symbol, client_order_id)
+        except Exception:
+            exchange_order = None
+        if isinstance(exchange_order, dict):
+            exchange_order_status = str(exchange_order.get("status") or "").upper()
+            if exchange_order_status in {"FILLED", "CANCELED", "EXPIRED", "REJECTED"}:
+                message = "Order smoke main order filled before cancel window elapsed"
+                if exchange_order_status != "FILLED":
+                    message = "Order smoke main order entered terminal state before cancel window elapsed"
+                self._record(
+                    CheckResult(
+                        name=result_name,
+                        status="fail",
+                        message=message,
+                        details={
+                            "client_order_id": client_order_id,
+                            "symbol": symbol,
+                            "trigger": trigger,
+                            "exchange_order_id": int(exchange_order_id),
+                            "exchange_order_status": exchange_order_status,
+                            "executed_qty": str(exchange_order.get("executedQty") or ""),
+                            "recommendation": (
+                                "Increase SOAK_SMOKE_ENTRY_OFFSET_BPS or lower "
+                                "SOAK_SMOKE_CANCEL_AFTER_SECONDS so the order stays resting."
+                            ),
+                        },
+                    )
+                )
+                return
+        for leg_name, leg_client_order_id in cleanup_legs:
+            try:
+                leg_order = self._fetch_exchange_order(symbol, leg_client_order_id)
+            except Exception as exc:
+                self._record(
+                    CheckResult(
+                        name=result_name,
+                        status="fail",
+                        message="Order smoke could not resolve cleanup leg exchange order ID",
+                        details={
+                            "error": str(exc),
+                            "client_order_id": leg_client_order_id,
+                            "leg": leg_name,
+                            "symbol": symbol,
+                            "trigger": trigger,
+                        },
+                    )
+                )
+                return
+            leg_order_id = leg_order.get("orderId")
+            if leg_order_id is None:
+                self._record(
+                    CheckResult(
+                        name=result_name,
+                        status="fail",
+                        message="Order smoke cleanup leg lookup response missing orderId",
+                        details={
+                            "client_order_id": leg_client_order_id,
+                            "leg": leg_name,
+                            "symbol": symbol,
+                            "trigger": trigger,
+                        },
+                    )
+                )
+                return
+            leg_status = str(leg_order.get("status") or "").upper()
+            if leg_status in {"CANCELED", "EXPIRED", "REJECTED"}:
+                continue
+            cancel_status, cancel_body = self._request_json(
+                f"{self.router_base_url}/cancel",
+                method="POST",
+                headers=headers,
+                body={
+                    "symbol": symbol,
+                    "order_id": int(leg_order_id),
+                    "client_order_id": leg_client_order_id,
+                },
+                timeout=20,
+            )
+            parsed_cancel_body = self._parse_json_body(cancel_body)
+            if cancel_status >= 300:
+                self._record(
+                    CheckResult(
+                        name=result_name,
+                        status="fail",
+                        message="Order smoke cleanup leg cancel failed",
+                        details={
+                            "status": cancel_status,
+                            "body": parsed_cancel_body,
+                            "client_order_id": leg_client_order_id,
+                            "leg": leg_name,
+                            "symbol": symbol,
+                            "trigger": trigger,
+                        },
+                    )
+                )
+                return
+
         self._record(
             CheckResult(
                 name=result_name,
                 status="pass",
-                message="Order smoke placement and cancel both succeeded",
+                message="Order smoke placement and multi-leg cleanup both succeeded",
                 details={
                     "client_order_id": client_order_id,
+                    "cleanup_leg_count": len(cleanup_legs),
                     "symbol": symbol,
                     "trigger": trigger,
                     "reference_price": _format_decimal(reference_price, places=2),
@@ -929,9 +1203,31 @@ class TestnetSoakRunner:
     def monitor_window(self) -> None:
         deadline = time.monotonic() + self.args.duration_seconds
         failures: list[str] = []
+        consecutive_failures = {name: 0 for name in ("engine", "router", "bff")}
         samples = 0
+        monitor_failure_reason: str | None = None
         while time.monotonic() < deadline:
             if self.stop_requested:
+                break
+            if self._wall_clock_budget_exceeded():
+                failure = (
+                    "Wall-clock soak duration exceeded before the monitor window reached its "
+                    "monotonic deadline"
+                )
+                failures.append(failure)
+                self._record(
+                    CheckResult(
+                        name="health:wall_clock",
+                        status="fail",
+                        message="Wall-clock monitoring budget exceeded during bounded soak monitoring",
+                        details={
+                            "started_at": self.started_at.isoformat(),
+                            "deadline_at": self._wall_clock_deadline().isoformat(),
+                            "grace_seconds": self.wall_clock_grace_seconds,
+                        },
+                    )
+                )
+                monitor_failure_reason = "wall-clock"
                 break
             current_time = time.monotonic()
             if (
@@ -950,28 +1246,61 @@ class TestnetSoakRunner:
                 try:
                     status, _body = self._request_json(url, timeout=5)
                     if status >= 300:
-                        failures.append(f"{name} returned {status}")
+                        consecutive_failures[name] += 1
+                        failure = f"{name} returned {status}"
+                        failures.append(failure)
+                        self._record_health_probe_failure(
+                            name=name,
+                            failure=failure,
+                            consecutive_failures=consecutive_failures[name],
+                        )
+                        if consecutive_failures[name] >= self.critical_health_failure_threshold:
+                            monitor_failure_reason = name
+                            break
+                        continue
+                    consecutive_failures[name] = 0
                 except Exception as exc:
-                    failures.append(f"{name} health probe failed: {exc}")
+                    consecutive_failures[name] += 1
+                    failure = f"{name} health probe failed: {exc}"
+                    failures.append(failure)
+                    self._record_health_probe_failure(
+                        name=name,
+                        failure=failure,
+                        consecutive_failures=consecutive_failures[name],
+                    )
+                    if consecutive_failures[name] >= self.critical_health_failure_threshold:
+                        monitor_failure_reason = name
+                        break
             self._maybe_write_heartbeat()
+            if monitor_failure_reason is not None:
+                break
             self._sleep_with_shutdown(self.args.poll_interval_seconds)
 
         interrupted = self.stop_requested
         status = "pass" if not failures and not interrupted else "fail"
+        if monitor_failure_reason == "wall-clock":
+            message = "Bounded soak monitoring stopped after wall-clock budget was exceeded"
+        elif interrupted:
+            message = "Bounded soak monitoring was interrupted before completion"
+        elif monitor_failure_reason is not None:
+            message = (
+                "Bounded soak monitoring stopped after repeated critical health probe failures"
+            )
+        elif status == "pass":
+            message = "Bounded soak monitoring completed"
+        else:
+            message = "Health probe failures occurred during bounded soak monitoring"
         self._record(
             CheckResult(
                 name="monitor_window",
                 status=status,
-                message=(
-                    "Bounded soak monitoring completed"
-                    if status == "pass"
-                    else "Bounded soak monitoring was interrupted before completion"
-                    if interrupted
-                    else "Health probe failures occurred during bounded soak monitoring"
-                ),
+                message=message,
                 details={
                     "samples": samples,
                     "failures": failures[:20],
+                    "critical_health_failure_threshold": self.critical_health_failure_threshold,
+                    "monitor_failure_reason": monitor_failure_reason,
+                    "wall_clock_deadline": self._wall_clock_deadline().isoformat(),
                     "termination_signal": self.termination_signal,
                 },
             )
@@ -981,7 +1310,7 @@ class TestnetSoakRunner:
         try:
             result = self._run_command(
                 "compose_logs_full",
-                self._compose("logs", "--no-color"),
+                self._compose_logs_command(),
                 cwd=self.project_root,
                 timeout=120,
             )
@@ -1002,6 +1331,7 @@ class TestnetSoakRunner:
                 artifacts=[result.stdout_path, result.stderr_path],
             )
         )
+        self._record_runtime_incidents_from_log(result.stdout_path)
 
     def maybe_shutdown(self) -> None:
         if self.args.keep_running:
@@ -1030,8 +1360,14 @@ class TestnetSoakRunner:
 
     def write_report(self) -> dict[str, Any]:
         run_state = "interrupted" if self.stop_requested else "completed"
-        report = self._build_report_payload(report_type="final", run_state=run_state)
+        finished_at = datetime.now(UTC).isoformat()
+        report = self._build_report_payload(
+            report_type="final",
+            run_state=run_state,
+            finished_at=finished_at,
+        )
         self._write_json(self.report_path, report)
+        self._write_runtime_artifacts(run_state=run_state, finished_at=finished_at)
         self.final_report_written = True
         return report
 

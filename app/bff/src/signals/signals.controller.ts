@@ -11,8 +11,10 @@ import {
 } from '@nestjs/common';
 import { SignalsService, SignalAlertResponse } from './signals.service';
 import { InternalApiGuard } from '../auth/guards/internal-api.guard';
+import { Public } from '../auth/decorators/public.decorator';
 import { SignalPayloadDto } from '../alerts/dto/signal-payload.dto';
 
+@Public()
 @Controller('signals')
 @UseGuards(InternalApiGuard)
 export class SignalsController {

@@ -55,6 +55,37 @@ func NewOrderRepo() *OrderRepo {
 	return &OrderRepo{}
 }
 
+const upsertOrderIntentSQL = `INSERT INTO orders (
+			client_order_id, venue, symbol, side, type, quantity, price, stop_price, time_in_force,
+			status, filled_quantity, created_at, reduce_only, close_position,
+			requested_price, signal_id, timeframe, zone,
+			decision_ts, expected_price, router_received_ts
+		) VALUES (
+			$1,$2,$3,$4,$5,$6, NULLIF($7::numeric,0::numeric), NULLIF($8::numeric,0::numeric), $9,
+			'NEW', 0, now(), $10, $11,
+			NULLIF($12::numeric,0::numeric), NULLIF($13,''), NULLIF($14,''), NULLIF($15,'')::jsonb,
+			$16, NULLIF($17::numeric,0::numeric), $18
+		)
+		ON CONFLICT (venue, client_order_id)
+		DO UPDATE SET
+			symbol = EXCLUDED.symbol,
+			side = EXCLUDED.side,
+			type = EXCLUDED.type,
+			quantity = EXCLUDED.quantity,
+			price = EXCLUDED.price,
+			stop_price = EXCLUDED.stop_price,
+			time_in_force = EXCLUDED.time_in_force,
+			reduce_only = EXCLUDED.reduce_only,
+			close_position = EXCLUDED.close_position,
+			requested_price = EXCLUDED.requested_price,
+			signal_id = EXCLUDED.signal_id,
+			timeframe = EXCLUDED.timeframe,
+			zone = EXCLUDED.zone,
+			decision_ts = COALESCE(orders.decision_ts, EXCLUDED.decision_ts),
+			expected_price = COALESCE(orders.expected_price, EXCLUDED.expected_price),
+			router_received_ts = COALESCE(orders.router_received_ts, EXCLUDED.router_received_ts)
+		RETURNING order_id`
+
 func (r *OrderRepo) UpsertOrderIntent(ctx context.Context, tx pgx.Tx, intent OrderIntent) (uuid.UUID, error) {
 	if intent.Venue == "" {
 		return uuid.Nil, fmt.Errorf("venue is required")
@@ -98,36 +129,7 @@ func (r *OrderRepo) UpsertOrderIntent(ctx context.Context, tx pgx.Tx, intent Ord
 
 	row := tx.QueryRow(
 		ctx,
-		`INSERT INTO orders (
-			client_order_id, venue, symbol, side, type, quantity, price, stop_price, time_in_force,
-			status, filled_quantity, created_at, reduce_only, close_position,
-			requested_price, signal_id, timeframe, zone,
-			decision_ts, expected_price, router_received_ts
-		) VALUES (
-			$1,$2,$3,$4,$5,$6, NULLIF($7,0), NULLIF($8,0), $9,
-			'NEW', 0, now(), $10, $11,
-			NULLIF($12,0), NULLIF($13,''), NULLIF($14,''), NULLIF($15,'')::jsonb,
-			$16, NULLIF($17,0), $18
-		)
-		ON CONFLICT (venue, client_order_id)
-		DO UPDATE SET
-			symbol = EXCLUDED.symbol,
-			side = EXCLUDED.side,
-			type = EXCLUDED.type,
-			quantity = EXCLUDED.quantity,
-			price = EXCLUDED.price,
-			stop_price = EXCLUDED.stop_price,
-			time_in_force = EXCLUDED.time_in_force,
-			reduce_only = EXCLUDED.reduce_only,
-			close_position = EXCLUDED.close_position,
-			requested_price = EXCLUDED.requested_price,
-			signal_id = EXCLUDED.signal_id,
-			timeframe = EXCLUDED.timeframe,
-			zone = EXCLUDED.zone,
-			decision_ts = COALESCE(orders.decision_ts, EXCLUDED.decision_ts),
-			expected_price = COALESCE(orders.expected_price, EXCLUDED.expected_price),
-			router_received_ts = COALESCE(orders.router_received_ts, EXCLUDED.router_received_ts)
-		RETURNING order_id`,
+		upsertOrderIntentSQL,
 		intent.ClientOrderID,
 		intent.Venue,
 		intent.Symbol,
@@ -237,12 +239,12 @@ func (r *OrderRepo) ApplyFillUpdate(
 		`UPDATE orders
 		    SET status = $1,
 		        filled_quantity = $2,
-		        average_fill_price = NULLIF($3, 0),
-		        exchange_order_id = NULLIF($4, ''),
+		        average_fill_price = NULLIF($3::numeric, 0::numeric),
+		        exchange_order_id = NULLIF($4::text, ''),
 		        last_update_time = $5,
 		        total_commission = COALESCE(total_commission, 0) + $6,
 		        commission = COALESCE(total_commission, 0) + $6,
-		        commission_asset = NULLIF($7, ''),
+		        commission_asset = NULLIF($7::text, ''),
 		        total_slippage = COALESCE(total_slippage, 0) + $8
 		  WHERE venue = $9 AND client_order_id = $10
 		  RETURNING order_id, venue, symbol, client_order_id, side, reduce_only, close_position,

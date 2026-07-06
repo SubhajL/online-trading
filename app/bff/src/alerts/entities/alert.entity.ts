@@ -13,14 +13,18 @@ export class Alert {
   id: string;
 
   @Column({
+    name: 'type',
     type: 'enum',
     enum: ['order', 'position', 'decision', 'smc', 'error', 'info'],
+    enumName: 'alerts_type_enum',
   })
   type: AlertType;
 
   @Column({
+    name: 'priority',
     type: 'enum',
     enum: ['low', 'medium', 'high', 'critical'],
+    enumName: 'alerts_priority_enum',
   })
   priority: AlertPriority;
 
@@ -36,9 +40,9 @@ export class Alert {
   @Column({ default: false })
   read: boolean;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

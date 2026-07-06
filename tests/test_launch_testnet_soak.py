@@ -137,8 +137,8 @@ def test_wrap_with_caffeinate_on_darwin(monkeypatch):
     cmd = ["/usr/bin/python3", "scripts/run_testnet_soak.py"]
     wrapped = module.wrap_with_caffeinate(cmd)
 
-    assert wrapped[:3] == ["caffeinate", "-i", "--"]
-    assert wrapped[3:] == cmd
+    assert wrapped[:5] == ["caffeinate", "-d", "-i", "-m", "--"]
+    assert wrapped[5:] == cmd
 
 
 def test_wrap_with_caffeinate_skips_on_linux(monkeypatch):

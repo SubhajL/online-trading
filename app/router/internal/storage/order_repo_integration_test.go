@@ -59,6 +59,9 @@ func TestOrderRepo_ApplyFillUpdate_UpdatesTotalsAndStatus(t *testing.T) {
 				signal_id TEXT,
 				timeframe TEXT,
 				zone JSONB,
+				decision_ts TIMESTAMPTZ,
+				expected_price NUMERIC(20,8),
+				router_received_ts TIMESTAMPTZ,
 				CONSTRAINT uq_orders_client_order_id UNIQUE (venue, client_order_id)
 			) ON COMMIT DROP
 		`)
@@ -82,7 +85,7 @@ func TestOrderRepo_ApplyFillUpdate_UpdatesTotalsAndStatus(t *testing.T) {
 		rec, found, err := repo.ApplyFillUpdate(ctx, tx, "USD_M", "abc_entry", OrderFillUpdate{
 			Status:           "FILLED",
 			FilledQuantity:   decimal.RequireFromString("0.01"),
-			AverageFillPrice: decimal.RequireFromString("101"),
+			AverageFillPrice: decimal.RequireFromString("101.25"),
 			ExchangeOrderID:  "12345",
 			LastUpdateTime:   time.Unix(0, 0).UTC(),
 			CommissionDelta:  decimal.RequireFromString("0.04"),
@@ -94,6 +97,15 @@ func TestOrderRepo_ApplyFillUpdate_UpdatesTotalsAndStatus(t *testing.T) {
 		require.Equal(t, "abc_entry", rec.ClientOrderID)
 		require.True(t, decimal.RequireFromString("0.04").Equal(rec.TotalCommission))
 		require.True(t, decimal.RequireFromString("0.01").Equal(rec.TotalSlippage))
+		var averageFillPrice decimal.Decimal
+		err = tx.QueryRow(
+			ctx,
+			`SELECT average_fill_price FROM orders WHERE venue = $1 AND client_order_id = $2`,
+			"USD_M",
+			"abc_entry",
+		).Scan(&averageFillPrice)
+		require.NoError(t, err)
+		require.True(t, decimal.RequireFromString("101.25").Equal(averageFillPrice))
 		return nil
 	}))
 }

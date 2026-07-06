@@ -87,6 +87,59 @@ def _metadata_from_order_row(order_row: dict[str, Any]) -> dict[str, Any]:
     return metadata
 
 
+def _normalized_order_update_value(value: Any) -> Any:
+    if isinstance(value, str):
+        normalized = value.strip()
+        if normalized:
+            return normalized
+        return None
+    return value
+
+
+def _order_update_requires_row_hydration(parsed: Any) -> bool:
+    return any(
+        value is None
+        for value in (
+            _normalized_order_update_value(parsed.venue),
+            _normalized_order_update_value(parsed.side),
+            _normalized_order_update_value(parsed.order_type),
+            parsed.quantity,
+        )
+    )
+
+
+def _merge_order_update_persistence_fields(
+    base: dict[str, Any],
+    fallback: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if fallback is None:
+        return base
+
+    merged = dict(base)
+    for key in ("venue", "symbol", "side", "type"):
+        value = _normalized_order_update_value(merged.get(key))
+        if value is not None:
+            merged[key] = value
+            continue
+        fallback_value = _normalized_order_update_value(fallback.get(key))
+        if fallback_value is not None:
+            merged[key] = fallback_value
+
+    for key in ("quantity", "price", "stop_price"):
+        if merged.get(key) is None and fallback.get(key) is not None:
+            merged[key] = fallback.get(key)
+
+    return merged
+
+
+def _order_update_quantity_for_persistence(parsed: Any) -> Any:
+    if parsed.quantity is not None:
+        return parsed.quantity
+    if parsed.executed_qty is not None and parsed.executed_qty > 0:
+        return parsed.executed_qty
+    return None
+
+
 # Request/Response Models
 class HealthResponse(BaseModel):
     status: str
@@ -1097,11 +1150,12 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
 
     db_adapter = services.get("database")
     hydration_enabled = _order_update_db_hydration_enabled_from_env()
+    hydrated_order_row: dict[str, Any] | None = None
     if (
-        not metadata
-        and hydration_enabled
+        hydration_enabled
         and db_adapter is not None
         and hasattr(db_adapter, "get_order_by_client_order_id")
+        and (not metadata or _order_update_requires_row_hydration(parsed))
     ):
         try:
             hydrated_order_row = await db_adapter.get_order_by_client_order_id(
@@ -1136,27 +1190,67 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
     # Persist order updates for auditability (best-effort; do not block alerting).
     if hydration_enabled and db_adapter is not None and hasattr(db_adapter, "upsert_order"):
         try:
-            venue = parsed.venue or metadata.get("venue")
+            venue = (
+                _normalized_order_update_value(parsed.venue)
+                or metadata.get("venue")
+                or _normalized_order_update_value((hydrated_order_row or {}).get("venue"))
+            )
             if isinstance(venue, str) and venue:
-                raw_type = (parsed.order_type or "").strip().upper()
+                raw_type = (
+                    _normalized_order_update_value(parsed.order_type)
+                    or _normalized_order_update_value((hydrated_order_row or {}).get("type"))
+                    or ""
+                )
+                raw_type = raw_type.upper()
                 order_type = "STOP_LOSS" if raw_type == "STOP_MARKET" else raw_type
 
-                order_row: dict[str, Any] = {
-                    "venue": venue,
-                    "client_order_id": parsed.client_order_id,
-                    "symbol": parsed.symbol,
-                    "side": (parsed.side or "").strip().upper(),
-                    "type": order_type,
-                    "quantity": parsed.quantity or parsed.executed_qty,
-                    "price": parsed.price,
-                    "status": normalized_status,
-                    "filled_quantity": parsed.executed_qty,
-                    "average_fill_price": parsed.price if normalized_status == "FILLED" else None,
-                    "exchange_order_id": str(parsed.order_id)
-                    if parsed.order_id is not None
-                    else None,
-                    "last_update_time": ts,
-                }
+                order_row = _merge_order_update_persistence_fields(
+                    {
+                        "venue": venue,
+                        "client_order_id": parsed.client_order_id,
+                        "symbol": parsed.symbol,
+                        "side": (parsed.side or "").strip().upper(),
+                        "type": order_type,
+                        "quantity": _order_update_quantity_for_persistence(parsed),
+                        "price": parsed.price,
+                        "stop_price": parsed.stop_price,
+                        "status": normalized_status,
+                        "filled_quantity": parsed.executed_qty,
+                        "average_fill_price": parsed.price if normalized_status == "FILLED" else None,
+                        "exchange_order_id": str(parsed.order_id)
+                        if parsed.order_id is not None
+                        else None,
+                        "last_update_time": ts,
+                    },
+                    hydrated_order_row,
+                )
+                order_row["venue"] = venue
+                order_row["type"] = order_type or order_row.get("type")
+                if order_row["type"] == "STOP_MARKET":
+                    order_row["type"] = "STOP_LOSS"
+
+                if not order_row.get("quantity"):
+                    order_row["quantity"] = parsed.executed_qty
+
+                if order_row.get("side") is None:
+                    order_row["side"] = ""
+
+                if order_row.get("type") is None:
+                    order_row["type"] = ""
+
+                order_row.update(
+                    {
+                        "status": normalized_status,
+                        "filled_quantity": parsed.executed_qty,
+                        "average_fill_price": parsed.price
+                        if normalized_status == "FILLED"
+                        else None,
+                        "exchange_order_id": str(parsed.order_id)
+                        if parsed.order_id is not None
+                        else None,
+                        "last_update_time": ts,
+                    }
+                )
                 decision_id = metadata.get("decision_id")
                 if isinstance(decision_id, str) and decision_id:
                     order_row["decision_id"] = decision_id

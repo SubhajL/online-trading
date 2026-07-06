@@ -370,25 +370,19 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		venue = "USD_M"
 	}
 
-	if placement != nil && placement.Main != nil {
-		initialUpdate := &OrderUpdate{
-			EventType:     "order_update.v1",
-			Venue:         venue,
-			Symbol:        req.Symbol,
-			OrderID:       placement.Main.OrderID,
-			ClientOrderID: bracket.ClientOrderIDs.Main,
-			Status:        normalizeOrderStatus(placement.Main.Status),
-			Side:          placement.Main.Side,
-			OrderType:     placement.Main.Type,
-			Price:         initialOrderUpdatePrice(req, placement.Main),
-			Quantity:      orderUpdateQuantity(req.Quantity, placement.Main.OrigQty),
-			ExecutedQty:   placement.Main.ExecutedQty,
-			UpdateTime:    orderUpdateTimeFromMillis(placement.Main.TransactTime),
+	if placement != nil {
+		initialUpdates := initialPlacementOrderUpdates(req, venue, placement)
+		for _, initialUpdate := range initialUpdates {
+			m.emitOrderUpdateWithLogging(ctx, initialUpdate)
 		}
-		response.SpotExecutionSnapshots = append(response.SpotExecutionSnapshots, spotExecutionSnapshotFromOrderResponse(initialUpdate, placement.Main))
-		m.emitOrderUpdateWithLogging(ctx, initialUpdate)
+		if placement.Main != nil && len(initialUpdates) > 0 {
+			response.SpotExecutionSnapshots = append(
+				response.SpotExecutionSnapshots,
+				spotExecutionSnapshotFromOrderResponse(initialUpdates[0], placement.Main),
+			)
+		}
 
-		if !req.IsFutures && m.spotReconciler != nil {
+		if !req.IsFutures && placement.Main != nil && m.spotReconciler != nil {
 			m.trackSpotPlacementLegs(placement)
 		}
 	}
@@ -603,9 +597,9 @@ func (m *Manager) generateClientOrderID(bracketID, orderType string) string {
 
 // algoOrderTypes are Binance order types that count towards the MAX_NUM_ALGO_ORDERS limit.
 var algoOrderTypes = map[string]bool{
-	"STOP_LOSS":        true,
-	"STOP_LOSS_LIMIT":  true,
-	"TAKE_PROFIT":      true,
+	"STOP_LOSS":         true,
+	"STOP_LOSS_LIMIT":   true,
+	"TAKE_PROFIT":       true,
 	"TAKE_PROFIT_LIMIT": true,
 }
 
@@ -670,17 +664,108 @@ func initialOrderUpdatePrice(req *PlaceBracketRequest, response *binance.OrderRe
 	return decimal.Zero
 }
 
+func initialOrderUpdateStatus(response *binance.OrderResponse) string {
+	if response == nil {
+		return "NEW"
+	}
+	status := normalizeOrderStatus(response.Status)
+	if status != "" {
+		return status
+	}
+	return "NEW"
+}
+
+func initialPlacementOrderUpdates(
+	req *PlaceBracketRequest,
+	venue string,
+	placement *bracketPlacementResult,
+) []*OrderUpdate {
+	if req == nil || placement == nil {
+		return nil
+	}
+
+	updates := make([]*OrderUpdate, 0, 2+len(placement.TakeProfits))
+	oppositeSide := getOppositeSide(req.Side)
+
+	if placement.Main != nil && placement.IDs.Main != "" {
+		updates = append(updates, &OrderUpdate{
+			EventType:     "order_update.v1",
+			Venue:         venue,
+			Symbol:        req.Symbol,
+			OrderID:       placement.Main.OrderID,
+			ClientOrderID: placement.IDs.Main,
+			Status:        initialOrderUpdateStatus(placement.Main),
+			Side:          req.Side,
+			OrderType:     getOrderType(req.OrderType, req.EntryPrice),
+			Price:         initialOrderUpdatePrice(req, placement.Main),
+			Quantity:      orderUpdateQuantity(req.Quantity, placement.Main.OrigQty),
+			ExecutedQty:   placement.Main.ExecutedQty,
+			UpdateTime:    orderUpdateTimeFromMillis(placement.Main.TransactTime),
+		})
+	}
+
+	if !req.IsFutures {
+		takeProfitQty := decimal.Zero
+		if len(req.TakeProfitPrices) > 0 {
+			takeProfitQty = req.Quantity.Div(decimal.NewFromInt(int64(len(req.TakeProfitPrices))))
+		}
+		for index, response := range placement.TakeProfits {
+			if response == nil || index >= len(req.TakeProfitPrices) || index >= len(placement.IDs.TakeProfits) {
+				continue
+			}
+			clientOrderID := placement.IDs.TakeProfits[index]
+			if clientOrderID == "" {
+				continue
+			}
+			updates = append(updates, &OrderUpdate{
+				EventType:     "order_update.v1",
+				Venue:         venue,
+				Symbol:        req.Symbol,
+				OrderID:       response.OrderID,
+				ClientOrderID: clientOrderID,
+				Status:        initialOrderUpdateStatus(response),
+				Side:          oppositeSide,
+				OrderType:     "LIMIT",
+				Price:         orderUpdatePrice(req.TakeProfitPrices[index], response.Price),
+				Quantity:      orderUpdateQuantity(takeProfitQty, response.OrigQty),
+				ExecutedQty:   response.ExecutedQty,
+				UpdateTime:    orderUpdateTimeFromMillis(response.TransactTime),
+			})
+		}
+
+		if placement.StopLoss != nil && placement.IDs.StopLoss != "" {
+			updates = append(updates, &OrderUpdate{
+				EventType:     "order_update.v1",
+				Venue:         venue,
+				Symbol:        req.Symbol,
+				OrderID:       placement.StopLoss.OrderID,
+				ClientOrderID: placement.IDs.StopLoss,
+				Status:        initialOrderUpdateStatus(placement.StopLoss),
+				Side:          oppositeSide,
+				OrderType:     "STOP_LOSS_LIMIT",
+				Price:         orderUpdatePrice(placement.StopLossLimitPrice, placement.StopLoss.Price),
+				StopPrice:     req.StopLossPrice,
+				Quantity:      orderUpdateQuantity(req.Quantity, placement.StopLoss.OrigQty),
+				ExecutedQty:   placement.StopLoss.ExecutedQty,
+				UpdateTime:    orderUpdateTimeFromMillis(placement.StopLoss.TransactTime),
+			})
+		}
+	}
+
+	return updates
+}
+
 func spotExecutionSnapshotFromOrderResponse(update *OrderUpdate, response *binance.OrderResponse) SpotExecutionSnapshot {
 	if update == nil || response == nil {
 		return SpotExecutionSnapshot{}
 	}
 
 	snapshot := SpotExecutionSnapshot{
-		Symbol:        response.Symbol,
+		Symbol:        firstNonEmptyString(response.Symbol, update.Symbol),
 		OrderID:       response.OrderID,
-		ClientOrderID: response.ClientOrderID,
-		Side:          response.Side,
-		OrderType:     response.Type,
+		ClientOrderID: firstNonEmptyString(response.ClientOrderID, update.ClientOrderID),
+		Side:          firstNonEmptyString(response.Side, update.Side),
+		OrderType:     firstNonEmptyString(response.Type, update.OrderType),
 		Price:         update.Price,
 		Quantity:      update.Quantity,
 		ExecutedQty:   response.ExecutedQty,
@@ -710,4 +795,20 @@ func orderUpdateQuantity(fallback, quantity decimal.Decimal) decimal.Decimal {
 		return quantity
 	}
 	return fallback
+}
+
+func orderUpdatePrice(fallback, price decimal.Decimal) decimal.Decimal {
+	if price.GreaterThan(decimal.Zero) {
+		return price
+	}
+	return fallback
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

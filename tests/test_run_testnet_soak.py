@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import timedelta
 from decimal import Decimal
 import importlib.util
 from pathlib import Path
@@ -149,8 +150,8 @@ def test_build_periodic_order_smoke_config_uses_defaults():
 
     assert config.symbols == ("ETHUSDT", "BTCUSDT")
     assert config.interval_seconds == 3600
-    assert config.cancel_after_seconds == 75
-    assert config.entry_offset_bps == 150
+    assert config.cancel_after_seconds == 10
+    assert config.entry_offset_bps == 500
     assert config.target_notional_usdt == Decimal("25")
 
 
@@ -454,7 +455,10 @@ def test_run_order_smoke_cycle_cancels_with_resolved_exchange_order_id(monkeypat
     ):
         calls.append((url, method, body))
         if url.endswith("/place_bracket"):
-            return 200, '{"client_order_ids":{"main":"coid-123"}}'
+            return (
+                200,
+                '{"client_order_ids":{"main":"coid-123","take_profits":["coid-tp1"],"stop_loss":"coid-sl"}}',
+            )
         if url.endswith("/cancel"):
             return 200, '{"status":"success"}'
         raise AssertionError(url)
@@ -462,7 +466,13 @@ def test_run_order_smoke_cycle_cancels_with_resolved_exchange_order_id(monkeypat
     monkeypatch.setattr(runner, "_fetch_reference_price", lambda symbol: Decimal("2000"))
     monkeypatch.setattr(runner, "_request_json", fake_request_json)
     monkeypatch.setattr(
-        runner, "_resolve_exchange_order_id", lambda symbol, client_order_id: 987654321
+        runner,
+        "_fetch_exchange_order",
+        lambda symbol, client_order_id: {
+            "coid-123": {"orderId": 987654321, "status": "NEW"},
+            "coid-tp1": {"orderId": 987654322, "status": "NEW"},
+            "coid-sl": {"orderId": 987654323, "status": "NEW"},
+        }[client_order_id],
     )
     monkeypatch.setattr(module.time, "monotonic", lambda: state["now"])
     monkeypatch.setattr(
@@ -471,12 +481,82 @@ def test_run_order_smoke_cycle_cancels_with_resolved_exchange_order_id(monkeypat
 
     runner.run_order_smoke_cycle("startup")
 
-    cancel_call = next(call for call in calls if call[0].endswith("/cancel"))
-    assert cancel_call == (
-        "http://localhost:8001/cancel",
-        "POST",
-        {"symbol": "ETHUSDT", "order_id": 987654321, "client_order_id": "coid-123"},
+    cancel_calls = [call for call in calls if call[0].endswith("/cancel")]
+    assert cancel_calls == [
+        (
+            "http://localhost:8001/cancel",
+            "POST",
+            {"symbol": "ETHUSDT", "order_id": 987654321, "client_order_id": "coid-123"},
+        ),
+        (
+            "http://localhost:8001/cancel",
+            "POST",
+            {"symbol": "ETHUSDT", "order_id": 987654322, "client_order_id": "coid-tp1"},
+        ),
+        (
+            "http://localhost:8001/cancel",
+            "POST",
+            {"symbol": "ETHUSDT", "order_id": 987654323, "client_order_id": "coid-sl"},
+        ),
+    ]
+
+
+def test_run_order_smoke_cycle_fails_clearly_when_main_order_fills_before_cancel(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
     )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=5,
+        poll_interval_seconds=1,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=True,
+        keep_running=True,
+    )
+    runner = module.TestnetSoakRunner(args)
+    runner.periodic_order_smoke_config = module.build_periodic_order_smoke_config(
+        {"SOAK_SMOKE_SYMBOLS": "ETHUSDT", "SOAK_SMOKE_CANCEL_AFTER_SECONDS": "1"}
+    )
+
+    calls: list[tuple[str, str, object | None]] = []
+    state = {"now": 0.0}
+
+    def fake_request_json(
+        url, *, method="GET", headers=None, body=None, timeout=5, allow_insecure_tls=False
+    ):
+        calls.append((url, method, body))
+        if url.endswith("/place_bracket"):
+            return 200, '{"client_order_ids":{"main":"coid-123"}}'
+        if url.endswith("/cancel"):
+            raise AssertionError("cancel should not be attempted after a terminal fill")
+        raise AssertionError(url)
+
+    monkeypatch.setattr(runner, "_fetch_reference_price", lambda symbol: Decimal("2000"))
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+    monkeypatch.setattr(
+        runner,
+        "_fetch_exchange_order",
+        lambda symbol, client_order_id: {
+            "orderId": 987654321,
+            "status": "FILLED",
+            "executedQty": "0.01200000",
+        },
+    )
+    monkeypatch.setattr(module.time, "monotonic", lambda: state["now"])
+    monkeypatch.setattr(
+        module.time, "sleep", lambda seconds: state.__setitem__("now", state["now"] + seconds)
+    )
+
+    runner.run_order_smoke_cycle("startup")
+
+    order_result = next(result for result in runner.results if result.name.startswith("order_smoke"))
+    assert order_result.status == "fail"
+    assert order_result.message == "Order smoke main order filled before cancel window elapsed"
+    assert order_result.details["exchange_order_status"] == "FILLED"
+    assert order_result.details["executed_qty"] == "0.01200000"
 
 
 def test_record_writes_partial_report_and_heartbeat(monkeypatch):
@@ -515,6 +595,74 @@ def test_record_writes_partial_report_and_heartbeat(monkeypatch):
     assert heartbeat["result_count"] == 1
 
 
+def test_write_report_finalizes_runtime_artifacts(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=30,
+        poll_interval_seconds=5,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=False,
+        keep_running=True,
+        heartbeat_interval_seconds=60,
+    )
+    runner = module.TestnetSoakRunner(args)
+    runner._record(module.CheckResult(name="compose_up", status="pass", message="stack started"))
+
+    report = runner.write_report()
+    partial_report = module.json.loads(
+        (runner.output_dir / "report.partial.json").read_text(encoding="utf-8")
+    )
+    heartbeat = module.json.loads(
+        (runner.output_dir / "heartbeat.json").read_text(encoding="utf-8")
+    )
+
+    assert report["report_type"] == "final"
+    assert report["run_state"] == "completed"
+    assert report["completed_at"] is not None
+    assert partial_report["run_state"] == "completed"
+    assert partial_report["completed_at"] is not None
+    assert heartbeat["run_state"] == "completed"
+    assert heartbeat["completed_at"] is not None
+
+
+def test_record_after_final_report_preserves_terminal_runtime_state(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=30,
+        poll_interval_seconds=5,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=False,
+        keep_running=True,
+        heartbeat_interval_seconds=60,
+    )
+    runner = module.TestnetSoakRunner(args)
+    runner.write_report()
+
+    runner._record(module.CheckResult(name="shutdown", status="skip", message="left running"))
+
+    partial_report = module.json.loads(
+        (runner.output_dir / "report.partial.json").read_text(encoding="utf-8")
+    )
+    heartbeat = module.json.loads(
+        (runner.output_dir / "heartbeat.json").read_text(encoding="utf-8")
+    )
+
+    assert partial_report["run_state"] == "completed"
+    assert heartbeat["run_state"] == "completed"
+
+
 def test_handle_termination_signal_marks_runner_and_writes_partial_report(monkeypatch):
     module = _load_run_testnet_soak_module()
     monkeypatch.setattr(
@@ -544,6 +692,199 @@ def test_handle_termination_signal_marks_runner_and_writes_partial_report(monkey
     assert runner.termination_signal == "SIGTERM"
     assert partial_report["run_state"] == "interrupted"
     assert partial_report["termination_signal"] == "SIGTERM"
+
+
+def test_assert_log_signatures_scopes_logs_to_run_start(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=30,
+        poll_interval_seconds=5,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=False,
+        keep_running=True,
+        heartbeat_interval_seconds=60,
+    )
+    runner = module.TestnetSoakRunner(args)
+    commands: list[list[str]] = []
+
+    def fake_run_command(name, command, **kwargs):
+        commands.append(command)
+        stdout_path = runner.output_dir / f"{name}.stdout.log"
+        stdout_path.write_text(
+            "Execution subscriber enabled: spot_testnet\nOrder Router starting in testnet mode\n",
+            encoding="utf-8",
+        )
+        stderr_path = runner.output_dir / f"{name}.stderr.log"
+        stderr_path.write_text("", encoding="utf-8")
+        return module.CommandResult(
+            returncode=0,
+            stdout_path=str(stdout_path),
+            stderr_path=str(stderr_path),
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setattr(runner, "_run_command", fake_run_command)
+
+    assert runner.assert_log_signatures() is True
+    assert "--since" in commands[0]
+    assert runner.started_at.isoformat() in commands[0]
+
+
+def test_assert_log_signatures_skips_missing_markers_when_services_not_restarted(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=30,
+        poll_interval_seconds=5,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=False,
+        keep_running=True,
+        heartbeat_interval_seconds=60,
+    )
+    runner = module.TestnetSoakRunner(args)
+    compose_up_stdout = runner.output_dir / "compose_up.stdout.log"
+    compose_up_stdout.write_text("", encoding="utf-8")
+    compose_up_stderr = runner.output_dir / "compose_up.stderr.log"
+    compose_up_stderr.write_text(
+        "\n".join(
+            [
+                " Container trading-engine-dev  Running",
+                " Container trading-router-dev  Running",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    runner._record(
+        module.CheckResult(
+            name="compose_up",
+            status="pass",
+            message="stack started",
+            artifacts=[str(compose_up_stdout), str(compose_up_stderr)],
+        )
+    )
+
+    def fake_run_command(name, command, **kwargs):
+        stdout_path = runner.output_dir / f"{name}.stdout.log"
+        stdout_path.write_text("", encoding="utf-8")
+        stderr_path = runner.output_dir / f"{name}.stderr.log"
+        stderr_path.write_text("", encoding="utf-8")
+        return module.CommandResult(
+            returncode=0,
+            stdout_path=str(stdout_path),
+            stderr_path=str(stderr_path),
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setattr(runner, "_run_command", fake_run_command)
+
+    assert runner.assert_log_signatures() is True
+    assert runner.results[-1].name == "log_assertions"
+    assert runner.results[-1].status == "skip"
+
+
+def test_collect_compose_logs_scopes_to_run_start(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=30,
+        poll_interval_seconds=5,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=False,
+        keep_running=True,
+        heartbeat_interval_seconds=60,
+    )
+    runner = module.TestnetSoakRunner(args)
+    commands: list[list[str]] = []
+
+    def fake_run_command(name, command, **kwargs):
+        commands.append(command)
+        stdout_path = runner.output_dir / f"{name}.stdout.log"
+        stdout_path.write_text("", encoding="utf-8")
+        stderr_path = runner.output_dir / f"{name}.stderr.log"
+        stderr_path.write_text("", encoding="utf-8")
+        return module.CommandResult(
+            returncode=0,
+            stdout_path=str(stdout_path),
+            stderr_path=str(stderr_path),
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setattr(runner, "_run_command", fake_run_command)
+
+    runner.collect_compose_logs()
+
+    assert "--since" in commands[0]
+    assert runner.started_at.isoformat() in commands[0]
+
+
+def test_collect_compose_logs_records_critical_runtime_incidents(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=30,
+        poll_interval_seconds=5,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=False,
+        keep_running=True,
+        heartbeat_interval_seconds=60,
+    )
+    runner = module.TestnetSoakRunner(args)
+
+    def fake_run_command(name, command, **kwargs):
+        stdout_path = runner.output_dir / f"{name}.stdout.log"
+        stdout_path.write_text(
+            "\n".join(
+                [
+                    'app.engine.adapters.alert.bff_api_client - ERROR - BffApiClient POST /api/signals/alert failed: 401 {"message":"Unauthorized","statusCode":401}',
+                    "app.engine.adapters.db.timescale_adapter - ERROR - Error upserting order: client_order_id=abc123",
+                    "router - ERR Failed to persist bracket intent",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        stderr_path = runner.output_dir / f"{name}.stderr.log"
+        stderr_path.write_text("", encoding="utf-8")
+        return module.CommandResult(
+            returncode=0,
+            stdout_path=str(stdout_path),
+            stderr_path=str(stderr_path),
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setattr(runner, "_run_command", fake_run_command)
+
+    runner.collect_compose_logs()
+
+    runtime_result = runner.results[-1]
+    assert runtime_result.name == "runtime_incidents"
+    assert runtime_result.status == "fail"
+    assert runtime_result.details["incident_count"] == 3
+    assert {incident["key"] for incident in runtime_result.details["incidents"]} == {
+        "alert_auth_401",
+        "engine_order_persistence",
+        "router_bracket_intent_persistence",
+    }
 
 
 def test_monitor_window_records_interrupted_status_when_stop_requested(monkeypatch):
@@ -585,6 +926,100 @@ def test_monitor_window_records_interrupted_status_when_stop_requested(monkeypat
     assert monitor_result.status == "fail"
     assert "interrupted" in monitor_result.message.lower()
     assert monitor_result.details["termination_signal"] == "SIGTERM"
+
+
+def test_monitor_window_records_health_probe_failure_before_summary(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=2,
+        poll_interval_seconds=1,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=False,
+        keep_running=True,
+        heartbeat_interval_seconds=5,
+        critical_health_failure_threshold=2,
+    )
+    runner = module.TestnetSoakRunner(args)
+
+    state = {"now": 0.0}
+
+    def fake_monotonic():
+        return state["now"]
+
+    def fake_sleep(seconds: float):
+        state["now"] += seconds
+
+    def fake_request_json(url, **kwargs):
+        if url == runner.health_urls["bff"]:
+            raise URLError("connection refused")
+        return 200, "{}"
+
+    monkeypatch.setattr(module.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(module.time, "sleep", fake_sleep)
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+
+    runner.monitor_window()
+
+    assert runner.results[0].name == "health:bff"
+    assert runner.results[0].status == "fail"
+    assert runner.results[0].details["consecutive_failures"] == 1
+    assert runner.results[-1].name == "monitor_window"
+    assert runner.results[-1].status == "fail"
+
+
+def test_run_fails_and_writes_final_report_when_wall_clock_budget_exceeded(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+
+    args = argparse.Namespace(
+        compose_file="docker-compose.dev.yml",
+        duration_seconds=1,
+        poll_interval_seconds=1,
+        output_dir=tempfile.mkdtemp(),
+        skip_preflight_tests=True,
+        enable_order_smoke=False,
+        keep_running=True,
+        heartbeat_interval_seconds=5,
+    )
+    runner = module.TestnetSoakRunner(args)
+    runner.started_at = module.datetime.now(module.UTC) - timedelta(seconds=10)
+
+    state = {"now": 0.0}
+
+    def fake_monotonic():
+        return state["now"]
+
+    def fake_sleep(seconds: float):
+        state["now"] += seconds
+
+    monkeypatch.setattr(module.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(module.time, "sleep", fake_sleep)
+    monkeypatch.setattr(runner, "_request_json", lambda *args, **kwargs: (200, "{}"))
+    monkeypatch.setattr(runner, "validate_environment", lambda: True)
+    monkeypatch.setattr(runner, "start_stack", lambda: True)
+    monkeypatch.setattr(runner, "check_stack_health", lambda: True)
+    monkeypatch.setattr(runner, "assert_log_signatures", lambda: True)
+    monkeypatch.setattr(runner, "maybe_run_order_smoke", lambda: None)
+    monkeypatch.setattr(runner, "collect_compose_logs", lambda: None)
+    monkeypatch.setattr(runner, "maybe_shutdown", lambda: None)
+
+    report = runner.run()
+
+    assert report["overall_status"] == "fail"
+    assert report["run_state"] == "completed"
+    assert any(
+        result["name"] == "monitor_window" and "wall-clock" in result["message"].lower()
+        for result in report["results"]
+    )
+    assert runner.report_path.exists()
 
 
 def test_build_recommendations_deduplicates_identical_entries():

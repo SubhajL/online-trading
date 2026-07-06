@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DatabaseSchemaVerifierService } from './database-schema-verifier.service';
 
 @Module({
   imports: [
@@ -20,5 +21,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       }),
     }),
   ],
+  providers: [DatabaseSchemaVerifierService],
 })
 export class DatabaseModule {}

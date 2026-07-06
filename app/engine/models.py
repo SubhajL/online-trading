@@ -688,6 +688,7 @@ class OrderUpdate(BaseModel):
     side: str | None = None
     order_type: str | None = None
     price: Decimal | None = None
+    stop_price: Decimal | None = None
     quantity: Decimal | None = None
     executed_qty: Decimal | None = None
     update_time: datetime | None = None
@@ -695,7 +696,7 @@ class OrderUpdate(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    @field_serializer("price", "quantity", "executed_qty")
+    @field_serializer("price", "stop_price", "quantity", "executed_qty")
     def _ser_update_decimals(self, v: Decimal | None) -> str | None:
         return None if v is None else str(v)
 

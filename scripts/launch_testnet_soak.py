@@ -21,7 +21,7 @@ def build_run_directory(project_root: Path, output_dir: str | None) -> Path:
 
 def wrap_with_caffeinate(command: list[str]) -> list[str]:
     if sys.platform == "darwin":
-        return ["caffeinate", "-i", "--"] + command
+        return ["caffeinate", "-d", "-i", "-m", "--"] + command
     return command
 
 

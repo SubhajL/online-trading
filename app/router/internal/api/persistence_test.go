@@ -90,3 +90,30 @@ func TestBuildBracketOrderIntents_SpotStopLossUsesComputedLimitPrice(t *testing.
 	require.Equal(t, decimal.RequireFromString("1950"), stopLossIntent.StopPrice)
 	require.Equal(t, decimal.RequireFromString("1940.25"), stopLossIntent.Price)
 }
+
+func TestBuildBracketOrderIntents_SpotAllowsMissingStopLossClientOrderIDAfterFailClosedCleanup(t *testing.T) {
+	req := orders.PlaceBracketRequest{
+		Symbol:           "BTCUSDT",
+		Side:             "SELL",
+		Quantity:         decimal.RequireFromString("0.10"),
+		EntryPrice:       decimal.RequireFromString("66432.19"),
+		TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("66018.64")},
+		StopLossPrice:    decimal.RequireFromString("67041.43"),
+		OrderType:        "LIMIT",
+		IsFutures:        false,
+	}
+	resp := orders.PlaceBracketResponse{
+		StopLossLimitPrice: decimal.RequireFromString("67041.43"),
+		ClientOrderIDs: orders.ClientOrderIDs{
+			Main:        "entry",
+			TakeProfits: []string{"tp1"},
+			StopLoss:    "",
+		},
+	}
+
+	intents, err := buildBracketOrderIntents(req, resp)
+	require.NoError(t, err)
+	require.Len(t, intents, 2)
+	require.Equal(t, "entry", intents[0].ClientOrderID)
+	require.Equal(t, "tp1", intents[1].ClientOrderID)
+}
