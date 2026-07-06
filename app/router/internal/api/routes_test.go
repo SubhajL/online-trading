@@ -8,13 +8,11 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestRegisterHealthRoutes(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)
-	mockManager.On("ReconcileOrder", mock.Anything, mock.Anything).Maybe()
 
 	handlers := NewHandlers(mockManager, logger, nil, nil)
 

@@ -58,11 +58,6 @@ func (m *MockOrderManager) ClosePositions(ctx context.Context, req *orders.Close
 	return args.Get(0).(*orders.ClosePositionsResponse), args.Error(1)
 }
 
-func (m *MockOrderManager) ReconcileOrder(ctx context.Context, clientOrderID string) error {
-	args := m.Called(ctx, clientOrderID)
-	return args.Error(0)
-}
-
 func TestHealthzHandler(t *testing.T) {
 	logger := zerolog.Nop()
 	mockManager := new(MockOrderManager)

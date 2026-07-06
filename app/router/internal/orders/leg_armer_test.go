@@ -95,6 +95,27 @@ func (f *fakeArmerStore) UpdateLegStatus(_ context.Context, _ uuid.UUID, clientO
 	return nil
 }
 
+func (f *fakeArmerStore) UpdateLegStatusIf(_ context.Context, _ uuid.UUID, clientOrderID, expected, status string, exchangeOrderID int64) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.record.Legs {
+		if f.record.Legs[i].ClientOrderID != clientOrderID || f.record.Legs[i].Status != expected {
+			continue
+		}
+		f.record.Legs[i].Status = status
+		if exchangeOrderID != 0 {
+			f.record.Legs[i].ExchangeOrderID = exchangeOrderID
+		}
+		f.legUpdates = append(f.legUpdates, clientOrderID+":"+status)
+		if f.legExchangeIDs == nil {
+			f.legExchangeIDs = map[string]int64{}
+		}
+		f.legExchangeIDs[clientOrderID] = exchangeOrderID
+		return true, nil
+	}
+	return false, nil
+}
+
 func (f *fakeArmerStore) UpdateBracketStatus(_ context.Context, _ uuid.UUID, status string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

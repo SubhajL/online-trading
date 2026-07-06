@@ -550,61 +550,6 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	return response, criticalPlacementErr
 }
 
-// ReconcileOrder updates order status from exchange
-func (m *Manager) ReconcileOrder(ctx context.Context, clientOrderID string) error {
-	m.mu.RLock()
-	bracketID, exists := m.ordersByClient[clientOrderID]
-	m.mu.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("order not found: %s", clientOrderID)
-	}
-
-	m.mu.RLock()
-	bracket := m.orders[bracketID]
-	m.mu.RUnlock()
-
-	// Select client
-	client := m.spotClient
-	if bracket.Type == OrderTypeFutures {
-		client = m.futuresClient
-	}
-
-	// Get open orders
-	orders, err := client.GetOpenOrders(ctx, bracket.Symbol)
-	if err != nil {
-		return fmt.Errorf("failed to get open orders: %w", err)
-	}
-
-	// Update status based on exchange data
-	for _, order := range orders {
-		if order.ClientOrderID == clientOrderID {
-			// Emit update if status changed
-			venue := "SPOT"
-			if bracket.Type == OrderTypeFutures {
-				venue = "USD_M"
-			}
-			m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
-				EventType:     "order_update.v1",
-				Venue:         venue,
-				Symbol:        order.Symbol,
-				OrderID:       order.OrderID,
-				ClientOrderID: order.ClientOrderID,
-				Status:        order.Status,
-				Side:          order.Side,
-				OrderType:     order.Type,
-				Price:         order.Price,
-				Quantity:      order.OrigQty,
-				ExecutedQty:   order.ExecutedQty,
-				UpdateTime:    time.Now(),
-			})
-			break
-		}
-	}
-
-	return nil
-}
-
 // CancelOrder cancels an order
 func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 	if req.Symbol == "" {

@@ -178,6 +178,28 @@ func (r *BracketRepo) UpdateLegStatus(
 	return nil
 }
 
+// UpdateLegStatusIf transitions a leg only from the expected status. The
+// reconciler demotes crash-stale PLACING claims with it so a concurrent
+// armer's fresher write can never be overwritten.
+func (r *BracketRepo) UpdateLegStatusIf(
+	ctx context.Context,
+	bracketID uuid.UUID,
+	clientOrderID, expected, status string,
+	exchangeOrderID int64,
+) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE bracket_legs
+		SET status = $4,
+		    exchange_order_id = NULLIF($5, 0),
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1 AND client_order_id = $2 AND status = $3`,
+		bracketID, clientOrderID, expected, status, exchangeOrderID)
+	if err != nil {
+		return false, fmt.Errorf("guarded update bracket leg status: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 // InsertLeg adds a leg to an existing bracket — used for stop slices derived
 // at arm time beyond the single reserved SL leg.
 func (r *BracketRepo) InsertLeg(ctx context.Context, leg BracketLegRecord) error {
