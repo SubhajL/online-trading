@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { path: '/portfolio', label: 'Portfolio', icon: 'work' },
   { path: '/history', label: 'History', icon: 'history' },
   { path: '/analytics', label: 'Analytics', icon: 'bar_chart' },
+  { path: '/soak', label: 'Soak', icon: 'monitor_heart' },
   { path: '/settings', label: 'Settings', icon: 'settings' },
 ] as const
 

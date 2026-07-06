@@ -3,6 +3,7 @@ package orders
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -44,6 +45,20 @@ type StartupReconciler struct {
 	logger        zerolog.Logger
 
 	inFlight chan struct{}
+
+	// Last completed pass, cached for read-only observability (GET
+	// /internal/reconcile) so an operator can see reconciler state without
+	// triggering a mutating pass.
+	mu         sync.Mutex
+	lastResult *ReconcileSummary
+	lastRunAt  time.Time
+}
+
+// ReconcileStatus is the read-only view of the reconciler's last pass.
+type ReconcileStatus struct {
+	HasRun    bool              `json:"has_run"`
+	LastRunAt *time.Time        `json:"last_run_at,omitempty"`
+	Summary   *ReconcileSummary `json:"summary,omitempty"`
 }
 
 func NewStartupReconciler(
@@ -106,7 +121,29 @@ func (r *StartupReconciler) Reconcile(ctx context.Context) (*ReconcileSummary, e
 		Int("stale_reserved", summary.StaleReserved).
 		Int("errors", summary.Errors).
 		Msg("reconciler: pass complete")
+	r.storeResult(summary)
 	return summary, nil
+}
+
+// storeResult caches the last completed pass for read-only observability.
+func (r *StartupReconciler) storeResult(summary *ReconcileSummary) {
+	snapshot := *summary
+	r.mu.Lock()
+	r.lastResult = &snapshot
+	r.lastRunAt = time.Now().UTC()
+	r.mu.Unlock()
+}
+
+// Status returns the read-only view of the last completed reconcile pass.
+func (r *StartupReconciler) Status() ReconcileStatus {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lastResult == nil {
+		return ReconcileStatus{HasRun: false}
+	}
+	summary := *r.lastResult
+	runAt := r.lastRunAt
+	return ReconcileStatus{HasRun: true, LastRunAt: &runAt, Summary: &summary}
 }
 
 func (r *StartupReconciler) clientFor(venue string) *binance.Client {

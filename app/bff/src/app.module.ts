@@ -17,6 +17,7 @@ import { BalancesModule } from './balances/balances.module';
 import { OrdersModule } from './orders/orders.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SignalsModule } from './signals/signals.module';
+import { SoakModule } from './soak/soak.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { SignalsModule } from './signals/signals.module';
     OrdersModule,
     DashboardModule,
     SignalsModule,
+    SoakModule,
   ],
 })
 export class AppModule {}

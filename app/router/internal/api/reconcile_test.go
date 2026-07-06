@@ -16,6 +16,7 @@ import (
 
 type stubReconciler struct {
 	summary *orders.ReconcileSummary
+	status  orders.ReconcileStatus
 	err     error
 	calls   int
 }
@@ -25,13 +26,34 @@ func (s *stubReconciler) Reconcile(_ context.Context) (*orders.ReconcileSummary,
 	return s.summary, s.err
 }
 
-func TestReconcileHandler_RejectsNonPost(t *testing.T) {
+func (s *stubReconciler) Status() orders.ReconcileStatus {
+	return s.status
+}
+
+func TestReconcileHandler_RejectsUnsupportedMethod(t *testing.T) {
 	handler := NewReconcileHandler(&stubReconciler{}, zerolog.Nop())
+
+	rec := httptest.NewRecorder()
+	handler(rec, httptest.NewRequest(http.MethodDelete, "/internal/reconcile", nil))
+
+	assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+}
+
+func TestReconcileHandler_GetReturnsStatusWithoutRunning(t *testing.T) {
+	stub := &stubReconciler{status: orders.ReconcileStatus{
+		HasRun:  true,
+		Summary: &orders.ReconcileSummary{BracketsSwept: 5, UnrepairedLegs: 1},
+	}}
+	handler := NewReconcileHandler(stub, zerolog.Nop())
 
 	rec := httptest.NewRecorder()
 	handler(rec, httptest.NewRequest(http.MethodGet, "/internal/reconcile", nil))
 
-	assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got orders.ReconcileStatus
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	assert.Equal(t, [2]any{true, 1}, [2]any{got.HasRun, got.Summary.UnrepairedLegs})
+	assert.Equal(t, 0, stub.calls, "GET must be read-only — it must not trigger a pass")
 }
 
 func TestReconcileHandler_ReturnsSummary(t *testing.T) {

@@ -403,4 +403,75 @@ describe('RouterClientService', () => {
       });
     });
   });
+
+  describe('getReadiness', () => {
+    const readyResponse = (status: number, body: unknown): AxiosResponse =>
+      ({ data: body, status, statusText: '', headers: {}, config: {} }) as any;
+
+    it('reports ready on 200', async () => {
+      mockHttpService.get.mockReturnValue(of(readyResponse(200, { status: 'ready' })));
+
+      const result = await service.getReadiness();
+
+      expect(mockHttpService.get).toHaveBeenCalledWith('http://localhost:8080/readyz', {
+        timeout: 3000,
+        validateStatus: expect.any(Function),
+      });
+      expect(result).toEqual({ ready: true, status: 'ready' });
+    });
+
+    it('treats 503 as reconciling, not an error', async () => {
+      mockHttpService.get.mockReturnValue(of(readyResponse(503, { status: 'reconciling' })));
+
+      const result = await service.getReadiness();
+
+      expect(result).toEqual({ ready: false, status: 'reconciling' });
+    });
+
+    it('reports unreachable on transport failure', async () => {
+      mockHttpService.get.mockReturnValue(throwError(() => new Error('ECONNREFUSED')));
+
+      const result = await service.getReadiness();
+
+      expect(result).toEqual({ ready: false, status: 'unreachable', error: 'ECONNREFUSED' });
+    });
+
+    it('maps a non-503 error status to unreachable, not reconciling', async () => {
+      // A proxy 502 with no JSON status must not read as "reconciling"
+      mockHttpService.get.mockReturnValue(of(readyResponse(502, {})));
+
+      const result = await service.getReadiness();
+
+      expect(result).toEqual({ ready: false, status: 'unreachable' });
+    });
+  });
+
+  describe('getReconcileStatus', () => {
+    it('GETs the read-only reconcile status with the auth header', async () => {
+      const status = {
+        has_run: true,
+        last_run_at: '2026-07-06T00:00:00Z',
+        summary: {
+          brackets_swept: 2,
+          entries_checked: 1,
+          legs_resolved: 0,
+          exit_legs_updated: 1,
+          brackets_closed: 1,
+          stale_reserved: 0,
+          unrepaired_legs: 0,
+          errors: 0,
+        },
+      };
+      mockHttpService.get.mockReturnValue(
+        of({ data: status, status: 200, statusText: 'OK', headers: {}, config: {} } as any),
+      );
+
+      const result = await service.getReconcileStatus();
+
+      const [url, config] = mockHttpService.get.mock.calls[0];
+      expect(url).toBe('http://localhost:8080/internal/reconcile');
+      expect(config.headers.Authorization).toBe('Bearer router-secret');
+      expect(result).toEqual(status);
+    });
+  });
 });
