@@ -19,6 +19,7 @@ type armerStore interface {
 	GetByLegClientOrderID(ctx context.Context, venue, clientOrderID string) (*storage.BracketRecord, error)
 	TryMarkLegPlacing(ctx context.Context, bracketID uuid.UUID, clientOrderID string) (bool, error)
 	UpdateLegStatus(ctx context.Context, bracketID uuid.UUID, clientOrderID, status string, exchangeOrderID int64) error
+	UpdateLegStatusIf(ctx context.Context, bracketID uuid.UUID, clientOrderID, expected, status string, exchangeOrderID int64) (bool, error)
 	UpdateBracketStatus(ctx context.Context, bracketID uuid.UUID, status string) error
 	InsertLeg(ctx context.Context, leg storage.BracketLegRecord) error
 }

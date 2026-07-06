@@ -265,12 +265,79 @@ func main() {
 		}
 	}
 
+	// The startup reconciler repairs whatever a crash or missed event left
+	// behind in the brackets table before the router reports ready, and
+	// serves on-demand passes via POST /internal/reconcile.
+	var startupReconciler *orders.StartupReconciler
+	if dbPool != nil {
+		reconcileWatcher := entryFillWatcher
+		if reconcileWatcher == nil {
+			// Not started: the reconciler only borrows its entry-phase logic
+			reconcileWatcher = orders.NewEntryFillWatcher(
+				storage.NewBracketRepo(dbPool),
+				spotClient,
+				nil,
+				futuresClient,
+				legArmer,
+				0, // default interval (unused, never started)
+				0, // default lookback
+				logger.With().Str("component", "entry_fill_watcher").Logger(),
+			)
+		}
+		startupReconciler = orders.NewStartupReconciler(
+			storage.NewBracketRepo(dbPool),
+			reconcileWatcher,
+			spotClient,
+			futuresClient,
+			eventEmitter,
+			0, // default lookback
+			logger.With().Str("component", "startup_reconciler").Logger(),
+		)
+	}
+
 	// Create HTTP handlers
 	handlers := api.NewHandlers(orderManager, logger, intentPersister, spotTradeProcessor)
 	if cfg.Binance.Testnet {
 		handlers.SetExecutionEnv("testnet")
 	} else {
 		handlers.SetExecutionEnv("mainnet")
+	}
+
+	if startupReconciler != nil {
+		handlers.SetReady(false)
+		go func() {
+			defer handlers.SetReady(true)
+			const maxAttempts = 3
+			for attempt := 1; attempt <= maxAttempts; attempt++ {
+				reconcileCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				summary, err := startupReconciler.Reconcile(reconcileCtx)
+				cancel()
+				if err == nil {
+					event := logger.Info()
+					if summary.Errors > 0 || summary.UnrepairedLegs > 0 {
+						// Completed the sweep but left work behind; surface it
+						event = logger.Error()
+					}
+					event.
+						Int("brackets_swept", summary.BracketsSwept).
+						Int("legs_resolved", summary.LegsResolved).
+						Int("brackets_closed", summary.BracketsClosed).
+						Int("unrepaired_legs", summary.UnrepairedLegs).
+						Int("errors", summary.Errors).
+						Msg("Startup reconciliation complete")
+					return
+				}
+				logger.Error().Err(err).Int("attempt", attempt).
+					Msg("Startup reconciliation failed")
+				if attempt < maxAttempts {
+					time.Sleep(time.Duration(attempt) * 5 * time.Second)
+				}
+			}
+			// Fail open: a broken DB must not brick deploys. The gap is
+			// repairable via POST /internal/reconcile.
+			logger.Error().Msg("Startup reconciliation exhausted retries; " +
+				"serving anyway — POST /internal/reconcile to repair")
+		}()
 	}
 
 	// Create and configure HTTP server
@@ -292,6 +359,12 @@ func main() {
 		mux.HandleFunc("/stats", api.NewStatsHandler(api.NewPostgresStatsProvider(dbPool), logger))
 		executionQualityHandler := api.NewExecutionQualityHandler(dbPool, logger.With().Str("component", "execution_quality").Logger())
 		mux.HandleFunc("/internal/stats/execution-quality", executionQualityHandler.GetExecutionQuality)
+	}
+	if startupReconciler != nil {
+		mux.HandleFunc(
+			"/internal/reconcile",
+			api.NewReconcileHandler(startupReconciler, logger.With().Str("component", "startup_reconciler").Logger()),
+		)
 	}
 
 	// Create server

@@ -212,6 +212,34 @@ func TestBracketRepo_UpdateBracketStatusIfGuardsTransition(t *testing.T) {
 	assert.False(t, notApplied, "guarded transition must not fire from the wrong state")
 }
 
+func TestBracketRepo_UpdateLegStatusIfGuardsLegTransition(t *testing.T) {
+	repo, ctx := newBracketTestRepo(t)
+	entryID := "it-" + uuid.NewString()[:8]
+	rec, inserted, err := repo.Reserve(ctx, sampleBracket(entryID))
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	require.NoError(t, repo.UpdateLegStatus(ctx, rec.BracketID, entryID+"-tp1", LegStatusPlacing, 0))
+
+	applied, err := repo.UpdateLegStatusIf(ctx, rec.BracketID, entryID+"-tp1", LegStatusPlacing, LegStatusFailed, 0)
+	require.NoError(t, err)
+	assert.True(t, applied, "a PLACING leg must demote to FAILED")
+
+	// A concurrent armer already moved it PLACED: the guard must not fire
+	require.NoError(t, repo.UpdateLegStatus(ctx, rec.BracketID, entryID+"-tp1", LegStatusPlaced, 999))
+	applied, err = repo.UpdateLegStatusIf(ctx, rec.BracketID, entryID+"-tp1", LegStatusPlacing, LegStatusFailed, 0)
+	require.NoError(t, err)
+	assert.False(t, applied, "the demote must lose to a fresher PLACED write")
+
+	found, err := repo.GetByLegClientOrderID(ctx, "SPOT", entryID+"-tp1")
+	require.NoError(t, err)
+	for _, leg := range found.Legs {
+		if leg.ClientOrderID == entryID+"-tp1" {
+			assert.Equal(t, [2]any{LegStatusPlaced, int64(999)}, [2]any{leg.Status, leg.ExchangeOrderID})
+		}
+	}
+}
+
 func TestBracketRepo_InsertLegAddsDerivedStopSlice(t *testing.T) {
 	repo, ctx := newBracketTestRepo(t)
 	entryID := "it-" + uuid.NewString()[:8]

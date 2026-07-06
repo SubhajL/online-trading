@@ -137,11 +137,16 @@ func (w *EntryFillWatcher) checkBracket(ctx context.Context, record *storage.Bra
 		}
 		return
 	}
+	w.checkBracketWithEntry(ctx, record, entry)
+}
 
+// checkBracketWithEntry applies the fill/dead-entry decision to an entry the
+// caller already fetched (the reconciler reuses this after its own lookup).
+func (w *EntryFillWatcher) checkBracketWithEntry(ctx context.Context, record *storage.BracketRecord, entry *binance.OrderResponse) {
 	switch normalizeOrderStatus(entry.Status) {
 	case "FILLED":
 		w.arm(ctx, record, entry)
-	case "CANCELED", "EXPIRED", "REJECTED":
+	case "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH", "REJECTED":
 		if entry.ExecutedQty.IsPositive() {
 			// A partial position exists and must still be protected
 			w.arm(ctx, record, entry)
@@ -155,12 +160,20 @@ func (w *EntryFillWatcher) arm(ctx context.Context, record *storage.BracketRecor
 	if record.Venue == "USD_M" {
 		if w.futures != nil {
 			w.futures.armLegs(ctx, record, entry.ExecutedQty)
+			return
 		}
+	} else if w.spotArmer != nil {
+		w.spotArmer.Arm(ctx, record, entry)
 		return
 	}
-	if w.spotArmer != nil {
-		w.spotArmer.Arm(ctx, record, entry)
-	}
+	// A filled entry with no armer for its venue leaves the position
+	// unprotected; only an engine replay can repair it. Never silent.
+	w.logger.Error().
+		Str("bracket_id", record.BracketID.String()).
+		Str("venue", record.Venue).
+		Str("symbol", record.Symbol).
+		Str("executed_qty", entry.ExecutedQty.String()).
+		Msg("entry fill watcher: entry filled but no armer for venue; position UNPROTECTED")
 }
 
 func (w *EntryFillWatcher) releaseDeadBracket(ctx context.Context, record *storage.BracketRecord) {

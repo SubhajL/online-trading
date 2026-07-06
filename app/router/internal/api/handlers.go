@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -18,7 +19,6 @@ type OrderManager interface {
 	CloseAllPositions(ctx context.Context, req *orders.CloseAllRequest) error
 	CancelOpenOrders(ctx context.Context, req *orders.CancelOpenOrdersRequest) (*orders.CancelOpenOrdersResponse, error)
 	ClosePositions(ctx context.Context, req *orders.ClosePositionsRequest) (*orders.ClosePositionsResponse, error)
-	ReconcileOrder(ctx context.Context, clientOrderID string) error
 }
 
 // Handlers contains all HTTP handlers
@@ -28,11 +28,19 @@ type Handlers struct {
 	executionPersister SpotExecutionPersister
 	logger             zerolog.Logger
 	executionEnv       string
+	notReady           atomic.Bool
 }
 
 // SetExecutionEnv records the execution environment exposed on health responses.
 func (h *Handlers) SetExecutionEnv(env string) {
 	h.executionEnv = env
+}
+
+// SetReady gates /readyz: main flips it false while startup reconciliation
+// runs and back true when the pass completes. Default is ready, so
+// deployments without a reconciler are unaffected.
+func (h *Handlers) SetReady(ready bool) {
+	h.notReady.Store(!ready)
 }
 
 type SpotExecutionPersister interface {
@@ -400,7 +408,14 @@ func (h *Handlers) ReadyzHandler(w http.ResponseWriter, r *http.Request) {
 		Str("remote_addr", r.RemoteAddr).
 		Msg("Readiness check requested")
 
-	// TODO: Check actual readiness (Binance connectivity, etc.)
+	if h.notReady.Load() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"status":  "reconciling",
+			"service": "order-router",
+		})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status":  "ready",
 		"service": "order-router",
