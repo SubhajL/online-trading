@@ -72,11 +72,12 @@ func (f *fakeBracketStore) UpdateLegStatus(_ context.Context, _ uuid.UUID, clien
 	return nil
 }
 
-// bracketExchange serves the futures order endpoints, recording POSTed ids.
+// bracketExchange serves the order endpoints, recording POSTed ids.
 type bracketExchange struct {
 	mu             sync.Mutex
+	orderPath      string // defaults to /fapi/v1/order
 	postedIDs      []string
-	getStatus      int             // GET /fapi/v1/order: 200 live order, else -2013
+	getStatus      int             // GET order: 200 live order, else -2013
 	getOrderStatus string          // order status served on GET 200 (default NEW)
 	getExecutedQty string          // executed qty served on GET 200 (default "0")
 	postDupIDs     map[string]bool // POSTs of these ids are rejected as -4116 duplicates
@@ -90,8 +91,12 @@ func (f *bracketExchange) posted() []string {
 }
 
 func (f *bracketExchange) handler() http.HandlerFunc {
+	orderPath := f.orderPath
+	if orderPath == "" {
+		orderPath = "/fapi/v1/order"
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/fapi/v1/order" {
+		if r.URL.Path != orderPath {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"error":"not found"}`))
 			return
@@ -416,4 +421,70 @@ func TestPlaceBracketOrder_ReplayAdoptedFilledEntryPlacesLegsSynchronously(t *te
 	assert.ElementsMatch(t, []string{"engine-tp-9", "engine-sl-9"}, fake.posted(),
 		"the fill event is gone forever; legs must place now, not wait for it")
 	assert.False(t, resp.LegsPendingTrigger)
+}
+
+func TestPlaceBracketOrder_SpotReplayAdoptedFilledEntryKeepsLegsDeferred(t *testing.T) {
+	store := newFakeBracketStore()
+	store.existingRecord = &storage.BracketRecord{
+		BracketID:          uuid.New(),
+		Venue:              "SPOT",
+		Symbol:             "BTCUSDT",
+		Side:               "BUY",
+		EntryClientOrderID: "engine-main-9",
+		Status:             storage.BracketStatusEntryPlaced,
+		LegsOnFill:         true,
+	}
+	fake := &bracketExchange{
+		orderPath:      "/api/v3/order",
+		getStatus:      http.StatusOK,
+		getOrderStatus: "FILLED",
+		getExecutedQty: "0.02",
+	}
+	server := httptest.NewServer(fake.handler())
+	t.Cleanup(server.Close)
+	signer := auth.NewSignerWithRecvWindow("key", "secret", 5000)
+	spotRest := rest.NewClient(server.URL, signer)
+	spotClient, err := binance.NewSpotClient(server.URL, signer, spotRest, zerolog.Nop())
+	require.NoError(t, err)
+	manager := NewManager(spotClient, nil, nil, zerolog.Nop())
+	manager.SetBracketStore(store)
+	manager.SetSpotLegsOnFill(true)
+
+	req := storeBracketRequest()
+	req.IsFutures = false
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), req)
+
+	require.NoError(t, err)
+	assert.Empty(t, fake.posted(),
+		"a spot replay must neither re-POST the entry nor fall back to the synchronous exit path")
+	assert.True(t, resp.LegsPendingTrigger,
+		"the entry-fill watcher owns spot exits even when the adopted entry is already filled")
+}
+
+func TestPlaceBracketOrder_SpotLegsOnFillDefersExitsForOCO(t *testing.T) {
+	store := newFakeBracketStore()
+	fake := &bracketExchange{orderPath: "/api/v3/order"}
+	server := httptest.NewServer(fake.handler())
+	t.Cleanup(server.Close)
+	signer := auth.NewSignerWithRecvWindow("key", "secret", 5000)
+	spotRest := rest.NewClient(server.URL, signer)
+	spotClient, err := binance.NewSpotClient(server.URL, signer, spotRest, zerolog.Nop())
+	require.NoError(t, err)
+	manager := NewManager(spotClient, nil, nil, zerolog.Nop())
+	manager.SetBracketStore(store)
+	manager.SetSpotLegsOnFill(true)
+
+	req := storeBracketRequest()
+	req.IsFutures = false
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), req)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"engine-main-9"}, fake.posted(),
+		"spot exits must wait for the watcher's OCO placement")
+	assert.True(t, resp.LegsPendingTrigger)
+	require.Len(t, store.reserved, 1)
+	assert.True(t, store.reserved[0].LegsOnFill)
+	assert.Equal(t, []string{storage.BracketStatusEntryPlaced}, store.bracketUpdates)
 }

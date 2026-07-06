@@ -110,6 +110,30 @@ func IsDuplicateClientOrderID(err error) bool {
 	return binanceErr.Code == -4116
 }
 
+// IsPriceRelationRejection reports whether the matching engine rejected an
+// order because the market already sits on the wrong side of its prices —
+// for an OCO exit this means price gapped past a leg before it was placed,
+// so retrying the same prices can never succeed.
+func IsPriceRelationRejection(err error) bool {
+	var binanceErr *BinanceError
+	if !errors.As(err, &binanceErr) {
+		return false
+	}
+	if binanceErr.Code != -2010 && binanceErr.Code != -1010 {
+		return false
+	}
+	for _, msg := range []string{
+		"The relationship of the prices for the orders is not correct",
+		"Order would immediately match and take",
+		"Order would trigger immediately",
+	} {
+		if strings.Contains(binanceErr.Message, msg) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsOrderNotFound reports whether the error is Binance saying the queried
 // order is not visible. NOT proof a submit never landed: freshly accepted
 // orders can lag the query path, so callers must re-poll before acting.

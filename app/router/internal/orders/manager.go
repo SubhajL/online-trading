@@ -36,9 +36,10 @@ type Manager struct {
 	// Durable reservation store; nil keeps in-memory-only idempotency
 	bracketStore BracketStore
 
-	// Defer futures TP/SL placement until the entry fills (requires the
-	// bracket store: planned legs must survive a crash)
-	legsOnFill bool
+	// Defer TP/SL placement until the entry fills (requires the bracket
+	// store: planned legs must survive a crash)
+	legsOnFill     bool // futures, armed by the user-data leg armer
+	spotLegsOnFill bool // spot, armed by the entry-fill watcher via OCO
 
 	// Logger
 	logger zerolog.Logger
@@ -68,12 +69,28 @@ func (m *Manager) SetLegsOnFill(enabled bool) {
 	m.legsOnFill = enabled
 }
 
+// SetSpotLegsOnFill defers spot exits (as OCO pairs) until the entry fills.
+func (m *Manager) SetSpotLegsOnFill(enabled bool) {
+	m.spotLegsOnFill = enabled
+}
+
 // futuresLegsDeferred reports whether this request's exit legs are placed by
 // the leg armer on entry fill instead of synchronously.
 func (m *Manager) futuresLegsDeferred(req *PlaceBracketRequest) bool {
 	return m.legsOnFill &&
 		m.bracketStore != nil &&
 		req.IsFutures &&
+		req.ClientOrderIDs != nil &&
+		req.ClientOrderIDs.Main != ""
+}
+
+// spotLegsDeferred reports whether this request's exits are placed as OCO
+// pairs by the entry-fill watcher instead of synchronously (which
+// double-reserves the base asset across the resting TP and SL).
+func (m *Manager) spotLegsDeferred(req *PlaceBracketRequest) bool {
+	return m.spotLegsOnFill &&
+		m.bracketStore != nil &&
+		!req.IsFutures &&
 		req.ClientOrderIDs != nil &&
 		req.ClientOrderIDs.Main != ""
 }
@@ -348,7 +365,7 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	// is verified against the exchange so it is adopted, never re-POSTed.
 	var reservedBracketID uuid.UUID
 	var adoptedEntry *binance.OrderResponse
-	legsDeferred := m.futuresLegsDeferred(req)
+	legsDeferred := m.futuresLegsDeferred(req) || m.spotLegsDeferred(req)
 	if m.bracketStore != nil && req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
 		record, inserted, reserveErr := m.bracketStore.Reserve(ctx, bracketRecordFromRequest(req, legsDeferred))
 		switch {
@@ -370,12 +387,16 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 				return nil, replayErr
 			}
 			adoptedEntry = entry
-			if adoptedEntry != nil &&
+			if adoptedEntry != nil && req.IsFutures &&
 				(isTerminalOrderStatus(normalizeOrderStatus(adoptedEntry.Status)) ||
 					adoptedEntry.ExecutedQty.IsPositive()) {
-				// The fill event was consumed (or lost) in a previous process
-				// life and will never arrive again — place exit legs now.
-				// A position exists, so ReduceOnly cannot -2022.
+				// The futures fill event was consumed (or lost) in a previous
+				// process life and will never arrive again — place exit legs
+				// now. A position exists, so ReduceOnly cannot -2022.
+				// Spot stays deferred: its trigger is the polling watcher (no
+				// event to lose), and the synchronous spot path would
+				// double-reserve the base asset and fail closed by
+				// market-selling a healthy position.
 				legsDeferred = false
 			}
 		}
@@ -403,13 +424,19 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	}
 
 	// Pre-check algo order count to avoid Binance MAX_NUM_ALGO_ORDERS rejection.
-	// Binance allows 5 algo orders per symbol; a bracket needs at least 1 SL slot.
+	// Binance allows 5 algo orders per symbol. A synchronous bracket needs 1
+	// SL slot; deferred spot exits need one STOP_LOSS_LIMIT per OCO slice.
+	requiredAlgoSlots := 1
+	if legsDeferred && !req.IsFutures && len(req.TakeProfitPrices) > 1 {
+		requiredAlgoSlots = len(req.TakeProfitPrices)
+	}
 	algoCount, algoErr := countAlgoOrders(ctx, client, req.Symbol)
 	if algoErr != nil {
 		m.logger.Warn().Err(algoErr).Str("symbol", req.Symbol).
 			Msg("Algo order count check failed; proceeding with placement")
-	} else if algoCount >= 5 {
-		return nil, fmt.Errorf("too many open algo orders for %s: %d/5", req.Symbol, algoCount)
+	} else if algoCount+requiredAlgoSlots > 5 {
+		return nil, fmt.Errorf("too many open algo orders for %s: %d/5 with %d slots needed",
+			req.Symbol, algoCount, requiredAlgoSlots)
 	}
 
 	// Place the bracket orders
@@ -425,7 +452,7 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 	if req.IsFutures {
 		placement, err = m.placeFuturesBracket(ctx, client, req, bracketID, adoptedEntry, legsDeferred)
 	} else {
-		placement, err = m.placeSpotBracket(ctx, client, req, bracketID, adoptedEntry)
+		placement, err = m.placeSpotBracket(ctx, client, req, bracketID, adoptedEntry, legsDeferred)
 	}
 	response.LegsPendingTrigger = legsDeferred && err == nil
 	if placement != nil {

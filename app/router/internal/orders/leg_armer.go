@@ -13,13 +13,14 @@ import (
 	"router/internal/websocket"
 )
 
-// armerStore is the slice of the bracket store the leg armer needs.
+// armerStore is the slice of the bracket store the leg armers need.
 type armerStore interface {
 	GetByEntryClientOrderID(ctx context.Context, venue, entryClientOrderID string) (*storage.BracketRecord, error)
 	GetByLegClientOrderID(ctx context.Context, venue, clientOrderID string) (*storage.BracketRecord, error)
 	TryMarkLegPlacing(ctx context.Context, bracketID uuid.UUID, clientOrderID string) (bool, error)
 	UpdateLegStatus(ctx context.Context, bracketID uuid.UUID, clientOrderID, status string, exchangeOrderID int64) error
 	UpdateBracketStatus(ctx context.Context, bracketID uuid.UUID, status string) error
+	InsertLeg(ctx context.Context, leg storage.BracketLegRecord) error
 }
 
 // LegArmer places protective TP/SL legs when a deferred bracket's entry

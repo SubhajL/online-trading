@@ -211,3 +211,29 @@ func TestBracketRepo_UpdateBracketStatusIfGuardsTransition(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, notApplied, "guarded transition must not fire from the wrong state")
 }
+
+func TestBracketRepo_InsertLegAddsDerivedStopSlice(t *testing.T) {
+	repo, ctx := newBracketTestRepo(t)
+	entryID := "it-" + uuid.NewString()[:8]
+	rec, inserted, err := repo.Reserve(ctx, sampleBracket(entryID))
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	derived := BracketLegRecord{
+		BracketID:       rec.BracketID,
+		Role:            "SL",
+		ClientOrderID:   entryID + "-sl-1",
+		StopPrice:       decimal.RequireFromString("49000"),
+		Quantity:        decimal.RequireFromString("0.01"),
+		Status:          LegStatusPlaced,
+		ExchangeOrderID: 9009,
+	}
+	require.NoError(t, repo.InsertLeg(ctx, derived))
+	// Conflicting re-insert must be a no-op, not an error
+	require.NoError(t, repo.InsertLeg(ctx, derived))
+
+	found, err := repo.GetByLegClientOrderID(ctx, "SPOT", entryID+"-sl-1")
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Len(t, found.Legs, 4)
+}

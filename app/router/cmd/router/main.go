@@ -203,9 +203,45 @@ func main() {
 	if legArmer != nil {
 		// Deferring legs is only safe when an armer exists to place them
 		orderManager.SetLegsOnFill(true)
+	}
+
+	// The entry-fill watcher is spot's fill trigger (no production spot
+	// user-data stream) and the futures fallback sweep for events missed
+	// while the router was down.
+	var entryFillWatcher *orders.EntryFillWatcher
+	if legsOnFill && dbPool != nil {
+		var spotArmer *orders.SpotLegArmer
+		if spotClient != nil {
+			spotArmer = orders.NewSpotLegArmer(
+				storage.NewBracketRepo(dbPool),
+				spotClient,
+				eventEmitter,
+				logger.With().Str("component", "spot_leg_armer").Logger(),
+			)
+			orderManager.SetSpotLegsOnFill(true)
+			logger.Info().Msg("BRACKET_LEGS_ON_FILL enabled: spot exits placed as OCO on entry fill")
+		}
+		pollInterval := 2 * time.Second
+		if raw := os.Getenv("ENTRY_FILL_POLL_INTERVAL"); raw != "" {
+			if parsed, err := time.ParseDuration(raw); err == nil && parsed > 0 {
+				pollInterval = parsed
+			}
+		}
+		entryFillWatcher = orders.NewEntryFillWatcher(
+			storage.NewBracketRepo(dbPool),
+			spotClient,
+			spotArmer,
+			futuresClient,
+			legArmer,
+			pollInterval,
+			0, // default lookback
+			logger.With().Str("component", "entry_fill_watcher").Logger(),
+		)
+		entryFillWatcher.Start(context.Background())
+		logger.Info().Dur("interval", pollInterval).Msg("Entry fill watcher started")
 	} else if legsOnFill {
-		logger.Warn().Msg("BRACKET_LEGS_ON_FILL set but DATABASE_URL or futures trading " +
-			"is missing; exit legs will place synchronously")
+		logger.Warn().Msg("BRACKET_LEGS_ON_FILL set but DATABASE_URL is missing; " +
+			"exit legs will place synchronously")
 	}
 	var spotReconciler *orders.SpotReconciler
 	if spotClient != nil {
@@ -303,6 +339,9 @@ func main() {
 
 		if userDataIngestor != nil {
 			_ = userDataIngestor.Stop(context.Background())
+		}
+		if entryFillWatcher != nil {
+			entryFillWatcher.Stop()
 		}
 		if fundingCancel != nil {
 			fundingCancel()
