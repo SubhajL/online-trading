@@ -1,5 +1,5 @@
 # Docker Compose configuration for Online Trading Platform
-version: '3.8'
+version: "3.8"
 
 networks:
   trading-network:
@@ -61,7 +61,11 @@ services:
     networks:
       - trading-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trading_user} -d ${POSTGRES_DB:-trading_platform}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-trading_user} -d ${POSTGRES_DB:-trading_platform}",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -147,6 +151,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://${POSTGRES_USER:-trading_user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-trading_platform}
       - SPOT_RECONCILIATION_ENABLED=${SPOT_RECONCILIATION_ENABLED:-true}
+      # Deferred exit legs + startup reconciler; opt-in here (prod may be
+      # mainnet-capable) — flip via the environment after a testnet soak.
+      - BRACKET_LEGS_ON_FILL=${BRACKET_LEGS_ON_FILL:-false}
+      - ENTRY_FILL_POLL_INTERVAL=${ENTRY_FILL_POLL_INTERVAL:-2s}
       - TRADING_MODE=${TRADING_MODE:-paper}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - SECURITY_REQUIRED_API_KEY=${SECURITY_REQUIRED_API_KEY}
@@ -159,7 +167,15 @@ services:
     networks:
       - trading-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8001/healthz"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8001/healthz",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -240,12 +256,12 @@ services:
     container_name: trading-prometheus
     restart: unless-stopped
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=200h"
+      - "--web.enable-lifecycle"
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
