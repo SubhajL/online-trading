@@ -114,6 +114,7 @@ class BacktestRunner:
                 donchian_exit=int(backtest_data.get("donchian_exit", 10)),
                 max_hold_bars=int(backtest_data.get("max_hold_bars", 0)),
                 trend_tp_r=Decimal(str(backtest_data.get("trend_tp_r", 0))),
+                trail_atr_mult=Decimal(str(backtest_data.get("trail_atr_mult", 0))),
                 sizing_mode=str(backtest_data.get("sizing_mode", "risk")),
                 notional_pct=Decimal(str(backtest_data.get("notional_pct", 1))),
                 vol_target_annual_pct=Decimal(

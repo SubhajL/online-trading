@@ -126,6 +126,15 @@ class BacktestSimulator:
             raise ValueError(
                 "sizing_mode='vol_target' requires a positive vol_target_annual_pct",
             )
+        if config.trail_atr_mult > 0:
+            if config.signal_source == "smc_retest":
+                raise ValueError(
+                    "trail_atr_mult is a trend-source knob; smc_retest brackets are static",
+                )
+            if config.atr_stop_mult <= 0:
+                raise ValueError(
+                    "trail_atr_mult requires a positive atr_stop_mult to derive ATR",
+                )
         if config.sizing_mode == "vol_target" and not (
             2 <= config.vol_lookback_bars <= _CANDLE_BUFFER_BARS - 1
         ):
@@ -262,6 +271,8 @@ class BacktestSimulator:
             else None
         )
         if current == desired or (current is None and desired == "FLAT"):
+            if position is not None and current is not None and current == desired:
+                self._ratchet_trailing_stop(target, position, candle)
             return
 
         if current is not None:
@@ -271,6 +282,48 @@ class BacktestSimulator:
 
         signal = self._build_trend_signal(target, desired, candle)
         await self._execute_signal(signal, candle)
+
+    def _ratchet_trailing_stop(
+        self,
+        target: TrendTarget,
+        position: BacktestPosition,
+        candle: Candle,
+    ) -> None:
+        """Tighten the resting stop to close -/+ trail_atr_mult x ATR.
+
+        ATR is recovered from the engine's per-bar target (its stop sits at
+        atr_stop_mult x ATR from the close), so no second ATR stream is kept.
+        The stop only ever moves toward price, never away.
+        """
+        mult = self.config.trail_atr_mult
+        if mult <= 0 or target.entry is None or target.stop_loss is None:
+            return
+        atr = abs(target.entry - target.stop_loss) / self.config.atr_stop_mult
+        if atr <= 0:
+            return
+        stop_order = next(
+            (
+                o
+                for o in self.active_orders
+                if o.symbol == candle.symbol and o.reduce_only and o.type == OrderType.STOP_MARKET
+            ),
+            None,
+        )
+        if stop_order is None or stop_order.stop_price is None:
+            return
+        offset = mult * atr
+        if position.side == "LONG":
+            trail = target.entry - offset
+            if trail <= stop_order.stop_price:
+                return
+        else:
+            trail = target.entry + offset
+            if trail >= stop_order.stop_price:
+                return
+        stop_order.stop_price = trail
+        position.stop_loss = trail
+        position.trail_price = trail
+        position.trail_offset = offset
 
     def _build_trend_signal(
         self,

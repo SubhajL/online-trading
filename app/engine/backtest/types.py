@@ -224,6 +224,10 @@ class BacktestConfig:
     donchian_exit: int = 10
     max_hold_bars: int = 0  # 0 = no timeout exit
     trend_tp_r: Decimal = Decimal(0)  # 0 = no TP leg; let winners run
+    # ATR trailing stop (trend sources only, 0 = disabled): each bar the
+    # resting stop ratchets to close -/+ trail_atr_mult x ATR, tightening
+    # only — the literature's "let winners run with a ratcheting exit".
+    trail_atr_mult: Decimal = Decimal(0)
 
     # Position sizing (trend sources only; "risk" reproduces every historical
     # result byte-for-byte). "notional": qty = equity * notional_pct / entry.
