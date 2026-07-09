@@ -1,0 +1,12 @@
+# v3 sensitivity arm — auto-generated for the 2026-07 experiment.
+backtest:
+  fee_bps_spot: 10
+  slippage_bps: 2
+  funding_model: disabled
+  risk_per_trade: 0.005
+  allow_short: false
+  atr_period: 14
+  atr_stop_mult: 2
+  signal_source: ema_cross
+  ema_fast: 5
+  ema_slow: 20
