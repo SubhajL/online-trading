@@ -97,6 +97,10 @@ class BacktestRunner:
                 cooldown_seconds=int(backtest_data.get("cooldown_seconds", 300)),
                 risk_per_trade=Decimal(str(backtest_data.get("risk_per_trade", "0.005"))),
                 warmup_bars=int(backtest_data.get("warmup_bars", 50)),
+                htf_ema_period=int(backtest_data.get("htf_ema_period", 0)),
+                htf_ema_fast=int(backtest_data.get("htf_ema_fast", 0)),
+                min_stop_bps=Decimal(str(backtest_data.get("min_stop_bps", 0))),
+                invert_signals=bool(backtest_data.get("invert_signals", False)),
                 train_days=backtest_data.get("wfo", {}).get("train_days", 90),
                 test_days=backtest_data.get("wfo", {}).get("test_days", 30),
             )

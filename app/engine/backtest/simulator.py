@@ -143,6 +143,9 @@ class BacktestSimulator:
         self._candles: deque[Candle] = deque(maxlen=200)
         self._bos_events: list[dict[str, Any]] = []
         self._prev_macd_hist: Decimal | None = None
+        # Streaming higher-timeframe trend EMAs for the trend-alignment gate.
+        self._htf_ema: Decimal | None = None
+        self._htf_ema_fast: Decimal | None = None
         self._pending_brackets: dict[UUID, _BracketSpec] = {}
         self._oco_pairs: dict[UUID, UUID] = {}
         self._day_start_equity = initial_balance
@@ -158,6 +161,7 @@ class BacktestSimulator:
         self._process_funding(candle)
 
         self._candles.append(candle)
+        self._update_htf_ema(candle)
         features = self._calculate_features()
 
         await self.smc_engine.process_candle(candle, emit_events=True)
@@ -178,6 +182,78 @@ class BacktestSimulator:
                 await self._execute_signal(signal, candle)
 
         self._update_equity_curve()
+
+    @staticmethod
+    def _advance_ema(prev: Decimal | None, close: Decimal, period: int) -> Decimal:
+        if prev is None:
+            return close
+        k = Decimal(2) / Decimal(period + 1)
+        return close * k + prev * (Decimal(1) - k)
+
+    def _update_htf_ema(self, candle: Candle) -> None:
+        """Advance the streaming trend EMA(s) on each closed bar (O(1))."""
+        if self.config.htf_ema_period > 0:
+            self._htf_ema = self._advance_ema(
+                self._htf_ema, candle.close_price, self.config.htf_ema_period
+            )
+        if self.config.htf_ema_fast > 0:
+            self._htf_ema_fast = self._advance_ema(
+                self._htf_ema_fast, candle.close_price, self.config.htf_ema_fast
+            )
+
+    def _trend_allows(self, direction: str, candle: Candle) -> bool:
+        """Trend-alignment gate: only trade with the trend.
+
+        Over 2024-2026 the SMC signal's counter-trend side (shorting a bull
+        market) was its worst performer; this vetoes those. With htf_ema_fast
+        set, the gate is strict EMA stacking (close > fast > slow for longs).
+        """
+        if self.config.htf_ema_period <= 0 or self._htf_ema is None:
+            return True
+        close = candle.close_price
+        strict = self.config.htf_ema_fast > 0 and self._htf_ema_fast is not None
+        if direction == "LONG":
+            if strict:
+                return close > self._htf_ema_fast > self._htf_ema
+            return close > self._htf_ema
+        if strict:
+            return close < self._htf_ema_fast < self._htf_ema
+        return close < self._htf_ema
+
+    @staticmethod
+    def _invert_signal(signal: dict[str, Any]) -> None:
+        """Diagnostic: mirror the trade around its entry (LONG<->SHORT)."""
+        entry = signal["entry"]
+        risk = abs(entry - signal["stop_loss"])
+        if signal["direction"] == "LONG":
+            signal["direction"] = "SHORT"
+            signal["stop_loss"] = entry + risk
+            signal["tp1"] = entry - risk * Decimal("1.5")
+        else:
+            signal["direction"] = "LONG"
+            signal["stop_loss"] = entry - risk
+            signal["tp1"] = entry + risk * Decimal("1.5")
+
+    def _apply_min_stop_floor(self, signal: dict[str, Any]) -> None:
+        """Widen too-tight structure stops to a fee-aware minimum distance.
+
+        A tight stop forces a huge notional (risk = notional * stop_dist), so
+        fixed fees become a large fraction of the risked amount. Flooring the
+        stop distance shrinks notional and restores the fee/risk ratio.
+        """
+        min_bps = self.config.min_stop_bps
+        if min_bps <= 0:
+            return
+        entry = signal["entry"]
+        stop = signal["stop_loss"]
+        min_dist = entry * min_bps / Decimal(10000)
+        if abs(entry - stop) >= min_dist:
+            return
+        # Widen the stop away from entry on the loss side.
+        if stop < entry:  # LONG: stop below entry
+            signal["stop_loss"] = entry - min_dist
+        else:  # SHORT: stop above entry
+            signal["stop_loss"] = entry + min_dist
 
     def _calculate_features(self) -> dict[str, Decimal] | None:
         if len(self._candles) < self.config.warmup_bars:
@@ -265,7 +341,17 @@ class BacktestSimulator:
         }
 
     async def _execute_signal(self, signal: dict[str, Any], candle: Candle) -> None:
+        if self.config.invert_signals:
+            self._invert_signal(signal)
         direction = signal["direction"]
+
+        if not self._trend_allows(direction, candle):
+            logger.debug(f"Signal vetoed by trend gate: {direction} {candle.symbol}")
+            return
+
+        # Fee-aware stop floor must run before sizing and bracket placement so
+        # the widened stop feeds both.
+        self._apply_min_stop_floor(signal)
 
         allowed, reasons = self.policy_manager.is_trading_allowed(
             candle.close_time,

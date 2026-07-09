@@ -189,6 +189,22 @@ class BacktestConfig:
     risk_per_trade: Decimal = Decimal("0.005")
     warmup_bars: int = 50
 
+    # Strategy variant knobs (0 = disabled)
+    # htf_ema_period: trend-alignment gate — veto signals against a slow EMA
+    #   (long only when close > EMA, short only when close < EMA).
+    # min_stop_bps: fee-aware minimum stop distance in bps of entry price;
+    #   widens too-tight structure stops so notional (and thus fee/risk) drops.
+    htf_ema_period: int = 0
+    # htf_ema_fast: when >0 alongside htf_ema_period, require strict EMA stacking
+    #   (long: close > fast EMA > slow EMA; short mirrored) — a stricter, more
+    #   selective trend gate than the single-EMA version.
+    htf_ema_fast: int = 0
+    min_stop_bps: Decimal = Decimal(0)
+    # Diagnostic only: mirror every trade around its entry (LONG<->SHORT,
+    # stop/target swapped). If inverting turns a loser profitable, the signal
+    # has negative directional edge, not merely zero edge.
+    invert_signals: bool = False
+
     # WFO settings
     train_days: int = 90
     test_days: int = 30
