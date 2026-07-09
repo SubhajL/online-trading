@@ -63,6 +63,10 @@ def sharpe_gap_ci(
             f"strategy and benchmark returns must be 1-d of equal length, "
             f"got {strategy.shape} vs {benchmark.shape}",
         )
+    if strategy.shape[0] < 2:
+        raise ValueError(
+            f"need at least 2 observations to form a Sharpe, got {strategy.shape[0]}",
+        )
     if n_boot < 1:
         raise ValueError(f"n_boot must be positive, got {n_boot}")
     if mean_block < 1:

@@ -78,6 +78,38 @@ def test_trend_params_map_to_new_config(wfo_runner: WFORunner) -> None:
     assert wfo_runner.base_runner.config == base_snapshot
 
 
+def test_sizing_params_map_to_new_config(wfo_runner: WFORunner) -> None:
+    new_config = wfo_runner._update_config_with_params(
+        {
+            "sizing_mode": "notional",
+            "notional_pct": "0.5",
+            "vol_target_annual_pct": 40,
+            "vol_lookback_bars": 30,
+            "max_position_notional_pct": "1.0",
+            "max_symbol_exposure_pct": "0.8",
+            "max_total_exposure_leverage": 2,
+        },
+    )
+
+    assert (
+        new_config.sizing_mode,
+        new_config.notional_pct,
+        new_config.vol_target_annual_pct,
+        new_config.vol_lookback_bars,
+        new_config.max_position_notional_pct,
+        new_config.max_symbol_exposure_pct,
+        new_config.max_total_exposure_leverage,
+    ) == (
+        "notional",
+        Decimal("0.5"),
+        Decimal(40),
+        30,
+        Decimal("1.0"),
+        Decimal("0.8"),
+        Decimal(2),
+    )
+
+
 def test_unknown_params_are_ignored(wfo_runner: WFORunner) -> None:
     base_snapshot = dataclasses.replace(wfo_runner.base_runner.config)
 

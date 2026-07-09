@@ -136,3 +136,16 @@ class TestSharpeGapCI:
                 n_boot=n_boot,
                 mean_block=mean_block,
             )
+
+    @pytest.mark.parametrize("n", [0, 1])
+    def test_too_few_observations_raise(self, n: int) -> None:
+        # Fewer than 2 returns cannot form a Sharpe; fail with a clear message
+        # instead of an IndexError deep in the resampler.
+        returns = np.zeros(n)
+
+        with pytest.raises(ValueError, match="at least 2|observations"):
+            sharpe_gap_ci(
+                strategy_returns=returns,
+                benchmark_returns=returns,
+                bars_per_year=365.0,
+            )
