@@ -1,0 +1,13 @@
+# v3 trend experiment — primary arm: DAILY bars, long/cash (maker fees).
+# Lookbacks are in BARS sized for 1d candles; a 1h secondary run must scale x24.
+backtest:
+  fee_bps_spot: 4
+  slippage_bps: 2
+  funding_model: disabled
+  risk_per_trade: 0.005
+  signal_source: tsmom
+  allow_short: false
+  atr_period: 14
+  atr_stop_mult: 2
+  tsmom_lookback: 28
+  tsmom_deadband_bps: 0

@@ -29,6 +29,7 @@ from .capture_bus import CapturingEventBus
 from .costs import CostCalculator
 from .fills import FillEngine
 from .policies import TradingPolicyManager
+from .trend_signals import create_trend_engine
 from .types import (
     BacktestConfig,
     BacktestFill,
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from ..bus import EventBus
+    from .trend_signals import TrendEngine, TrendTarget
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +81,7 @@ class _SimClock:
 @dataclass(frozen=True)
 class _BracketSpec:
     stop_loss: Decimal
-    take_profit: Decimal
+    take_profit: Decimal | None
     direction: str
 
 
@@ -89,6 +91,11 @@ class BacktestSimulator:
         config: BacktestConfig,
         initial_balance: Decimal = Decimal(10000),
     ):
+        if config.invert_signals and config.signal_source != "smc_retest":
+            raise ValueError(
+                "invert_signals is an SMC-only diagnostic and cannot be combined "
+                f"with signal_source={config.signal_source!r}",
+            )
         self.config = config
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
@@ -148,8 +155,13 @@ class BacktestSimulator:
         self._htf_ema_fast: Decimal | None = None
         self._pending_brackets: dict[UUID, _BracketSpec] = {}
         self._oco_pairs: dict[UUID, UUID] = {}
+        self._exit_reason_overrides: dict[UUID, ExitReason] = {}
         self._day_start_equity = initial_balance
         self._current_day: date | None = None
+
+        self._trend_engine: TrendEngine | None = (
+            create_trend_engine(config) if config.signal_source != "smc_retest" else None
+        )
 
     async def process_candle(self, candle: Candle) -> None:
         self.current_time = candle.close_time
@@ -162,6 +174,14 @@ class BacktestSimulator:
 
         self._candles.append(candle)
         self._update_htf_ema(candle)
+
+        if self._trend_engine is not None:
+            self._check_max_hold(candle)
+            target = self._trend_engine.on_bar(candle)
+            await self._apply_trend_target(target, candle)
+            self._update_equity_curve()
+            return
+
         features = self._calculate_features()
 
         await self.smc_engine.process_candle(candle, emit_events=True)
@@ -182,6 +202,125 @@ class BacktestSimulator:
                 await self._execute_signal(signal, candle)
 
         self._update_equity_curve()
+
+    async def _apply_trend_target(self, target: TrendTarget, candle: Candle) -> None:
+        """Diff the engine's desired state against the open position.
+
+        Runs every bar, so an entry blocked by a risk gate is retried on the
+        next bar and a missed flip re-arms itself (self-healing desired state).
+        """
+        if not target.ready:
+            return
+        desired = target.desired
+        if desired == "SHORT" and not self.config.allow_short:
+            desired = "FLAT"
+
+        position = self.positions.get(candle.symbol)
+        current = (
+            position.side
+            if position is not None and position.side and position.quantity > 0
+            else None
+        )
+        if current == desired or (current is None and desired == "FLAT"):
+            return
+
+        if current is not None:
+            self._submit_position_close(candle.symbol, ExitReason.FLIP, candle)
+        if desired == "FLAT":
+            return
+
+        signal = self._build_trend_signal(target, desired, candle)
+        await self._execute_signal(signal, candle)
+
+    def _build_trend_signal(
+        self,
+        target: TrendTarget,
+        direction: str,
+        candle: Candle,
+    ) -> dict[str, Any]:
+        entry = target.entry
+        stop = target.stop_loss
+        if entry is None or stop is None:
+            raise ValueError(f"Trend target for {direction} is missing entry/stop: {target}")
+        tp1: Decimal | None = None
+        if self.config.trend_tp_r > 0:
+            risk = abs(entry - stop)
+            sign = Decimal(1) if direction == "LONG" else Decimal(-1)
+            tp1 = entry + sign * risk * self.config.trend_tp_r
+        return {
+            "venue": candle.venue,
+            "symbol": candle.symbol,
+            "timeframe": candle.timeframe.value,
+            "timestamp": candle.close_time,
+            "direction": direction,
+            "zone_id": f"trend-{self.config.signal_source}",
+            "zone_type": "TREND",
+            "bos_level": entry,
+            "entry": entry,
+            "stop_loss": stop,
+            "tp1": tp1,
+            "tp2": None,
+            "tp3": None,
+        }
+
+    def _submit_position_close(
+        self,
+        symbol: str,
+        reason: ExitReason,
+        candle: Candle,
+    ) -> None:
+        position = self.positions.get(symbol)
+        if position is None or not position.side or position.quantity <= 0:
+            return
+        # A close may already be in flight (e.g. max-hold fired before a flip).
+        if any(
+            o.symbol == symbol and o.reduce_only and o.type == OrderType.MARKET
+            for o in self.active_orders
+        ):
+            return
+        # Cancel resting brackets first: a stale stop swept on the next bar
+        # would double-fill the exit and charge a phantom fee.
+        self._cancel_position_brackets(symbol)
+        close_order = BacktestOrder(
+            symbol=symbol,
+            side=OrderSide.SELL if position.side == "LONG" else OrderSide.BUY,
+            type=OrderType.MARKET,
+            quantity=position.quantity,
+            reduce_only=True,
+            order_time=candle.close_time,
+        )
+        self.active_orders.append(close_order)
+        self._exit_reason_overrides[close_order.id] = reason
+
+    def _cancel_position_brackets(self, symbol: str) -> None:
+        brackets = [
+            o
+            for o in self.active_orders
+            if o.symbol == symbol
+            and o.reduce_only
+            and o.type in (OrderType.STOP_MARKET, OrderType.LIMIT)
+        ]
+        for order in brackets:
+            sibling_id = self._oco_pairs.pop(order.id, None)
+            if sibling_id is not None:
+                self._oco_pairs.pop(sibling_id, None)
+            self._cancel_order(order.id)
+
+    def _check_max_hold(self, candle: Candle) -> None:
+        if self.config.max_hold_bars <= 0:
+            return
+        position = self.positions.get(candle.symbol)
+        if (
+            position is None
+            or not position.side
+            or position.quantity <= 0
+            or position.opened_at is None
+        ):
+            return
+        bar_seconds = _BAR_MINUTES.get(candle.timeframe.value, 5) * 60
+        held_bars = (candle.close_time - position.opened_at).total_seconds() / bar_seconds
+        if held_bars >= self.config.max_hold_bars:
+            self._submit_position_close(candle.symbol, ExitReason.TIMEOUT, candle)
 
     @staticmethod
     def _advance_ema(prev: Decimal | None, close: Decimal, period: int) -> Decimal:
@@ -488,7 +627,8 @@ class BacktestSimulator:
             self._cancel_order(sibling_id)
         self._close_position(
             fill,
-            exit_reason=_EXIT_REASONS.get(fill.fill_reason, ExitReason.MANUAL),
+            exit_reason=self._exit_reason_overrides.pop(order.id, None)
+            or _EXIT_REASONS.get(fill.fill_reason, ExitReason.MANUAL),
         )
 
     def _cancel_order(self, order_id: UUID) -> None:
@@ -547,6 +687,9 @@ class BacktestSimulator:
             reduce_only=True,
             order_time=fill.fill_time,
         )
+        self.active_orders.append(stop_order)
+        if bracket.take_profit is None:
+            return
         tp_order = BacktestOrder(
             symbol=fill.symbol,
             side=exit_side,
@@ -556,7 +699,6 @@ class BacktestSimulator:
             reduce_only=True,
             order_time=fill.fill_time,
         )
-        self.active_orders.append(stop_order)
         self.active_orders.append(tp_order)
         self._oco_pairs[stop_order.id] = tp_order.id
         self._oco_pairs[tp_order.id] = stop_order.id

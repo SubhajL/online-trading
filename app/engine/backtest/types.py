@@ -52,6 +52,7 @@ class ExitReason(Enum):
     SL = "sl"  # Stop loss
     MANUAL = "manual"
     TIMEOUT = "timeout"
+    FLIP = "flip"  # Desired-state reversal closed the position
 
 
 @dataclass
@@ -205,6 +206,25 @@ class BacktestConfig:
     # has negative directional edge, not merely zero edge.
     invert_signals: bool = False
 
+    # Trend-following signal source (lookbacks are in BARS; defaults are
+    # oriented to the primary daily arm — 1h configs must scale them x24).
+    # "smc_retest" keeps the existing SMC pipeline byte-identical.
+    signal_source: str = "smc_retest"  # smc_retest|price_sma|tsmom|ema_cross|donchian
+    # Long/cash is the evidenced form of crypto trend-following; long/short
+    # runs are a diagnostic arm, so SHORT targets degrade to FLAT by default.
+    allow_short: bool = False
+    atr_period: int = 14
+    atr_stop_mult: Decimal = Decimal(2)
+    sma_period: int = 200
+    tsmom_lookback: int = 28
+    tsmom_deadband_bps: Decimal = Decimal(0)
+    ema_fast: int = 10
+    ema_slow: int = 40
+    donchian_entry: int = 20
+    donchian_exit: int = 10
+    max_hold_bars: int = 0  # 0 = no timeout exit
+    trend_tp_r: Decimal = Decimal(0)  # 0 = no TP leg; let winners run
+
     # WFO settings
     train_days: int = 90
     test_days: int = 30
@@ -239,6 +259,12 @@ class BacktestMetrics:
     total_fees: Decimal = Decimal(0)
     total_slippage: Decimal = Decimal(0)
     total_funding: Decimal = Decimal(0)
+
+    # Buy-and-hold benchmark over the identical candle window
+    benchmark_return_pct: Decimal = Decimal(0)
+    benchmark_max_drawdown_pct: Decimal = Decimal(0)
+    benchmark_sharpe_ratio: Decimal | None = None
+    excess_return_pct: Decimal = Decimal(0)
 
     # Runtime
     runtime_ms: int = 0

@@ -1,0 +1,15 @@
+backtest:
+  fee_bps_spot: 10
+  slippage_bps: 2
+  funding_model: disabled
+  pivot_n: 3
+  retest_max_wait_bars: 8
+  cooldown_seconds: 300
+  risk_per_trade: 0.005
+  warmup_bars: 50
+  htf_ema_period: 200
+  min_stop_bps: 0
+  rr:
+    tp_ladder: [{r: 1.5, size: 0.4}, {r: 2.0, size: 0.3}, {r: 3.0, size: 0.3}]
+    move_to_breakeven_on: TP1
+    trail_after: TP2

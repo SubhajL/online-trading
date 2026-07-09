@@ -101,6 +101,19 @@ class BacktestRunner:
                 htf_ema_fast=int(backtest_data.get("htf_ema_fast", 0)),
                 min_stop_bps=Decimal(str(backtest_data.get("min_stop_bps", 0))),
                 invert_signals=bool(backtest_data.get("invert_signals", False)),
+                signal_source=str(backtest_data.get("signal_source", "smc_retest")),
+                allow_short=bool(backtest_data.get("allow_short", False)),
+                atr_period=int(backtest_data.get("atr_period", 14)),
+                atr_stop_mult=Decimal(str(backtest_data.get("atr_stop_mult", 2))),
+                sma_period=int(backtest_data.get("sma_period", 200)),
+                tsmom_lookback=int(backtest_data.get("tsmom_lookback", 28)),
+                tsmom_deadband_bps=Decimal(str(backtest_data.get("tsmom_deadband_bps", 0))),
+                ema_fast=int(backtest_data.get("ema_fast", 10)),
+                ema_slow=int(backtest_data.get("ema_slow", 40)),
+                donchian_entry=int(backtest_data.get("donchian_entry", 20)),
+                donchian_exit=int(backtest_data.get("donchian_exit", 10)),
+                max_hold_bars=int(backtest_data.get("max_hold_bars", 0)),
+                trend_tp_r=Decimal(str(backtest_data.get("trend_tp_r", 0))),
                 train_days=backtest_data.get("wfo", {}).get("train_days", 90),
                 test_days=backtest_data.get("wfo", {}).get("test_days", 30),
             )
@@ -154,8 +167,10 @@ class BacktestRunner:
         # Start data stream
         streaming_dataset.start_stream(symbol, tf, start_dt, end_dt)
 
-        # Run simulation in a single event loop for the whole stream
-        asyncio.run(self._run_simulation(simulator, streaming_dataset))
+        # Run simulation in a single event loop for the whole stream;
+        # collect closes here so the simulator stays pure
+        closes: list[Decimal] = []
+        asyncio.run(self._run_simulation(simulator, streaming_dataset, closes))
 
         # Calculate metrics
         end_time = time.time()
@@ -168,6 +183,7 @@ class BacktestRunner:
             simulator.drawdown_history,
             runtime_ms,
         )
+        metrics_calc.apply_benchmark(metrics, closes)
 
         # Get git SHA and config hash for reproducibility
         git_sha = self._get_git_sha()
@@ -189,6 +205,11 @@ class BacktestRunner:
         logger.info(f"Total Trades: {metrics.total_trades}")
         logger.info(f"Win Rate: {metrics.hit_rate_pct:.1f}%")
         logger.info(f"Profit Factor: {metrics.profit_factor}")
+        logger.info(
+            f"Buy&Hold: {metrics.benchmark_return_pct:.2f}% "
+            f"(maxDD {metrics.benchmark_max_drawdown_pct:.2f}%) | "
+            f"Excess return: {metrics.excess_return_pct:.2f}%",
+        )
 
         return result
 
@@ -196,12 +217,15 @@ class BacktestRunner:
         self,
         simulator: BacktestSimulator,
         streaming_dataset: StreamingDataset,
+        closes: list[Decimal] | None = None,
     ) -> int:
         candle_count = 0
         while streaming_dataset.has_more():
             candle = streaming_dataset.next_candle()
             if candle:
                 await simulator.process_candle(candle)
+                if closes is not None:
+                    closes.append(candle.close_price)
                 candle_count += 1
 
                 if candle_count % 1000 == 0:
@@ -283,6 +307,8 @@ class BacktestRunner:
                 "slippage_bps": float(result.config.slippage_bps),
                 "funding_model": result.config.funding_model,
                 "tp_ladder": result.config.tp_ladder,
+                "signal_source": result.config.signal_source,
+                "allow_short": result.config.allow_short,
             },
             "metrics": {
                 "total_pnl": float(result.metrics.total_pnl),
@@ -314,6 +340,14 @@ class BacktestRunner:
                 "total_fees": float(result.metrics.total_fees),
                 "total_slippage": float(result.metrics.total_slippage),
                 "total_funding": float(result.metrics.total_funding),
+                "benchmark_return_pct": float(result.metrics.benchmark_return_pct),
+                "benchmark_max_drawdown_pct": float(
+                    result.metrics.benchmark_max_drawdown_pct,
+                ),
+                "benchmark_sharpe_ratio": float(result.metrics.benchmark_sharpe_ratio)
+                if result.metrics.benchmark_sharpe_ratio
+                else None,
+                "excess_return_pct": float(result.metrics.excess_return_pct),
             },
         }
 

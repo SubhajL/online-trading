@@ -103,6 +103,48 @@ class MetricsCalculator:
 
         return metrics
 
+    def apply_benchmark(
+        self,
+        metrics: BacktestMetrics,
+        closes: list[Decimal],
+    ) -> BacktestMetrics:
+        """
+        Fill the buy-and-hold benchmark fields from the run's candle closes.
+
+        Uses the same annualization factor as the strategy Sharpe so the two
+        ratios are directly comparable.
+
+        Args:
+            metrics: Metrics object to update (total_pnl_pct must be set)
+            closes: Close prices of every candle the simulator processed
+
+        Returns:
+            The same metrics object, updated in place
+        """
+        if len(closes) < 2:
+            return metrics
+
+        first = closes[0]
+        metrics.benchmark_return_pct = (closes[-1] / first - 1) * Decimal(100)
+
+        peak = first
+        max_dd = Decimal(0)
+        for close in closes:
+            peak = max(peak, close)
+            max_dd = max(max_dd, (peak - close) / peak)
+        metrics.benchmark_max_drawdown_pct = max_dd * Decimal(100)
+
+        returns_array = np.array(
+            [float(closes[i] / closes[i - 1] - 1) for i in range(1, len(closes))],
+        )
+        if returns_array.std() > 0:
+            metrics.benchmark_sharpe_ratio = Decimal(
+                str(returns_array.mean() / returns_array.std() * self._annualization_factor),
+            )
+
+        metrics.excess_return_pct = metrics.total_pnl_pct - metrics.benchmark_return_pct
+        return metrics
+
     def _calculate_trade_stats(
         self,
         trades: list[BacktestTrade],
