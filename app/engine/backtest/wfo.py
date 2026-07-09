@@ -430,6 +430,20 @@ class WFORunner:
         if "warmup_bars" in params:
             updates["warmup_bars"] = int(params["warmup_bars"])
 
+        for int_param in (
+            "tsmom_lookback",
+            "sma_period",
+            "ema_fast",
+            "ema_slow",
+            "donchian_entry",
+            "donchian_exit",
+            "max_hold_bars",
+        ):
+            if int_param in params:
+                updates[int_param] = int(params[int_param])
+        if "atr_stop_mult" in params:
+            updates["atr_stop_mult"] = Decimal(str(params["atr_stop_mult"]))
+
         return dataclasses.replace(self.base_runner.config, **updates)
 
     def _score_result(self, result: BacktestResult) -> float:

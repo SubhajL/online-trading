@@ -49,6 +49,35 @@ def test_params_map_to_new_config_and_base_stays_unmutated(wfo_runner: WFORunner
     assert base == base_snapshot
 
 
+def test_trend_params_map_to_new_config(wfo_runner: WFORunner) -> None:
+    base_snapshot = dataclasses.replace(wfo_runner.base_runner.config)
+
+    new_config = wfo_runner._update_config_with_params(
+        {
+            "tsmom_lookback": 42,
+            "sma_period": 30,
+            "ema_fast": 5,
+            "ema_slow": 20,
+            "donchian_entry": 10,
+            "donchian_exit": 5,
+            "atr_stop_mult": "2.5",
+            "max_hold_bars": 60,
+        },
+    )
+
+    assert (
+        new_config.tsmom_lookback,
+        new_config.sma_period,
+        new_config.ema_fast,
+        new_config.ema_slow,
+        new_config.donchian_entry,
+        new_config.donchian_exit,
+        new_config.atr_stop_mult,
+        new_config.max_hold_bars,
+    ) == (42, 30, 5, 20, 10, 5, Decimal("2.5"), 60)
+    assert wfo_runner.base_runner.config == base_snapshot
+
+
 def test_unknown_params_are_ignored(wfo_runner: WFORunner) -> None:
     base_snapshot = dataclasses.replace(wfo_runner.base_runner.config)
 
