@@ -1,0 +1,11 @@
+# v3 diagnostic long/short arm — auto-generated for the 2026-07 experiment.
+backtest:
+  fee_bps_spot: 4
+  slippage_bps: 2
+  funding_model: disabled
+  risk_per_trade: 0.005
+  allow_short: true
+  atr_period: 14
+  atr_stop_mult: 2
+  signal_source: tsmom
+  tsmom_lookback: 28
