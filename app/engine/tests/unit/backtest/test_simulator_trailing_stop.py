@@ -161,6 +161,14 @@ class TestTrailingStop:
         with pytest.raises(ValueError, match="trail_atr_mult"):
             BacktestSimulator(BacktestConfig(trail_atr_mult=Decimal(1)))
 
+    def test_negative_trail_atr_mult_raises(self) -> None:
+        # A negative multiplier would fall through the >0 guard and silently
+        # disable trailing; reject it instead.
+        with pytest.raises(ValueError, match="trail_atr_mult"):
+            BacktestSimulator(
+                BacktestConfig(signal_source="price_sma", trail_atr_mult=Decimal(-1)),
+            )
+
 
 def test_runner_parses_trail_atr_mult(tmp_path) -> None:
     from app.engine.backtest.runner import BacktestRunner

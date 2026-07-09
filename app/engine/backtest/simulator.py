@@ -126,6 +126,10 @@ class BacktestSimulator:
             raise ValueError(
                 "sizing_mode='vol_target' requires a positive vol_target_annual_pct",
             )
+        if config.trail_atr_mult < 0:
+            raise ValueError(
+                f"trail_atr_mult must be >= 0 (0 disables trailing), got {config.trail_atr_mult}",
+            )
         if config.trail_atr_mult > 0:
             if config.signal_source == "smc_retest":
                 raise ValueError(

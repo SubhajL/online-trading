@@ -62,6 +62,7 @@ def test_trend_params_map_to_new_config(wfo_runner: WFORunner) -> None:
             "donchian_exit": 5,
             "atr_stop_mult": "2.5",
             "max_hold_bars": 60,
+            "trail_atr_mult": "1.5",
         },
     )
 
@@ -74,7 +75,8 @@ def test_trend_params_map_to_new_config(wfo_runner: WFORunner) -> None:
         new_config.donchian_exit,
         new_config.atr_stop_mult,
         new_config.max_hold_bars,
-    ) == (42, 30, 5, 20, 10, 5, Decimal("2.5"), 60)
+        new_config.trail_atr_mult,
+    ) == (42, 30, 5, 20, 10, 5, Decimal("2.5"), 60, Decimal("1.5"))
     assert wfo_runner.base_runner.config == base_snapshot
 
 
