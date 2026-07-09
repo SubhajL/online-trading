@@ -118,6 +118,10 @@ class BacktestSimulator:
                 f"sizing_mode={config.sizing_mode!r} is a trend-source arm; "
                 "smc_retest keeps fixed-fractional risk sizing",
             )
+        if config.sizing_mode == "notional" and config.notional_pct <= 0:
+            raise ValueError(
+                "sizing_mode='notional' requires a positive notional_pct",
+            )
         if config.sizing_mode == "vol_target" and config.vol_target_annual_pct <= 0:
             raise ValueError(
                 "sizing_mode='vol_target' requires a positive vol_target_annual_pct",

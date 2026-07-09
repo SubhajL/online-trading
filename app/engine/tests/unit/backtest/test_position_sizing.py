@@ -68,6 +68,18 @@ class TestAnnualizedVolatility:
     def test_fewer_than_two_closes_returns_none(self) -> None:
         assert annualized_volatility([Decimal(100)], bars_per_year=10_000.0) is None
 
+    @pytest.mark.parametrize(
+        "closes",
+        [
+            [Decimal(100), Decimal(0), Decimal(100)],
+            [Decimal(100), Decimal("-5"), Decimal(100)],
+        ],
+    )
+    def test_non_positive_close_returns_none(self, closes: list[Decimal]) -> None:
+        # A zero/negative close would make the ratio undefined; return None
+        # rather than raising DivisionByZero mid-sizing.
+        assert annualized_volatility(closes, bars_per_year=10_000.0) is None
+
 
 class TestVolTargetQuantity:
     def test_quantity_scales_equity_by_target_over_realized_vol(self) -> None:

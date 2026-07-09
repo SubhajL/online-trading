@@ -191,6 +191,18 @@ class TestSizingValidationAndDefaults:
                 BacktestConfig(signal_source="price_sma", sizing_mode="kelly"),
             )
 
+    def test_notional_requires_positive_notional_pct(self) -> None:
+        # Without this, notional_pct<=0 makes notional_quantity return None and
+        # the arm silently never trades instead of failing loudly.
+        with pytest.raises(ValueError, match="notional_pct"):
+            BacktestSimulator(
+                BacktestConfig(
+                    signal_source="price_sma",
+                    sizing_mode="notional",
+                    notional_pct=Decimal(0),
+                ),
+            )
+
     def test_vol_target_requires_positive_target(self) -> None:
         with pytest.raises(ValueError, match="vol_target_annual_pct"):
             BacktestSimulator(

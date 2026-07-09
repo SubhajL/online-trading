@@ -36,6 +36,8 @@ def annualized_volatility(
     convention as MetricsCalculator's Sharpe, so target and measurement agree."""
     if len(closes) < 2:
         return None
+    if any(close <= 0 for close in closes):
+        return None
     returns = [float(closes[i] / closes[i - 1]) - 1.0 for i in range(1, len(closes))]
     return Decimal(str(statistics.pstdev(returns) * math.sqrt(bars_per_year)))
 
