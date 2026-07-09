@@ -35,11 +35,29 @@ def size_with_exposure_caps(
         return None
 
     risk_amount = equity * risk.risk_per_trade
-    quantity = risk_amount / stop_distance
+    return cap_quantity_with_exposure_caps(
+        quantity=risk_amount / stop_distance,
+        equity=equity,
+        entry_price=entry_price,
+        risk=risk,
+        existing_symbol_exposure_usd=existing_symbol_exposure_usd,
+        existing_total_exposure_usd=existing_total_exposure_usd,
+    )
+
+
+def cap_quantity_with_exposure_caps(
+    *,
+    quantity: Decimal,
+    equity: Decimal,
+    entry_price: Decimal,
+    risk: RiskParameters,
+    existing_symbol_exposure_usd: Decimal = Decimal(0),
+    existing_total_exposure_usd: Decimal = Decimal(0),
+) -> RiskCappedSize:
     original_quantity = quantity
 
     # Cap sizing to notional/exposure limits instead of rejecting outright.
-    # This intentionally risks *less* than risk_per_trade when stops are too tight.
+    # This intentionally risks *less* than the target when caps bind.
     if entry_price and entry_price > 0 and quantity > 0:
         max_qty_candidates = []
 
