@@ -1,0 +1,16 @@
+# sizing arm (ex-ante): donch-20-10, 100% notional, maker fees, daily long/cash
+backtest:
+  fee_bps_spot: 4
+  slippage_bps: 2
+  funding_model: disabled
+  allow_short: false
+  atr_period: 14
+  atr_stop_mult: 2
+  max_position_notional_pct: 1.0
+  max_symbol_exposure_pct: 1.0
+  max_total_exposure_leverage: 3
+  signal_source: donchian
+  donchian_entry: 20
+  donchian_exit: 10
+  sizing_mode: notional
+  notional_pct: 1.0
