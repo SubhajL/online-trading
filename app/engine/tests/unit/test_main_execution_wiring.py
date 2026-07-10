@@ -402,6 +402,123 @@ class TestMainExecutionWiring:
         assert _StubTelegramAdapter.last_kwargs["db_adapter"] is not None
 
 
+def _patch_main_stubs(
+    monkeypatch: pytest.MonkeyPatch,
+    main_mod: Any,
+    ingest_ctor: Any,
+) -> _StubEventBus:
+    bus = _StubEventBus()
+    monkeypatch.setenv("EXECUTION_MODE", "disabled")
+    monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
+    monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+
+    monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
+    monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
+    monkeypatch.setattr(main_mod, "RouterHTTPClient", lambda **_: _StubRouterClient())
+    monkeypatch.setattr(main_mod, "IngestService", lambda **kw: ingest_ctor(**kw))
+    monkeypatch.setattr(main_mod, "FeatureService", lambda **_: _StubAsyncService())
+    monkeypatch.setattr(main_mod, "SMCEngine", lambda **_: _StubAsyncService())
+    monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
+    monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
+    monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
+    monkeypatch.setattr(main_mod, "set_event_bus", lambda *_: None)
+
+    import app.engine.bus as bus_mod
+
+    monkeypatch.setattr(bus_mod, "create_event_bus", lambda: bus)
+    return bus
+
+
+def _stub_cfg() -> _StubConfig:
+    return _StubConfig(
+        database=_StubDatabaseCfg(),
+        redis=_StubRedisCfg(),
+        binance=type("BinanceCfg", (), {"api_key": "", "api_secret": "", "testnet": True})(),
+        risk_parameters=type(
+            "RiskParams",
+            (),
+            {
+                "risk_per_trade": Decimal("0.01"),
+                "max_position_size": Decimal(1),
+            },
+        )(),
+    )
+
+
+_SHARED_INGEST_TIMEFRAME_VALUES = ["5m", "15m", "1h", "4h"]
+
+
+@pytest.mark.asyncio
+class TestTrendLiveMainWiring:
+    """Phase 3a isolation: flag off is inert; flag on leaves shared ingest alone."""
+
+    async def test_trend_live_default_off_registers_no_services(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        main_mod.services.clear()
+        monkeypatch.delenv("TREND_LIVE_ENABLED", raising=False)
+
+        captured: dict[str, Any] = {}
+
+        def ingest_ctor(**kwargs: Any) -> _StubAsyncService:
+            captured["timeframes"] = kwargs.get("timeframes")
+            return _StubAsyncService()
+
+        _patch_main_stubs(monkeypatch, main_mod, ingest_ctor)
+
+        await main_mod.initialize_services(_stub_cfg())  # type: ignore[arg-type]
+
+        assert (
+            [key for key in main_mod.services if key.startswith("trend_")],
+            [tf.value for tf in captured["timeframes"]],
+        ) == ([], _SHARED_INGEST_TIMEFRAME_VALUES)
+
+    async def test_trend_live_flag_on_keeps_shared_ingest_timeframes(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        main_mod.services.clear()
+        monkeypatch.setenv("TREND_LIVE_ENABLED", "1")
+
+        captured: dict[str, Any] = {}
+
+        def ingest_ctor(**kwargs: Any) -> _StubAsyncService:
+            captured["timeframes"] = kwargs.get("timeframes")
+            return _StubAsyncService()
+
+        _patch_main_stubs(monkeypatch, main_mod, ingest_ctor)
+
+        poller = _StubAsyncService()
+
+        async def stub_trend_wiring(**kwargs: Any) -> dict[str, Any]:
+            captured["trend_kwargs"] = kwargs
+            return {
+                "trend_paper_broker": object(),
+                "trend_decision_service": object(),
+                "trend_daily_poller": poller,
+            }
+
+        monkeypatch.setattr(main_mod, "initialize_trend_live_services", stub_trend_wiring)
+
+        await main_mod.initialize_services(_stub_cfg())  # type: ignore[arg-type]
+        await main_mod.start_services()
+
+        assert (
+            sorted(key for key in main_mod.services if key.startswith("trend_")),
+            [tf.value for tf in captured["timeframes"]],
+            poller.started,
+        ) == (
+            ["trend_daily_poller", "trend_decision_service", "trend_paper_broker"],
+            _SHARED_INGEST_TIMEFRAME_VALUES,
+            True,
+        )
+
+
 class TestTelegramExecutionDecisionAlertsDefault:
     """Decision alerts in execution mode are opt-out (default enabled)."""
 

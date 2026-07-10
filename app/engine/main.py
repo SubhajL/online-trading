@@ -38,6 +38,7 @@ from .models import (
 )
 from .retest.engine import RetestEngine
 from .smc.engine import SMCEngine
+from .trend_live.wiring import database_dsn, initialize_trend_live_services
 
 # Configure logging
 logging.basicConfig(
@@ -641,6 +642,16 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
                 poll_interval_seconds,
             )
 
+        # Phase 3a: daily trend co-primaries -> dedicated PaperBroker (paper
+        # only). Flag off (default) returns {} — zero new behavior; flag on
+        # never touches the shared ingest timeframes above.
+        trend_live_services = await initialize_trend_live_services(
+            environ=os.environ,
+            database_url=database_dsn(config.database),
+            db_adapter=db_adapter,
+        )
+        services.update(trend_live_services)
+
         # Initialize alert subscriber (if Telegram configured)
         telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if telegram_bot_token:
@@ -756,6 +767,10 @@ async def start_services() -> None:
 
         await services["decision_publisher"].start()
 
+        if "trend_daily_poller" in services:
+            await services["trend_daily_poller"].start()
+            logger.info("Started trend_daily_poller")
+
         if "pipeline_health" in services:
             await services["pipeline_health"].start()
             logger.info("Started pipeline_health")
@@ -786,6 +801,21 @@ async def start_services() -> None:
 async def shutdown_services() -> None:  # noqa: C901, PLR0912, PLR0915
     """Shutdown all services"""
     try:
+        # Stop the trend poller first: no new daily bars once shutdown begins
+        if "trend_daily_poller" in services:
+            try:
+                await services["trend_daily_poller"].stop()
+                logger.info("Stopped trend_daily_poller")
+            except Exception as e:
+                logger.error(f"Error stopping trend_daily_poller: {e}")
+
+        if "trend_paper_broker" in services:
+            try:
+                await services["trend_paper_broker"].close()
+                logger.info("Closed trend_paper_broker")
+            except Exception as e:
+                logger.error(f"Error closing trend_paper_broker: {e}")
+
         # Stop equity sampler first (before decision publisher stops)
         if "equity_sampler" in services:
             try:
