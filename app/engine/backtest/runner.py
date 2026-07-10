@@ -114,6 +114,21 @@ class BacktestRunner:
                 donchian_exit=int(backtest_data.get("donchian_exit", 10)),
                 max_hold_bars=int(backtest_data.get("max_hold_bars", 0)),
                 trend_tp_r=Decimal(str(backtest_data.get("trend_tp_r", 0))),
+                sizing_mode=str(backtest_data.get("sizing_mode", "risk")),
+                notional_pct=Decimal(str(backtest_data.get("notional_pct", 1))),
+                vol_target_annual_pct=Decimal(
+                    str(backtest_data.get("vol_target_annual_pct", 0)),
+                ),
+                vol_lookback_bars=int(backtest_data.get("vol_lookback_bars", 20)),
+                max_position_notional_pct=Decimal(
+                    str(backtest_data.get("max_position_notional_pct", "0.10")),
+                ),
+                max_symbol_exposure_pct=Decimal(
+                    str(backtest_data.get("max_symbol_exposure_pct", "0.25")),
+                ),
+                max_total_exposure_leverage=Decimal(
+                    str(backtest_data.get("max_total_exposure_leverage", 3)),
+                ),
                 train_days=backtest_data.get("wfo", {}).get("train_days", 90),
                 test_days=backtest_data.get("wfo", {}).get("test_days", 30),
             )
@@ -309,6 +324,13 @@ class BacktestRunner:
                 "tp_ladder": result.config.tp_ladder,
                 "signal_source": result.config.signal_source,
                 "allow_short": result.config.allow_short,
+                "sizing_mode": result.config.sizing_mode,
+                "notional_pct": float(result.config.notional_pct),
+                "vol_target_annual_pct": float(result.config.vol_target_annual_pct),
+                "vol_lookback_bars": result.config.vol_lookback_bars,
+                "max_position_notional_pct": float(result.config.max_position_notional_pct),
+                "max_symbol_exposure_pct": float(result.config.max_symbol_exposure_pct),
+                "max_total_exposure_leverage": float(result.config.max_total_exposure_leverage),
             },
             "metrics": {
                 "total_pnl": float(result.metrics.total_pnl),

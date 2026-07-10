@@ -19,7 +19,11 @@ from ..bus import set_event_bus
 from ..core.signal_cooldown import SignalCooldown
 from ..decision.pretrade_risk import evaluate_pretrade_risk
 from ..decision.risk_state import RiskSnapshot
-from ..decision.sizing import size_with_exposure_caps
+from ..decision.sizing import (
+    RiskCappedSize,
+    cap_quantity_with_exposure_caps,
+    size_with_exposure_caps,
+)
 from ..features.indicators import TechnicalIndicatorsCalculator
 from ..models import Candle, RiskParameters, TimeFrame, TradingDecision
 from ..retest.engine import analyze_retest
@@ -28,7 +32,13 @@ from ..smc_types import StructureBreakEvent
 from .capture_bus import CapturingEventBus
 from .costs import CostCalculator
 from .fills import FillEngine
+from .metrics import bars_per_year
 from .policies import TradingPolicyManager
+from .position_sizing import (
+    annualized_volatility,
+    notional_quantity,
+    vol_target_quantity,
+)
 from .trend_signals import create_trend_engine
 from .types import (
     BacktestConfig,
@@ -50,6 +60,8 @@ if TYPE_CHECKING:
     from .trend_signals import TrendEngine, TrendTarget
 
 logger = logging.getLogger(__name__)
+
+_CANDLE_BUFFER_BARS = 200
 
 _BAR_MINUTES: dict[str, int] = {
     "1m": 1,
@@ -96,6 +108,33 @@ class BacktestSimulator:
                 "invert_signals is an SMC-only diagnostic and cannot be combined "
                 f"with signal_source={config.signal_source!r}",
             )
+        if config.sizing_mode not in {"risk", "notional", "vol_target"}:
+            raise ValueError(
+                f"Unknown sizing_mode {config.sizing_mode!r}; "
+                "expected one of ['notional', 'risk', 'vol_target']",
+            )
+        if config.sizing_mode != "risk" and config.signal_source == "smc_retest":
+            raise ValueError(
+                f"sizing_mode={config.sizing_mode!r} is a trend-source arm; "
+                "smc_retest keeps fixed-fractional risk sizing",
+            )
+        if config.sizing_mode == "notional" and config.notional_pct <= 0:
+            raise ValueError(
+                "sizing_mode='notional' requires a positive notional_pct",
+            )
+        if config.sizing_mode == "vol_target" and config.vol_target_annual_pct <= 0:
+            raise ValueError(
+                "sizing_mode='vol_target' requires a positive vol_target_annual_pct",
+            )
+        if config.sizing_mode == "vol_target" and not (
+            2 <= config.vol_lookback_bars <= _CANDLE_BUFFER_BARS - 1
+        ):
+            raise ValueError(
+                f"vol_lookback_bars must be in [2, {_CANDLE_BUFFER_BARS - 1}]: the "
+                f"candle buffer holds {_CANDLE_BUFFER_BARS} bars and volatility "
+                "needs lookback+1 closes, so values outside that range would "
+                "silently never trade",
+            )
         self.config = config
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
@@ -118,9 +157,10 @@ class BacktestSimulator:
             cooldown_seconds=config.cooldown_seconds,
             clock=self._clock,
         )
-        # Notional/symbol-exposure/open-position caps mirror the live engine
-        # defaults (main.py risk_parameters); daily-loss/drawdown gates and
-        # max_position_size deliberately stay disabled here.
+        # Notional/symbol-exposure/leverage caps default to the live engine
+        # values (main.py risk_parameters) but are config knobs so sizing arms
+        # can lift them; daily-loss/drawdown gates and max_position_size
+        # deliberately stay disabled here.
         self._risk = RiskParameters(
             max_position_size=Decimal(1_000_000_000),
             max_daily_loss=Decimal(1),
@@ -128,9 +168,9 @@ class BacktestSimulator:
             risk_per_trade=config.risk_per_trade,
             max_correlation=Decimal(1),
             max_open_positions=5,
-            max_total_exposure_leverage=Decimal(3),
-            max_symbol_exposure_pct=Decimal("0.25"),
-            max_position_notional_pct=Decimal("0.10"),
+            max_total_exposure_leverage=config.max_total_exposure_leverage,
+            max_symbol_exposure_pct=config.max_symbol_exposure_pct,
+            max_position_notional_pct=config.max_position_notional_pct,
             risk_data_max_age_seconds=86400,
             drawdown_lookback_days=30,
         )
@@ -147,7 +187,7 @@ class BacktestSimulator:
         self.total_slippage = Decimal(0)
         self.total_funding = Decimal(0)
 
-        self._candles: deque[Candle] = deque(maxlen=200)
+        self._candles: deque[Candle] = deque(maxlen=_CANDLE_BUFFER_BARS)
         self._bos_events: list[dict[str, Any]] = []
         self._prev_macd_hist: Decimal | None = None
         # Streaming higher-timeframe trend EMAs for the trend-alignment gate.
@@ -507,11 +547,10 @@ class BacktestSimulator:
         symbol_exposure = self._symbol_exposure_usd()
         total_exposure = sum(symbol_exposure.values(), Decimal(0))
 
-        sized = size_with_exposure_caps(
+        sized = self._size_signal(
+            signal,
+            candle,
             equity=equity,
-            entry_price=signal["entry"],
-            stop_loss=signal["stop_loss"],
-            risk=self._risk,
             existing_symbol_exposure_usd=symbol_exposure.get(candle.symbol, Decimal(0)),
             existing_total_exposure_usd=total_exposure,
         )
@@ -575,6 +614,56 @@ class BacktestSimulator:
         logger.info(
             f"Signal executed: {direction} {candle.symbol} size={sized.quantity}",
         )
+
+    def _size_signal(
+        self,
+        signal: dict[str, Any],
+        candle: Candle,
+        *,
+        equity: Decimal,
+        existing_symbol_exposure_usd: Decimal,
+        existing_total_exposure_usd: Decimal,
+    ) -> RiskCappedSize | None:
+        if self.config.sizing_mode == "risk":
+            return size_with_exposure_caps(
+                equity=equity,
+                entry_price=signal["entry"],
+                stop_loss=signal["stop_loss"],
+                risk=self._risk,
+                existing_symbol_exposure_usd=existing_symbol_exposure_usd,
+                existing_total_exposure_usd=existing_total_exposure_usd,
+            )
+
+        if self.config.sizing_mode == "notional":
+            target = notional_quantity(
+                equity=equity,
+                entry_price=signal["entry"],
+                notional_pct=self.config.notional_pct,
+            )
+        else:
+            target = vol_target_quantity(
+                equity=equity,
+                entry_price=signal["entry"],
+                vol_target_annual_pct=self.config.vol_target_annual_pct,
+                annualized_vol=self._realized_annual_vol(candle),
+            )
+        if target is None or target <= 0:
+            return None
+        return cap_quantity_with_exposure_caps(
+            quantity=target,
+            equity=equity,
+            entry_price=signal["entry"],
+            risk=self._risk,
+            existing_symbol_exposure_usd=existing_symbol_exposure_usd,
+            existing_total_exposure_usd=existing_total_exposure_usd,
+        )
+
+    def _realized_annual_vol(self, candle: Candle) -> Decimal | None:
+        lookback = self.config.vol_lookback_bars
+        if len(self._candles) < lookback + 1:
+            return None
+        closes = [c.close_price for c in self._candles][-(lookback + 1) :]
+        return annualized_volatility(closes, bars_per_year(candle.timeframe))
 
     def _process_order_fills(self, candle: Candle) -> None:
         fills = self.fill_engine.process_order_fills(self.active_orders, candle)

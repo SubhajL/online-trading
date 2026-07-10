@@ -225,6 +225,24 @@ class BacktestConfig:
     max_hold_bars: int = 0  # 0 = no timeout exit
     trend_tp_r: Decimal = Decimal(0)  # 0 = no TP leg; let winners run
 
+    # Position sizing (trend sources only; "risk" reproduces every historical
+    # result byte-for-byte). "notional": qty = equity * notional_pct / entry.
+    # "vol_target": the notional fraction becomes vol_target_annual_pct /
+    # realized annualized close-to-close vol over vol_lookback_bars, so the
+    # position's vol approximates the target. The 2xATR stop stays as the
+    # protective exit in both modes but no longer drives sizing.
+    sizing_mode: str = "risk"  # risk|notional|vol_target
+    notional_pct: Decimal = Decimal(1)
+    vol_target_annual_pct: Decimal = Decimal(0)
+    vol_lookback_bars: int = 20
+
+    # Exposure caps, previously hardcoded to the live-engine defaults
+    # (main.py risk_parameters). Raising them is what makes notional_pct
+    # above 0.10 actually reachable.
+    max_position_notional_pct: Decimal = Decimal("0.10")
+    max_symbol_exposure_pct: Decimal = Decimal("0.25")
+    max_total_exposure_leverage: Decimal = Decimal(3)
+
     # WFO settings
     train_days: int = 90
     test_days: int = 30
