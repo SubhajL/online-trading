@@ -61,9 +61,64 @@ criterion changes.
 
 ## 4. Results
 
-_To be filled by the run commit. No results existed when sections 1–3 were
-committed._
+All 36 rows from `run_hmm_regime_study.py` (2 families × 2 symbols ×
+{ungated, 2-state, 3-state} × {in-sample, causal} × {gated, inverted}). The
+**causal** arm is the only one the verdict rests on.
 
-## 5. Verdict
+### 4.1 Causal arm vs ungated — the adoption test
 
-_To be filled by the run commit._
+| Family  | Symbol | Ungated Sharpe | HMM-2 causal           | ΔSharpe   | HMM-3 causal           | ΔSharpe   |
+| ------- | ------ | -------------- | ---------------------- | --------- | ---------------------- | --------- |
+| tsmom28 | BTC    | 1.30           | 1.22 (dd 46.5, +1858%) | **−0.08** | 1.10 (dd 45.5, +1184%) | **−0.20** |
+| tsmom28 | ETH    | 0.92           | 0.94 (dd 46.3, +1277%) | +0.02     | 1.00 (dd 45.0, +1252%) | +0.08     |
+| sma65   | BTC    | 1.21           | 1.03 (dd 57.5, +1021%) | **−0.18** | 0.84 (dd 59.6, +515%)  | **−0.37** |
+| sma65   | ETH    | 1.05           | 1.07 (dd 45.6, +1994%) | +0.02     | 1.14 (dd 51.0, +1910%) | +0.09     |
+
+No `n_components` setting clears the pre-registered **+0.10 Sharpe on both
+symbols**. The gate consistently _hurts_ BTC (the cleaner trender — the
+causal regime lags the trend and cuts good bars) and helps ETH only
+marginally (max +0.09, short of +0.10). Best joint outcome (3-state) is
+BTC −0.20/−0.37 vs ETH +0.08/+0.09 — a wash-to-negative.
+
+### 4.2 In-sample (lookahead) upper bound
+
+Even _with_ full-sample lookahead the improvements are modest and not joint:
+tsmom28 BTC HMM-3 1.37 (+0.07), sma65 ETH HMM-2 1.22 (+0.17), but the same
+configs leave the other symbol flat or down. Notably the 2-state in-sample
+model on **BTC labels both states trend-on** (both fitted mean-returns ≥ 0 —
+BTC's drift is strong enough that a 2-state full-sample fit finds no
+negative-drift regime), so its gate is a no-op (gated = ungated = 1.30/1.21)
+and its inverted arm is empty (0/0/0). There is little extractable regime
+information to begin with; the causal arm cannot realize even that little.
+
+### 4.3 Falsification (inverted gate)
+
+Inverted causal arms are clearly worse in 7 of 8 cells (Sharpe 0.22–0.67 vs
+gated 0.84–1.22) — but **sma65 BTC 3-state inverts**: the "trend-off" gate
+scores 0.93 > the "trend-on" 0.84. When holding the _off_ regime beats the
+_on_ regime, the state labeling is capturing noise, not a real regime — an
+outright falsification in that cell, reinforcing NO-GO rather than a
+borderline miss.
+
+## 5. Verdict — **NO-GO** (regime gate not adopted)
+
+The causal HMM gate fails the pre-registered adoption bar for every
+configuration: it never delivers +0.10 Sharpe on both symbols, it degrades
+the stronger BTC arm in all four settings, the lookahead upper bound shows
+only thin regime information, and one falsification cell inverts. This
+matches the ADX result (`2026-07-robustness-track-c.md` §2) and the research
+pass in which zero regime claims survived verification.
+
+**Honest counter-observation (does not change the verdict):** the causal
+gate _does_ cut drawdown in several cells — tsmom28 ETH 66.2→45–46%, BTC
+53→45–47% — at a large return cost (tsmom28 BTC +3439%→+1184–1858%). A
+drawdown-first operator could find that trade-off interesting, but the
+pre-registered bar is Sharpe-first and both-symbols, and on that bar this is
+a clean NO-GO. No threshold or criterion was moved to rescue it.
+
+With this, the deferred HMM leg of Track C is **closed as tested-and-rejected**,
+alongside ADX. Both regime levers were given a fair, pre-registered,
+causal test; neither is adopted. The phase-2 robustness column now reads:
+trailing stop tested/rejected, ADX tested/rejected, HMM tested/rejected —
+the base tsmom28 + sma65 long/cash rules stand as specified. Funding-carry /
+on-chain overlays remain deferred research (unchanged).

@@ -21,11 +21,19 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+import sys
 
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 DATA_DIR = ROOT / "data" / "backtest"
+
+from app.engine.backtest.regime import (  # noqa: E402
+    sma_positions,
+    strategy_net_metrics,
+    tsmom_positions,
+)
 
 SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 THRESHOLDS = [15, 20, 25, 30]
@@ -77,37 +85,8 @@ def wilder_adx(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int
     return np.concatenate([[np.nan], adx])  # re-align to close index
 
 
-def tsmom_positions(close: np.ndarray, lookback: int = 28) -> np.ndarray:
-    pos = np.zeros(len(close))
-    pos[lookback:] = (close[lookback:] / close[:-lookback] - 1.0) > 0
-    return pos
-
-
-def sma_positions(close: np.ndarray, period: int = 65) -> np.ndarray:
-    pos = np.zeros(len(close))
-    kernel = np.ones(period) / period
-    sma = np.convolve(close, kernel, mode="valid")
-    pos[period - 1 :] = close[period - 1 :] > sma
-    return pos
-
-
 def net_metrics(close: np.ndarray, positions: np.ndarray) -> tuple[float, float, float]:
-    """(annualized net Sharpe, maxDD %, total return %) for next-bar execution."""
-    bar_returns = np.zeros(len(close))
-    bar_returns[1:] = close[1:] / close[:-1] - 1.0
-    held = np.concatenate([[0.0], positions[:-1]])
-    turnover = np.abs(np.diff(np.concatenate([[0.0], positions])))
-    strategy = held * bar_returns - turnover * COST_PER_SIDE
-    equity = np.cumprod(1.0 + strategy)
-    peak = np.maximum.accumulate(equity)
-    max_dd = float(((peak - equity) / peak).max() * 100.0)
-    total_ret = float((equity[-1] - 1.0) * 100.0)
-    sharpe = (
-        float(strategy.mean() / strategy.std() * np.sqrt(BARS_PER_YEAR))
-        if strategy.std() > 0
-        else 0.0
-    )
-    return sharpe, max_dd, total_ret
+    return strategy_net_metrics(close, positions, COST_PER_SIDE, BARS_PER_YEAR)
 
 
 def main() -> None:
