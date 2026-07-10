@@ -249,6 +249,40 @@ def build_upsert_paper_position(
     return sql, params
 
 
+def cancel_bracket_orders_sql(
+    paper_session_id: UUID,
+    *,
+    symbol: str,
+    now: datetime | None = None,
+) -> tuple[str, list[object]]:
+    """Build SQL to cancel all resting orders in one bracket.
+
+    Cancels every NEW order (entry and exits) for the symbol and
+    paper_session_id, used by the bracket-scoped close so the resting stop
+    cannot fill alongside the close order.
+    """
+    sql = """
+        UPDATE paper_orders
+        SET status = $1, updated_at = $2
+        WHERE paper_session_id = $3
+          AND symbol = $4
+          AND status = $5
+    """
+
+    if now is None:
+        now = datetime.now(UTC)
+
+    params: list[object] = [
+        status_to_db(OrderStatus.CANCELLED),
+        now,
+        paper_session_id,
+        symbol,
+        status_to_db(OrderStatus.NEW),
+    ]
+
+    return sql, params
+
+
 def cancel_oco_siblings_sql(
     paper_session_id: UUID,
     filled_order_id: UUID,

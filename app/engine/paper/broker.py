@@ -36,6 +36,7 @@ from .schema import (
     build_insert_paper_fill,
     build_insert_paper_order,
     build_upsert_paper_position,
+    cancel_bracket_orders_sql,
     cancel_oco_siblings_sql,
     status_from_db,
     status_to_db,
@@ -103,6 +104,12 @@ class CancelRequest(BaseModel):
 class CloseAllRequest(BaseModel):
     symbol: str | None = None
     is_futures: bool = False
+
+
+class ClosePositionRequest(BaseModel):
+    symbol: str
+    paper_session_id: UUID
+    client_order_id: str | None = None
 
 
 class OrderUpdate(BaseModel):
@@ -628,8 +635,8 @@ class PaperBroker:
         All orders in a bracket share the same paper_session_id for OCO tracking.
         TP/SL orders are marked reduce_only=True per schema.
         """
-        if len(request.take_profit_prices) != 1:
-            _raise_http(400, "Exactly one take profit price is required")
+        if len(request.take_profit_prices) > 1:
+            _raise_http(400, "At most one take profit price is supported")
 
         now = datetime.now(UTC)
         bracket_id = uuid4()
@@ -640,7 +647,7 @@ class PaperBroker:
         else:
             client_order_ids = ClientOrderIDs(
                 main=f"paper_{uuid4().hex[:8]}",
-                take_profits=[f"paper_tp_{uuid4().hex[:8]}"],
+                take_profits=[f"paper_tp_{uuid4().hex[:8]}" for _ in request.take_profit_prices],
                 stop_loss=f"paper_sl_{uuid4().hex[:8]}",
             )
         venue = "USD_M" if request.is_futures else "SPOT"
@@ -669,20 +676,22 @@ class PaperBroker:
             )
             orders.append(entry_order)
 
-            # 2. Take profit orders (OCO, reduce_only=True)
-            tp_side = OrderSide.SELL if request.side == "BUY" else OrderSide.BUY
-            tp_order = BacktestOrder(
-                symbol=request.symbol,
-                side=tp_side,
-                type=OrderType.LIMIT,
-                quantity=request.quantity,
-                price=request.take_profit_prices[0],
-                client_order_id=client_order_ids.take_profits[0],
-                status=OrderStatus.NEW,
-                reduce_only=True,
-                order_time=now,
-            )
-            orders.append(tp_order)
+            # 2. Take profit orders (OCO, reduce_only=True); zero-TP brackets
+            # (trend co-primaries: exit on flip/stop) place entry + stop only
+            if request.take_profit_prices:
+                tp_side = OrderSide.SELL if request.side == "BUY" else OrderSide.BUY
+                tp_order = BacktestOrder(
+                    symbol=request.symbol,
+                    side=tp_side,
+                    type=OrderType.LIMIT,
+                    quantity=request.quantity,
+                    price=request.take_profit_prices[0],
+                    client_order_id=client_order_ids.take_profits[0],
+                    status=OrderStatus.NEW,
+                    reduce_only=True,
+                    order_time=now,
+                )
+                orders.append(tp_order)
 
             # 3. Stop loss order (OCO, reduce_only=True)
             sl_side = OrderSide.SELL if request.side == "BUY" else OrderSide.BUY
@@ -775,6 +784,92 @@ class PaperBroker:
         else:
             return {"status": "success"}
 
+    async def _cancel_bracket_resting_orders(self, symbol: str, bracket_id: UUID) -> int:
+        """Cancel every resting NEW order for one (symbol, bracket) in DB and memory."""
+        sql, params = cancel_bracket_orders_sql(bracket_id, symbol=symbol)
+        async with self.db_pool.acquire() as conn:
+            await conn.execute(sql, *params)
+
+        cancelled = 0
+        for client_order_id, order in list(self.active_orders.items()):
+            if (
+                self._order_bracket_ids.get(client_order_id) == bracket_id
+                and order.symbol == symbol
+                and order.status == OrderStatus.NEW
+            ):
+                order.status = OrderStatus.CANCELLED
+                del self.active_orders[client_order_id]
+                del self._order_bracket_ids[client_order_id]
+                self._order_venues.pop(client_order_id, None)
+                await self._publish_order_update(order, "CANCELLED")
+                cancelled += 1
+        return cancelled
+
+    async def close_position(
+        self,
+        symbol: str,
+        bracket_id: UUID,
+        client_order_id: str | None = None,
+    ) -> dict[str, str]:
+        """Close a single bracket's position without touching other brackets.
+
+        Cancels the bracket's resting orders (notably the stop) BEFORE placing
+        the market close, so the same candle cannot fill both exits.
+        """
+        if client_order_id is not None and client_order_id in self.active_orders:
+            return {"status": "duplicate", "client_order_id": client_order_id}
+
+        try:
+            cancelled = await self._cancel_bracket_resting_orders(symbol, bracket_id)
+
+            position = self.positions.get((symbol, bracket_id))
+            if position is None or position.net_quantity.is_zero():
+                return {
+                    "status": "success",
+                    "closed": "false",
+                    "cancelled_orders": str(cancelled),
+                }
+
+            close_side = OrderSide.SELL if position.net_quantity > 0 else OrderSide.BUY
+            close_order = BacktestOrder(
+                symbol=symbol,
+                side=close_side,
+                type=OrderType.MARKET,
+                quantity=abs(position.net_quantity),
+                client_order_id=client_order_id or f"paper_close_{uuid4().hex[:8]}",
+                status=OrderStatus.NEW,
+                reduce_only=True,
+                order_time=datetime.now(UTC),
+            )
+
+            await self._insert_paper_order(close_order, bracket_id)
+            self.active_orders[close_order.client_order_id] = close_order
+            self._order_bracket_ids[close_order.client_order_id] = bracket_id
+            self._order_venues[close_order.client_order_id] = (
+                "USD_M" if position.is_futures else "SPOT"
+            )
+
+            if symbol in self.latest_candles:
+                await self._process_pending_fills(self.latest_candles[symbol])
+
+            logger.info(
+                "Initiated bracket-scoped close for %s (bracket=%s)",
+                symbol,
+                bracket_id,
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("Error closing bracket position")
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        else:
+            return {
+                "status": "success",
+                "closed": "true",
+                "cancelled_orders": str(cancelled),
+            }
+
     async def close_all_positions(self, request: CloseAllRequest) -> dict[str, str]:
         """Close all positions"""
         try:
@@ -844,6 +939,14 @@ def create_paper_broker_app(broker: PaperBroker) -> FastAPI:
     @app.post("/close_all")
     async def close_all_endpoint(request: CloseAllRequest) -> dict[str, str]:
         return await broker.close_all_positions(request)
+
+    @app.post("/close_position")
+    async def close_position_endpoint(request: ClosePositionRequest) -> dict[str, str]:
+        return await broker.close_position(
+            request.symbol,
+            request.paper_session_id,
+            client_order_id=request.client_order_id,
+        )
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
