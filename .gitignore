@@ -542,3 +542,6 @@ artifacts/
 app/router/main
 app/router/server
 data/backtest/
+
+# trend-live paper isolated profile (secrets)
+.env.trend-paper
