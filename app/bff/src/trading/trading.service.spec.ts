@@ -420,7 +420,8 @@ describe('TradingService', () => {
 
       expect(subscribeCallback).toBeDefined();
 
-      await subscribeCallback(orderUpdate);
+      subscribeCallback(orderUpdate);
+      await new Promise(setImmediate);
 
       expect(mockOrderRepository.findByClientOrderId).toHaveBeenCalledWith('main-1', 'USD_M');
       expect(mockOrderRepository.update).toHaveBeenCalledWith(
@@ -594,6 +595,47 @@ describe('TradingService', () => {
           error: 'Network error',
         }),
       );
+    });
+  });
+
+  describe('engine event containment', () => {
+    // Regression: 2026-07-11 soak — async engine-event listeners with
+    // unhandled rejections kill the whole Node process.
+    const flushMicrotasks = async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+
+    it('contains order-update handler failures instead of crashing', async () => {
+      const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
+      jest.spyOn(service as any, 'handleOrderUpdate').mockRejectedValue(new Error('db down'));
+
+      const subscribeCallback = mockEngineClientService.subscribe.mock.calls.find(
+        (call) => call[0] === CONTRACT_TOPICS.orderUpdateV1,
+      )?.[1];
+      expect(subscribeCallback).toBeDefined();
+
+      const result = subscribeCallback({ client_order_id: 'x' });
+      await flushMicrotasks();
+
+      expect(result).toBeUndefined();
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('order update'));
+    });
+
+    it('contains decision handler failures instead of crashing', async () => {
+      const errorSpy = jest.spyOn((service as any).logger, 'error').mockImplementation();
+      jest.spyOn(service as any, 'handleDecisionEvent').mockRejectedValue(new Error('db down'));
+
+      const subscribeCallback = mockEngineClientService.subscribe.mock.calls.find(
+        (call) => call[0] === CONTRACT_TOPICS.decisionV1,
+      )?.[1];
+      expect(subscribeCallback).toBeDefined();
+
+      const result = subscribeCallback({ symbol: 'BTCUSDT' });
+      await flushMicrotasks();
+
+      expect(result).toBeUndefined();
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('decision'));
     });
   });
 });

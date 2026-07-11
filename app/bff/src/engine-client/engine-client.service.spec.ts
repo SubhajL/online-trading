@@ -235,4 +235,13 @@ describe('EngineClientService', () => {
       });
     });
   });
+
+  describe('error event safety', () => {
+    // Regression: 2026-07-11 soak — eventemitter2 throws on an unhandled
+    // 'error' emit, so a Redis blip inside the redis client's error callback
+    // became an uncaught exception that killed the BFF process.
+    it('does not throw when an error event is emitted with no listeners', () => {
+      expect(() => service.emit('error', new Error('redis connection lost'))).not.toThrow();
+    });
+  });
 });

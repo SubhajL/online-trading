@@ -54,13 +54,20 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       this.server.to('alerts').emit('alert.updated', alert);
     });
 
-    // Subscribe to trading events to create alerts
-    this.eventEmitter.on(CONTRACT_TOPICS.decisionV1, async (decision: DecisionEvent) => {
-      await this.createDecisionAlert(decision);
+    // Subscribe to trading events to create alerts. Rejections must be
+    // contained here: an async listener's unhandled rejection kills the
+    // whole Node process (2026-07-11 soak: the first live decision event
+    // crashed the BFF when the alerts insert failed).
+    this.eventEmitter.on(CONTRACT_TOPICS.decisionV1, (decision: DecisionEvent) => {
+      void this.createDecisionAlert(decision).catch((error) => {
+        this.logger.error(`Failed to create decision alert: ${error}`);
+      });
     });
 
-    this.eventEmitter.on(CONTRACT_TOPICS.orderUpdateV1, async (orderUpdate: OrderUpdateEvent) => {
-      await this.createOrderAlert(orderUpdate);
+    this.eventEmitter.on(CONTRACT_TOPICS.orderUpdateV1, (orderUpdate: OrderUpdateEvent) => {
+      void this.createOrderAlert(orderUpdate).catch((error) => {
+        this.logger.error(`Failed to create order alert: ${error}`);
+      });
     });
   }
 
@@ -78,11 +85,17 @@ export class AlertsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     // Join user-specific room for targeted alerts
     client.join(`alerts:${user.sub}`);
 
-    // Send initial unread count
-    const unreadCount = await this.alertsService.getUnreadCount();
+    // Send initial unread count; a DB failure here must not reject out of
+    // handleConnection (Nest discards the promise — rejection kills the process)
+    let unreadCount = 0;
+    try {
+      unreadCount = (await this.alertsService.getUnreadCount()).count;
+    } catch (error) {
+      this.logger.error(`Failed to load unread count: ${error}`);
+    }
     client.emit('connected', {
       message: 'Connected to alerts gateway',
-      unreadCount: unreadCount.count,
+      unreadCount,
     });
   }
 

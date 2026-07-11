@@ -187,15 +187,19 @@ export class TradingService implements OnModuleInit {
   }
 
   private subscribeToEngineEvents() {
-    // Subscribe to decision events from engine
+    // Rejections must be contained: an engine-event listener's unhandled
+    // rejection kills the whole Node process (2026-07-11 soak incident).
     this.engineClient.subscribe(CONTRACT_TOPICS.decisionV1, (event: DecisionEvent) => {
       this.eventEmitter.emit(CONTRACT_TOPICS.decisionV1, event);
-      this.handleDecisionEvent(event);
+      void this.handleDecisionEvent(event).catch((error) => {
+        this.logger.error(`Failed to handle decision event: ${error}`);
+      });
     });
 
-    // Subscribe to order update events
-    this.engineClient.subscribe(CONTRACT_TOPICS.orderUpdateV1, async (event: OrderUpdateV1) => {
-      await this.handleOrderUpdate(event);
+    this.engineClient.subscribe(CONTRACT_TOPICS.orderUpdateV1, (event: OrderUpdateV1) => {
+      void this.handleOrderUpdate(event).catch((error) => {
+        this.logger.error(`Failed to handle order update: ${error}`);
+      });
     });
   }
 
