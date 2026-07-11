@@ -62,6 +62,57 @@ def test_build_runner_command_enables_requested_flags():
     ]
 
 
+def test_build_runner_command_repeats_compose_file_for_each_entry():
+    module = _load_launch_testnet_soak_module()
+
+    args = argparse.Namespace(
+        compose_file=["docker-compose.dev.yml", "docker-compose.soak.yml"],
+        duration_seconds=86400,
+        poll_interval_seconds=15,
+        enable_order_smoke=False,
+        skip_preflight_tests=False,
+        keep_running=False,
+        heartbeat_interval_seconds=120,
+    )
+
+    command = module.build_runner_command(
+        args,
+        Path("/tmp/run-dir"),
+        project_root=Path("/repo-without-venv"),
+    )
+
+    dev_index = command.index("docker-compose.dev.yml")
+    assert command[dev_index - 1] == "--compose-file"
+    soak_index = command.index("docker-compose.soak.yml")
+    assert command[soak_index - 1] == "--compose-file"
+    # -f order determines override precedence: dev first, soak override second
+    assert dev_index < soak_index
+
+
+def test_build_runner_command_defaults_to_dev_plus_soak_override():
+    module = _load_launch_testnet_soak_module()
+
+    args = argparse.Namespace(
+        compose_file=None,
+        duration_seconds=86400,
+        poll_interval_seconds=15,
+        enable_order_smoke=False,
+        skip_preflight_tests=False,
+        keep_running=False,
+        heartbeat_interval_seconds=120,
+    )
+
+    command = module.build_runner_command(
+        args,
+        Path("/tmp/run-dir"),
+        project_root=Path("/repo-without-venv"),
+    )
+
+    dev_index = command.index("docker-compose.dev.yml")
+    soak_index = command.index("docker-compose.soak.yml")
+    assert dev_index < soak_index
+
+
 def test_launch_detached_soak_writes_launcher_metadata(monkeypatch):
     module = _load_launch_testnet_soak_module()
 

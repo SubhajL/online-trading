@@ -1,0 +1,32 @@
+# Soak override: pin monitor-critical services to non-watch commands.
+#
+# The dev stack runs file watchers (engine uvicorn --reload, bff nest
+# --watch, router air) over bind-mounted source. During a multi-day soak any
+# source edit restarts the service; the soak monitor records every missed
+# 15s probe and those failures surface only in the FINAL report, silently
+# dooming the run. The engine watcher also burns ~0.8 CPU core stat-polling
+# the macOS bind mount.
+#
+# Usage:
+#   scripts/launch_testnet_soak.py \
+#     --compose-file docker-compose.dev.yml --compose-file docker-compose.soak.yml ...
+services:
+  engine:
+    command:
+      - uvicorn
+      - app.engine.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+
+  router:
+    # Mirrors .air.toml's build step, then execs the binary so signals reach
+    # the router directly.
+    command:
+      - sh
+      - -c
+      - go build -o ./tmp/router ./cmd/router/main.go && exec ./tmp/router
+
+  bff:
+    command: pnpm run start

@@ -10,6 +10,10 @@ import subprocess
 import sys
 from typing import Any
 
+# Kept in sync with run_testnet_soak.py: the soak override must be on by
+# default so a flag-less launch never boots the watcher stack.
+DEFAULT_COMPOSE_FILES = ("docker-compose.dev.yml", "docker-compose.soak.yml")
+
 
 def build_run_directory(project_root: Path, output_dir: str | None) -> Path:
     if output_dir:
@@ -36,11 +40,12 @@ def build_runner_command(
     *,
     project_root: Path,
 ) -> list[str]:
+    raw_compose = args.compose_file or list(DEFAULT_COMPOSE_FILES)
+    compose_files = [raw_compose] if isinstance(raw_compose, str) else list(raw_compose)
     command = [
         resolve_project_python(project_root),
         "scripts/run_testnet_soak.py",
-        "--compose-file",
-        args.compose_file,
+        *[arg for path in compose_files for arg in ("--compose-file", path)],
         "--duration-seconds",
         str(args.duration_seconds),
         "--poll-interval-seconds",
@@ -98,7 +103,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Launch the testnet soak runner as a detached background process."
     )
-    parser.add_argument("--compose-file", default="docker-compose.dev.yml")
+    parser.add_argument("--compose-file", action="append", default=None)
     parser.add_argument("--duration-seconds", type=int, default=86400)
     parser.add_argument("--poll-interval-seconds", type=int, default=15)
     parser.add_argument("--heartbeat-interval-seconds", type=int, default=60)

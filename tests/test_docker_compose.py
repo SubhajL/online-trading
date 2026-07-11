@@ -1,6 +1,7 @@
-import yaml
-import pytest
 from pathlib import Path
+
+import pytest
+import yaml
 
 
 def test_timescaledb_configuration():
@@ -61,9 +62,7 @@ def test_services_use_timescaledb_connection():
                 break
 
         assert db_url is not None, f"{service_name} should have DATABASE_URL"
-        assert (
-            "postgres:5432" in db_url
-        ), f"{service_name} should connect to postgres service"
+        assert "postgres:5432" in db_url, f"{service_name} should connect to postgres service"
 
 
 def test_monitoring_services_configured():
@@ -101,3 +100,22 @@ def test_engine_and_router_auth_env_are_wired(compose_file: str):
     assert any("ENGINE_INTERNAL_API_TOKEN" in str(var) for var in engine_env)
     assert any("SECURITY_REQUIRED_API_KEY" in str(var) for var in router_env)
     assert any("ENGINE_INTERNAL_API_TOKEN" in str(var) for var in router_env)
+
+
+def test_soak_override_pins_critical_services_to_non_watch_commands():
+    """Watchers restart services on source edits, silently dooming a soak run."""
+    docker_compose_path = Path(__file__).parent.parent / "docker-compose.soak.yml"
+
+    with open(docker_compose_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    services = config["services"]
+    engine_command = services["engine"]["command"]
+    assert "--reload" not in engine_command
+    assert engine_command[0] == "uvicorn"
+
+    router_command = " ".join(services["router"]["command"])
+    assert "air" not in router_command
+    assert "go build" in router_command
+
+    assert services["bff"]["command"] == "pnpm run start"
