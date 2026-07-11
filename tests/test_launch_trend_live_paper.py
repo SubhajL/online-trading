@@ -323,6 +323,10 @@ def test_launch_detached_engine_migrates_then_starts_with_sanitized_env(monkeypa
     assert len(run_calls) == 1
     assert run_calls[0]["command"][-1] == "app/engine/scripts/migrate_db.py"
     assert run_calls[0]["env"]["DATABASE_URL"].endswith(":5433/trend_paper")
+    # migrate_db.py imports app.engine.*; running a script by path does not
+    # put the repo root on sys.path, so the launcher must set PYTHONPATH
+    assert run_calls[0]["env"]["PYTHONPATH"].split(":")[0] == str(temp_root)
+    assert popen_calls[0]["env"]["PYTHONPATH"].split(":")[0] == str(temp_root)
 
     assert port_probes == [8016]
     assert len(popen_calls) == 1

@@ -251,6 +251,10 @@ def launch_detached_engine(
         env_file = root / env_file
     file_env = parse_env_file(env_file)
     env = build_engine_environment(dict(os.environ), file_env)
+    # migrate_db.py imports app.engine.*; script-by-path execution does not
+    # put the repo root on sys.path.
+    inherited_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{root}:{inherited_pythonpath}" if inherited_pythonpath else str(root)
 
     failures = validate_trend_paper_environment(env)
     if failures:
