@@ -444,6 +444,7 @@ class WFORunner:
                 updates[int_param] = int(params[int_param])
         for decimal_param in (
             "atr_stop_mult",
+            "trail_atr_mult",
             "notional_pct",
             "vol_target_annual_pct",
             "max_position_notional_pct",
