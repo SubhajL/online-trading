@@ -278,6 +278,12 @@ def build_recommendations(results: list[CheckResult]) -> list[str]:
                 "Inspect stack logs and health endpoints before retrying; a service failed to become healthy."
             )
             handled = True
+        elif result.status == "warn" and result.name.startswith("health:"):
+            recommendations.append(
+                f"Investigate the unhealthy non-critical service ({result.name}); "
+                "the soak continued because it does not gate the trading pipeline."
+            )
+            handled = True
         elif result.status == "fail" and result.name == "log_assertions":
             recommendations.append(
                 "Review engine/router startup logs; required testnet execution markers were missing or error signatures were present."
@@ -294,7 +300,7 @@ def build_recommendations(results: list[CheckResult]) -> list[str]:
             )
             handled = True
 
-        if result.status == "fail" and not handled:
+        if result.status in ("fail", "warn") and not handled:
             recommendations.append(result.message)
 
     if not recommendations:
@@ -469,13 +475,16 @@ class TestnetSoakRunner:
 
     def _build_report_payload(self, *, report_type: str, run_state: str) -> dict[str, Any]:
         overall_pass = run_state == "completed" and all(
-            result.status == "pass" for result in self.results if result.status != "skip"
+            result.status == "pass"
+            for result in self.results
+            if result.status not in ("skip", "warn")
         )
         payload = {
             "started_at": self.started_at.isoformat(),
             "finished_at": datetime.now(UTC).isoformat(),
             "duration_seconds": self.args.duration_seconds,
             "overall_status": "pass" if overall_pass else "fail",
+            "warnings": sum(1 for result in self.results if result.status == "warn"),
             "report_type": report_type,
             "run_state": run_state,
             "termination_signal": self.termination_signal,
@@ -589,7 +598,9 @@ class TestnetSoakRunner:
         except http.client.HTTPException as exc:
             raise RuntimeError(str(exc)) from exc
 
-    def _wait_for_http(self, name: str, url: str, *, timeout_seconds: int = 120) -> None:
+    def _wait_for_http(
+        self, name: str, url: str, *, timeout_seconds: int = 120, critical: bool = True
+    ) -> None:
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
             try:
@@ -611,7 +622,7 @@ class TestnetSoakRunner:
         self._record(
             CheckResult(
                 name=f"health:{name}",
-                status="fail",
+                status="fail" if critical else "warn",
                 message=f"{name} did not become healthy within timeout",
                 details={"url": url, "timeout_seconds": timeout_seconds},
             )
@@ -791,8 +802,12 @@ class TestnetSoakRunner:
         return status == "pass"
 
     def check_stack_health(self) -> bool:
-        for name in ("engine", "router", "bff", "ui"):
+        for name in ("engine", "router", "bff"):
             self._wait_for_http(name, self.health_urls[name])
+        # The soak validates the engine→router trading pipeline; the UI is a
+        # bystander that monitor_window never probes, so an unhealthy UI is
+        # recorded as a warning instead of aborting a 7-day run.
+        self._wait_for_http("ui", self.health_urls["ui"], critical=False)
         # /readyz is 503 while the startup reconciler runs and flips to 200
         # once it completes, so a passing probe proves C6 reconciliation ran
         # to completion before the stack started taking work. Allow more time
@@ -800,8 +815,8 @@ class TestnetSoakRunner:
         # 2-minute timeout each before failing open (~6.5m worst case), and a
         # slow first sweep must not spuriously fail an otherwise healthy soak.
         self._wait_for_http("router_ready", self.health_urls["router_ready"], timeout_seconds=420)
-        return all(
-            result.status == "pass" for result in self.results if result.name.startswith("health:")
+        return not any(
+            result.status == "fail" for result in self.results if result.name.startswith("health:")
         )
 
     def assert_log_signatures(self) -> bool:

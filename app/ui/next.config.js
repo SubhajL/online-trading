@@ -11,6 +11,8 @@ const nextConfig = {
   },
   async rewrites() {
     const internalApiUrl = process.env.NEXT_INTERNAL_API_URL || 'http://bff:3001/api'
+    // Filesystem routes under src/app/api/ (e.g. /api/health) win over this
+    // afterFiles rewrite, so they are served by the UI itself, not the BFF.
     return [
       {
         source: '/api/:path*',
