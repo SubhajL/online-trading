@@ -31,6 +31,12 @@ except ImportError:  # pragma: no cover - optional dependency in tests
         return None
 
 
+# The soak override MUST be in the default set: without it the dev stack's
+# file watchers (uvicorn --reload / nest --watch / air) restart critical
+# services on any source edit, silently dooming a multi-day run.
+DEFAULT_COMPOSE_FILES = ("docker-compose.dev.yml", "docker-compose.soak.yml")
+
+
 @dataclass(slots=True)
 class CheckResult:
     name: str
@@ -447,7 +453,10 @@ class TestnetSoakRunner:
         raise RuntimeError("Neither docker-compose nor docker compose is available")
 
     def _compose(self, *args: str) -> list[str]:
-        return [*self.compose_cmd, "-f", self.args.compose_file, *args]
+        raw = self.args.compose_file or DEFAULT_COMPOSE_FILES
+        compose_files = [raw] if isinstance(raw, str) else list(raw)
+        file_args = [arg for path in compose_files for arg in ("-f", path)]
+        return [*self.compose_cmd, *file_args, *args]
 
     def _write_text(self, path: Path, content: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1136,8 +1145,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a bounded automated testnet soak.")
     parser.add_argument(
         "--compose-file",
-        default="docker-compose.dev.yml",
-        help="Docker Compose file to use",
+        action="append",
+        default=None,
+        help="Docker Compose file; repeat for override files (default: docker-compose.dev.yml)",
     )
     parser.add_argument(
         "--duration-seconds",
@@ -1181,6 +1191,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if not args.compose_file:
+        args.compose_file = list(DEFAULT_COMPOSE_FILES)
     runner = TestnetSoakRunner(args)
     report = runner.run()
     print(json.dumps(report, indent=2))

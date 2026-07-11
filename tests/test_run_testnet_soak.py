@@ -452,6 +452,35 @@ def test_check_stack_health_fails_when_critical_service_unhealthy(monkeypatch):
     assert runner.check_stack_health() is False
 
 
+def test_compose_supports_multiple_files(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(
+        module, monkeypatch, compose_file=["docker-compose.dev.yml", "docker-compose.soak.yml"]
+    )
+
+    assert runner._compose("up", "-d") == [
+        "docker-compose",
+        "-f",
+        "docker-compose.dev.yml",
+        "-f",
+        "docker-compose.soak.yml",
+        "up",
+        "-d",
+    ]
+
+
+def test_compose_accepts_single_string_for_back_compat(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(module, monkeypatch, compose_file="docker-compose.dev.yml")
+
+    assert runner._compose("logs") == [
+        "docker-compose",
+        "-f",
+        "docker-compose.dev.yml",
+        "logs",
+    ]
+
+
 def test_report_overall_status_treats_warn_as_nonblocking(monkeypatch):
     module = _load_run_testnet_soak_module()
     runner = _make_runner(module, monkeypatch)
