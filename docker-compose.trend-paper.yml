@@ -1,0 +1,49 @@
+# Isolated dependencies for the trend-live paper engine (phase 3a).
+# Separate compose project + volumes: the testnet soak's `down -v` on the
+# dev stack can never destroy paper-trading state, and host ports avoid
+# everything the soak owns (5432/6379/8000/8001/3001/3000).
+# Usage: docker compose --env-file .env.trend-paper -f docker-compose.trend-paper.yml up -d
+name: trend-paper
+
+services:
+  trend-paper-db:
+    # Digest-pinned: a multi-week paper run must not change database version
+    # across container recreations.
+    image: timescale/timescaledb:latest-pg16@sha256:5e3b972218628b5c8a3721792adf3894c4aef67309a312f46c093b4791115fec
+    container_name: trend-paper-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${TREND_PAPER_DB_USER:-trading_user}
+      - POSTGRES_PASSWORD=${TREND_PAPER_DB_PASSWORD:?set TREND_PAPER_DB_PASSWORD in .env.trend-paper}
+      - POSTGRES_DB=${TREND_PAPER_DB_NAME:-trend_paper}
+    ports:
+      - "${TREND_PAPER_DB_PORT:-5433}:5432"
+    volumes:
+      - trend_paper_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${TREND_PAPER_DB_USER:-trading_user} -d ${TREND_PAPER_DB_NAME:-trend_paper}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  trend-paper-redis:
+    image: redis:7-alpine@sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba
+    container_name: trend-paper-redis
+    restart: unless-stopped
+    ports:
+      - "${TREND_PAPER_REDIS_PORT:-6380}:6379"
+    volumes:
+      - trend_paper_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  trend_paper_pg_data:
+  trend_paper_redis_data:

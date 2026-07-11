@@ -45,6 +45,65 @@ TrendDailyCandlePoller started (symbols=BTCUSDT,ETHUSDT, interval=300s)
 Started trend_daily_poller
 ```
 
+## Running alongside the testnet soak (isolated stack)
+
+The `make db-up && make dev-engine` path above assumes it owns the shared
+`.env` and the default host ports. While the 7-day testnet soak runs, both
+belong to the soak (spot_testnet execution, router on 8001, Telegram, ports
+8000/8001/3001/5432/6379) — use the isolated profile instead; it shares
+nothing with the soak stack.
+
+1. Create `.env.trend-paper` at the repo root (gitignored — set a real
+   password in both places):
+
+    ```bash
+    TREND_LIVE_ENABLED=1
+    EXECUTION_MODE=disabled
+    ENABLE_PAPER_TRADING=true
+    BINANCE_DATA_SOURCE=mainnet
+    DATABASE_URL=postgresql://trading_user:CHANGE_ME@localhost:5433/trend_paper
+    REDIS_URL=redis://localhost:6380/0
+    # unroutable on purpose: the engine's /health and /metrics probe
+    # ROUTER_URL, whose default is the soak router on 8001
+    ROUTER_URL=http://127.0.0.1:9
+    TREND_PAPER_ENGINE_PORT=8016
+    TREND_PAPER_DB_USER=trading_user
+    TREND_PAPER_DB_PASSWORD=CHANGE_ME
+    TREND_PAPER_DB_NAME=trend_paper
+    TREND_PAPER_DB_PORT=5433
+    TREND_PAPER_REDIS_PORT=6380
+    ```
+
+2. Start the dedicated TimescaleDB (5433) + Redis (6380) — a separate compose
+   project whose volumes the soak's `docker-compose down -v` can never touch:
+
+    ```bash
+    docker compose --env-file .env.trend-paper -f docker-compose.trend-paper.yml up -d
+    ```
+
+3. Launch the engine detached (validates isolation, runs migrations against
+   5433, starts uvicorn on 127.0.0.1:8016 without --reload, logs + pid under
+   `artifacts/trend-paper/manual-<ts>/`):
+
+    ```bash
+    app/engine/.venv/bin/python scripts/launch_trend_live_paper.py
+    ```
+
+4. Verify: `curl -s http://127.0.0.1:8016/health/simple`, expect the startup
+   log lines from the Enable section in `engine.log`, and run the SQL below
+   against port 5433.
+
+The launcher fails closed on any soak collision: `EXECUTION_MODE` must be
+`disabled` (the paper engine can never reach the soak router),
+`ENABLE_PAPER_TRADING=true` keeps equity sampling in-DB (no router polling),
+`DATABASE_URL`/`REDIS_URL`/engine port must avoid every soak-owned port, and
+Telegram/BFF/router/Binance credentials are stripped from the inherited
+environment (no duplicate alerts, no keys the paper path doesn't need).
+
+To stop: `kill $(python3 -c "import json;print(json.load(open('artifacts/trend-paper/<run>/launcher.json'))['pid'])")`.
+Paper state persists in the `trend-paper` compose project's volumes across
+engine restarts; warmup + recovery make relaunches idempotent.
+
 ## Verify
 
 Daily bars close at 00:00 UTC; the poller picks the new bar up within one
