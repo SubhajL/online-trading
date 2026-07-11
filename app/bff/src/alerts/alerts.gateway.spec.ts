@@ -297,6 +297,60 @@ describe('AlertsGateway', () => {
     });
   });
 
+  describe('alert persistence failures', () => {
+    // Regression: 2026-07-11 soak — first live decision event crashed the
+    // whole BFF process because the async listener's rejection (missing
+    // alerts table) was unhandled.
+    const flushMicrotasks = async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+
+    beforeEach(() => {
+      gateway.afterInit(mockServer);
+      mockAlertsService.create.mockRejectedValue(new Error('relation "alerts" does not exist'));
+    });
+
+    it('contains a rejected decision-alert insert and logs it', async () => {
+      const errorSpy = jest.spyOn((gateway as any).logger, 'error').mockImplementation();
+      const decisionCallback = mockEventEmitter.on.mock.calls.find(
+        (call) => call[0] === CONTRACT_TOPICS.decisionV1,
+      )[1];
+
+      const result = decisionCallback({ symbol: 'ETHUSDT', action: 'open_short', confidence: 0.7 });
+      await flushMicrotasks();
+
+      expect(result).toBeUndefined();
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('decision alert'));
+    });
+
+    it('keeps the connection alive when the unread-count lookup fails', async () => {
+      const errorSpy = jest.spyOn((gateway as any).logger, 'error').mockImplementation();
+      mockAlertsService.getUnreadCount.mockRejectedValue(new Error('db down'));
+
+      await expect(gateway.handleConnection(mockClient)).resolves.toBeUndefined();
+
+      expect(mockClient.emit).toHaveBeenCalledWith('connected', {
+        message: 'Connected to alerts gateway',
+        unreadCount: 0,
+      });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('unread count'));
+    });
+
+    it('contains a rejected order-alert insert and logs it', async () => {
+      const errorSpy = jest.spyOn((gateway as any).logger, 'error').mockImplementation();
+      const orderCallback = mockEventEmitter.on.mock.calls.find(
+        (call) => call[0] === CONTRACT_TOPICS.orderUpdateV1,
+      )[1];
+
+      const result = orderCallback({ orderId: 'o-1', symbol: 'ETHUSDT', status: 'FILLED' });
+      await flushMicrotasks();
+
+      expect(result).toBeUndefined();
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('order alert'));
+    });
+  });
+
   describe('handshake auth middleware', () => {
     it('registers a middleware that rejects token-less sockets with an error', async () => {
       gateway.afterInit(mockServer);

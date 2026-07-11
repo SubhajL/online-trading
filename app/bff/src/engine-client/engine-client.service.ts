@@ -34,7 +34,9 @@ export class EngineClientService extends EventEmitter2 implements OnModuleInit, 
   private isConnected = false;
 
   constructor(private readonly configService: ConfigService) {
-    super();
+    // eventemitter2 throws on an unhandled 'error' emit; our redis/tcp error
+    // callbacks re-emit, so without this a transport blip kills the process.
+    super({ ignoreErrors: true });
     this.engineType = this.configService.get<'redis' | 'tcp'>('engine.type')!;
     this.host = this.configService.get<string>('engine.host')!;
     this.port = this.configService.get<number>('engine.port')!;
