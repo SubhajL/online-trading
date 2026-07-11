@@ -9,6 +9,8 @@ import tempfile
 import types
 from urllib.error import URLError
 
+import pytest
+
 
 def _load_run_testnet_soak_module():
     script_path = Path(__file__).resolve().parents[1] / "scripts" / "run_testnet_soak.py"
@@ -352,6 +354,175 @@ def test_monitor_window_skips_periodic_order_smoke_before_interval(monkeypatch):
     runner.monitor_window()
 
     assert calls == []
+
+
+def _make_runner(module, monkeypatch, **overrides):
+    monkeypatch.setattr(
+        module.TestnetSoakRunner, "_resolve_compose_command", lambda self: ["docker-compose"]
+    )
+    defaults = {
+        "compose_file": "docker-compose.dev.yml",
+        "duration_seconds": 5,
+        "poll_interval_seconds": 1,
+        "output_dir": tempfile.mkdtemp(),
+        "skip_preflight_tests": True,
+        "enable_order_smoke": False,
+        "keep_running": True,
+        "heartbeat_interval_seconds": 60,
+    }
+    defaults.update(overrides)
+    return module.TestnetSoakRunner(argparse.Namespace(**defaults))
+
+
+def _fake_clock(module, monkeypatch):
+    state = {"now": 0.0}
+    monkeypatch.setattr(module.time, "monotonic", lambda: state["now"])
+    monkeypatch.setattr(
+        module.time, "sleep", lambda seconds: state.__setitem__("now", state["now"] + seconds)
+    )
+    return state
+
+
+@pytest.mark.parametrize(
+    ("critical", "expected_status"),
+    [(True, "fail"), (False, "warn")],
+)
+def test_wait_for_http_timeout_status_depends_on_criticality(
+    monkeypatch, critical, expected_status
+):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(module, monkeypatch)
+    _fake_clock(module, monkeypatch)
+
+    def failing_request(*args, **kwargs):
+        raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(runner, "_request_json", failing_request)
+
+    runner._wait_for_http(
+        "ui", "http://localhost:3000/api/health", timeout_seconds=4, critical=critical
+    )
+
+    result = runner.results[-1]
+    assert (result.name, result.status) == ("health:ui", expected_status)
+    assert "did not become healthy" in result.message
+
+
+def test_check_stack_health_passes_when_only_ui_unhealthy(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(module, monkeypatch)
+    _fake_clock(module, monkeypatch)
+
+    ui_url = runner.health_urls["ui"]
+
+    def fake_request_json(url, **kwargs):
+        if url == ui_url:
+            raise RuntimeError("connection refused")
+        return 200, "{}"
+
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+
+    assert runner.check_stack_health() is True
+    statuses = {
+        result.name: result.status for result in runner.results if result.name.startswith("health:")
+    }
+    assert statuses == {
+        "health:engine": "pass",
+        "health:router": "pass",
+        "health:bff": "pass",
+        "health:ui": "warn",
+        "health:router_ready": "pass",
+    }
+
+
+def test_check_stack_health_fails_when_critical_service_unhealthy(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(module, monkeypatch)
+    _fake_clock(module, monkeypatch)
+
+    bff_url = runner.health_urls["bff"]
+
+    def fake_request_json(url, **kwargs):
+        if url == bff_url:
+            raise RuntimeError("connection refused")
+        return 200, "{}"
+
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+
+    assert runner.check_stack_health() is False
+
+
+def test_report_overall_status_treats_warn_as_nonblocking(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(module, monkeypatch)
+
+    runner._record(
+        module.CheckResult(name="health:engine", status="pass", message="engine became healthy")
+    )
+    runner._record(
+        module.CheckResult(
+            name="health:ui", status="warn", message="ui did not become healthy within timeout"
+        )
+    )
+
+    payload = runner._build_report_payload(report_type="final", run_state="completed")
+
+    assert payload["overall_status"] == "pass"
+    assert payload["warnings"] == 1
+
+
+def test_report_overall_status_fails_when_any_fail_present(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(module, monkeypatch)
+
+    runner._record(
+        module.CheckResult(
+            name="health:engine",
+            status="fail",
+            message="engine did not become healthy within timeout",
+        )
+    )
+    runner._record(
+        module.CheckResult(
+            name="health:ui", status="warn", message="ui did not become healthy within timeout"
+        )
+    )
+
+    payload = runner._build_report_payload(report_type="final", run_state="completed")
+
+    assert payload["overall_status"] == "fail"
+
+
+def test_build_recommendations_falls_back_to_message_for_unhandled_warn():
+    module = _load_run_testnet_soak_module()
+
+    recommendations = module.build_recommendations(
+        [
+            module.CheckResult(
+                name="order_smoke_setup",
+                status="warn",
+                message="smoke configuration partially degraded",
+            )
+        ]
+    )
+
+    assert "smoke configuration partially degraded" in recommendations
+
+
+def test_build_recommendations_flags_noncritical_health_warn():
+    module = _load_run_testnet_soak_module()
+
+    recommendations = module.build_recommendations(
+        [
+            module.CheckResult(
+                name="health:ui",
+                status="warn",
+                message="ui did not become healthy within timeout",
+            )
+        ]
+    )
+
+    assert any("soak continued" in recommendation for recommendation in recommendations)
 
 
 def test_build_recommendations_mentions_periodic_smoke_failures():
