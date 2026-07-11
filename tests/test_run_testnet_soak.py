@@ -719,21 +719,27 @@ def test_run_order_smoke_cycle_cancels_with_resolved_exchange_order_id(monkeypat
     calls: list[tuple[str, str, object | None]] = []
     state = {"now": 0.0}
 
+    exchange_ids = {"coid-123": 111, "coid-123-tp1": 222, "coid-123-sl": 333}
+
+    def fake_fetch_order(symbol, client_order_id):
+        return {"orderId": exchange_ids[client_order_id], "executedQty": "0"}
+
     def fake_request_json(
         url, *, method="GET", headers=None, body=None, timeout=5, allow_insecure_tls=False
     ):
         calls.append((url, method, body))
         if url.endswith("/place_bracket"):
-            return 200, '{"client_order_ids":{"main":"coid-123"}}'
+            return 200, (
+                '{"client_order_ids":{"main":"coid-123",'
+                '"take_profits":["coid-123-tp1"],"stop_loss":"coid-123-sl"}}'
+            )
         if url.endswith("/cancel"):
             return 200, '{"status":"success"}'
         raise AssertionError(url)
 
     monkeypatch.setattr(runner, "_fetch_reference_price", lambda symbol: Decimal("2000"))
     monkeypatch.setattr(runner, "_request_json", fake_request_json)
-    monkeypatch.setattr(
-        runner, "_resolve_exchange_order_id", lambda symbol, client_order_id: 987654321
-    )
+    monkeypatch.setattr(runner, "_fetch_order", fake_fetch_order)
     monkeypatch.setattr(module.time, "monotonic", lambda: state["now"])
     monkeypatch.setattr(
         module.time, "sleep", lambda seconds: state.__setitem__("now", state["now"] + seconds)
@@ -741,12 +747,109 @@ def test_run_order_smoke_cycle_cancels_with_resolved_exchange_order_id(monkeypat
 
     runner.run_order_smoke_cycle("startup")
 
-    cancel_call = next(call for call in calls if call[0].endswith("/cancel"))
-    assert cancel_call == (
-        "http://localhost:8001/cancel",
-        "POST",
-        {"symbol": "ETHUSDT", "order_id": 987654321, "client_order_id": "coid-123"},
+    # Every leg must be cancelled — synchronously-placed exits otherwise leak
+    # on the shared testnet account until the 5-per-symbol algo cap rejects
+    # all placements (run-4 failure). Entry first to close the fill window.
+    cancel_calls = [call for call in calls if call[0].endswith("/cancel")]
+    assert cancel_calls == [
+        (
+            "http://localhost:8001/cancel",
+            "POST",
+            {"symbol": "ETHUSDT", "order_id": 111, "client_order_id": "coid-123"},
+        ),
+        (
+            "http://localhost:8001/cancel",
+            "POST",
+            {"symbol": "ETHUSDT", "order_id": 222, "client_order_id": "coid-123-tp1"},
+        ),
+        (
+            "http://localhost:8001/cancel",
+            "POST",
+            {"symbol": "ETHUSDT", "order_id": 333, "client_order_id": "coid-123-sl"},
+        ),
+    ]
+    assert runner.results[-1].status == "pass"
+
+
+def test_run_order_smoke_cycle_fails_when_exit_leg_cancel_fails(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(module, monkeypatch, enable_order_smoke=True)
+    runner.periodic_order_smoke_config = module.build_periodic_order_smoke_config(
+        {"SOAK_SMOKE_SYMBOLS": "ETHUSDT", "SOAK_SMOKE_CANCEL_AFTER_SECONDS": "1"}
     )
+    _fake_clock(module, monkeypatch)
+
+    cancelled: list[str] = []
+
+    def fake_request_json(
+        url, *, method="GET", headers=None, body=None, timeout=5, allow_insecure_tls=False
+    ):
+        if url.endswith("/place_bracket"):
+            return 200, (
+                '{"client_order_ids":{"main":"coid-1",'
+                '"take_profits":["coid-1-tp1"],"stop_loss":"coid-1-sl"}}'
+            )
+        if url.endswith("/cancel"):
+            client_order_id = (body or {}).get("client_order_id")
+            cancelled.append(client_order_id)
+            # The FIRST leg fails: best-effort must still cancel the rest,
+            # otherwise the exits keep leaking (the bug being fixed).
+            if client_order_id == "coid-1":
+                return 400, '{"error":"boom"}'
+            return 200, '{"status":"success"}'
+        raise AssertionError(url)
+
+    monkeypatch.setattr(runner, "_fetch_reference_price", lambda symbol: Decimal("2000"))
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+    monkeypatch.setattr(
+        runner, "_fetch_order", lambda symbol, client_order_id: {"orderId": 42, "executedQty": "0"}
+    )
+
+    runner.run_order_smoke_cycle("startup")
+
+    assert cancelled == ["coid-1", "coid-1-tp1", "coid-1-sl"]
+    result = runner.results[-1]
+    assert result.status == "fail"
+    assert result.details["failures"] == [
+        {"client_order_id": "coid-1", "status": 400, "body": {"error": "boom"}}
+    ]
+
+
+def test_run_order_smoke_cycle_fails_when_entry_filled_during_window(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _make_runner(module, monkeypatch, enable_order_smoke=True)
+    runner.periodic_order_smoke_config = module.build_periodic_order_smoke_config(
+        {"SOAK_SMOKE_SYMBOLS": "ETHUSDT", "SOAK_SMOKE_CANCEL_AFTER_SECONDS": "1"}
+    )
+    _fake_clock(module, monkeypatch)
+
+    def fake_request_json(
+        url, *, method="GET", headers=None, body=None, timeout=5, allow_insecure_tls=False
+    ):
+        if url.endswith("/place_bracket"):
+            return 200, (
+                '{"client_order_ids":{"main":"coid-9",'
+                '"take_profits":["coid-9-tp1"],"stop_loss":"coid-9-sl"}}'
+            )
+        if url.endswith("/cancel"):
+            return 200, '{"status":"success"}'
+        raise AssertionError(url)
+
+    def fake_fetch_order(symbol, client_order_id):
+        # Final fill check sees a partial fill on the entry
+        executed = "0.00500000" if client_order_id == "coid-9" else "0"
+        return {"orderId": 7, "executedQty": executed}
+
+    monkeypatch.setattr(runner, "_fetch_reference_price", lambda symbol: Decimal("2000"))
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+    monkeypatch.setattr(runner, "_fetch_order", fake_fetch_order)
+
+    runner.run_order_smoke_cycle("startup")
+
+    result = runner.results[-1]
+    assert result.status == "fail"
+    assert "filled during the cancel window" in result.message
+    assert result.details["executed_qty"] == "0.00500000"
 
 
 def test_record_writes_partial_report_and_heartbeat(monkeypatch):

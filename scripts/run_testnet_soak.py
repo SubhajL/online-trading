@@ -668,7 +668,7 @@ class TestnetSoakRunner:
             raise RuntimeError("price lookup response missing price")
         return Decimal(str(price))
 
-    def _resolve_exchange_order_id(self, symbol: str, client_order_id: str) -> int:
+    def _fetch_order(self, symbol: str, client_order_id: str) -> dict[str, Any]:
         api_key = (os.getenv("BINANCE_API_KEY") or os.getenv("BINANCE_SPOT_API_KEY") or "").strip()
         api_secret = (
             os.getenv("BINANCE_SECRET_KEY")
@@ -698,9 +698,13 @@ class TestnetSoakRunner:
             allow_insecure_tls=True,
         )
         parsed = self._parse_json_body(raw_body)
-        if status >= 300:
+        if status >= 300 or not isinstance(parsed, dict):
             raise RuntimeError(f"order lookup failed with status {status}: {parsed}")
-        order_id = parsed.get("orderId") if isinstance(parsed, dict) else None
+        return parsed
+
+    def _resolve_exchange_order_id(self, symbol: str, client_order_id: str) -> int:
+        order = self._fetch_order(symbol, client_order_id)
+        order_id = order.get("orderId")
         if order_id is None:
             raise RuntimeError("order lookup response missing orderId")
         return int(order_id)
@@ -921,9 +925,8 @@ class TestnetSoakRunner:
             )
             return
 
-        client_order_id = (
-            parsed.get("client_order_ids", {}).get("main") if isinstance(parsed, dict) else None
-        )
+        leg_ids = parsed.get("client_order_ids", {}) if isinstance(parsed, dict) else {}
+        client_order_id = leg_ids.get("main")
         if not client_order_id:
             self._record(
                 CheckResult(
@@ -935,17 +938,72 @@ class TestnetSoakRunner:
             )
             return
 
+        # Every placed leg must be cancelled. Without client_order_ids in the
+        # request the router places exits synchronously, so cancelling only
+        # the entry leaks a resting TP + SL per cycle on the shared testnet
+        # account until the 5-per-symbol algo-order cap rejects every
+        # placement. Entry first to close the fill window.
+        # Falsy ids appear when the router reports partial_failure (a leg was
+        # not placed); skip them instead of feeding "" into the order lookup.
+        cancel_targets = [
+            client_order_id,
+            *[tp for tp in (leg_ids.get("take_profits") or []) if tp],
+            *([leg_ids["stop_loss"]] if leg_ids.get("stop_loss") else []),
+        ]
+
+        self._sleep_with_shutdown(config.cancel_after_seconds)
+        # Best effort across ALL legs: aborting on the first failure would
+        # leave the remaining legs resting — the exact leak being fixed.
+        cancel_failures: list[dict[str, Any]] = []
+        for leg_client_order_id in cancel_targets:
+            try:
+                exchange_order_id = self._resolve_exchange_order_id(symbol, leg_client_order_id)
+            except Exception as exc:
+                cancel_failures.append({"client_order_id": leg_client_order_id, "error": str(exc)})
+                continue
+
+            cancel_status, cancel_body = self._request_json(
+                f"{self.router_base_url}/cancel",
+                method="POST",
+                headers=headers,
+                body={
+                    "symbol": symbol,
+                    "order_id": exchange_order_id,
+                    "client_order_id": leg_client_order_id,
+                },
+                timeout=20,
+            )
+            if cancel_status >= 300:
+                cancel_failures.append(
+                    {
+                        "client_order_id": leg_client_order_id,
+                        "status": cancel_status,
+                        "body": self._parse_json_body(cancel_body),
+                    }
+                )
+
+        # Entry-fill race: if the entry (partially) filled during the window,
+        # the cancels above just removed its protective exits — surface the
+        # acquired base asset loudly instead of recording a silent pass.
         try:
-            exchange_order_id = self._resolve_exchange_order_id(symbol, client_order_id)
+            final_entry = self._fetch_order(symbol, client_order_id)
+            executed_qty = Decimal(str(final_entry.get("executedQty") or "0"))
         except Exception as exc:
+            cancel_failures.append(
+                {"client_order_id": client_order_id, "error": f"final fill check failed: {exc}"}
+            )
+            executed_qty = Decimal("0")
+
+        if executed_qty > 0:
             self._record(
                 CheckResult(
                     name=result_name,
                     status="fail",
-                    message="Order smoke could not resolve exchange order ID",
+                    message="Order smoke entry filled during the cancel window; "
+                    "acquired base asset left on the testnet account",
                     details={
-                        "error": str(exc),
                         "client_order_id": client_order_id,
+                        "executed_qty": str(executed_qty),
                         "symbol": symbol,
                         "trigger": trigger,
                     },
@@ -953,29 +1011,14 @@ class TestnetSoakRunner:
             )
             return
 
-        self._sleep_with_shutdown(config.cancel_after_seconds)
-        cancel_status, cancel_body = self._request_json(
-            f"{self.router_base_url}/cancel",
-            method="POST",
-            headers=headers,
-            body={
-                "symbol": symbol,
-                "order_id": exchange_order_id,
-                "client_order_id": client_order_id,
-            },
-            timeout=20,
-        )
-        parsed_cancel_body = self._parse_json_body(cancel_body)
-        if cancel_status >= 300:
+        if cancel_failures:
             self._record(
                 CheckResult(
                     name=result_name,
                     status="fail",
-                    message="Order smoke cancel failed",
+                    message=f"Order smoke cancel failed for {len(cancel_failures)} leg(s)",
                     details={
-                        "status": cancel_status,
-                        "body": parsed_cancel_body,
-                        "client_order_id": client_order_id,
+                        "failures": cancel_failures,
                         "symbol": symbol,
                         "trigger": trigger,
                     },
@@ -987,9 +1030,9 @@ class TestnetSoakRunner:
             CheckResult(
                 name=result_name,
                 status="pass",
-                message="Order smoke placement and cancel both succeeded",
+                message="Order smoke placement and cancel of all legs succeeded",
                 details={
-                    "client_order_id": client_order_id,
+                    "client_order_ids": cancel_targets,
                     "symbol": symbol,
                     "trigger": trigger,
                     "reference_price": _format_decimal(reference_price, places=2),
