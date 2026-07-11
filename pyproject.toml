@@ -145,6 +145,12 @@ test = [
     "freezegun>=1.2.2",
 ]
 
+# Offline backtest-research tooling (regime studies etc.); not needed by the
+# live engine, kept out of core deps to avoid shipping scikit-learn/scipy.
+research = [
+    "hmmlearn>=0.3.3",
+]
+
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.4.0",
