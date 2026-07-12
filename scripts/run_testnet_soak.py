@@ -36,6 +36,10 @@ except ImportError:  # pragma: no cover - optional dependency in tests
 # services on any source edit, silently dooming a multi-day run.
 DEFAULT_COMPOSE_FILES = ("docker-compose.dev.yml", "docker-compose.soak.yml")
 
+FETCH_ORDER_ATTEMPTS = 3
+FETCH_ORDER_RETRY_DELAY_SECONDS = 0.5
+SIGNED_RECV_WINDOW_MS = 10000
+
 
 @dataclass(slots=True)
 class CheckResult:
@@ -681,26 +685,44 @@ class TestnetSoakRunner:
                 "Binance spot API credentials are required to resolve exchange order IDs"
             )
 
-        params = {
-            "symbol": symbol,
-            "origClientOrderId": client_order_id,
-            "timestamp": str(int(time.time() * 1000)),
-        }
-        query = urlencode(params)
-        signature = hmac.new(
-            api_secret.encode("utf-8"), query.encode("utf-8"), hashlib.sha256
-        ).hexdigest()
         base_url = os.getenv("BINANCE_SPOT_BASE_URL", "https://testnet.binance.vision").rstrip("/")
-        status, raw_body = self._request_json(
-            f"{base_url}/api/v3/order?{query}&signature={signature}",
-            headers={"X-MBX-APIKEY": api_key},
-            timeout=20,
-            allow_insecure_tls=True,
-        )
-        parsed = self._parse_json_body(raw_body)
-        if status >= 300 or not isinstance(parsed, dict):
-            raise RuntimeError(f"order lookup failed with status {status}: {parsed}")
-        return parsed
+        # A latency spike can push the signed timestamp outside Binance's
+        # recvWindow (-1021) even with a synced clock (run-5 smoke #18 failed
+        # on exactly one such lookup). Widen the window and retry with a
+        # FRESH timestamp; other API errors fail fast.
+        last_error = "order lookup failed"
+        for attempt in range(FETCH_ORDER_ATTEMPTS):
+            if attempt:
+                time.sleep(FETCH_ORDER_RETRY_DELAY_SECONDS)
+            params = {
+                "symbol": symbol,
+                "origClientOrderId": client_order_id,
+                "recvWindow": str(SIGNED_RECV_WINDOW_MS),
+                "timestamp": str(int(time.time() * 1000)),
+            }
+            query = urlencode(params)
+            signature = hmac.new(
+                api_secret.encode("utf-8"), query.encode("utf-8"), hashlib.sha256
+            ).hexdigest()
+            try:
+                status, raw_body = self._request_json(
+                    f"{base_url}/api/v3/order?{query}&signature={signature}",
+                    headers={"X-MBX-APIKEY": api_key},
+                    timeout=20,
+                    allow_insecure_tls=True,
+                )
+            except Exception as exc:
+                last_error = f"order lookup request failed: {exc}"
+                continue
+            parsed = self._parse_json_body(raw_body)
+            if status < 300 and isinstance(parsed, dict):
+                return parsed
+            last_error = f"order lookup failed with status {status}: {parsed}"
+            code = parsed.get("code") if isinstance(parsed, dict) else None
+            # Never retry while rate-limited/IP-banned (418/429).
+            if status in (418, 429) or code != -1021:
+                break
+        raise RuntimeError(last_error)
 
     def _resolve_exchange_order_id(self, symbol: str, client_order_id: str) -> int:
         order = self._fetch_order(symbol, client_order_id)
