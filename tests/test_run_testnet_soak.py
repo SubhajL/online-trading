@@ -994,3 +994,119 @@ def test_build_recommendations_preserves_distinct_entries():
     recommendations = module.build_recommendations(results)
 
     assert len(recommendations) == 2
+
+
+def _fetch_order_runner(module, monkeypatch):
+    runner = _make_runner(module, monkeypatch)
+    monkeypatch.setenv("BINANCE_API_KEY", "test-key")
+    monkeypatch.setenv("BINANCE_SECRET_KEY", "test-secret")
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: None)
+    counter = {"now": 1_700_000_000.0}
+
+    def fake_time():
+        counter["now"] += 1.0
+        return counter["now"]
+
+    monkeypatch.setattr(module.time, "time", fake_time)
+    return runner
+
+
+def test_fetch_order_retries_recv_window_error_with_fresh_timestamp(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _fetch_order_runner(module, monkeypatch)
+
+    urls: list[str] = []
+
+    def fake_request_json(url, **kwargs):
+        urls.append(url)
+        if len(urls) == 1:
+            return (
+                400,
+                '{"code":-1021,"msg":"Timestamp for this request is outside of the recvWindow."}',
+            )
+        return 200, '{"orderId":77,"executedQty":"0"}'
+
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+
+    order = runner._fetch_order("ETHUSDT", "coid-1")
+
+    assert order["orderId"] == 77
+    assert len(urls) == 2
+    assert all("recvWindow=10000" in url for url in urls)
+    timestamps = [url.split("timestamp=")[1].split("&")[0] for url in urls]
+    assert timestamps[0] != timestamps[1]
+
+
+def test_fetch_order_retries_transient_network_errors(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _fetch_order_runner(module, monkeypatch)
+
+    calls = {"n": 0}
+
+    def fake_request_json(url, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("timed out")
+        return 200, '{"orderId":88,"executedQty":"0"}'
+
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+
+    assert runner._fetch_order("ETHUSDT", "coid-1")["orderId"] == 88
+    assert calls["n"] == 2
+
+
+def test_fetch_order_fails_fast_on_non_retryable_api_error(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _fetch_order_runner(module, monkeypatch)
+
+    calls = {"n": 0}
+
+    def fake_request_json(url, **kwargs):
+        calls["n"] += 1
+        return 400, '{"code":-2013,"msg":"Order does not exist."}'
+
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+
+    with pytest.raises(RuntimeError, match="-2013"):
+        runner._fetch_order("ETHUSDT", "coid-1")
+    assert calls["n"] == 1
+
+
+def test_fetch_order_fails_fast_when_rate_limited(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _fetch_order_runner(module, monkeypatch)
+
+    calls = {"n": 0}
+
+    def fake_request_json(url, **kwargs):
+        calls["n"] += 1
+        return (
+            429,
+            '{"code":-1021,"msg":"Timestamp for this request is outside of the recvWindow."}',
+        )
+
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+
+    with pytest.raises(RuntimeError, match="429"):
+        runner._fetch_order("ETHUSDT", "coid-1")
+    assert calls["n"] == 1
+
+
+def test_fetch_order_raises_after_exhausting_retries(monkeypatch):
+    module = _load_run_testnet_soak_module()
+    runner = _fetch_order_runner(module, monkeypatch)
+
+    calls = {"n": 0}
+
+    def fake_request_json(url, **kwargs):
+        calls["n"] += 1
+        return (
+            400,
+            '{"code":-1021,"msg":"Timestamp for this request is outside of the recvWindow."}',
+        )
+
+    monkeypatch.setattr(runner, "_request_json", fake_request_json)
+
+    with pytest.raises(RuntimeError, match="-1021"):
+        runner._fetch_order("ETHUSDT", "coid-1")
+    assert calls["n"] == 3
