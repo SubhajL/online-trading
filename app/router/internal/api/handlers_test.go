@@ -271,7 +271,7 @@ func TestPlaceBracketHandler(t *testing.T) {
 						Errors:         []string{"SL: insufficient balance"},
 					}, nil).Once()
 			},
-			wantStatus: http.StatusOK,
+			wantStatus: http.StatusBadGateway,
 		},
 	}
 
@@ -370,6 +370,40 @@ func TestPlaceBracketHandler_PersistsIntentsWhenConfigured(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.True(t, stub.called)
+}
+
+func TestPlaceBracketHandler_MapsIdempotencyConflictTo409(t *testing.T) {
+	mockManager := new(MockOrderManager)
+	handlers := NewHandlers(mockManager, zerolog.Nop(), nil, nil)
+	mockManager.On("PlaceBracketOrder", mock.Anything, mock.AnythingOfType("*orders.PlaceBracketRequest")).
+		Return(nil, &orders.IdempotencyConflictError{IdempotencyKey: "duplicate-key"}).Once()
+
+	raw, err := json.Marshal(&orders.PlaceBracketRequest{IdempotencyKey: "duplicate-key"})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/place_bracket", bytes.NewReader(raw))
+	w := httptest.NewRecorder()
+
+	handlers.PlaceBracketHandler(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "idempotency key reused")
+}
+
+func TestPlaceBracketHandler_MapsDurabilityFailureTo503(t *testing.T) {
+	mockManager := new(MockOrderManager)
+	handlers := NewHandlers(mockManager, zerolog.Nop(), nil, nil)
+	mockManager.On("PlaceBracketOrder", mock.Anything, mock.AnythingOfType("*orders.PlaceBracketRequest")).
+		Return(nil, &orders.ExecutionDurabilityError{Cause: errors.New("database unavailable")}).Once()
+
+	raw, err := json.Marshal(&orders.PlaceBracketRequest{IdempotencyKey: "request-key"})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/place_bracket", bytes.NewReader(raw))
+	w := httptest.NewRecorder()
+
+	handlers.PlaceBracketHandler(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), "execution durability unavailable")
 }
 
 func TestPlaceBracketHandler_PersistsSpotExecutionsAfterIntentPersistence(t *testing.T) {

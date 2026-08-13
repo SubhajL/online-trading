@@ -257,7 +257,13 @@ def test_build_dynamic_order_smoke_body_for_buy_limit():
         }
     )
 
-    body = module.build_dynamic_order_smoke_body("ETHUSDT", Decimal("2000"), config)
+    body = module.build_dynamic_order_smoke_body(
+        "ETHUSDT",
+        Decimal("2000"),
+        config,
+        run_id="soak-run-1",
+        cycle_id="cycle-2",
+    )
 
     assert body == {
         "symbol": "ETHUSDT",
@@ -268,6 +274,12 @@ def test_build_dynamic_order_smoke_body_for_buy_limit():
         "is_futures": False,
         "entry_price": "1970.00",
         "order_type": "LIMIT",
+        "idempotency_key": "soak-run-1:cycle-2:ETHUSDT",
+        "client_order_ids": {
+            "main": "130fdb0e9cf6bccf_entry",
+            "take_profits": ["130fdb0e9cf6bccf_tp1"],
+            "stop_loss": "130fdb0e9cf6bccf_sl",
+        },
     }
 
 

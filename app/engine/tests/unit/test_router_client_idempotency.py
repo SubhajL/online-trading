@@ -165,7 +165,21 @@ class TestRouterClientIdempotency:
         ) -> dict[str, Any]:
             captured_endpoints.append(endpoint)
             captured_payloads.append(data or {})
-            return {"success": True}
+            return {
+                "bracket_order_id": "bracket-1",
+                "client_order_ids": {
+                    "main": "abc_entry",
+                    "take_profits": ["abc_tp1"],
+                    "stop_loss": "abc_sl",
+                },
+                "symbol": "BTCUSDT",
+                "side": "BUY",
+                "quantity": "0.01",
+                "created_at": datetime(2026, 8, 13, tzinfo=UTC).isoformat(),
+                "partial_failure": False,
+                "errors": [],
+                "legs_pending_trigger": True,
+            }
 
         router_client._make_request = AsyncMock(side_effect=capture_request)  # type: ignore[method-assign]
 

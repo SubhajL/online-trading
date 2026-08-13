@@ -11,6 +11,10 @@ import pytest
 from app.engine import bus as bus_module
 from app.engine.decision.decision_publisher import DecisionPublisher
 from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
+from app.engine.adapters.router_client.http_client import (
+    BracketClientOrderIDs,
+    BracketPlacementResult,
+)
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
@@ -61,8 +65,17 @@ class _InProcBus:
                 await handler(event)
         return True
 
+    async def publish_and_wait(self, event: Any, priority: int = 0) -> bool:
+        return await self.publish(event, priority)
+
 
 class _FakeDBAdapter:
+    async def prepare_execution_intent(self, _intent):
+        return True
+
+    async def transition_execution_intent(self, *_args, **_kwargs):
+        return True
+
     async def get_latest_equity_sample(self):
         return Decimal(10_000), datetime.now(UTC)
 
@@ -76,10 +89,32 @@ class _FakeDBAdapter:
         return []
 
 
+def _placement_result(payload: dict[str, object]) -> BracketPlacementResult:
+    client_order_ids = payload["client_order_ids"]
+    assert isinstance(client_order_ids, dict)
+    take_profits = client_order_ids["take_profits"]
+    assert isinstance(take_profits, list)
+    return BracketPlacementResult(
+        bracket_order_id="bracket-test",
+        client_order_ids=BracketClientOrderIDs(
+            main=str(client_order_ids["main"]),
+            take_profits=tuple(str(value) for value in take_profits),
+            stop_loss=str(client_order_ids["stop_loss"]),
+        ),
+        symbol=str(payload["symbol"]),
+        side=str(payload["side"]),
+        quantity=Decimal(str(payload["quantity"])),
+        created_at=datetime.now(UTC),
+        partial_failure=False,
+        errors=(),
+        legs_pending_trigger=False,
+    )
+
+
 @pytest.mark.asyncio
 async def test_flow_retest_signal_to_router_order() -> None:
     router_client = AsyncMock()
-    router_client.place_bracket_order.return_value = {"success": True}
+    router_client.place_bracket_order.side_effect = _placement_result
 
     bus = _InProcBus()
     previous_bus = getattr(bus_module, "_global_event_bus", None)

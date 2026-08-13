@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -119,7 +120,33 @@ func (h *Handlers) PlaceBracketHandler(w http.ResponseWriter, r *http.Request) {
 			Str("side", req.Side).
 			Dur("duration", time.Since(start)).
 			Msg("Failed to place bracket order")
+		var idempotencyConflict *orders.IdempotencyConflictError
+		if errors.As(err, &idempotencyConflict) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		var durabilityError *orders.ExecutionDurabilityError
+		if errors.As(err, &durabilityError) {
+			writeError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		if errors.Is(err, orders.ErrExecutionHalted) {
+			writeError(w, http.StatusLocked, err.Error())
+			return
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if resp.PartialFailure || len(resp.Errors) > 0 {
+		h.logger.Error().
+			Str("bracket_id", resp.BracketOrderID).
+			Str("symbol", resp.Symbol).
+			Str("side", resp.Side).
+			Strs("errors", resp.Errors).
+			Dur("duration", time.Since(start)).
+			Msg("Router returned partial bracket placement")
+		h.persistSpotPlacementArtifacts(r.Context(), req, *resp)
+		writeJSON(w, http.StatusBadGateway, resp)
 		return
 	}
 

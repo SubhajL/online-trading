@@ -176,6 +176,9 @@ type Order struct {
 	TimeInForce         string          `json:"timeInForce"`
 	Type                string          `json:"type"`
 	Side                string          `json:"side"`
+	ReduceOnly          bool            `json:"reduceOnly"`
+	ClosePosition       bool            `json:"closePosition"`
+	PositionSide        string          `json:"positionSide"`
 	StopPrice           decimal.Decimal `json:"stopPrice"`
 	IcebergQty          decimal.Decimal `json:"icebergQty"`
 	Time                int64           `json:"time"`
@@ -195,6 +198,7 @@ type FuturesOrderRequest struct {
 	TimeInForce      string          `json:"timeInForce,omitempty"`
 	ReduceOnly       bool            `json:"reduceOnly,omitempty"`
 	ClosePosition    bool            `json:"closePosition,omitempty"`
+	PositionSide     string          `json:"positionSide,omitempty"`
 	ActivationPrice  decimal.Decimal `json:"activationPrice,omitempty"`
 	CallbackRate     decimal.Decimal `json:"callbackRate,omitempty"`
 	WorkingType      string          `json:"workingType,omitempty"`

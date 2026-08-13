@@ -2,6 +2,10 @@ import { Injectable, ConflictException, BadRequestException, Logger } from '@nes
 import { TradingService } from './trading.service';
 import { RouterClientService } from '../router-client/router-client.service';
 import type {
+  EmergencyExchangeState,
+  EmergencySpotBalance,
+} from '../router-client/router-client.service';
+import type {
   EmergencyCloseDto,
   EmergencyCloseResponse,
   EmergencyCloseScope,
@@ -10,9 +14,6 @@ import type {
 } from './dto/emergency-close.dto';
 import { EmergencyCloseOperationRepository } from './repositories/emergency-close-operation.repository';
 import { EmergencyCloseOperationEntity } from './entities/emergency-close-operation.entity';
-
-type RouterCancelOpenOrdersResponse = { canceled_orders: number; errors?: string[] };
-type RouterClosePositionsResponse = { closed_positions: number; errors?: string[] };
 
 function buildRequestSignature(scope: EmergencyCloseScope, stopEngine: boolean): string {
   return `${scope}:${stopEngine ? '1' : '0'}`;
@@ -70,55 +71,108 @@ export class EmergencyCloseService {
     let canceledOrders = 0;
     let closedPositions = 0;
     let autoTradingDisabled = false;
+    let executionHalted = false;
+    let controlGeneration: number | null = null;
+    let fullyFlattened = false;
+    let residuals: EmergencySpotBalance[] = [];
+    let startingState: EmergencyExchangeState | null = null;
+    let finalState: EmergencyExchangeState | null = null;
 
-    const symbols = await this.getKnownSymbols();
-
-    // Step 1: cancel open orders
     {
       const stepStart = new Date();
       const errors: string[] = [];
 
       try {
-        const response: RouterCancelOpenOrdersResponse = await this.routerClient.cancelOpenOrders({
-          scope: dto.scope,
-          symbols,
+        const acknowledged = await this.routerClient.haltExecution({
+          reason: `emergency-close:${dto.scope}`,
+          requested_by: 'bff-emergency-close',
+          idempotency_key: `${idempotencyKey}:halt`,
         });
-        canceledOrders = response.canceled_orders;
-        if (response.errors?.length) errors.push(...response.errors);
+        const confirmed = await this.routerClient.getExecutionControl();
+        if (
+          acknowledged.state !== 'HALTED' ||
+          confirmed.state !== 'HALTED' ||
+          confirmed.generation < acknowledged.generation
+        ) {
+          throw new Error('Router execution halt was not durably confirmed');
+        }
+        executionHalted = true;
+        controlGeneration = confirmed.generation;
       } catch (error) {
-        errors.push(error instanceof Error ? error.message : 'Unknown error canceling open orders');
+        errors.push(error instanceof Error ? error.message : 'Unknown error halting execution');
       }
 
-      const stepEnd = new Date();
       steps.push(
-        createStep('CANCEL_OPEN_ORDERS', stepStart, stepEnd, errors, {
-          canceledOrders,
+        createStep('HALT_EXECUTION', stepStart, new Date(), errors, {
+          executionHalted,
+          ...(controlGeneration === null ? {} : { controlGeneration }),
         }),
       );
     }
 
-    // Step 2: close positions
+    if (!executionHalted) {
+      const response: EmergencyCloseResponse = {
+        success: false,
+        scope: dto.scope,
+        stopEngine,
+        idempotencyKey,
+        canceledOrders,
+        closedPositions,
+        autoTradingDisabled,
+        executionHalted,
+        controlGeneration,
+        fullyFlattened,
+        residuals,
+        startingState,
+        finalState,
+        steps,
+        executionTimeMs: Date.now() - startedAt,
+      };
+      const operation = new EmergencyCloseOperationEntity();
+      operation.idempotencyKey = idempotencyKey;
+      operation.scope = dto.scope;
+      operation.stopEngine = stopEngine;
+      operation.requestSignature = requestSignature;
+      operation.response = response;
+      await this.repository.save(operation);
+      return response;
+    }
+
+    // The router owns exchange enumeration, cleanup ordering, and the residual verdict.
     {
       const stepStart = new Date();
       const errors: string[] = [];
 
       try {
-        const response: RouterClosePositionsResponse = await this.routerClient.closePositions({
-          scope: dto.scope,
-          symbols,
-        });
-        closedPositions = response.closed_positions;
+        const response = await this.routerClient.emergencyFlatten(
+          dto.scope,
+          `${idempotencyKey}:flatten`,
+        );
+        canceledOrders = response.canceled_orders;
+        closedPositions = response.closed_futures_positions + response.flattened_spot_assets;
+        fullyFlattened = response.fully_flattened;
+        residuals = response.residuals;
+        startingState = response.starting;
+        finalState = response.final;
         if (response.errors?.length) errors.push(...response.errors);
       } catch (error) {
-        errors.push(error instanceof Error ? error.message : 'Unknown error closing positions');
+        errors.push(error instanceof Error ? error.message : 'Unknown error flattening exposure');
       }
 
       const stepEnd = new Date();
-      steps.push(
-        createStep('CLOSE_POSITIONS', stepStart, stepEnd, errors, {
+      steps.push({
+        name: 'EXCHANGE_FLATTEN',
+        status: fullyFlattened ? 'SUCCESS' : 'FAILED',
+        startedAt: stepStart.toISOString(),
+        finishedAt: stepEnd.toISOString(),
+        errors,
+        result: {
+          canceledOrders,
           closedPositions,
-        }),
-      );
+          fullyFlattened,
+          residuals,
+        },
+      });
     }
 
     // Step 3: stop auto-trading (optional)
@@ -164,6 +218,12 @@ export class EmergencyCloseService {
       canceledOrders,
       closedPositions,
       autoTradingDisabled,
+      executionHalted,
+      controlGeneration,
+      fullyFlattened,
+      residuals,
+      startingState,
+      finalState,
       steps,
       executionTimeMs: Date.now() - startedAt,
     };
@@ -182,18 +242,5 @@ export class EmergencyCloseService {
     );
 
     return response;
-  }
-
-  private async getKnownSymbols(): Promise<string[]> {
-    try {
-      const positions = await this.tradingService.getPositions();
-      const symbols = new Set<string>();
-      for (const p of positions) {
-        if (p.symbol) symbols.add(p.symbol);
-      }
-      return Array.from(symbols);
-    } catch {
-      return [];
-    }
   }
 }

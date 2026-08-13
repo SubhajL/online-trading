@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -23,6 +24,7 @@ import (
 type fakeBracketStore struct {
 	mu             sync.Mutex
 	reserveErr     error
+	updateErr      error
 	existingRecord *storage.BracketRecord // nil => this store wins the insert
 
 	reserved       []storage.BracketRecord
@@ -32,6 +34,29 @@ type fakeBracketStore struct {
 
 func newFakeBracketStore() *fakeBracketStore {
 	return &fakeBracketStore{legUpdates: make(map[string]string)}
+}
+
+func TestPersistPlacementOutcomePreservesImmediateFill(t *testing.T) {
+	store := newFakeBracketStore()
+	manager := NewManager(nil, nil, nil, zerolog.Nop())
+	manager.SetBracketStore(store)
+	bracketID := uuid.New()
+
+	err := manager.persistPlacementOutcome(
+		context.Background(),
+		bracketID,
+		&bracketPlacementResult{
+			IDs: ClientOrderIDs{Main: "filled-entry"},
+			Main: &binance.OrderResponse{
+				OrderID: 42, ClientOrderID: "filled-entry", Status: "FILLED",
+			},
+		},
+		false,
+		true,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, storage.LegStatusFilled, store.legUpdates["filled-entry"])
 }
 
 func (f *fakeBracketStore) Reserve(_ context.Context, rec storage.BracketRecord) (*storage.BracketRecord, bool, error) {
@@ -55,6 +80,9 @@ func (f *fakeBracketStore) UpdateBracketStatus(_ context.Context, _ uuid.UUID, s
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.bracketUpdates = append(f.bracketUpdates, status)
+	if f.updateErr != nil {
+		return f.updateErr
+	}
 	return nil
 }
 
@@ -62,6 +90,9 @@ func (f *fakeBracketStore) UpdateBracketStatusIf(_ context.Context, _ uuid.UUID,
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.bracketUpdates = append(f.bracketUpdates, status)
+	if f.updateErr != nil {
+		return false, f.updateErr
+	}
 	return true, nil
 }
 
@@ -82,6 +113,9 @@ type bracketExchange struct {
 	getExecutedQty string          // executed qty served on GET 200 (default "0")
 	postDupIDs     map[string]bool // POSTs of these ids are rejected as -4116 duplicates
 	failPosts      bool            // all POSTs fail with a non-retryable -1102
+	postStarted    chan struct{}
+	releasePost    <-chan struct{}
+	postStartOnce  sync.Once
 }
 
 func (f *bracketExchange) posted() []string {
@@ -105,6 +139,12 @@ func (f *bracketExchange) handler() http.HandlerFunc {
 		switch r.Method {
 		case http.MethodPost:
 			clientOrderID := q.Get("newClientOrderId")
+			if f.postStarted != nil {
+				f.postStartOnce.Do(func() { close(f.postStarted) })
+			}
+			if f.releasePost != nil {
+				<-f.releasePost
+			}
 			if f.failPosts {
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = w.Write([]byte(`{"code":-1102,"msg":"Mandatory parameter was not sent."}`))
@@ -164,6 +204,38 @@ func (f *bracketExchange) handler() http.HandlerFunc {
 	}
 }
 
+type rwExecutionGate struct {
+	mu       sync.RWMutex
+	state    string
+	acquired chan struct{}
+	once     sync.Once
+}
+
+func (g *rwExecutionGate) AcquirePlacement(_ context.Context) (string, func() error, error) {
+	g.mu.RLock()
+	if g.acquired != nil {
+		g.once.Do(func() { close(g.acquired) })
+	}
+	return g.state, func() error {
+		g.mu.RUnlock()
+		return nil
+	}, nil
+}
+
+func (g *rwExecutionGate) AcquireEmergency(_ context.Context) (string, func() error, error) {
+	g.mu.Lock()
+	return g.state, func() error {
+		g.mu.Unlock()
+		return nil
+	}, nil
+}
+
+func (g *rwExecutionGate) halt() {
+	g.mu.Lock()
+	g.state = storage.ExecutionStateHalted
+	g.mu.Unlock()
+}
+
 func newStoreFixture(t *testing.T, fake *bracketExchange, store *fakeBracketStore) *Manager {
 	t.Helper()
 	server := httptest.NewServer(fake.handler())
@@ -176,12 +248,15 @@ func newStoreFixture(t *testing.T, fake *bracketExchange, store *fakeBracketStor
 	require.NoError(t, err)
 
 	manager := NewManager(nil, futuresClient, nil, logger)
-	manager.SetBracketStore(store)
+	if store != nil {
+		manager.SetBracketStore(store)
+	}
 	return manager
 }
 
 func storeBracketRequest() *PlaceBracketRequest {
 	return &PlaceBracketRequest{
+		IdempotencyKey:   "engine-decision-9",
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.02"),
@@ -226,7 +301,7 @@ func TestPlaceBracketOrder_ReservesAndPersistsOutcome(t *testing.T) {
 	assert.Equal(t, "engine-main-9", resp.ClientOrderIDs.Main)
 }
 
-func TestPlaceBracketOrder_ReplayAdoptsLiveEntryWithoutRePosting(t *testing.T) {
+func TestLostResponseReplayPlacesEntryOnce(t *testing.T) {
 	existingID := uuid.New()
 	store := newFakeBracketStore()
 	store.existingRecord = &storage.BracketRecord{
@@ -340,7 +415,7 @@ func TestPlaceBracketOrder_ReplayDivergentLegIDsFailsClosed(t *testing.T) {
 	assert.Empty(t, fake.posted(), "divergent replay must not touch the exchange")
 }
 
-func TestPlaceBracketOrder_StoreErrorDegradesToInMemory(t *testing.T) {
+func TestReservationFailureDoesNotCallExchange(t *testing.T) {
 	store := newFakeBracketStore()
 	store.reserveErr = assert.AnError
 	fake := &bracketExchange{}
@@ -348,10 +423,105 @@ func TestPlaceBracketOrder_StoreErrorDegradesToInMemory(t *testing.T) {
 
 	resp, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
 
-	require.NoError(t, err)
-	assert.Len(t, fake.posted(), 3)
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Empty(t, fake.posted())
 	assert.Empty(t, store.bracketUpdates, "no reservation id, so no status writes")
-	assert.Equal(t, "engine-main-9", resp.ClientOrderIDs.Main)
+}
+
+func TestActiveExecutionRequiresDurableStore(t *testing.T) {
+	fake := &bracketExchange{}
+	manager := newStoreFixture(t, fake, nil)
+	manager.RequireDurableStore()
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrExecutionDurabilityUnavailable)
+	assert.Nil(t, resp)
+	assert.Empty(t, fake.posted())
+}
+
+func TestActiveExecutionRequiresDurableExecutionControl(t *testing.T) {
+	store := newFakeBracketStore()
+	fake := &bracketExchange{}
+	manager := newStoreFixture(t, fake, store)
+	manager.RequireDurableStore()
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrExecutionDurabilityUnavailable)
+	assert.Nil(t, resp)
+	assert.Empty(t, fake.posted())
+}
+
+func TestPlacementOutcomePersistenceFailureIsAmbiguous(t *testing.T) {
+	store := newFakeBracketStore()
+	store.updateErr = assert.AnError
+	fake := &bracketExchange{}
+	manager := newStoreFixture(t, fake, store)
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrExecutionDurabilityUnavailable)
+	require.NotNil(t, resp)
+	assert.Len(t, fake.posted(), 3)
+	assert.Empty(t, manager.orders, "unacknowledged placement must not enter success state")
+}
+
+func TestPlacementWhileHaltedDoesNotCallExchange(t *testing.T) {
+	store := newFakeBracketStore()
+	fake := &bracketExchange{}
+	manager := newStoreFixture(t, fake, store)
+	manager.SetExecutionGate(&rwExecutionGate{state: storage.ExecutionStateHalted})
+
+	resp, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
+
+	assert.ErrorIs(t, err, ErrExecutionHalted)
+	assert.Nil(t, resp)
+	assert.Empty(t, fake.posted())
+}
+
+func TestHaltRacingPlacementDrainsBeforeAck(t *testing.T) {
+	releasePost := make(chan struct{})
+	fake := &bracketExchange{
+		postStarted: make(chan struct{}),
+		releasePost: releasePost,
+	}
+	manager := newStoreFixture(t, fake, newFakeBracketStore())
+	gate := &rwExecutionGate{
+		state:    storage.ExecutionStateRunning,
+		acquired: make(chan struct{}),
+	}
+	manager.SetExecutionGate(gate)
+
+	placementDone := make(chan error, 1)
+	go func() {
+		_, err := manager.PlaceBracketOrder(context.Background(), storeBracketRequest())
+		placementDone <- err
+	}()
+	<-fake.postStarted
+
+	haltAck := make(chan struct{})
+	go func() {
+		gate.halt()
+		close(haltAck)
+	}()
+	select {
+	case <-haltAck:
+		t.Fatal("halt acknowledged before in-flight placement drained")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(releasePost)
+	require.NoError(t, <-placementDone)
+	select {
+	case <-haltAck:
+	case <-time.After(time.Second):
+		t.Fatal("halt did not acknowledge after placement drained")
+	}
 }
 
 func TestPlaceBracketOrder_LegsOnFillDefersExitLegs(t *testing.T) {

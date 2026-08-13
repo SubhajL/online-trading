@@ -5,6 +5,7 @@ import { OrderRequest } from '../router-client/router-client.service';
 import { CommandBus } from '@nestjs/cqrs';
 import { EmergencyCloseService } from './emergency-close.service';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { BadRequestException } from '@nestjs/common';
 
 describe('TradingController', () => {
   let controller: TradingController;
@@ -84,10 +85,31 @@ describe('TradingController', () => {
       mockCommandBus.execute.mockResolvedValue(orderResponse);
 
       const mockRequest = { user: { sub: 'user-123' } } as unknown as AuthenticatedRequest;
-      const result = await controller.placeOrder(mockRequest, orderRequest);
+      const result = await controller.placeOrder(mockRequest, 'click-456', orderRequest);
 
       expect(result).toEqual(orderResponse);
       expect(commandBus.execute).toHaveBeenCalledTimes(1);
+      expect(commandBus.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ idempotencyKey: 'click-456' }),
+      );
+    });
+
+    it('rejects a blank X-Idempotency-Key', async () => {
+      const mockRequest = { user: { sub: 'user-123' } } as unknown as AuthenticatedRequest;
+      const orderRequest = {
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        type: 'MARKET',
+        quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'USD_M',
+      } as const;
+
+      await expect(controller.placeOrder(mockRequest, ' ', orderRequest)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(commandBus.execute).not.toHaveBeenCalled();
     });
   });
 

@@ -88,6 +88,18 @@ func TestManager_validateBracketRequest(t *testing.T) {
 			wantErr: "",
 		},
 		{
+			name: "missing idempotency identity",
+			req: &PlaceBracketRequest{
+				Symbol:           "BTCUSDT",
+				Side:             "BUY",
+				Quantity:         decimal.RequireFromString("0.001"),
+				EntryPrice:       decimal.RequireFromString("50000"),
+				TakeProfitPrices: []decimal.Decimal{decimal.RequireFromString("51000")},
+				StopLossPrice:    decimal.RequireFromString("49000"),
+			},
+			wantErr: "idempotency_key is required",
+		},
+		{
 			name: "missing symbol",
 			req: &PlaceBracketRequest{
 				Side:             "BUY",
@@ -186,6 +198,14 @@ func TestManager_validateBracketRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name != "missing idempotency identity" {
+				tt.req.IdempotencyKey = "test-request"
+				tt.req.ClientOrderIDs = &ClientOrderIDs{
+					Main:        "test-entry",
+					TakeProfits: []string{"test-tp1"},
+					StopLoss:    "test-sl",
+				}
+			}
 			err := manager.validateBracketRequest(tt.req)
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
@@ -194,6 +214,16 @@ func TestManager_validateBracketRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPlaceBracketRequiresClientOrderIDs(t *testing.T) {
+	manager := NewManager(nil, nil, nil, zerolog.Nop())
+	req := idempotentBracketRequest()
+	req.ClientOrderIDs = nil
+
+	err := manager.validateBracketRequest(req)
+
+	require.EqualError(t, err, "client_order_ids is required")
 }
 
 func TestManager_generateClientOrderID(t *testing.T) {
@@ -415,6 +445,27 @@ func TestManager_emitOrderUpdateWithLogging_CallsEmitterOnSuccess(t *testing.T) 
 	assert.True(t, emitter.called, "emitter should be called")
 	assert.Equal(t, "SOLUSDT", emitter.update.Symbol)
 	assert.Equal(t, "test-order-sol", emitter.update.ClientOrderID)
+}
+
+func TestPlaceBracketRejectsUnconfiguredVenueClient(t *testing.T) {
+	manager := NewManager(nil, nil, nil, zerolog.Nop())
+	spotRequest := &PlaceBracketRequest{
+		IdempotencyKey: "missing-client", Symbol: "BTCUSDT", Side: "BUY",
+		Quantity: decimal.RequireFromString("0.001"), EntryPrice: decimal.NewFromInt(50000),
+		TakeProfitPrices: []decimal.Decimal{decimal.NewFromInt(51000)},
+		StopLossPrice:    decimal.NewFromInt(49000),
+		ClientOrderIDs: &ClientOrderIDs{
+			Main: "missing_entry", TakeProfits: []string{"missing_tp1"}, StopLoss: "missing_sl",
+		},
+	}
+	futuresRequest := *spotRequest
+	futuresRequest.IsFutures = true
+
+	_, spotErr := manager.placeBracketOrder(context.Background(), spotRequest)
+	_, futuresErr := manager.placeBracketOrder(context.Background(), &futuresRequest)
+
+	require.ErrorContains(t, spotErr, "spot exchange client is not configured")
+	require.ErrorContains(t, futuresErr, "futures exchange client is not configured")
 }
 
 func TestCountAlgoOrders_CountsOnlyAlgoTypes(t *testing.T) {

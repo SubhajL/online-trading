@@ -60,6 +60,7 @@ def build_deferred_bracket_body(
             "take_profits": [f"{client_order_id}-tp1"],
             "stop_loss": f"{client_order_id}-sl",
         },
+        "idempotency_key": client_order_id,
     }
 
 

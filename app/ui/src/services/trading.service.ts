@@ -27,6 +27,10 @@ export type AutoTradingStatus = {
   enabled: boolean
 }
 
+export type PlacementOperation = {
+  readonly id: string
+}
+
 type BffPosition = {
   symbol: Symbol
   side: Position['side']
@@ -40,9 +44,190 @@ type BffPosition = {
 }
 
 export class TradingService {
+  private static readonly placementIdentityStoragePrefix = 'trading:placement:'
+  private static readonly pendingPlacementOperationIdsStorageKey = 'trading:placement-operation-ids'
+  private readonly pendingPlacementIdentities = new Map<
+    string,
+    { idempotencyKey: string; orderFingerprint: string }
+  >()
+
   constructor(private apiClient: ApiClient) {}
 
-  async placeOrder(order: PlaceOrderRequest): Promise<Order> {
+  createPlacementOperation(): PlacementOperation {
+    return { id: globalThis.crypto.randomUUID() }
+  }
+
+  private getStoredPlacementIdentity(storageKey: string): string | null {
+    try {
+      return globalThis.localStorage?.getItem(storageKey) ?? null
+    } catch {
+      return null
+    }
+  }
+
+  private setStoredPlacementIdentity(
+    storageKey: string,
+    identity: { idempotencyKey: string; orderFingerprint: string },
+  ): void {
+    try {
+      globalThis.localStorage?.setItem(storageKey, JSON.stringify(identity))
+    } catch {
+      return
+    }
+  }
+
+  private removeStoredPlacementIdentity(storageKey: string): void {
+    try {
+      globalThis.localStorage?.removeItem(storageKey)
+    } catch {
+      return
+    }
+  }
+
+  private pendingPlacementOperationIds(): string[] {
+    const stored = this.getStoredPlacementIdentity(
+      TradingService.pendingPlacementOperationIdsStorageKey,
+    )
+    if (!stored) {
+      return []
+    }
+    try {
+      const parsed = JSON.parse(stored) as unknown
+      if (
+        Array.isArray(parsed) &&
+        parsed.every(operationId => typeof operationId === 'string' && operationId.length > 0)
+      ) {
+        return [...new Set(parsed)]
+      }
+    } catch {}
+    this.removeStoredPlacementIdentity(TradingService.pendingPlacementOperationIdsStorageKey)
+    return []
+  }
+
+  private storePendingPlacementOperationIds(operationIds: string[]): void {
+    try {
+      globalThis.localStorage?.setItem(
+        TradingService.pendingPlacementOperationIdsStorageKey,
+        JSON.stringify(operationIds),
+      )
+    } catch {
+      return
+    }
+  }
+
+  private registerPendingPlacementOperation(operationId: string): void {
+    const operationIds = this.pendingPlacementOperationIds()
+    if (!operationIds.includes(operationId)) {
+      this.storePendingPlacementOperationIds([...operationIds, operationId])
+    }
+  }
+
+  listPendingPlacementOperations(): PlacementOperation[] {
+    return this.pendingPlacementOperationIds().map(id => ({ id }))
+  }
+
+  recoverPendingPlacementOperation(
+    operationId: string,
+    order: PlaceOrderRequest,
+  ): PlacementOperation | null {
+    if (!operationId.trim()) {
+      throw new Error('Placement operation ID is required')
+    }
+    const storageKey = `${TradingService.placementIdentityStoragePrefix}${operationId}`
+    const stored = this.getStoredPlacementIdentity(storageKey)
+    if (!stored) {
+      return null
+    }
+    try {
+      const identity = JSON.parse(stored) as {
+        idempotencyKey?: unknown
+        orderFingerprint?: unknown
+      }
+      if (
+        typeof identity.idempotencyKey !== 'string' ||
+        typeof identity.orderFingerprint !== 'string'
+      ) {
+        throw new Error('Stored placement operation is invalid')
+      }
+      if (identity.orderFingerprint !== this.placementOrderFingerprint(order)) {
+        throw new Error('Placement operation does not match this order')
+      }
+      this.pendingPlacementIdentities.set(operationId, {
+        idempotencyKey: identity.idempotencyKey,
+        orderFingerprint: identity.orderFingerprint,
+      })
+      return { id: operationId }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Placement operation')) {
+        throw error
+      }
+      this.removeStoredPlacementIdentity(storageKey)
+      throw new Error('Stored placement operation is invalid')
+    }
+  }
+
+  private placementOrderFingerprint(order: PlaceOrderRequest): string {
+    return JSON.stringify([
+      order.symbol,
+      order.side,
+      order.type,
+      order.quantity,
+      order.price ?? null,
+      order.stopPrice ?? null,
+      order.stopLossPrice ?? null,
+      order.takeProfitPrice ?? null,
+      order.venue,
+    ])
+  }
+
+  private placementIdentity(
+    operation: PlacementOperation,
+    orderFingerprint: string,
+  ): { idempotencyKey: string; orderFingerprint: string } {
+    const storageKey = `${TradingService.placementIdentityStoragePrefix}${operation.id}`
+    const stored = this.getStoredPlacementIdentity(storageKey)
+    let prior = this.pendingPlacementIdentities.get(operation.id)
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as unknown
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          'idempotencyKey' in parsed &&
+          typeof parsed.idempotencyKey === 'string' &&
+          'orderFingerprint' in parsed &&
+          typeof parsed.orderFingerprint === 'string'
+        ) {
+          prior = parsed as { idempotencyKey: string; orderFingerprint: string }
+        }
+      } catch {
+        this.removeStoredPlacementIdentity(storageKey)
+      }
+    }
+    if (prior && prior.orderFingerprint !== orderFingerprint) {
+      throw new Error('Placement operation cannot be reused for a different order')
+    }
+    const identity = prior ?? {
+      idempotencyKey: globalThis.crypto.randomUUID(),
+      orderFingerprint,
+    }
+    this.pendingPlacementIdentities.set(operation.id, identity)
+    this.setStoredPlacementIdentity(storageKey, identity)
+    this.registerPendingPlacementOperation(operation.id)
+    return identity
+  }
+
+  abandonPlacementOperation(operation: PlacementOperation): void {
+    this.pendingPlacementIdentities.delete(operation.id)
+    this.removeStoredPlacementIdentity(
+      `${TradingService.placementIdentityStoragePrefix}${operation.id}`,
+    )
+    this.storePendingPlacementOperationIds(
+      this.pendingPlacementOperationIds().filter(operationId => operationId !== operation.id),
+    )
+  }
+
+  async placeOrder(order: PlaceOrderRequest, operation: PlacementOperation): Promise<Order> {
     // Validate order parameters
     if (order.quantity <= 0) {
       throw new Error('Quantity must be positive')
@@ -64,7 +249,15 @@ export class TradingService {
       throw new Error('Order requires takeProfitPrice')
     }
 
-    return this.apiClient.post<Order>('/trading/orders', order)
+    const { idempotencyKey } = this.placementIdentity(
+      operation,
+      this.placementOrderFingerprint(order),
+    )
+    const result = await this.apiClient.post<Order>('/trading/orders', order, {
+      headers: { 'X-Idempotency-Key': idempotencyKey },
+    })
+    this.abandonPlacementOperation(operation)
+    return result
   }
 
   async getPositions(): Promise<Position[]> {

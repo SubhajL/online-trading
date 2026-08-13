@@ -1,9 +1,39 @@
 package orders
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
+
+var ErrIdempotencyConflict = errors.New("idempotency key reused with a different request")
+var ErrExecutionDurabilityUnavailable = errors.New("execution durability unavailable")
+var ErrExecutionHalted = errors.New("execution is halted")
+var ErrExecutionNotHalted = errors.New("emergency flatten requires halted execution")
+
+type IdempotencyConflictError struct {
+	IdempotencyKey string
+}
+
+func (e *IdempotencyConflictError) Error() string {
+	return fmt.Sprintf("%v: %s", ErrIdempotencyConflict, e.IdempotencyKey)
+}
+
+func (e *IdempotencyConflictError) Unwrap() error {
+	return ErrIdempotencyConflict
+}
+
+type ExecutionDurabilityError struct {
+	Cause error
+}
+
+func (e *ExecutionDurabilityError) Error() string {
+	return fmt.Sprintf("%v: %v", ErrExecutionDurabilityUnavailable, e.Cause)
+}
+
+func (e *ExecutionDurabilityError) Unwrap() error {
+	return ErrExecutionDurabilityUnavailable
+}
 
 // BracketOrderError represents an error during bracket order placement
 type BracketOrderError struct {

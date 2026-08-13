@@ -232,14 +232,9 @@ func (r *StartupReconciler) resolvePlacingLegs(
 		}
 		// Found on the exchange: adopt its real state. Terminal states must
 		// win over any concurrent armer PLACED write, so this is unguarded.
-		status, working := legStatusFromOrder(resp.Status)
+		status, _ := legStatusFromOrder(resp.Status)
 		if r.updateLeg(ctx, record, leg, status, resp.OrderID) {
 			summary.LegsResolved++
-			if !working && leg.Role != "ENTRY" {
-				// A PLACING leg that resolved terminal is an exit transition
-				// the engine never saw; forward it like the sweep would.
-				r.emitExitUpdate(ctx, record, leg, resp)
-			}
 		}
 	}
 }
@@ -358,7 +353,6 @@ func (r *StartupReconciler) sweepOneExitLeg(
 	if !r.updateLeg(ctx, record, leg, status, resp.OrderID) {
 		return // persist failed; re-observed next pass, no premature emit
 	}
-	r.emitExitUpdate(ctx, record, leg, resp)
 	summary.ExitLegsUpdated++
 }
 
@@ -474,44 +468,6 @@ func (r *StartupReconciler) updateLeg(
 		leg.ExchangeOrderID = exchangeOrderID
 	}
 	return true
-}
-
-func (r *StartupReconciler) emitExitUpdate(
-	ctx context.Context,
-	record *storage.BracketRecord,
-	leg *storage.BracketLegRecord,
-	resp *binance.OrderResponse,
-) {
-	if r.emitter == nil {
-		return
-	}
-	side := resp.Side
-	if side == "" {
-		side = getOppositeSide(record.Side)
-	}
-	updateTime := time.Now().UTC()
-	if resp.TransactTime > 0 {
-		updateTime = time.UnixMilli(resp.TransactTime).UTC()
-	}
-	update := &OrderUpdate{
-		EventType:     "order_update.v1",
-		Venue:         record.Venue,
-		Symbol:        record.Symbol,
-		OrderID:       resp.OrderID,
-		ClientOrderID: leg.ClientOrderID,
-		Status:        normalizeOrderStatus(resp.Status),
-		Side:          side,
-		OrderType:     resp.Type,
-		Price:         resp.Price,
-		Quantity:      resp.OrigQty,
-		ExecutedQty:   resp.ExecutedQty,
-		UpdateTime:    updateTime,
-	}
-	if err := r.emitter.EmitOrderUpdate(ctx, update); err != nil {
-		r.logger.Warn().Err(err).
-			Str("client_order_id", leg.ClientOrderID).
-			Msg("reconciler: failed to emit exit update")
-	}
 }
 
 // legStatusFromOrder maps an exchange order status onto a leg status. Only

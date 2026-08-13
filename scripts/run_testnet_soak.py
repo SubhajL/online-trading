@@ -126,12 +126,17 @@ def build_dynamic_order_smoke_body(
     symbol: str,
     reference_price: Decimal,
     config: PeriodicOrderSmokeConfig,
+    *,
+    run_id: str,
+    cycle_id: str,
 ) -> dict[str, Any]:
     offset = Decimal(config.entry_offset_bps) / Decimal("10000")
     entry_price = reference_price * (Decimal("1") - offset)
     take_profit_price = reference_price * (Decimal("1") + offset)
     stop_loss_price = reference_price * (Decimal("1") - (offset * Decimal("2")))
     quantity = config.target_notional_usdt / entry_price
+    idempotency_key = f"{run_id}:{cycle_id}:{symbol}"
+    token = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()[:16]
     return {
         "symbol": symbol,
         "side": "BUY",
@@ -141,6 +146,12 @@ def build_dynamic_order_smoke_body(
         "is_futures": False,
         "entry_price": _format_decimal(entry_price, places=2),
         "order_type": "LIMIT",
+        "idempotency_key": idempotency_key,
+        "client_order_ids": {
+            "main": f"{token}_entry",
+            "take_profits": [f"{token}_tp1"],
+            "stop_loss": f"{token}_sl",
+        },
     }
 
 
@@ -419,6 +430,7 @@ class TestnetSoakRunner:
         self.project_root = Path(__file__).resolve().parents[1]
         self.project_python = resolve_project_python(self.project_root)
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        self.run_id = timestamp
         default_output_dir = self.project_root / "artifacts" / "testnet-soak" / timestamp
         self.output_dir = Path(args.output_dir) if args.output_dir else default_output_dir
         if not self.output_dir.is_absolute():
@@ -911,7 +923,13 @@ class TestnetSoakRunner:
         headers = {"Authorization": f"Bearer {os.getenv('ROUTER_API_KEY', '')}"}
         try:
             reference_price = self._fetch_reference_price(symbol)
-            body = build_dynamic_order_smoke_body(symbol, reference_price, config)
+            body = build_dynamic_order_smoke_body(
+                symbol,
+                reference_price,
+                config,
+                run_id=self.run_id,
+                cycle_id=str(self.order_smoke_cycle_count),
+            )
             status_code, raw_body = self._request_json(
                 f"{self.router_base_url}/place_bracket",
                 method="POST",

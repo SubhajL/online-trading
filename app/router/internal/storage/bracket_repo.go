@@ -49,6 +49,8 @@ type BracketLegRecord struct {
 type BracketRecord struct {
 	BracketID          uuid.UUID
 	Venue              string
+	IdempotencyKey     string
+	RequestHash        string
 	Symbol             string
 	Side               string
 	Quantity           decimal.Decimal
@@ -69,11 +71,11 @@ func NewBracketRepo(pool *pgxpool.Pool) *BracketRepo {
 	return &BracketRepo{pool: pool}
 }
 
-// Reserve atomically claims (venue, entry_client_order_id). Exactly one
+// Reserve atomically claims (venue, idempotency_key). Exactly one
 // caller wins the insert; losers get the existing record (with legs) back.
 func (r *BracketRepo) Reserve(ctx context.Context, rec BracketRecord) (*BracketRecord, bool, error) {
-	if rec.Venue == "" || rec.EntryClientOrderID == "" {
-		return nil, false, fmt.Errorf("venue and entry client order id are required")
+	if rec.Venue == "" || rec.IdempotencyKey == "" || rec.RequestHash == "" || rec.EntryClientOrderID == "" {
+		return nil, false, fmt.Errorf("venue, idempotency key, request hash, and entry client order id are required")
 	}
 	if rec.BracketID == uuid.Nil {
 		rec.BracketID = uuid.New()
@@ -87,14 +89,14 @@ func (r *BracketRepo) Reserve(ctx context.Context, rec BracketRecord) (*BracketR
 		var insertedID uuid.UUID
 		err := tx.QueryRow(ctx, `
 			INSERT INTO brackets (
-				bracket_id, venue, symbol, side, quantity, entry_price,
+				bracket_id, venue, idempotency_key, request_hash, symbol, side, quantity, entry_price,
 				stop_loss_price, entry_client_order_id, status, legs_on_fill
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-			ON CONFLICT (venue, entry_client_order_id) DO NOTHING
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+			ON CONFLICT (venue, idempotency_key) DO NOTHING
 			RETURNING bracket_id`,
-			rec.BracketID, rec.Venue, rec.Symbol, rec.Side, rec.Quantity,
-			rec.EntryPrice, rec.StopLossPrice, rec.EntryClientOrderID,
-			rec.Status, rec.LegsOnFill,
+			rec.BracketID, rec.Venue, rec.IdempotencyKey, rec.RequestHash,
+			rec.Symbol, rec.Side, rec.Quantity, rec.EntryPrice, rec.StopLossPrice,
+			rec.EntryClientOrderID, rec.Status, rec.LegsOnFill,
 		).Scan(&insertedID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			inserted = false
@@ -136,7 +138,7 @@ func (r *BracketRepo) Reserve(ctx context.Context, rec BracketRecord) (*BracketR
 		return &stored, true, nil
 	}
 
-	existing, err := r.getByEntryClientOrderID(ctx, rec.Venue, rec.EntryClientOrderID)
+	existing, err := r.getByIdempotencyKey(ctx, rec.Venue, rec.IdempotencyKey)
 	if err != nil {
 		return nil, false, err
 	}
@@ -291,11 +293,12 @@ func (r *BracketRepo) GetByLegClientOrderID(ctx context.Context, venue, clientOr
 
 	var rec BracketRecord
 	err = r.pool.QueryRow(ctx, `
-		SELECT bracket_id, venue, symbol, side, quantity, entry_price,
+		SELECT bracket_id, venue, idempotency_key, request_hash, symbol, side, quantity, entry_price,
 		       stop_loss_price, entry_client_order_id, status, legs_on_fill, created_at
 		FROM brackets WHERE bracket_id = $1`, bracketID,
 	).Scan(
-		&rec.BracketID, &rec.Venue, &rec.Symbol, &rec.Side, &rec.Quantity,
+		&rec.BracketID, &rec.Venue, &rec.IdempotencyKey, &rec.RequestHash,
+		&rec.Symbol, &rec.Side, &rec.Quantity,
 		&rec.EntryPrice, &rec.StopLossPrice, &rec.EntryClientOrderID,
 		&rec.Status, &rec.LegsOnFill, &rec.CreatedAt,
 	)
@@ -314,7 +317,7 @@ func (r *BracketRepo) GetByLegClientOrderID(ctx context.Context, venue, clientOr
 // legs included — the work list for startup reconciliation.
 func (r *BracketRepo) LoadOpenBrackets(ctx context.Context, lookback time.Duration) ([]BracketRecord, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT bracket_id, venue, symbol, side, quantity, entry_price,
+		SELECT bracket_id, venue, idempotency_key, request_hash, symbol, side, quantity, entry_price,
 		       stop_loss_price, entry_client_order_id, status, legs_on_fill, created_at
 		FROM brackets
 		WHERE status NOT IN ('CLOSED', 'FAILED')
@@ -329,7 +332,8 @@ func (r *BracketRepo) LoadOpenBrackets(ctx context.Context, lookback time.Durati
 	for rows.Next() {
 		var rec BracketRecord
 		if err := rows.Scan(
-			&rec.BracketID, &rec.Venue, &rec.Symbol, &rec.Side, &rec.Quantity,
+			&rec.BracketID, &rec.Venue, &rec.IdempotencyKey, &rec.RequestHash,
+			&rec.Symbol, &rec.Side, &rec.Quantity,
 			&rec.EntryPrice, &rec.StopLossPrice, &rec.EntryClientOrderID,
 			&rec.Status, &rec.LegsOnFill, &rec.CreatedAt,
 		); err != nil {
@@ -354,13 +358,14 @@ func (r *BracketRepo) LoadOpenBrackets(ctx context.Context, lookback time.Durati
 func (r *BracketRepo) getByEntryClientOrderID(ctx context.Context, venue, entryClientOrderID string) (*BracketRecord, error) {
 	var rec BracketRecord
 	err := r.pool.QueryRow(ctx, `
-		SELECT bracket_id, venue, symbol, side, quantity, entry_price,
+		SELECT bracket_id, venue, idempotency_key, request_hash, symbol, side, quantity, entry_price,
 		       stop_loss_price, entry_client_order_id, status, legs_on_fill, created_at
 		FROM brackets
 		WHERE venue = $1 AND entry_client_order_id = $2`,
 		venue, entryClientOrderID,
 	).Scan(
-		&rec.BracketID, &rec.Venue, &rec.Symbol, &rec.Side, &rec.Quantity,
+		&rec.BracketID, &rec.Venue, &rec.IdempotencyKey, &rec.RequestHash,
+		&rec.Symbol, &rec.Side, &rec.Quantity,
 		&rec.EntryPrice, &rec.StopLossPrice, &rec.EntryClientOrderID,
 		&rec.Status, &rec.LegsOnFill, &rec.CreatedAt,
 	)
@@ -368,6 +373,30 @@ func (r *BracketRepo) getByEntryClientOrderID(ctx context.Context, venue, entryC
 		return nil, fmt.Errorf("load bracket by entry client order id: %w", err)
 	}
 
+	legs, err := r.loadLegs(ctx, rec.BracketID)
+	if err != nil {
+		return nil, err
+	}
+	rec.Legs = legs
+	return &rec, nil
+}
+
+func (r *BracketRepo) getByIdempotencyKey(ctx context.Context, venue, idempotencyKey string) (*BracketRecord, error) {
+	var rec BracketRecord
+	err := r.pool.QueryRow(ctx, `
+		SELECT bracket_id, venue, idempotency_key, request_hash, symbol, side, quantity, entry_price,
+		       stop_loss_price, entry_client_order_id, status, legs_on_fill, created_at
+		FROM brackets
+		WHERE venue = $1 AND idempotency_key = $2`, venue, idempotencyKey,
+	).Scan(
+		&rec.BracketID, &rec.Venue, &rec.IdempotencyKey, &rec.RequestHash,
+		&rec.Symbol, &rec.Side, &rec.Quantity, &rec.EntryPrice,
+		&rec.StopLossPrice, &rec.EntryClientOrderID,
+		&rec.Status, &rec.LegsOnFill, &rec.CreatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load bracket by idempotency key: %w", err)
+	}
 	legs, err := r.loadLegs(ctx, rec.BracketID)
 	if err != nil {
 		return nil, err

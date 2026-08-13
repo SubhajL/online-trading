@@ -199,7 +199,7 @@ func TestStartupReconciler_SpotExitFillsCloseBracket(t *testing.T) {
 	assert.Contains(t, store.legUpdates, "arm-tp1:FILLED")
 	assert.Contains(t, store.legUpdates, "arm-sl:EXPIRED")
 	assert.Equal(t, []string{storage.BracketStatusClosed}, store.bracketUpdates)
-	assert.Len(t, emitter.emitted(), 2, "observed exit transitions must reach the engine")
+	assert.Empty(t, emitter.emitted(), "the transactional leg-status trigger owns delivery")
 	assert.Empty(t, fake.canceledIDs(), "spot sibling-cancel belongs to the exchange")
 }
 
@@ -409,7 +409,7 @@ func TestStartupReconciler_FuturesSLAndTPBothFilledClosesOnce(t *testing.T) {
 	assert.Equal(t, 1, summary.BracketsClosed)
 }
 
-func TestStartupReconciler_TerminalPlacingLegEmitsToEngine(t *testing.T) {
+func TestStartupReconciler_TerminalPlacingLegReliesOnTransactionalTrigger(t *testing.T) {
 	record := legsPlacedRecord("USD_M")
 	record.Legs[1].Status = storage.LegStatusPlacing // crashed mid-placement
 	store := &fakeWatcherStore{fakeArmerStore{record: record}}
@@ -423,13 +423,7 @@ func TestStartupReconciler_TerminalPlacingLegEmitsToEngine(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, store.legUpdates, "arm-tp1:FILLED")
-	var emittedTP bool
-	for _, u := range emitter.emitted() {
-		if u.ClientOrderID == "arm-tp1" && u.Status == "FILLED" {
-			emittedTP = true
-		}
-	}
-	assert.True(t, emittedTP, "a PLACING leg that resolved terminal must reach the engine")
+	assert.Empty(t, emitter.emitted(), "the reconciler must not duplicate the database-triggered event")
 }
 
 func TestStartupReconciler_StaleReservedCountedNotClosed(t *testing.T) {

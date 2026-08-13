@@ -411,6 +411,22 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]Order, err
 	return orders, nil
 }
 
+// GetAllOpenOrders lists every open spot order in the authenticated account.
+func (c *Client) GetAllOpenOrders(ctx context.Context) ([]Order, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for GetAllOpenOrders")
+	}
+	body, err := c.doRequest(ctx, "GET", "/api/v3/openOrders", url.Values{}, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetAllOpenOrders")
+	}
+	var orders []Order
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return nil, ErrorWithContext(err, "GetAllOpenOrders")
+	}
+	return orders, nil
+}
+
 // GetOrder retrieves a single spot order by exchange order ID.
 func (c *Client) GetOrder(ctx context.Context, symbol string, orderID int64) (*Order, error) {
 	if c.signer == nil {
@@ -490,6 +506,22 @@ func (c *Client) GetFuturesOpenOrders(ctx context.Context, symbol string) ([]Ord
 		return nil, ErrorWithContext(err, "GetFuturesOpenOrders")
 	}
 
+	return orders, nil
+}
+
+// GetAllFuturesOpenOrders lists every open USD-M order in the authenticated account.
+func (c *Client) GetAllFuturesOpenOrders(ctx context.Context) ([]Order, error) {
+	if c.signer == nil {
+		return nil, fmt.Errorf("signer required for GetAllFuturesOpenOrders")
+	}
+	body, err := c.doRequest(ctx, "GET", "/fapi/v1/openOrders", url.Values{}, true)
+	if err != nil {
+		return nil, ErrorWithContext(err, "GetAllFuturesOpenOrders")
+	}
+	var orders []Order
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return nil, ErrorWithContext(err, "GetAllFuturesOpenOrders")
+	}
 	return orders, nil
 }
 
@@ -637,6 +669,9 @@ func (c *Client) PlaceFuturesOrder(ctx context.Context, req *FuturesOrderRequest
 	}
 	if req.ClosePosition {
 		params.Set("closePosition", "true")
+	}
+	if req.PositionSide != "" {
+		params.Set("positionSide", req.PositionSide)
 	}
 	if !req.ActivationPrice.IsZero() {
 		params.Set("activationPrice", req.ActivationPrice.String())

@@ -39,6 +39,9 @@ class _CapturingBus:
         self.published.append(event)
         return True
 
+    async def publish_and_wait(self, event: object, priority: int = 0) -> bool:
+        return await self.publish(event, priority)
+
 
 @pytest.mark.asyncio
 async def test_execution_blocks_router_call_when_daily_loss_exceeded() -> None:

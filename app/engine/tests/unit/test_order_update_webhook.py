@@ -4,9 +4,11 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
+from fastapi import HTTPException
 import pytest
 
 from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
+from app.engine.execution.order_update_inbox import is_terminal_transition_allowed
 from app.engine.main import (
     _order_update_db_hydration_enabled_from_env,
     ingest_order_update,
@@ -24,6 +26,21 @@ class _CapturingBus:
         self.published.append(event)
         return True
 
+    async def publish_and_wait(self, event: object, priority: int = 0) -> bool:
+        return await self.publish(event, priority)
+
+
+class _RejectingBus(_CapturingBus):
+    async def publish_and_wait(self, event: object, priority: int = 0) -> bool:
+        await super().publish_and_wait(event, priority)
+        return False
+
+
+class _QueueOnlyBus:
+    async def publish(self, event: object, priority: int = 0) -> bool:
+        _ = (event, priority)
+        return True
+
 
 class _CapturingDB:
     def __init__(self) -> None:
@@ -31,6 +48,10 @@ class _CapturingDB:
         self.lookup_row: dict[str, object] | None = None
         self.lookup_calls: list[tuple[str, str | None]] = []
         self.upsert_result = True
+        self.claim_result = "CLAIMED"
+        self.claimed: list[dict[str, object]] = []
+        self.completed: list[str] = []
+        self.failed: list[tuple[str, str]] = []
 
     async def upsert_order(self, order: dict[str, object]) -> bool:
         self.rows.append(order)
@@ -45,12 +66,267 @@ class _CapturingDB:
         self.lookup_calls.append((client_order_id, venue))
         return self.lookup_row
 
+    async def claim_order_update_inbox(self, **event: object) -> str:
+        self.claimed.append(event)
+        return self.claim_result
+
+    async def complete_order_update_inbox(self, *, event_id: str) -> None:
+        self.completed.append(event_id)
+
+    async def fail_order_update_inbox(self, *, event_id: str, error_message: str) -> None:
+        self.failed.append((event_id, error_message))
+
+
+class _FailingCompletionDB(_CapturingDB):
+    async def complete_order_update_inbox(self, *, event_id: str) -> None:
+        raise RuntimeError("completion failed")
+
+
+def _order_update_envelope(payload: dict[str, object], *, sequence: int = 1) -> dict[str, object]:
+    return {
+        "event_id": str(uuid4()),
+        "aggregate_id": "SPOT:abc_entry",
+        "sequence": sequence,
+        "event_version": 1,
+        "event_type": "order_update.v1",
+        "occurred_at": datetime.now(UTC).isoformat(),
+        "payload": payload,
+    }
+
+
+def _valid_order_update_payload() -> dict[str, object]:
+    return {
+        "event_type": "order_update.v1",
+        "venue": "SPOT",
+        "symbol": "BTCUSDT",
+        "order_id": 123,
+        "client_order_id": "abc_entry",
+        "status": "NEW",
+        "side": "BUY",
+        "order_type": "LIMIT",
+        "price": "50000.00",
+        "quantity": "0.01",
+        "executed_qty": "0",
+        "update_time": datetime.now(UTC).isoformat(),
+    }
+
+
+@pytest.mark.parametrize(
+    ("prior_status", "current_status", "expected"),
+    [
+        (prior, current, prior == current)
+        for prior in ("FILLED", "REJECTED", "CANCELED", "CANCELLED", "EXPIRED")
+        for current in (
+            "NEW",
+            "PARTIALLY_FILLED",
+            "FILLED",
+            "REJECTED",
+            "CANCELED",
+            "CANCELLED",
+            "EXPIRED",
+        )
+    ],
+)
+def test_terminal_order_update_cannot_change_state(
+    prior_status: str,
+    current_status: str,
+    expected: bool,
+) -> None:
+    assert is_terminal_transition_allowed(prior_status, current_status) is expected
+
+
+@pytest.mark.asyncio
+async def test_envelope_aggregate_must_match_payload_before_inbox_claim() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        bus = _CapturingBus()
+        db = _CapturingDB()
+        services.update(event_bus=bus, database=db)
+        envelope = _order_update_envelope(_valid_order_update_payload())
+        envelope["aggregate_id"] = "SPOT:different-order"
+
+        with pytest.raises(HTTPException) as exc_info:
+            await ingest_order_update(envelope)
+
+        assert exc_info.value.status_code == 400
+        assert db.claimed == []
+        assert bus.published == []
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_duplicate_order_update_is_effectively_once() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        bus = _CapturingBus()
+        db = _CapturingDB()
+        db.claim_result = "DUPLICATE"
+        services.update(event_bus=bus, database=db)
+
+        response = await ingest_order_update(_order_update_envelope(_valid_order_update_payload()))
+
+        assert response == {"status": "duplicate"}
+        assert bus.published == []
+        assert db.rows == []
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_conflicting_duplicate_order_update_returns_conflict() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        db = _CapturingDB()
+        db.claim_result = "CONFLICT"
+        services.update(event_bus=_CapturingBus(), database=db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await ingest_order_update(_order_update_envelope(_valid_order_update_payload()))
+
+        assert exc_info.value.status_code == 409
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_sequence_gap_parks_later_update() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        db = _CapturingDB()
+        db.claim_result = "GAP"
+        services.update(event_bus=_CapturingBus(), database=db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await ingest_order_update(
+                _order_update_envelope(_valid_order_update_payload(), sequence=3)
+            )
+
+        assert exc_info.value.status_code == 425
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_order_update_envelope_completes_after_projection_and_publication() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        bus = _CapturingBus()
+        db = _CapturingDB()
+        store = OrderUpdateCorrelationStore(ttl_seconds=3600)
+        await store.register(
+            client_order_id="abc_entry",
+            metadata={"decision_id": "decision-1", "signal_id": "signal-1"},
+        )
+        services.update(
+            event_bus=bus,
+            database=db,
+            order_update_correlation_store=store,
+        )
+        envelope = _order_update_envelope(_valid_order_update_payload())
+
+        response = await ingest_order_update(envelope)
+
+        assert response == {"status": "ok"}
+        assert len(db.rows) == 1
+        assert len(bus.published) == 1
+        assert db.completed == [envelope["event_id"]]
+        assert db.failed == []
+        assert bus.published[0].metadata["order_update_event_id"] == envelope["event_id"]
+        assert bus.published[0].metadata["decision_id"] == "decision-1"
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_inbox_completion_failure_keeps_stable_bus_event_identity() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        bus = _CapturingBus()
+        db = _FailingCompletionDB()
+        services.update(event_bus=bus, database=db)
+        envelope = _order_update_envelope(_valid_order_update_payload())
+
+        with pytest.raises(HTTPException) as exc_info:
+            await ingest_order_update(envelope)
+
+        assert exc_info.value.status_code == 503
+        assert len(bus.published) == 1
+        assert str(bus.published[0].event_id) == envelope["event_id"]
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_order_update_bus_rejection_keeps_inbox_retryable() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        db = _CapturingDB()
+        envelope = _order_update_envelope(_valid_order_update_payload())
+        services.update(event_bus=_RejectingBus(), database=db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await ingest_order_update(envelope)
+
+        assert exc_info.value.status_code == 503
+        assert db.completed == []
+        assert db.failed and db.failed[0][0] == envelope["event_id"]
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_enveloped_order_update_requires_acknowledged_dispatch() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        db = _CapturingDB()
+        envelope = _order_update_envelope(_valid_order_update_payload())
+        services.update(event_bus=_QueueOnlyBus(), database=db)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await ingest_order_update(envelope)
+
+        assert exc_info.value.status_code == 503
+        assert db.completed == []
+        assert db.failed == [(str(envelope["event_id"]), "acknowledged event dispatch unavailable")]
+    finally:
+        services.clear()
+        services.update(previous)
+
 
 @pytest.fixture(autouse=True)
-def _reset_order_update_hydration_flag_cache() -> None:
+def _reset_order_update_hydration_flag_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ALLOW_LEGACY_ORDER_UPDATES", "true")
     _order_update_db_hydration_enabled_from_env.cache_clear()
     yield
     _order_update_db_hydration_enabled_from_env.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_legacy_order_update_is_rejected_when_durable_delivery_is_authoritative(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ALLOW_LEGACY_ORDER_UPDATES", raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ingest_order_update(_valid_order_update_payload())
+
+    assert exc_info.value.status_code == 400
 
 
 @pytest.mark.asyncio

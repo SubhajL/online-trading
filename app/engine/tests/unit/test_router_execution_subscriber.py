@@ -9,6 +9,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.engine.adapters.router_client.http_client import (
+    BracketClientOrderIDs,
+    BracketPlacementResult,
+    RouterTransportError,
+)
 from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 import app.engine.execution.router_execution_subscriber as router_module
 from app.engine.execution.router_execution_subscriber import (
@@ -17,7 +22,9 @@ from app.engine.execution.router_execution_subscriber import (
     _sanitize_value_for_json,
 )
 from app.engine.models import (
+    ErrorEvent,
     EventType,
+    OrderPlacedEvent,
     RiskParameters,
     TimeFrame,
     TradingDecision,
@@ -108,6 +115,7 @@ class _FakeBus:
         self.event_types: list[EventType] | None = None
         self.unsubscribed: list[str] = []
         self.published_events: list[object] = []
+        self.publish_and_wait_result = True
 
     async def subscribe(
         self,
@@ -131,6 +139,11 @@ class _FakeBus:
         self.published_events.append(event)
         return True
 
+    async def publish_and_wait(self, event: object, priority: int = 0) -> bool:
+        _ = priority
+        self.published_events.append(event)
+        return self.publish_and_wait_result
+
 
 class _FakeDBAdapter:
     def __init__(self) -> None:
@@ -142,10 +155,30 @@ class _FakeDBAdapter:
         self.active_positions_errors: list[Exception | None] = []
         self.active_setup_order_error: Exception | None = None
         self.active_setup_position_error: Exception | None = None
+        self.execution_intents: list[dict[str, object]] = []
+        self.execution_intent_transitions: list[tuple[str, str]] = []
+        self.prepare_execution_intent_result = True
+        self.transition_execution_intent_result = True
+        self.transition_failure_state: str | None = None
 
     async def upsert_order(self, _order: dict[str, object]) -> bool:
         self.upserted_orders.append(_order)
         return True
+
+    async def prepare_execution_intent(self, intent: dict[str, object]) -> bool:
+        self.execution_intents.append(intent)
+        return self.prepare_execution_intent_result
+
+    async def transition_execution_intent(
+        self,
+        idempotency_key: str,
+        state: str,
+        **_kwargs: object,
+    ) -> bool:
+        self.execution_intent_transitions.append((idempotency_key, state))
+        if state == self.transition_failure_state:
+            return False
+        return self.transition_execution_intent_result
 
     async def get_latest_equity_sample(self):
         return Decimal(10_000), datetime.now(UTC)
@@ -339,6 +372,31 @@ def _make_valid_decision_event() -> TradingDecisionEvent:
     )
 
 
+def _placement_result(
+    *,
+    symbol: str = "BTCUSDT",
+    side: str = "BUY",
+    quantity: Decimal = Decimal("0.001"),
+    id_token: str = "adeb4758accdcc17",
+    bracket_order_id: str = "bracket-1",
+) -> BracketPlacementResult:
+    return BracketPlacementResult(
+        bracket_order_id=bracket_order_id,
+        client_order_ids=BracketClientOrderIDs(
+            main=f"{id_token}_entry",
+            take_profits=(f"{id_token}_tp1",),
+            stop_loss=f"{id_token}_sl",
+        ),
+        symbol=symbol,
+        side=side,
+        quantity=quantity,
+        created_at=datetime(2026, 8, 13, tzinfo=UTC),
+        partial_failure=False,
+        errors=(),
+        legs_pending_trigger=True,
+    )
+
+
 # =============================================================================
 # Tests for Error Handling (P0 #1)
 # =============================================================================
@@ -373,8 +431,8 @@ class TestExecutionSubscriberErrorHandling:
         assert error_event.symbol == "BTCUSDT"
 
     @pytest.mark.asyncio
-    async def test_emits_error_event_on_unsuccessful_response(self) -> None:
-        """Router returns success=False triggers ErrorEvent."""
+    async def test_emits_protocol_error_on_untyped_response(self) -> None:
+        """Legacy response dictionaries cannot advance placement success."""
         from app.engine.models import ErrorEvent
 
         bus = _FakeBus()
@@ -395,18 +453,15 @@ class TestExecutionSubscriberErrorHandling:
         assert len(bus.published_events) == 1
         error_event = bus.published_events[0]
         assert isinstance(error_event, ErrorEvent)
-        assert error_event.error_type == "router_error"
-        assert "Insufficient balance" in error_event.error_message
+        assert error_event.error_type == "router_protocol_error"
+        assert error_event.error_message == "Router client returned an untyped placement response"
 
     @pytest.mark.asyncio
     async def test_no_error_event_on_successful_response(self) -> None:
         """Successful router response does not emit error event."""
         bus = _FakeBus()
         router_client = AsyncMock()
-        router_client.place_bracket_order.return_value = {
-            "success": True,
-            "order_id": "order_123",
-        }
+        router_client.place_bracket_order.return_value = _placement_result()
 
         subscriber = _make_subscriber(bus=bus, router_client=router_client)
         await subscriber.start()
@@ -481,9 +536,9 @@ async def test_execution_retries_on_transient_exception_then_succeeds(monkeypatc
     bus = _FakeBus()
     router_client = AsyncMock()
     router_client.place_bracket_order.side_effect = [
-        Exception("timeout"),
-        Exception("connection reset"),
-        {"success": True, "order_id": "ok"},
+        RouterTransportError("timeout"),
+        RouterTransportError("connection reset"),
+        _placement_result(),
     ]
 
     sleep = AsyncMock()
@@ -510,6 +565,158 @@ async def test_execution_retries_on_transient_exception_then_succeeds(monkeypatc
     assert sleep.call_count == 2
     assert len(bus.published_events) == 1
     assert isinstance(bus.published_events[0], OrderPlacedEvent)
+
+
+@pytest.mark.asyncio
+async def test_router_failure_has_no_success_side_effects() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = {
+        "error": "invalid bracket request",
+        "status": 400,
+    }
+    db_adapter = _FakeDBAdapter()
+    cooldown = AsyncMock()
+    cooldown.try_acquire_async.return_value = True
+    bff_client = AsyncMock()
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,
+        cooldown=cooldown,
+        bff_client=bff_client,
+        router_max_attempts=1,
+    )
+    await subscriber.start()
+    event = _make_valid_decision_event()
+    event.metadata["zone"] = {
+        "zone_id": "zone_1",
+        "zone_type": "FAIR_VALUE_GAP",
+    }
+
+    assert callable(bus.handler)
+    await bus.handler(event)
+
+    assert db_adapter.upserted_orders == []
+    bff_client.post.assert_not_awaited()
+    assert len(bus.published_events) == 1
+    assert isinstance(bus.published_events[0], ErrorEvent)
+    assert bus.published_events[0].error_type == "router_protocol_error"
+    cooldown.release_async.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_intent_failure_never_calls_router() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    db_adapter = _FakeDBAdapter()
+    db_adapter.prepare_execution_intent_result = False
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,
+        router_max_attempts=1,
+    )
+    await subscriber.start()
+
+    assert callable(bus.handler)
+    await bus.handler(_make_valid_decision_event())
+
+    router_client.place_bracket_order.assert_not_awaited()
+    assert db_adapter.execution_intents[0]["state"] == "PREPARED"
+    assert any(
+        isinstance(event, ErrorEvent) and event.error_type == "execution_intent_unavailable"
+        for event in bus.published_events
+    )
+
+
+@pytest.mark.asyncio
+async def test_ack_persistence_failure_replay_uses_stable_success_event_id() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = _placement_result()
+    db_adapter = _FakeDBAdapter()
+    db_adapter.transition_failure_state = "ACKNOWLEDGED"
+    cooldown = AsyncMock()
+    cooldown.try_acquire_async.return_value = True
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,
+        cooldown=cooldown,
+        router_max_attempts=1,
+    )
+    await subscriber.start()
+
+    assert callable(bus.handler)
+    await bus.handler(_make_valid_decision_event())
+
+    router_client.place_bracket_order.assert_awaited_once()
+    first_success = next(
+        event for event in bus.published_events if isinstance(event, OrderPlacedEvent)
+    )
+    assert ("sig_test123", "AMBIGUOUS") in db_adapter.execution_intent_transitions
+    assert any(
+        isinstance(event, ErrorEvent) and event.error_type == "execution_intent_unavailable"
+        for event in bus.published_events
+    )
+    cooldown.release_async.assert_not_awaited()
+
+    db_adapter.transition_failure_state = None
+    await bus.handler(_make_valid_decision_event())
+
+    success_events = [
+        event for event in bus.published_events if isinstance(event, OrderPlacedEvent)
+    ]
+    assert len(success_events) == 2
+    assert success_events[1].event_id == first_success.event_id
+
+
+@pytest.mark.asyncio
+async def test_transport_exhaustion_marks_execution_intent_ambiguous() -> None:
+    bus = _FakeBus()
+    router_client = AsyncMock()
+    router_client.place_bracket_order.side_effect = RouterTransportError("connection reset")
+    db_adapter = _FakeDBAdapter()
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,
+        router_max_attempts=1,
+    )
+    await subscriber.start()
+
+    assert callable(bus.handler)
+    await bus.handler(_make_valid_decision_event())
+
+    assert ("sig_test123", "AMBIGUOUS") in db_adapter.execution_intent_transitions
+    assert not any(isinstance(event, OrderPlacedEvent) for event in bus.published_events)
+
+
+@pytest.mark.asyncio
+async def test_unacknowledged_order_event_never_acknowledges_execution_intent() -> None:
+    bus = _FakeBus()
+    bus.publish_and_wait_result = False
+    router_client = AsyncMock()
+    router_client.place_bracket_order.return_value = _placement_result()
+    db_adapter = _FakeDBAdapter()
+    subscriber = _make_subscriber(
+        bus=bus,
+        router_client=router_client,
+        db_adapter=db_adapter,
+        router_max_attempts=1,
+    )
+    await subscriber.start()
+
+    assert callable(bus.handler)
+    await bus.handler(_make_valid_decision_event())
+
+    assert ("sig_test123", "AMBIGUOUS") in db_adapter.execution_intent_transitions
+    assert ("sig_test123", "ACKNOWLEDGED") not in db_adapter.execution_intent_transitions
+    assert any(
+        isinstance(event, ErrorEvent) and event.error_type == "router_exception"
+        for event in bus.published_events
+    )
 
 
 @pytest.mark.asyncio
@@ -689,7 +896,12 @@ async def test_execution_blocks_when_daily_loss_exceeded() -> None:
 async def test_execution_subscriber_calls_router_place_bracket_with_provenance() -> None:
     bus = _FakeBus()
     router_client = AsyncMock()
-    router_client.place_bracket_order.return_value = {"success": True}
+    router_client.place_bracket_order.return_value = _placement_result(
+        symbol="ETHUSDT",
+        side="SELL",
+        quantity=Decimal("0.01"),
+        id_token="3cfbd12d60a93548",
+    )
 
     subscriber = _make_subscriber(bus=bus, router_client=router_client)
 
@@ -746,10 +958,13 @@ async def test_execution_subscriber_calls_router_place_bracket_with_provenance()
 async def test_execution_subscriber_persists_signal_timeframe_zone_for_all_legs() -> None:
     bus = _FakeBus()
     router_client = AsyncMock()
-    router_client.place_bracket_order.return_value = {
-        "success": True,
-        "bracket_order_id": "bracket-123",
-    }
+    router_client.place_bracket_order.return_value = _placement_result(
+        symbol="ETHUSDT",
+        side="SELL",
+        quantity=Decimal("0.01"),
+        id_token="3cfbd12d60a93548",
+        bracket_order_id="bracket-123",
+    )
     db_adapter = _FakeDBAdapter()
 
     subscriber = _make_subscriber(bus=bus, router_client=router_client, db_adapter=db_adapter)
@@ -806,10 +1021,9 @@ async def test_execution_subscriber_persists_signal_timeframe_zone_for_all_legs(
 async def test_execution_subscriber_skips_spot_stop_leg_persistence() -> None:
     bus = _FakeBus()
     router_client = AsyncMock()
-    router_client.place_bracket_order.return_value = {
-        "success": True,
-        "bracket_order_id": "bracket-spot-123",
-    }
+    router_client.place_bracket_order.return_value = _placement_result(
+        bracket_order_id="bracket-spot-123"
+    )
     db_adapter = _FakeDBAdapter()
 
     subscriber = _make_subscriber(
@@ -927,7 +1141,7 @@ async def test_execution_subscriber_allows_other_setup_when_active_position_orig
 
     bus = _FakeBus()
     router_client = AsyncMock()
-    router_client.place_bracket_order.return_value = {"success": True}
+    router_client.place_bracket_order.return_value = _placement_result()
     db_adapter = _FakeDBAdapter()
     db_adapter.active_positions = [
         {
@@ -958,7 +1172,7 @@ async def test_execution_subscriber_blocks_when_opposite_side_position_is_active
 
     bus = _FakeBus()
     router_client = AsyncMock()
-    router_client.place_bracket_order.return_value = {"success": True}
+    router_client.place_bracket_order.return_value = _placement_result()
     db_adapter = _FakeDBAdapter()
     db_adapter.active_positions = [
         {
@@ -1216,6 +1430,9 @@ async def test_snapshot_triggered_before_order_placed_event() -> None:
             call_order.append("publish_order_placed")
             return True
 
+        async def publish_and_wait(self, event: object, priority: int = 0) -> bool:
+            return await self.publish(event, priority)
+
     class _TrackingBffClient:
         async def post(self, endpoint: str, payload: dict) -> dict:
             _ = endpoint, payload
@@ -1224,7 +1441,7 @@ async def test_snapshot_triggered_before_order_placed_event() -> None:
 
     bus = _TrackingBus()
     router_client = AsyncMock()
-    router_client.place_bracket_order.return_value = {"success": True}
+    router_client.place_bracket_order.return_value = _placement_result()
     bff_client = _TrackingBffClient()
 
     subscriber = RouterExecutionSubscriber(

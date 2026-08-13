@@ -137,6 +137,8 @@ func TestPlaceBracketOrder_SpotImmediateFillEmitsFilled(t *testing.T) {
 	manager := NewManager(newSpotTestClient(t, server.URL), nil, emitter, zerolog.Nop())
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "spot-phase-test",
+		ClientOrderIDs:   &ClientOrderIDs{Main: "spot-entry", TakeProfits: []string{"spot-tp1"}, StopLoss: "spot-sl"},
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.020"),
@@ -208,6 +210,8 @@ func TestPlaceBracketOrder_SpotImmediateFillReturnsExecutionSnapshot(t *testing.
 	manager := NewManager(newSpotTestClient(t, server.URL), nil, emitter, zerolog.Nop())
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "spot-phase-test",
+		ClientOrderIDs:   &ClientOrderIDs{Main: "spot-entry", TakeProfits: []string{"spot-tp1"}, StopLoss: "spot-sl"},
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.020"),
@@ -274,6 +278,8 @@ func TestPlaceBracketOrder_SpotTracksAllPlacedLegs(t *testing.T) {
 	manager.SetSpotReconciler(tracker)
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "spot-phase-test",
+		ClientOrderIDs:   &ClientOrderIDs{Main: "spot-entry", TakeProfits: []string{"spot-tp1"}, StopLoss: "spot-sl"},
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.020"),
@@ -348,6 +354,8 @@ func TestPlaceBracketOrder_SpotSkipsTrackingUnplacedExitLegs(t *testing.T) {
 	manager.SetSpotReconciler(tracker)
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "spot-phase-test",
+		ClientOrderIDs:   &ClientOrderIDs{Main: "spot-entry", TakeProfits: []string{"spot-tp1"}, StopLoss: "spot-sl"},
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.020"),
@@ -423,6 +431,8 @@ func TestPlaceBracketOrder_SpotStopLossFailureCancelsUnsafeOrders(t *testing.T) 
 	manager := NewManager(newSpotTestClient(t, server.URL), nil, emitter, zerolog.Nop())
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "spot-phase-test",
+		ClientOrderIDs:   &ClientOrderIDs{Main: "spot-entry", TakeProfits: []string{"spot-tp1"}, StopLoss: "spot-sl"},
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.020"),
@@ -548,6 +558,8 @@ func TestPlaceBracketOrder_SpotStopLossFailureClosesFilledEntry(t *testing.T) {
 	manager := NewManager(newSpotTestClient(t, server.URL), nil, nil, zerolog.Nop())
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "spot-phase-test",
+		ClientOrderIDs:   &ClientOrderIDs{Main: "spot-entry", TakeProfits: []string{"spot-tp1"}, StopLoss: "spot-sl"},
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.020"),
@@ -652,6 +664,8 @@ func TestPlaceBracketOrder_SpotSuccessfulCancelClosesResidualFillFromCancelRespo
 	manager := NewManager(newSpotTestClient(t, server.URL), nil, nil, zerolog.Nop())
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "spot-phase-test",
+		ClientOrderIDs:   &ClientOrderIDs{Main: "spot-entry", TakeProfits: []string{"spot-tp1"}, StopLoss: "spot-sl"},
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.020"),
@@ -712,6 +726,8 @@ func TestPlaceBracketOrder_SpotNewStatusTracksForReconciliation(t *testing.T) {
 	manager.SetSpotReconciler(tracker)
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "spot-phase-test",
+		ClientOrderIDs:   &ClientOrderIDs{Main: "spot-entry", TakeProfits: []string{"spot-tp1"}, StopLoss: "spot-sl"},
 		Symbol:           "BTCUSDT",
 		Side:             "BUY",
 		Quantity:         decimal.RequireFromString("0.020"),

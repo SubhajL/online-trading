@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 	"router/internal/api"
 	"router/internal/auth"
 	"router/internal/binance"
@@ -75,18 +76,27 @@ func main() {
 	var fundingCancel context.CancelFunc
 	var legArmer *orders.LegArmer
 
-	// Create event emitter (needed by the leg armer inside the DB block)
-	var eventEmitter orders.EventEmitter
+	// Active order updates are durably queued after Postgres connects.
+	var eventEmitter orders.EventEmitter = orders.NewLogEventEmitter(logger)
+	var outboxCancel context.CancelFunc
+	var orderUpdateOutbox *orders.PostgresOutboxStore
 	orderUpdateURL := os.Getenv("ORDER_UPDATE_URL")
 	if orderUpdateURL != "" {
-		eventEmitter = orders.NewHTTPEventEmitter(orderUpdateURL)
-		logger.Info().Str("url", orderUpdateURL).Msg("Order updates will be sent via HTTP")
+		logger.Info().Str("url", orderUpdateURL).Msg("Order update outbox delivery configured")
 	} else {
-		eventEmitter = orders.NewLogEventEmitter(logger)
 		logger.Info().Msg("Order updates will be logged to console")
 	}
 
 	legsOnFill, _ := strconv.ParseBool(os.Getenv("BRACKET_LEGS_ON_FILL"))
+	activeExecution := spotClient != nil || futuresClient != nil
+	if err := validateActiveExecutionDependencies(
+		activeExecution,
+		os.Getenv("DATABASE_URL"),
+		orderUpdateURL,
+		os.Getenv("ENGINE_INTERNAL_API_TOKEN"),
+	); err != nil {
+		logger.Fatal().Err(err).Msg("Active execution dependencies are incomplete")
+	}
 
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -94,6 +104,25 @@ func main() {
 		cancel()
 		if err != nil {
 			logger.Fatal().Err(err).Msg("Failed to connect to Postgres")
+		}
+		orderUpdateOutbox = orders.NewPostgresOutboxStore(dbPool)
+		eventEmitter = orders.NewOutboxEventEmitter(orderUpdateOutbox)
+		if orderUpdateURL != "" {
+			engineToken := strings.TrimSpace(os.Getenv("ENGINE_INTERNAL_API_TOKEN"))
+			if engineToken == "" {
+				logger.Fatal().Msg("ENGINE_INTERNAL_API_TOKEN is required when ORDER_UPDATE_URL is configured")
+			}
+			dispatcher := orders.NewOutboxDispatcher(
+				orderUpdateOutbox,
+				orderUpdateURL,
+				engineToken,
+				logger.With().Str("component", "order_update_outbox").Logger(),
+			)
+			outboxCtx, cancelOutbox := context.WithCancel(context.Background())
+			outboxCancel = cancelOutbox
+			go dispatcher.Run(outboxCtx)
+		} else {
+			logger.Warn().Msg("Order updates are durably queued but no dispatcher is configured")
 		}
 
 		intentPersister = api.NewPostgresIntentPersister(dbPool, logger.With().Str("component", "persistence").Logger())
@@ -196,8 +225,17 @@ func main() {
 
 	// Create order manager
 	orderManager := orders.NewManager(spotClient, futuresClient, eventEmitter, logger)
+	emergencyConfig, err := emergencyConfigFromEnv()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Invalid emergency flatten configuration")
+	}
+	orderManager.SetEmergencyConfig(emergencyConfig)
+	orderManager.RequireDurableStore()
+	var executionControl *storage.PostgresExecutionControl
 	if dbPool != nil {
 		orderManager.SetBracketStore(storage.NewBracketRepo(dbPool))
+		executionControl = storage.NewPostgresExecutionControl(dbPool)
+		orderManager.SetExecutionGate(executionControl)
 		logger.Info().Msg("Durable bracket reservations enabled")
 	}
 	if legArmer != nil {
@@ -339,7 +377,6 @@ func main() {
 				"serving anyway — POST /internal/reconcile to repair")
 		}()
 	}
-
 	// Create and configure HTTP server
 	mux := http.NewServeMux()
 
@@ -349,6 +386,7 @@ func main() {
 	mux.HandleFunc("/close_all", handlers.CloseAllHandler)
 	mux.HandleFunc("/cancel_open_orders", handlers.CancelOpenOrdersHandler)
 	mux.HandleFunc("/close_positions", handlers.ClosePositionsHandler)
+	mux.HandleFunc("/emergency_flatten", api.NewEmergencyFlattenHandler(orderManager))
 	api.RegisterHealthRoutes(mux, handlers)
 	equityProvider := api.NewBinanceEquityProvider(spotClient, futuresClient)
 	mux.HandleFunc(
@@ -365,6 +403,45 @@ func main() {
 			"/internal/reconcile",
 			api.NewReconcileHandler(startupReconciler, logger.With().Str("component", "startup_reconciler").Logger()),
 		)
+	}
+	if executionControl != nil {
+		resumeSafetyCheck := func(resumeCtx context.Context) error {
+			if startupReconciler == nil {
+				return fmt.Errorf("startup reconciliation is unavailable")
+			}
+			status := startupReconciler.Status()
+			if !status.HasRun || status.Summary == nil {
+				return fmt.Errorf("startup reconciliation has not completed")
+			}
+			if status.Summary.Errors > 0 || status.Summary.UnrepairedLegs > 0 || status.Summary.StaleReserved > 0 {
+				return fmt.Errorf(
+					"startup reconciliation unsafe: errors=%d unrepaired_legs=%d stale_reserved=%d",
+					status.Summary.Errors,
+					status.Summary.UnrepairedLegs,
+					status.Summary.StaleReserved,
+				)
+			}
+			if orderUpdateOutbox == nil || strings.TrimSpace(orderUpdateURL) == "" {
+				return fmt.Errorf("order update outbox dispatcher is unavailable")
+			}
+			pending, dead, oldest, err := orderUpdateOutbox.Health(resumeCtx)
+			if err != nil {
+				return fmt.Errorf("order update outbox unavailable: %w", err)
+			}
+			if dead > 0 || oldest > time.Minute {
+				return fmt.Errorf(
+					"order update outbox unsafe: pending=%d dead=%d oldest=%s",
+					pending,
+					dead,
+					oldest,
+				)
+			}
+			return nil
+		}
+		controlHandler := api.NewExecutionControlHandler(executionControl, resumeSafetyCheck)
+		mux.HandleFunc("/internal/execution-control", controlHandler)
+		mux.HandleFunc("/internal/execution-control/halt", controlHandler)
+		mux.HandleFunc("/internal/execution-control/resume", controlHandler)
 	}
 
 	// Create server
@@ -422,6 +499,9 @@ func main() {
 		if spotReconciler != nil {
 			spotReconciler.Stop()
 		}
+		if outboxCancel != nil {
+			outboxCancel()
+		}
 		if dbPool != nil {
 			dbPool.Close()
 		}
@@ -430,11 +510,82 @@ func main() {
 	}
 }
 
+func validateActiveExecutionDependencies(
+	active bool,
+	databaseURL string,
+	orderUpdateURL string,
+	engineToken string,
+) error {
+	if !active {
+		return nil
+	}
+	if strings.TrimSpace(databaseURL) == "" {
+		return fmt.Errorf("DATABASE_URL is required for active execution")
+	}
+	if strings.TrimSpace(orderUpdateURL) == "" {
+		return fmt.Errorf("ORDER_UPDATE_URL is required for active execution")
+	}
+	if strings.TrimSpace(engineToken) == "" {
+		return fmt.Errorf("ENGINE_INTERNAL_API_TOKEN is required for active execution")
+	}
+	return nil
+}
+
 func normalizeWSBaseURL(url string) string {
 	trimmed := strings.TrimRight(url, "/")
 	trimmed = strings.TrimSuffix(trimmed, "/stream")
 	trimmed = strings.TrimSuffix(trimmed, "/ws")
 	return trimmed
+}
+
+func emergencyConfigFromEnv() (orders.EmergencyConfig, error) {
+	quotes := parseAssetList(os.Getenv("EMERGENCY_SPOT_QUOTE_ASSETS"), []string{"USDT"})
+	protected := parseAssetList(
+		os.Getenv("EMERGENCY_PROTECTED_ASSETS"),
+		[]string{"USDT", "USDC", "FDUSD", "BUSD"},
+	)
+	dust := decimal.NewFromInt(1)
+	if raw := strings.TrimSpace(os.Getenv("EMERGENCY_DUST_MAX_USDT")); raw != "" {
+		parsed, err := decimal.NewFromString(raw)
+		if err != nil || parsed.IsNegative() {
+			return orders.EmergencyConfig{}, fmt.Errorf("EMERGENCY_DUST_MAX_USDT must be a non-negative decimal")
+		}
+		dust = parsed
+	}
+	fillSeconds := 30
+	if raw := strings.TrimSpace(os.Getenv("EMERGENCY_FILL_TIMEOUT_SECONDS")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 300 {
+			return orders.EmergencyConfig{}, fmt.Errorf("EMERGENCY_FILL_TIMEOUT_SECONDS must be between 1 and 300")
+		}
+		fillSeconds = parsed
+	}
+	if len(quotes) == 0 {
+		return orders.EmergencyConfig{}, fmt.Errorf("EMERGENCY_SPOT_QUOTE_ASSETS must not be empty")
+	}
+	return orders.EmergencyConfig{
+		SpotQuoteAssets: quotes,
+		ProtectedAssets: protected,
+		DustMaxUSDT:     dust,
+		FillTimeout:     time.Duration(fillSeconds) * time.Second,
+		MaxPasses:       3,
+	}, nil
+}
+
+func parseAssetList(raw string, defaults []string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return append([]string(nil), defaults...)
+	}
+	seen := map[string]bool{}
+	assets := make([]string, 0)
+	for _, value := range strings.Split(raw, ",") {
+		asset := strings.ToUpper(strings.TrimSpace(value))
+		if asset != "" && !seen[asset] {
+			seen[asset] = true
+			assets = append(assets, asset)
+		}
+	}
+	return assets
 }
 
 func newSpotClientFromConfig(cfg *config.BinanceConfig, logger zerolog.Logger) (*binance.Client, error) {
