@@ -161,6 +161,23 @@ class SignalCooldown:
         self._cache[key] = self._clock.monotonic() + self._cooldown_seconds
         return True
 
+    async def release_async(
+        self,
+        symbol: str,
+        timeframe: str,
+        zone_id: str,
+        direction: str,
+        venue: str = "",
+    ) -> None:
+        """Release a reservation when execution did not reach validated success."""
+        key = self._build_key(symbol, timeframe, zone_id, direction, venue=venue)
+        self._cache.pop(key, None)
+        if self._redis is not None:
+            try:
+                await self._redis.delete(key, prefix=COOLDOWN_PREFIX)
+            except Exception:
+                logger.warning("Redis cooldown release failed; reservation remains fail-closed")
+
     def record_signal(
         self,
         symbol: str,

@@ -28,11 +28,13 @@ from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConf
 async def _open_router_breaker(client):
     # helper: trip GET:/orders once (threshold 1) to OPEN
     mapping = {("GET", "/orders"): [(500, "e")]}
+    from app.engine.adapters.router_client.http_client import RouterHTTPError
     from app.engine.tests.unit.test_client_circuit_breakers import _RouterSession
 
     client._initialized = True
     client._session = _RouterSession(mapping)
-    await client._make_request("GET", "/orders")
+    with pytest.raises(RouterHTTPError, match="Router returned HTTP 500"):
+        await client._make_request("GET", "/orders")
 
 
 async def _open_binance_breaker(client):

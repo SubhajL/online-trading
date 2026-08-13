@@ -56,6 +56,7 @@ type OrderUpdate struct {
 
 // PlaceBracketRequest represents a request to place a bracket order
 type PlaceBracketRequest struct {
+	IdempotencyKey   string            `json:"idempotency_key"`
 	Symbol           string            `json:"symbol"`
 	Side             string            `json:"side"`
 	Quantity         decimal.Decimal   `json:"quantity"`
@@ -77,9 +78,9 @@ type PlaceBracketResponse struct {
 	Quantity               decimal.Decimal         `json:"quantity"`
 	StopLossLimitPrice     decimal.Decimal         `json:"stop_loss_limit_price,omitempty"`
 	CreatedAt              time.Time               `json:"created_at"`
-	PartialFailure         bool                    `json:"partial_failure,omitempty"`
-	Errors                 []string                `json:"errors,omitempty"`
-	LegsPendingTrigger     bool                    `json:"legs_pending_trigger,omitempty"`
+	PartialFailure         bool                    `json:"partial_failure"`
+	Errors                 []string                `json:"errors"`
+	LegsPendingTrigger     bool                    `json:"legs_pending_trigger"`
 	SpotExecutionSnapshots []SpotExecutionSnapshot `json:"-"`
 }
 
@@ -122,4 +123,53 @@ type ClosePositionsRequest struct {
 type ClosePositionsResponse struct {
 	ClosedPositions int      `json:"closed_positions"`
 	Errors          []string `json:"errors,omitempty"`
+}
+
+type EmergencyFlattenRequest struct {
+	Scope          EmergencyScope `json:"scope"`
+	IdempotencyKey string         `json:"idempotency_key"`
+}
+
+type EmergencyOpenOrder struct {
+	Venue         string `json:"venue"`
+	Symbol        string `json:"symbol"`
+	OrderID       int64  `json:"order_id"`
+	ClientOrderID string `json:"client_order_id"`
+	PositionSide  string `json:"position_side,omitempty"`
+	Kind          string `json:"kind"`
+}
+
+type EmergencyFuturesPosition struct {
+	Symbol       string          `json:"symbol"`
+	Quantity     decimal.Decimal `json:"quantity"`
+	PositionSide string          `json:"position_side"`
+}
+
+type EmergencySpotBalance struct {
+	Asset        string          `json:"asset"`
+	Symbol       string          `json:"symbol,omitempty"`
+	Quantity     decimal.Decimal `json:"quantity"`
+	NotionalUSDT decimal.Decimal `json:"notional_usdt"`
+	Dust         bool            `json:"dust"`
+}
+
+type EmergencyExchangeState struct {
+	OpenOrders       []EmergencyOpenOrder       `json:"open_orders"`
+	FuturesPositions []EmergencyFuturesPosition `json:"futures_positions"`
+	SpotBalances     []EmergencySpotBalance     `json:"spot_balances"`
+	Errors           []string                   `json:"errors,omitempty"`
+}
+
+type EmergencyFlattenResponse struct {
+	Scope                  EmergencyScope         `json:"scope"`
+	IdempotencyKey         string                 `json:"idempotency_key"`
+	Starting               EmergencyExchangeState `json:"starting"`
+	Final                  EmergencyExchangeState `json:"final"`
+	CanceledOrders         int                    `json:"canceled_orders"`
+	ClosedFuturesPositions int                    `json:"closed_futures_positions"`
+	FlattenedSpotAssets    int                    `json:"flattened_spot_assets"`
+	Residuals              []EmergencySpotBalance `json:"residuals"`
+	FullyFlattened         bool                   `json:"fully_flattened"`
+	Passes                 int                    `json:"passes"`
+	Errors                 []string               `json:"errors,omitempty"`
 }

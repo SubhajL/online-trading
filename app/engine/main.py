@@ -1118,8 +1118,65 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
     Router POSTs `order_update.v1` payloads; we correlate client_order_id back to
     the originating trading decision and publish an OrderUpdateEvent on the bus.
     """
+    inbox_event_id: str | None = None
+    envelope: Any | None = None
+    inbox_db = services.get("database")
+    is_enveloped = "event_id" in update or "payload" in update
+    if not is_enveloped and os.getenv("ALLOW_LEGACY_ORDER_UPDATES", "false").lower() != "true":
+        raise HTTPException(status_code=400, detail="versioned order update envelope is required")
     if "event_bus" not in services:
         raise HTTPException(status_code=503, detail="event_bus not initialized")
+    if is_enveloped:
+        from .execution.order_update_inbox import OrderUpdateEnvelope
+
+        try:
+            envelope = OrderUpdateEnvelope.model_validate(update)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="invalid order update envelope") from exc
+        payload_venue = envelope.payload.get("venue")
+        payload_client_order_id = envelope.payload.get("client_order_id")
+        if (
+            not isinstance(payload_venue, str)
+            or not payload_venue.strip()
+            or not isinstance(payload_client_order_id, str)
+            or not payload_client_order_id.strip()
+        ):
+            raise HTTPException(status_code=400, detail="invalid order update payload identity")
+        expected_aggregate_id = f"{payload_venue.strip().upper()}:{payload_client_order_id.strip()}"
+        if envelope.aggregate_id != expected_aggregate_id:
+            raise HTTPException(
+                status_code=400, detail="order update aggregate does not match payload"
+            )
+        required_methods = (
+            "claim_order_update_inbox",
+            "complete_order_update_inbox",
+            "fail_order_update_inbox",
+        )
+        if inbox_db is None or any(not hasattr(inbox_db, method) for method in required_methods):
+            raise HTTPException(status_code=503, detail="durable order update inbox unavailable")
+        inbox_event_id = str(envelope.event_id)
+        try:
+            claim = await inbox_db.claim_order_update_inbox(
+                event_id=inbox_event_id,
+                aggregate_id=envelope.aggregate_id,
+                sequence=envelope.sequence,
+                event_version=envelope.event_version,
+                payload=envelope.payload,
+                payload_hash=envelope.payload_hash(),
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503, detail="durable order update inbox unavailable"
+            ) from exc
+        if claim == "DUPLICATE":
+            return {"status": "duplicate"}
+        if claim == "CONFLICT":
+            raise HTTPException(status_code=409, detail="conflicting order update event")
+        if claim in {"GAP", "REGRESSION"}:
+            raise HTTPException(status_code=425, detail="order update sequence is not processable")
+        if claim != "CLAIMED":
+            raise HTTPException(status_code=503, detail="order update event is already processing")
+        update = envelope.payload
 
     from .models import OrderUpdate, OrderUpdateEvent
 
@@ -1133,16 +1190,21 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
         ts = ts.replace(tzinfo=UTC)
 
     metadata: dict[str, Any] = {}
+    if envelope is not None:
+        metadata.update(
+            order_update_event_id=str(envelope.event_id),
+            order_update_sequence=envelope.sequence,
+        )
     store = services.get("order_update_correlation_store")
     if store is not None:
         corr = await store.get(client_order_id=parsed.client_order_id)
         if corr is not None:
-            metadata = dict(corr.metadata)
+            metadata = _merge_order_update_metadata(metadata, dict(corr.metadata))
 
     db_adapter = services.get("database")
     hydration_enabled = _order_update_db_hydration_enabled_from_env()
     if (
-        not metadata
+        not metadata.get("decision_id")
         and hydration_enabled
         and db_adapter is not None
         and hasattr(db_adapter, "get_order_by_client_order_id")
@@ -1164,6 +1226,7 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
             )
 
     event = OrderUpdateEvent(
+        **({"event_id": envelope.event_id} if envelope is not None else {}),
         timestamp=ts,
         symbol=parsed.symbol,
         metadata=metadata,
@@ -1214,18 +1277,53 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
                 if isinstance(zone, dict) and zone:
                     order_row["zone"] = zone
                 persisted = await db_adapter.upsert_order(order_row)
+                if inbox_event_id is not None and not persisted:
+                    raise RuntimeError("order projection persistence failed")
                 terminal_update_persisted = (
                     bool(persisted) and normalized_status in terminal_statuses
                 )
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "Failed to persist order update to DB (client_order_id=%s)", parsed.client_order_id
             )
+            if inbox_event_id is not None and inbox_db is not None:
+                await inbox_db.fail_order_update_inbox(
+                    event_id=inbox_event_id,
+                    error_message=str(exc),
+                )
+                raise HTTPException(
+                    status_code=503, detail="order update projection failed"
+                ) from exc
 
-    await services["event_bus"].publish(event, priority=7)
+    try:
+        event_bus = services["event_bus"]
+        if inbox_event_id is not None:
+            publish_and_wait = getattr(event_bus, "publish_and_wait", None)
+            if not callable(publish_and_wait):
+                raise RuntimeError("acknowledged event dispatch unavailable")
+            published = await publish_and_wait(event, priority=7)
+        else:
+            published = await event_bus.publish(event, priority=7)
+        if not published:
+            raise RuntimeError("event bus rejected order update")
+    except Exception as exc:
+        if inbox_event_id is not None and inbox_db is not None:
+            await inbox_db.fail_order_update_inbox(
+                event_id=inbox_event_id,
+                error_message=str(exc),
+            )
+        raise HTTPException(status_code=503, detail="order update publication failed") from exc
 
     if store is not None and terminal_update_persisted:
         await store.delete(client_order_id=parsed.client_order_id)
+
+    if inbox_event_id is not None and inbox_db is not None:
+        try:
+            await inbox_db.complete_order_update_inbox(event_id=inbox_event_id)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503, detail="order update inbox completion failed"
+            ) from exc
 
     return {"status": "ok"}
 

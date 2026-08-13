@@ -1,4 +1,8 @@
 import { IsEnum, IsOptional, IsBoolean } from 'class-validator';
+import type {
+  EmergencyExchangeState,
+  EmergencySpotBalance,
+} from '../../router-client/router-client.service';
 
 export type EmergencyCloseScope = 'ALL' | 'SPOT' | 'FUTURES';
 
@@ -11,7 +15,12 @@ export class EmergencyCloseDto {
   stopEngine?: boolean;
 }
 
-export type EmergencyCloseStepName = 'CANCEL_OPEN_ORDERS' | 'CLOSE_POSITIONS' | 'STOP_AUTO_TRADING';
+export type EmergencyCloseStepName =
+  | 'HALT_EXECUTION'
+  | 'EXCHANGE_FLATTEN'
+  | 'CANCEL_OPEN_ORDERS'
+  | 'CLOSE_POSITIONS'
+  | 'STOP_AUTO_TRADING';
 
 export type EmergencyCloseStepStatus = 'SUCCESS' | 'FAILED' | 'SKIPPED';
 
@@ -25,6 +34,10 @@ export interface EmergencyCloseStep {
     canceledOrders?: number;
     closedPositions?: number;
     autoTradingDisabled?: boolean;
+    executionHalted?: boolean;
+    controlGeneration?: number;
+    fullyFlattened?: boolean;
+    residuals?: EmergencySpotBalance[];
   };
 }
 
@@ -36,6 +49,12 @@ export interface EmergencyCloseResponse {
   canceledOrders: number;
   closedPositions: number;
   autoTradingDisabled: boolean;
+  executionHalted: boolean;
+  controlGeneration: number | null;
+  fullyFlattened: boolean;
+  residuals: EmergencySpotBalance[];
+  startingState: EmergencyExchangeState | null;
+  finalState: EmergencyExchangeState | null;
   steps: EmergencyCloseStep[];
   executionTimeMs: number;
 }

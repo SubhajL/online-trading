@@ -139,6 +139,7 @@ type armerExchange struct {
 	postedQtys  map[string]string
 	canceledIDs []int64
 	failPosts   bool // all POSTs fail with a non-retryable -1102
+	postStatus  string
 }
 
 func (f *armerExchange) posted() []string {
@@ -183,8 +184,12 @@ func (f *armerExchange) handler() http.HandlerFunc {
 			f.postedQtys[clientOrderID] = orDefault(q.Get("quantity"))
 			count := len(f.postedIDs)
 			f.mu.Unlock()
+			status := f.postStatus
+			if status == "" {
+				status = "NEW"
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"orderId": 5000 + count, "symbol": q.Get("symbol"), "status": "NEW",
+				"orderId": 5000 + count, "symbol": q.Get("symbol"), "status": status,
 				"clientOrderId": clientOrderID, "price": orDefault(q.Get("price")), "avgPrice": "0",
 				"origQty": orDefault(q.Get("quantity")), "executedQty": "0", "cumQty": "0", "cumQuote": "0",
 				"timeInForce": "GTC", "type": q.Get("type"), "reduceOnly": q.Get("reduceOnly") == "true",
@@ -262,6 +267,22 @@ func TestLegArmer_EntryFillArmsProtectiveLegs(t *testing.T) {
 	assert.Contains(t, store.legUpdates, "arm-tp1:PLACED")
 	assert.Contains(t, store.legUpdates, "arm-sl:PLACED")
 	assert.Equal(t, []string{storage.BracketStatusLegsPlaced}, store.bracketUpdates)
+}
+
+func TestLegArmer_ImmediateTerminalResponseIsPersisted(t *testing.T) {
+	store := &fakeArmerStore{record: armerRecord()}
+	armer, fake := newArmerFixture(t, store)
+	fake.postStatus = "FILLED"
+	leg := store.record.Legs[1]
+
+	placed := armer.armSingleLeg(context.Background(), store.record, leg, binance.FuturesOrderRequest{
+		Symbol: "BTCUSDT", Side: "SELL", Type: "LIMIT", TimeInForce: "GTC",
+		Price: decimal.NewFromInt(51000), Quantity: decimal.RequireFromString("0.02"),
+		NewClientOrderID: leg.ClientOrderID,
+	})
+
+	assert.True(t, placed)
+	assert.Contains(t, store.legUpdates, "arm-tp1:FILLED")
 }
 
 func TestLegArmer_DuplicateFillEventIsIdempotent(t *testing.T) {

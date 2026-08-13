@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { TradingService } from './trading.service'
+import type { PlacementOperation } from './trading.service'
 import { ApiClient } from './api.client'
 import type { Order, Position, OrderId, Symbol, Venue } from '@/types'
 
@@ -8,8 +9,16 @@ vi.mock('./api.client')
 describe('TradingService', () => {
   let service: TradingService
   let mockApiClient: ApiClient
+  let operation: PlacementOperation
 
   beforeEach(() => {
+    const values = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+      clear: () => values.clear(),
+    })
     mockApiClient = new ApiClient({ baseUrl: 'http://localhost:3000/api' })
     vi.mocked(ApiClient).mockImplementation(() => mockApiClient)
 
@@ -18,6 +27,7 @@ describe('TradingService', () => {
     mockApiClient.delete = vi.fn()
 
     service = new TradingService(mockApiClient)
+    operation = service.createPlacementOperation()
   })
 
   describe('placeOrder', () => {
@@ -46,10 +56,165 @@ describe('TradingService', () => {
 
       vi.mocked(mockApiClient.post).mockResolvedValueOnce(mockResponse)
 
-      const result = await service.placeOrder(orderRequest)
+      const result = await service.placeOrder(orderRequest, operation)
 
-      expect(mockApiClient.post).toHaveBeenCalledWith('/trading/orders', orderRequest)
+      expect(mockApiClient.post).toHaveBeenCalledWith('/trading/orders', orderRequest, {
+        headers: { 'X-Idempotency-Key': expect.any(String) },
+      })
       expect(result).toEqual(mockResponse)
+    })
+
+    it('reuses the placement identity after an ambiguous browser failure', async () => {
+      const orderRequest = {
+        symbol: 'BTCUSDT' as Symbol,
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'USD_M' as Venue,
+      }
+      const mockResponse = { orderId: '12345' as OrderId } as Order
+      vi.mocked(mockApiClient.post)
+        .mockRejectedValueOnce(new Error('response lost'))
+        .mockResolvedValueOnce(mockResponse)
+
+      await expect(service.placeOrder(orderRequest, operation)).rejects.toThrow('response lost')
+      await expect(service.placeOrder(orderRequest, operation)).resolves.toEqual(mockResponse)
+
+      expect(vi.mocked(mockApiClient.post).mock.calls[1][2]).toEqual(
+        vi.mocked(mockApiClient.post).mock.calls[0][2],
+      )
+    })
+
+    it('recovers the placement identity after a page reload', async () => {
+      const orderRequest = {
+        symbol: 'BTCUSDT' as Symbol,
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'USD_M' as Venue,
+      }
+      const mockResponse = { orderId: '12345' as OrderId } as Order
+      vi.mocked(mockApiClient.post)
+        .mockRejectedValueOnce(new Error('response lost'))
+        .mockResolvedValueOnce(mockResponse)
+
+      await expect(service.placeOrder(orderRequest, operation)).rejects.toThrow('response lost')
+      const persistedOperationId = operation.id
+      service = new TradingService(mockApiClient)
+      const reconstructedOrder = {
+        venue: 'USD_M' as Venue,
+        takeProfitPrice: 47000,
+        stopLossPrice: 44000,
+        quantity: 0.01,
+        type: 'MARKET' as const,
+        side: 'BUY' as const,
+        symbol: 'BTCUSDT' as Symbol,
+      }
+      const recoveredOperation = service.recoverPendingPlacementOperation(
+        persistedOperationId,
+        reconstructedOrder,
+      )
+      expect(recoveredOperation).toEqual(operation)
+      await expect(service.placeOrder(reconstructedOrder, recoveredOperation!)).resolves.toEqual(
+        mockResponse,
+      )
+
+      expect(vi.mocked(mockApiClient.post).mock.calls[1][2]).toEqual(
+        vi.mocked(mockApiClient.post).mock.calls[0][2],
+      )
+    })
+
+    it('recovers concurrent identical operations by their persisted handles after reload', async () => {
+      const orderRequest = {
+        symbol: 'BTCUSDT' as Symbol,
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'USD_M' as Venue,
+      }
+      const firstOperation = service.createPlacementOperation()
+      const secondOperation = service.createPlacementOperation()
+      vi.mocked(mockApiClient.post)
+        .mockRejectedValueOnce(new Error('first response lost'))
+        .mockRejectedValueOnce(new Error('second response lost'))
+        .mockResolvedValue({ orderId: '12345' as OrderId } as Order)
+
+      await expect(service.placeOrder(orderRequest, firstOperation)).rejects.toThrow(
+        'first response lost',
+      )
+      await expect(service.placeOrder(orderRequest, secondOperation)).rejects.toThrow(
+        'second response lost',
+      )
+      service = new TradingService(mockApiClient)
+      expect(service.listPendingPlacementOperations()).toEqual([firstOperation, secondOperation])
+
+      await service.placeOrder(
+        orderRequest,
+        service.recoverPendingPlacementOperation(firstOperation.id, orderRequest)!,
+      )
+      await service.placeOrder(
+        orderRequest,
+        service.recoverPendingPlacementOperation(secondOperation.id, orderRequest)!,
+      )
+
+      expect(vi.mocked(mockApiClient.post).mock.calls[2][2]).toEqual(
+        vi.mocked(mockApiClient.post).mock.calls[0][2],
+      )
+      expect(vi.mocked(mockApiClient.post).mock.calls[3][2]).toEqual(
+        vi.mocked(mockApiClient.post).mock.calls[1][2],
+      )
+    })
+
+    it('uses distinct identities for concurrent identical placement operations', async () => {
+      const orderRequest = {
+        symbol: 'BTCUSDT' as Symbol,
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'USD_M' as Venue,
+      }
+      vi.mocked(mockApiClient.post).mockResolvedValue({ orderId: '12345' as OrderId } as Order)
+
+      await Promise.all([
+        service.placeOrder(orderRequest, service.createPlacementOperation()),
+        service.placeOrder(orderRequest, service.createPlacementOperation()),
+      ])
+
+      const firstHeaders = vi.mocked(mockApiClient.post).mock.calls[0][2]
+      const secondHeaders = vi.mocked(mockApiClient.post).mock.calls[1][2]
+      expect(firstHeaders).not.toEqual(secondHeaders)
+    })
+
+    it('uses a new identity after an unresolved operation is abandoned', async () => {
+      const orderRequest = {
+        symbol: 'BTCUSDT' as Symbol,
+        side: 'BUY' as const,
+        type: 'MARKET' as const,
+        quantity: 0.01,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'USD_M' as Venue,
+      }
+      const abandoned = service.createPlacementOperation()
+      vi.mocked(mockApiClient.post)
+        .mockRejectedValueOnce(new Error('response lost'))
+        .mockResolvedValueOnce({ orderId: '12345' as OrderId } as Order)
+
+      await expect(service.placeOrder(orderRequest, abandoned)).rejects.toThrow('response lost')
+      service.abandonPlacementOperation(abandoned)
+      await service.placeOrder(orderRequest, service.createPlacementOperation())
+
+      const firstHeaders = vi.mocked(mockApiClient.post).mock.calls[0][2]
+      const secondHeaders = vi.mocked(mockApiClient.post).mock.calls[1][2]
+      expect(firstHeaders).not.toEqual(secondHeaders)
     })
 
     it('places a limit order with price', async () => {
@@ -79,9 +244,11 @@ describe('TradingService', () => {
 
       vi.mocked(mockApiClient.post).mockResolvedValueOnce(mockResponse)
 
-      const result = await service.placeOrder(orderRequest)
+      const result = await service.placeOrder(orderRequest, operation)
 
-      expect(mockApiClient.post).toHaveBeenCalledWith('/trading/orders', orderRequest)
+      expect(mockApiClient.post).toHaveBeenCalledWith('/trading/orders', orderRequest, {
+        headers: { 'X-Idempotency-Key': expect.any(String) },
+      })
       expect(result).toEqual(mockResponse)
     })
 
@@ -97,7 +264,9 @@ describe('TradingService', () => {
         venue: 'USD_M' as Venue,
       }
 
-      await expect(service.placeOrder(invalidOrder)).rejects.toThrow('LIMIT order requires price')
+      await expect(service.placeOrder(invalidOrder, operation)).rejects.toThrow(
+        'LIMIT order requires price',
+      )
     })
 
     it('requires stop loss price', async () => {
@@ -110,7 +279,9 @@ describe('TradingService', () => {
         venue: 'USD_M' as Venue,
       }
 
-      await expect(service.placeOrder(invalidOrder)).rejects.toThrow('Order requires stopLossPrice')
+      await expect(service.placeOrder(invalidOrder, operation)).rejects.toThrow(
+        'Order requires stopLossPrice',
+      )
     })
 
     it('requires take profit price', async () => {
@@ -123,7 +294,7 @@ describe('TradingService', () => {
         venue: 'USD_M' as Venue,
       }
 
-      await expect(service.placeOrder(invalidOrder)).rejects.toThrow(
+      await expect(service.placeOrder(invalidOrder, operation)).rejects.toThrow(
         'Order requires takeProfitPrice',
       )
     })
@@ -140,7 +311,7 @@ describe('TradingService', () => {
         venue: 'USD_M' as Venue,
       }
 
-      await expect(service.placeOrder(invalidOrder)).rejects.toThrow(
+      await expect(service.placeOrder(invalidOrder, operation)).rejects.toThrow(
         'Only MARKET and LIMIT entries are supported',
       )
     })
@@ -154,7 +325,9 @@ describe('TradingService', () => {
         venue: 'USD_M' as Venue,
       }
 
-      await expect(service.placeOrder(invalidOrder)).rejects.toThrow('Quantity must be positive')
+      await expect(service.placeOrder(invalidOrder, operation)).rejects.toThrow(
+        'Quantity must be positive',
+      )
     })
   })
 

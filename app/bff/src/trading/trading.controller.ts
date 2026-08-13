@@ -12,6 +12,7 @@ import {
   Request,
   Headers,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { TradingService } from './trading.service';
@@ -52,9 +53,13 @@ export class TradingController {
   @Post('orders')
   async placeOrder(
     @Request() req: AuthenticatedRequest,
+    @Headers('x-idempotency-key') idempotencyKey: string | undefined,
     @Body() orderRequest: OrderRequest,
   ): Promise<OrderResponse> {
-    const command = new PlaceOrderCommand(req.user.sub, orderRequest);
+    if (!idempotencyKey?.trim()) {
+      throw new BadRequestException('X-Idempotency-Key header is required');
+    }
+    const command = new PlaceOrderCommand(req.user.sub, orderRequest, idempotencyKey.trim());
     return this.commandBus.execute(command);
   }
 

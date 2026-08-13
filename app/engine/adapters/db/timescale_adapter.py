@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
+import hashlib
 import json
 import logging
 import os
@@ -858,6 +859,225 @@ class TimescaleDBAdapter:
             logger.error(f"Error inserting trading decision: {e}")
             return False
 
+    async def prepare_execution_intent(self, intent: dict[str, Any]) -> bool:
+        """Persist PREPARED before the router can submit to the exchange."""
+        try:
+            payload_json = json.dumps(intent["request_payload"], sort_keys=True, default=str)
+            request_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+            async with self.get_connection() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO execution_intents (
+                        idempotency_key, decision_id, signal_id, venue, symbol,
+                        request_hash, request_payload, state
+                    ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,'PREPARED')
+                    ON CONFLICT (venue, idempotency_key) DO NOTHING
+                    """,
+                    intent["idempotency_key"],
+                    intent["decision_id"],
+                    intent.get("signal_id"),
+                    intent["venue"],
+                    intent["symbol"],
+                    request_hash,
+                    payload_json,
+                )
+                row = await conn.fetchrow(
+                    """
+                    SELECT request_hash, state
+                    FROM execution_intents
+                    WHERE venue = $1 AND idempotency_key = $2
+                    """,
+                    intent["venue"],
+                    intent["idempotency_key"],
+                )
+            return bool(
+                row
+                and row["request_hash"] == request_hash
+                and row["state"] in {"PREPARED", "SUBMITTING", "AMBIGUOUS"}
+            )
+        except Exception:
+            logger.exception(
+                "Error preparing execution intent: idempotency_key=%s",
+                intent.get("idempotency_key"),
+            )
+            return False
+
+    async def transition_execution_intent(
+        self,
+        idempotency_key: str,
+        state: str,
+        *,
+        venue: str,
+        response_payload: dict[str, Any] | None = None,
+        error_message: str | None = None,
+    ) -> bool:
+        """Apply a guarded durable execution-intent state transition."""
+        expected_states = {
+            "SUBMITTING": ("PREPARED", "SUBMITTING", "AMBIGUOUS"),
+            "ACKNOWLEDGED": ("SUBMITTING",),
+            "REJECTED": ("PREPARED", "SUBMITTING"),
+            "AMBIGUOUS": ("PREPARED", "SUBMITTING"),
+        }
+        expected = expected_states.get(state)
+        if expected is None:
+            return False
+        try:
+            response_json = (
+                json.dumps(response_payload, sort_keys=True, default=str)
+                if response_payload is not None
+                else None
+            )
+            async with self.get_connection() as conn:
+                result = await conn.execute(
+                    """
+                    UPDATE execution_intents
+                    SET state = $3,
+                        response_payload = COALESCE($4::jsonb, response_payload),
+                        error_message = COALESCE($5, error_message),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE venue = $1
+                      AND idempotency_key = $2
+                      AND state = ANY($6::text[])
+                    """,
+                    venue,
+                    idempotency_key,
+                    state,
+                    response_json,
+                    error_message,
+                    list(expected),
+                )
+            return result == "UPDATE 1"
+        except Exception:
+            logger.exception(
+                "Error transitioning execution intent: idempotency_key=%s state=%s",
+                idempotency_key,
+                state,
+            )
+            return False
+
+    async def claim_order_update_inbox(
+        self,
+        *,
+        event_id: str,
+        aggregate_id: str,
+        sequence: int,
+        event_version: int,
+        payload: dict[str, Any],
+        payload_hash: str,
+    ) -> str:
+        """Insert and exclusively claim one ordered, idempotent inbox event."""
+        payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        async with self.get_write_connection() as conn, conn.transaction():
+            await conn.execute(
+                """
+                INSERT INTO engine_order_update_inbox (
+                    event_id, aggregate_id, sequence, event_version, payload, payload_hash
+                ) VALUES ($1::uuid,$2,$3,$4,$5::jsonb,$6)
+                ON CONFLICT DO NOTHING
+                """,
+                event_id,
+                aggregate_id,
+                sequence,
+                event_version,
+                payload_json,
+                payload_hash,
+            )
+            row = await conn.fetchrow(
+                """
+                SELECT event_id::text, payload_hash, state, processing_started_at
+                FROM engine_order_update_inbox
+                WHERE event_id = $1::uuid OR (aggregate_id = $2 AND sequence = $3)
+                FOR UPDATE
+                """,
+                event_id,
+                aggregate_id,
+                sequence,
+            )
+            if row is None or row["event_id"] != event_id or row["payload_hash"] != payload_hash:
+                return "CONFLICT"
+            if row["state"] == "PROCESSED":
+                return "DUPLICATE"
+            if (
+                row["state"] == "PROCESSING"
+                and row["processing_started_at"] is not None
+                and row["processing_started_at"] > datetime.now(UTC) - timedelta(seconds=60)
+            ):
+                return "IN_PROGRESS"
+
+            prior = await conn.fetchrow(
+                """
+                SELECT sequence, payload->>'status' AS status
+                FROM engine_order_update_inbox
+                WHERE aggregate_id = $1 AND state = 'PROCESSED' AND sequence < $2
+                ORDER BY sequence DESC LIMIT 1
+                """,
+                aggregate_id,
+                sequence,
+            )
+            expected_sequence = 1 if prior is None else int(prior["sequence"]) + 1
+            if sequence != expected_sequence:
+                await conn.execute(
+                    """
+                    UPDATE engine_order_update_inbox
+                    SET state = 'PARKED', last_error = $2
+                    WHERE event_id = $1::uuid
+                    """,
+                    event_id,
+                    f"sequence gap: expected {expected_sequence}, got {sequence}",
+                )
+                return "GAP"
+
+            current_status = str(payload.get("status", "")).upper()
+            prior_status = str(prior["status"] or "").upper() if prior is not None else ""
+            from ...execution.order_update_inbox import is_terminal_transition_allowed
+
+            if not is_terminal_transition_allowed(prior_status, current_status):
+                await conn.execute(
+                    """
+                    UPDATE engine_order_update_inbox
+                    SET state = 'PARKED', last_error = 'terminal state regression'
+                    WHERE event_id = $1::uuid
+                    """,
+                    event_id,
+                )
+                return "REGRESSION"
+
+            await conn.execute(
+                """
+                UPDATE engine_order_update_inbox
+                SET state = 'PROCESSING', processing_started_at = CURRENT_TIMESTAMP,
+                    last_error = NULL
+                WHERE event_id = $1::uuid
+                """,
+                event_id,
+            )
+            return "CLAIMED"
+
+    async def complete_order_update_inbox(self, *, event_id: str) -> None:
+        async with self.get_write_connection() as conn:
+            result = await conn.execute(
+                """
+                UPDATE engine_order_update_inbox
+                SET state = 'PROCESSED', processed_at = CURRENT_TIMESTAMP, last_error = NULL
+                WHERE event_id = $1::uuid AND state = 'PROCESSING'
+                """,
+                event_id,
+            )
+        if result != "UPDATE 1":
+            raise RuntimeError(f"inbox event {event_id} was not processing")
+
+    async def fail_order_update_inbox(self, *, event_id: str, error_message: str) -> None:
+        async with self.get_write_connection() as conn:
+            await conn.execute(
+                """
+                UPDATE engine_order_update_inbox
+                SET state = 'FAILED', last_error = $2
+                WHERE event_id = $1::uuid AND state = 'PROCESSING'
+                """,
+                event_id,
+                error_message[:1000],
+            )
+
     async def upsert_order(self, order: dict[str, Any]) -> bool:
         """Upsert an order row using unique key (venue, client_order_id).
 
@@ -1021,7 +1241,9 @@ class TimescaleDBAdapter:
                 )
             return True
         except Exception:
-            logger.exception("Error upserting order: client_order_id=%s", order.get("client_order_id"))
+            logger.exception(
+                "Error upserting order: client_order_id=%s", order.get("client_order_id")
+            )
             return False
 
     async def get_order_by_client_order_id(

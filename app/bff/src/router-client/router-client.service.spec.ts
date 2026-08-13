@@ -1,14 +1,125 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { RouterClientService } from './router-client.service';
-import { of, throwError } from 'rxjs';
+import {
+  RouterClientService,
+  validateEmergencyFlattenResponse,
+  validateExecutionControlResponse,
+  validateRouterBracketPlacement,
+} from './router-client.service';
+import { Observable, of, throwError } from 'rxjs';
 import { AxiosResponse } from 'axios';
+import { createRouterPlacementIdentity } from '../trading/placement-identity';
 
 describe('RouterClientService', () => {
   let service: RouterClientService;
   let httpService: HttpService;
   let configService: ConfigService;
+
+  const validExecutionControl = {
+    scope: 'GLOBAL',
+    state: 'HALTED',
+    generation: 4,
+    reason: 'operator request',
+    requested_by: 'operator-1',
+    idempotency_key: 'halt-key',
+    requested_at: '2026-08-13T09:00:00Z',
+    updated_at: '2026-08-13T09:00:00Z',
+  };
+
+  const emptyExchangeState = {
+    open_orders: [],
+    futures_positions: [],
+    spot_balances: [],
+    errors: [],
+  };
+
+  const validEmergencyFlatten = {
+    scope: 'ALL',
+    idempotency_key: 'flatten-key',
+    starting: emptyExchangeState,
+    final: emptyExchangeState,
+    canceled_orders: 0,
+    closed_futures_positions: 0,
+    flattened_spot_assets: 0,
+    residuals: [],
+    fully_flattened: true,
+    passes: 1,
+    errors: [],
+  };
+
+  it.each([
+    [{ ...validExecutionControl, generation: -1 }, 'generation'],
+    [{ ...validExecutionControl, scope: 'ACCOUNT' }, 'scope'],
+    [{ ...validExecutionControl, requested_at: '2026-08-13T09:00:00' }, 'requested_at'],
+    [{ ...validExecutionControl, idempotency_key: 'wrong-key' }, 'idempotency_key'],
+  ])('rejects malformed execution-control response field %s', (payload, field) => {
+    expect(() => validateExecutionControlResponse(payload, 'halt-key')).toThrow(field);
+  });
+
+  it.each([
+    [{ ...validEmergencyFlatten, fully_flattened: 'true' }, 'fully_flattened'],
+    [{ ...validEmergencyFlatten, final: undefined }, 'final'],
+    [{ ...validEmergencyFlatten, scope: 'SPOT' }, 'scope'],
+    [{ ...validEmergencyFlatten, idempotency_key: 'wrong-key' }, 'idempotency_key'],
+    [{ ...validEmergencyFlatten, passes: Number.NaN }, 'passes'],
+  ])('rejects malformed emergency-flatten response field %s', (payload, field) => {
+    expect(() => validateEmergencyFlattenResponse(payload, 'ALL', 'flatten-key')).toThrow(field);
+  });
+
+  it.each([
+    [
+      {
+        ...validEmergencyFlatten,
+        final: {
+          ...emptyExchangeState,
+          futures_positions: [{ symbol: 'BTCUSDT', quantity: '1', position_side: 'LONG' }],
+        },
+      },
+      'fully_flattened',
+    ],
+    [
+      {
+        ...validEmergencyFlatten,
+        fully_flattened: false,
+        final: {
+          ...emptyExchangeState,
+          spot_balances: [
+            {
+              asset: 'BTC',
+              symbol: 'BTCUSDT',
+              quantity: '0.01',
+              notional_usdt: '500',
+              dust: false,
+            },
+          ],
+        },
+        residuals: [],
+      },
+      'residuals',
+    ],
+  ])('rejects contradictory emergency-flatten response field %s', (payload, field) => {
+    expect(() => validateEmergencyFlattenResponse(payload, 'ALL', 'flatten-key')).toThrow(field);
+  });
+
+  it('accepts dust residuals and historical errors after a later successful pass', () => {
+    const dustBalance = {
+      asset: 'BTC',
+      symbol: 'BTCUSDT',
+      quantity: '0.000001',
+      notional_usdt: '0.05',
+      dust: true,
+    };
+    const payload = {
+      ...validEmergencyFlatten,
+      final: { ...emptyExchangeState, spot_balances: [dustBalance] },
+      residuals: [dustBalance],
+      errors: ['pass 1: temporary exchange timeout'],
+      passes: 2,
+    };
+
+    expect(validateEmergencyFlattenResponse(payload, 'ALL', 'flatten-key')).toEqual(payload);
+  });
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
@@ -22,6 +133,51 @@ describe('RouterClientService', () => {
       return config[key];
     }),
   };
+
+  it.each([
+    ['partial_failure', undefined],
+    ['partial_failure', 'true'],
+    ['legs_pending_trigger', undefined],
+    ['legs_pending_trigger', 'false'],
+    ['errors', undefined],
+    ['created_at', 'not-a-timestamp'],
+    ['created_at', '2026-08-13T09:00:00'],
+    ['quantity', '0.01'],
+    ['quantity', 'Infinity'],
+    ['quantity', 0.0005],
+  ])('rejects malformed placement field %s', (field, value) => {
+    const request = {
+      symbol: 'BTCUSDT',
+      side: 'BUY' as const,
+      type: 'LIMIT' as const,
+      quantity: 0.001,
+      price: 45000,
+      stopLossPrice: 44000,
+      takeProfitPrice: 47000,
+      venue: 'SPOT' as const,
+    };
+    const identity = createRouterPlacementIdentity('user-1', 'malformed-field', 1);
+    const response = {
+      bracket_order_id: 'bracket-1',
+      symbol: 'BTCUSDT',
+      side: 'BUY',
+      quantity: '0.001',
+      created_at: '2026-08-13T09:00:00Z',
+      partial_failure: false,
+      legs_pending_trigger: false,
+      errors: [],
+      client_order_ids: {
+        main: identity.clientOrderIds.main,
+        take_profits: identity.clientOrderIds.takeProfits,
+        stop_loss: identity.clientOrderIds.stopLoss,
+      },
+      [field]: value,
+    };
+
+    expect(() => validateRouterBracketPlacement(response, request, identity)).toThrow(
+      `invalid ${field}`,
+    );
+  });
 
   const mockHttpService = {
     post: jest.fn(),
@@ -59,6 +215,8 @@ describe('RouterClientService', () => {
   });
 
   describe('placeOrder', () => {
+    const placementIdentity = createRouterPlacementIdentity('user-123', 'click-456', 1);
+
     it('should place a spot order successfully', async () => {
       const orderRequest = {
         symbol: 'BTCUSDT',
@@ -75,14 +233,17 @@ describe('RouterClientService', () => {
         data: {
           bracket_order_id: '123456',
           client_order_ids: {
-            main: 'main-1',
-            take_profits: ['tp-1'],
-            stop_loss: 'sl-1',
+            main: placementIdentity.clientOrderIds.main,
+            take_profits: placementIdentity.clientOrderIds.takeProfits,
+            stop_loss: placementIdentity.clientOrderIds.stopLoss,
           },
           symbol: 'BTCUSDT',
           side: 'BUY',
           quantity: 0.001,
           created_at: '2026-03-21T20:00:00Z',
+          partial_failure: false,
+          errors: [],
+          legs_pending_trigger: false,
         },
         status: 200,
         statusText: 'OK',
@@ -92,7 +253,7 @@ describe('RouterClientService', () => {
 
       mockHttpService.post.mockReturnValue(of(mockResponse));
 
-      const result = await service.placeOrder(orderRequest);
+      const result = await service.placeOrder(orderRequest, placementIdentity);
 
       expect(result).toEqual(mockResponse.data);
       expect(httpService.post).toHaveBeenCalledWith(
@@ -106,6 +267,12 @@ describe('RouterClientService', () => {
           stop_loss_price: 44000,
           order_type: 'LIMIT',
           is_futures: false,
+          idempotency_key: placementIdentity.idempotencyKey,
+          client_order_ids: {
+            main: placementIdentity.clientOrderIds.main,
+            take_profits: placementIdentity.clientOrderIds.takeProfits,
+            stop_loss: placementIdentity.clientOrderIds.stopLoss,
+          },
         },
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -130,14 +297,17 @@ describe('RouterClientService', () => {
         data: {
           bracket_order_id: '789012',
           client_order_ids: {
-            main: 'main-2',
-            take_profits: ['tp-2'],
-            stop_loss: 'sl-2',
+            main: placementIdentity.clientOrderIds.main,
+            take_profits: placementIdentity.clientOrderIds.takeProfits,
+            stop_loss: placementIdentity.clientOrderIds.stopLoss,
           },
           symbol: 'BTCUSDT',
           side: 'BUY',
           quantity: 0.01,
           created_at: '2026-03-21T20:01:00Z',
+          partial_failure: false,
+          errors: [],
+          legs_pending_trigger: false,
         },
         status: 200,
         statusText: 'OK',
@@ -147,7 +317,7 @@ describe('RouterClientService', () => {
 
       mockHttpService.post.mockReturnValue(of(mockResponse));
 
-      const result = await service.placeOrder(orderRequest);
+      const result = await service.placeOrder(orderRequest, placementIdentity);
 
       expect(result).toEqual(mockResponse.data);
       expect(httpService.post).toHaveBeenCalledWith(
@@ -161,12 +331,18 @@ describe('RouterClientService', () => {
           stop_loss_price: 44000,
           order_type: 'MARKET',
           is_futures: true,
+          idempotency_key: placementIdentity.idempotencyKey,
+          client_order_ids: {
+            main: placementIdentity.clientOrderIds.main,
+            take_profits: placementIdentity.clientOrderIds.takeProfits,
+            stop_loss: placementIdentity.clientOrderIds.stopLoss,
+          },
         },
         expect.any(Object),
       );
     });
 
-    it('should use retry configuration', async () => {
+    it('should accept a complete router placement response', async () => {
       const orderRequest = {
         symbol: 'BTCUSDT',
         side: 'SELL' as const,
@@ -179,7 +355,21 @@ describe('RouterClientService', () => {
       };
 
       const mockResponse: AxiosResponse = {
-        data: { orderId: '345678', status: 'NEW' },
+        data: {
+          bracket_order_id: '345678',
+          client_order_ids: {
+            main: placementIdentity.clientOrderIds.main,
+            take_profits: placementIdentity.clientOrderIds.takeProfits,
+            stop_loss: placementIdentity.clientOrderIds.stopLoss,
+          },
+          symbol: 'BTCUSDT',
+          side: 'SELL',
+          quantity: 0.001,
+          created_at: '2026-08-13T09:00:00Z',
+          partial_failure: false,
+          errors: [],
+          legs_pending_trigger: true,
+        },
         status: 200,
         statusText: 'OK',
         headers: {},
@@ -188,12 +378,134 @@ describe('RouterClientService', () => {
 
       mockHttpService.post.mockReturnValue(of(mockResponse));
 
-      const result = await service.placeOrder(orderRequest);
+      const result = await service.placeOrder(orderRequest, placementIdentity);
 
       expect(result).toEqual(mockResponse.data);
-      // Verify that retry configuration is loaded
       expect(configService.get).toHaveBeenCalledWith('ROUTER_RETRY_ATTEMPTS');
       expect(configService.get).toHaveBeenCalledWith('ROUTER_RETRY_DELAY');
+    });
+
+    it('should reject partial placement responses', async () => {
+      const orderRequest = {
+        symbol: 'BTCUSDT',
+        side: 'BUY' as const,
+        type: 'LIMIT' as const,
+        quantity: 0.001,
+        price: 45000,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'SPOT' as const,
+      };
+      mockHttpService.post.mockReturnValue(
+        of({
+          data: {
+            bracket_order_id: 'partial-1',
+            client_order_ids: {
+              main: placementIdentity.clientOrderIds.main,
+              take_profits: placementIdentity.clientOrderIds.takeProfits,
+              stop_loss: placementIdentity.clientOrderIds.stopLoss,
+            },
+            symbol: 'BTCUSDT',
+            side: 'BUY',
+            quantity: 0.001,
+            created_at: '2026-08-13T09:00:00Z',
+            partial_failure: true,
+            errors: ['stop placement failed'],
+            legs_pending_trigger: false,
+          },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {},
+        } as AxiosResponse),
+      );
+
+      await expect(service.placeOrder(orderRequest, placementIdentity)).rejects.toThrow(
+        'Router returned partial bracket placement',
+      );
+    });
+
+    it('should reject malformed successful responses', async () => {
+      const orderRequest = {
+        symbol: 'BTCUSDT',
+        side: 'BUY' as const,
+        type: 'LIMIT' as const,
+        quantity: 0.001,
+        price: 45000,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'SPOT' as const,
+      };
+      mockHttpService.post.mockReturnValue(
+        of({
+          data: { bracket_order_id: '' },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {},
+        } as AxiosResponse),
+      );
+
+      await expect(service.placeOrder(orderRequest, placementIdentity)).rejects.toThrow(
+        'Router placement response missing bracket_order_id',
+      );
+    });
+
+    it('reuses the exact stable body across an ambiguous transport retry', async () => {
+      const orderRequest = {
+        symbol: 'BTCUSDT',
+        side: 'BUY' as const,
+        type: 'LIMIT' as const,
+        quantity: 0.001,
+        price: 45000,
+        stopLossPrice: 44000,
+        takeProfitPrice: 47000,
+        venue: 'SPOT' as const,
+      };
+      let subscriptions = 0;
+      mockHttpService.post.mockReturnValue(
+        new Observable((subscriber) => {
+          subscriptions += 1;
+          if (subscriptions < 3) {
+            subscriber.error(new Error('connection reset'));
+            return;
+          }
+          subscriber.next({
+            data: {
+              bracket_order_id: 'replayed-bracket',
+              client_order_ids: {
+                main: placementIdentity.clientOrderIds.main,
+                take_profits: placementIdentity.clientOrderIds.takeProfits,
+                stop_loss: placementIdentity.clientOrderIds.stopLoss,
+              },
+              symbol: 'BTCUSDT',
+              side: 'BUY',
+              quantity: 0.001,
+              created_at: '2026-08-13T09:00:00Z',
+              partial_failure: false,
+              errors: [],
+              legs_pending_trigger: false,
+            },
+          } as AxiosResponse);
+          subscriber.complete();
+        }),
+      );
+
+      await expect(service.placeOrder(orderRequest, placementIdentity)).resolves.toEqual(
+        expect.objectContaining({ bracket_order_id: 'replayed-bracket' }),
+      );
+      expect(subscriptions).toBe(3);
+      expect(httpService.post).toHaveBeenCalledTimes(1);
+      expect(mockHttpService.post.mock.calls[0][1]).toEqual(
+        expect.objectContaining({
+          idempotency_key: placementIdentity.idempotencyKey,
+          client_order_ids: {
+            main: placementIdentity.clientOrderIds.main,
+            take_profits: placementIdentity.clientOrderIds.takeProfits,
+            stop_loss: placementIdentity.clientOrderIds.stopLoss,
+          },
+        }),
+      );
     });
 
     it('should throw error on failure', async () => {
@@ -211,7 +523,9 @@ describe('RouterClientService', () => {
       const error = new Error('Network error');
       mockHttpService.post.mockReturnValue(throwError(() => error));
 
-      await expect(service.placeOrder(orderRequest)).rejects.toThrow('Network error');
+      await expect(service.placeOrder(orderRequest, placementIdentity)).rejects.toThrow(
+        'Network error',
+      );
       expect(httpService.post).toHaveBeenCalledWith(
         'http://localhost:8080/place_bracket',
         expect.any(Object),

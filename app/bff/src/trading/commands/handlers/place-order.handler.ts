@@ -3,6 +3,7 @@ import { BadRequestException, Logger } from '@nestjs/common';
 import { PlaceOrderCommand } from '../place-order.command';
 import { TradingService } from '../../trading.service';
 import type { OrderRequest, OrderResponse } from '../../../router-client/router-client.service';
+import { createRouterPlacementIdentity } from '../../placement-identity';
 
 @CommandHandler(PlaceOrderCommand)
 export class PlaceOrderHandler implements ICommandHandler<PlaceOrderCommand> {
@@ -11,13 +12,14 @@ export class PlaceOrderHandler implements ICommandHandler<PlaceOrderCommand> {
   constructor(private readonly tradingService: TradingService) {}
 
   async execute(command: PlaceOrderCommand): Promise<OrderResponse> {
-    const { userId, orderRequest } = command;
+    const { userId, orderRequest, idempotencyKey } = command;
 
     this.validateOrder(orderRequest);
     this.logUserAction(userId, 'PLACE_ORDER', orderRequest);
 
     try {
-      return await this.tradingService.placeOrder(orderRequest);
+      const identity = createRouterPlacementIdentity(userId, idempotencyKey, 1);
+      return await this.tradingService.placeOrder(orderRequest, identity);
     } catch (error) {
       this.logger.error(`Failed to place order for user ${userId}:`, error);
       throw error;

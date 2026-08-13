@@ -20,6 +20,8 @@ import { OrderRepository } from '../orders/repositories/order.repository';
 import type { OrderType as EntityOrderType, OrderStatus } from '../orders/entities/order-entity';
 import { generateClientOrderId, mapRouterErrorToHttpException } from './mappers/order.mapper';
 import type { OrderEntity } from '../orders/entities/order-entity';
+import { createRouterPlacementIdentity } from './placement-identity';
+import type { RouterPlacementIdentity } from './placement-identity';
 
 export interface Position {
   symbol: string;
@@ -203,13 +205,16 @@ export class TradingService implements OnModuleInit {
     });
   }
 
-  async placeOrder(request: OrderRequest): Promise<OrderResponse> {
+  async placeOrder(
+    request: OrderRequest,
+    identity: RouterPlacementIdentity,
+  ): Promise<OrderResponse> {
     const now = new Date();
 
     try {
       this.logger.log(`Placing order: ${JSON.stringify(request)}`);
 
-      const placement = await this.routerClient.placeOrder(request);
+      const placement = await this.routerClient.placeOrder(request, identity);
       const clientOrderId = placement.client_order_ids.main || generateClientOrderId();
       const response = mapPlacementToResponse(request, placement);
 
@@ -416,7 +421,21 @@ export class TradingService implements OnModuleInit {
         price: decision.price,
       };
 
-      await this.placeOrder(orderRequest);
+      const decisionKey = JSON.stringify({
+        symbol: decision.symbol,
+        action: decision.action,
+        quantity: decision.quantity,
+        venue: decision.venue,
+        type: decision.type,
+        price: decision.price,
+        stopLoss: decision.stopLoss,
+        takeProfit: decision.takeProfit,
+        timestamp: decision.timestamp,
+      });
+      await this.placeOrder(
+        orderRequest,
+        createRouterPlacementIdentity('engine-decision', decisionKey, 1),
+      );
     } catch (error) {
       this.logger.error(`Failed to execute decision: ${error}`);
       this.eventEmitter.emit(CONTRACT_TOPICS.decisionFailedV1, {

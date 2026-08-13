@@ -73,6 +73,9 @@ class _InProcBus:
                 await handler(event)
         return True
 
+    async def publish_and_wait(self, event: Any, priority: int = 0) -> bool:
+        return await self.publish(event, priority)
+
 
 class _FakeDBAdapter:
     async def get_latest_equity_sample(self):

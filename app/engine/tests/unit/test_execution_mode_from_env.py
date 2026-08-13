@@ -5,6 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
+from app.engine.adapters.router_client.http_client import (
+    BracketClientOrderIDs,
+    BracketPlacementResult,
+)
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
@@ -14,6 +18,12 @@ from app.engine.models import EventType, RiskParameters, TradingDecision, Tradin
 
 
 class _FakeDBAdapter:
+    async def prepare_execution_intent(self, _intent):
+        return True
+
+    async def transition_execution_intent(self, *_args, **_kwargs):
+        return True
+
     async def get_latest_equity_sample(self):
         return Decimal(10_000), datetime.now(UTC)
 
@@ -25,6 +35,28 @@ class _FakeDBAdapter:
 
     async def get_active_positions(self, _venue: str):
         return []
+
+
+def _placement_result(payload: dict[str, object]) -> BracketPlacementResult:
+    client_order_ids = payload["client_order_ids"]
+    assert isinstance(client_order_ids, dict)
+    take_profits = client_order_ids["take_profits"]
+    assert isinstance(take_profits, list)
+    return BracketPlacementResult(
+        bracket_order_id="bracket-test",
+        client_order_ids=BracketClientOrderIDs(
+            main=str(client_order_ids["main"]),
+            take_profits=tuple(str(value) for value in take_profits),
+            stop_loss=str(client_order_ids["stop_loss"]),
+        ),
+        symbol=str(payload["symbol"]),
+        side=str(payload["side"]),
+        quantity=Decimal(str(payload["quantity"])),
+        created_at=datetime.now(UTC),
+        partial_failure=False,
+        errors=(),
+        legs_pending_trigger=False,
+    )
 
 
 def _default_risk() -> RiskParameters:
@@ -147,7 +179,7 @@ class TestBuildOrderPayload:
         mock_bus = MagicMock()
         mock_bus.publish = AsyncMock()
         mock_router = MagicMock()
-        mock_router.place_bracket_order = AsyncMock(return_value={"success": True})
+        mock_router.place_bracket_order = AsyncMock(side_effect=_placement_result)
 
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,
@@ -175,7 +207,7 @@ class TestBuildOrderPayload:
         mock_bus = MagicMock()
         mock_bus.publish = AsyncMock()
         mock_router = MagicMock()
-        mock_router.place_bracket_order = AsyncMock(return_value={"success": True})
+        mock_router.place_bracket_order = AsyncMock(side_effect=_placement_result)
 
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,
@@ -224,7 +256,7 @@ class TestBuildOrderPayload:
         mock_bus = MagicMock()
         mock_bus.publish = AsyncMock()
         mock_router = MagicMock()
-        mock_router.place_bracket_order = AsyncMock(return_value={"success": True})
+        mock_router.place_bracket_order = AsyncMock(side_effect=_placement_result)
 
         subscriber = RouterExecutionSubscriber(
             bus=mock_bus,

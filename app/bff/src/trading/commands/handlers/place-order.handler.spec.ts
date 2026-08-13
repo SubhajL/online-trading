@@ -53,16 +53,16 @@ describe('PlaceOrderHandler', () => {
     it('should place order successfully', async () => {
       mockTradingService.placeOrder.mockResolvedValue(mockOrderResponse);
 
-      const command = new PlaceOrderCommand('user-123', validOrderRequest);
+      const command = new PlaceOrderCommand('user-123', validOrderRequest, 'request-456');
       const result = await handler.execute(command);
 
       expect(result).toEqual(mockOrderResponse);
-      expect(tradingService.placeOrder).toHaveBeenCalledWith(validOrderRequest);
+      expect(tradingService.placeOrder).toHaveBeenCalledWith(validOrderRequest, expect.any(Object));
     });
 
     it('should validate required order fields', async () => {
       const invalidOrder = { ...validOrderRequest, quantity: 0 };
-      const command = new PlaceOrderCommand('user-123', invalidOrder);
+      const command = new PlaceOrderCommand('user-123', invalidOrder, 'request-456');
 
       await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
       expect(tradingService.placeOrder).not.toHaveBeenCalled();
@@ -70,7 +70,7 @@ describe('PlaceOrderHandler', () => {
 
     it('should validate minimum order quantity', async () => {
       const invalidOrder = { ...validOrderRequest, quantity: 0.00001 };
-      const command = new PlaceOrderCommand('user-123', invalidOrder);
+      const command = new PlaceOrderCommand('user-123', invalidOrder, 'request-456');
 
       await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
       expect(tradingService.placeOrder).not.toHaveBeenCalled();
@@ -78,7 +78,7 @@ describe('PlaceOrderHandler', () => {
 
     it('should validate order side is BUY or SELL', async () => {
       const invalidOrder = { ...validOrderRequest, side: 'INVALID' as any };
-      const command = new PlaceOrderCommand('user-123', invalidOrder);
+      const command = new PlaceOrderCommand('user-123', invalidOrder, 'request-456');
 
       await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
       expect(tradingService.placeOrder).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe('PlaceOrderHandler', () => {
 
     it('should validate order type is MARKET or LIMIT', async () => {
       const invalidOrder = { ...validOrderRequest, type: 'STOP' as any };
-      const command = new PlaceOrderCommand('user-123', invalidOrder);
+      const command = new PlaceOrderCommand('user-123', invalidOrder, 'request-456');
 
       await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
       expect(tradingService.placeOrder).not.toHaveBeenCalled();
@@ -94,7 +94,7 @@ describe('PlaceOrderHandler', () => {
 
     it('should require price for LIMIT orders', async () => {
       const limitOrder = { ...validOrderRequest, type: 'LIMIT' as const, price: undefined };
-      const command = new PlaceOrderCommand('user-123', limitOrder);
+      const command = new PlaceOrderCommand('user-123', limitOrder, 'request-456');
 
       await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
       expect(tradingService.placeOrder).not.toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe('PlaceOrderHandler', () => {
         ...validOrderRequest,
         stopLossPrice: undefined,
       } as unknown as OrderRequest;
-      const command = new PlaceOrderCommand('user-123', invalidOrder);
+      const command = new PlaceOrderCommand('user-123', invalidOrder, 'request-456');
 
       await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
       expect(tradingService.placeOrder).not.toHaveBeenCalled();
@@ -116,7 +116,7 @@ describe('PlaceOrderHandler', () => {
         ...validOrderRequest,
         takeProfitPrice: undefined,
       } as unknown as OrderRequest;
-      const command = new PlaceOrderCommand('user-123', invalidOrder);
+      const command = new PlaceOrderCommand('user-123', invalidOrder, 'request-456');
 
       await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
       expect(tradingService.placeOrder).not.toHaveBeenCalled();
@@ -125,17 +125,17 @@ describe('PlaceOrderHandler', () => {
     it('should handle service errors gracefully', async () => {
       mockTradingService.placeOrder.mockRejectedValue(new Error('Service error'));
 
-      const command = new PlaceOrderCommand('user-123', validOrderRequest);
+      const command = new PlaceOrderCommand('user-123', validOrderRequest, 'request-456');
       await expect(handler.execute(command)).rejects.toThrow('Service error');
     });
 
     it('should log user action for audit', async () => {
       mockTradingService.placeOrder.mockResolvedValue(mockOrderResponse);
 
-      const command = new PlaceOrderCommand('user-123', validOrderRequest);
+      const command = new PlaceOrderCommand('user-123', validOrderRequest, 'request-456');
       await handler.execute(command);
 
-      expect(tradingService.placeOrder).toHaveBeenCalledWith(validOrderRequest);
+      expect(tradingService.placeOrder).toHaveBeenCalledWith(validOrderRequest, expect.any(Object));
     });
   });
 });

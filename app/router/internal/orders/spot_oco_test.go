@@ -270,6 +270,31 @@ func spotArmerRecord() *storage.BracketRecord {
 	return rec
 }
 
+func TestSpotLegArmer_ImmediateTerminalOCOReportsArePersisted(t *testing.T) {
+	record := spotArmerRecord()
+	store := &fakeArmerStore{record: record}
+	armer := NewSpotLegArmer(store, nil, nil, zerolog.Nop())
+	slice := spotOCOSlice{
+		index: 0, tpLeg: record.Legs[1], stopID: record.Legs[2].ClientOrderID,
+		req: rest.OCORequest{Quantity: decimal.RequireFromString("0.02")},
+	}
+
+	outcome := armer.persistSliceOutcome(context.Background(), record, slice, &rest.OCOResponse{
+		Orders: []rest.OCOOrderRef{
+			{ClientOrderID: slice.tpLeg.ClientOrderID, OrderID: 101},
+			{ClientOrderID: slice.stopID, OrderID: 102},
+		},
+		OrderReports: []rest.OCOOrderReport{
+			{ClientOrderID: slice.tpLeg.ClientOrderID, OrderID: 101, Status: "FILLED"},
+			{ClientOrderID: slice.stopID, OrderID: 102, Status: "CANCELED"},
+		},
+	})
+
+	assert.Equal(t, sliceClosed, outcome)
+	assert.Contains(t, store.legUpdates, "arm-tp1:FILLED")
+	assert.Contains(t, store.legUpdates, "arm-sl:CANCELED")
+}
+
 // spotSellRecord models a SELL entry whose exit OCO is on the BUY side.
 func spotSellRecord() *storage.BracketRecord {
 	rec := spotArmerRecord()
@@ -534,8 +559,8 @@ func TestSpotLegArmer_PriceGapFailsClosedAtMarket(t *testing.T) {
 	})
 	assert.Contains(t, store.legUpdates, "arm-tp1:CANCELED")
 	assert.Contains(t, store.legUpdates, "arm-sl:CANCELED")
-	assert.Contains(t, store.legUpdates, "arm-main-mc-0:PLACED",
-		"the close must be recorded for provenance")
+	assert.Contains(t, store.legUpdates, "arm-main-mc-0:FILLED",
+		"the terminal close must be recorded for provenance")
 	assert.Equal(t, []string{storage.BracketStatusClosed}, store.bracketUpdates)
 }
 

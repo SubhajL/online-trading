@@ -42,8 +42,26 @@ class _FakeBus:
         _ = subscription_id
         return True
 
+    async def publish(self, event: object, priority: int = 0) -> bool:
+        _ = event, priority
+        return True
+
+    async def publish_and_wait(self, event: object, priority: int = 0) -> bool:
+        return await self.publish(event, priority)
+
 
 class _FakeDBAdapter:
+    async def prepare_execution_intent(self, _intent: dict[str, Any]) -> bool:
+        return True
+
+    async def transition_execution_intent(
+        self, _idempotency_key: str, _state: str, **_kwargs: object
+    ) -> bool:
+        return True
+
+    async def upsert_order(self, _order: dict[str, Any]) -> bool:
+        return True
+
     async def get_latest_equity_sample(self):
         return Decimal("10000"), datetime.now(UTC)
 
@@ -66,7 +84,19 @@ async def test_contract_decision_to_place_bracket_includes_provenance() -> None:
         nonlocal captured
         captured = await request.json()
         got_request.set()
-        return web.json_response({"ok": True})
+        return web.json_response(
+            {
+                "bracket_order_id": "bracket-contract-1",
+                "client_order_ids": captured["client_order_ids"],
+                "symbol": captured["symbol"],
+                "side": captured["side"],
+                "quantity": captured["quantity"],
+                "created_at": datetime(2026, 8, 13, tzinfo=UTC).isoformat(),
+                "partial_failure": False,
+                "errors": [],
+                "legs_pending_trigger": True,
+            },
+        )
 
     app = web.Application()
     app.router.add_post("/place_bracket", handle_place_bracket)

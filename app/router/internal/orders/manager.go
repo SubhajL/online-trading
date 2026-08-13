@@ -3,6 +3,7 @@ package orders
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,7 +35,10 @@ type Manager struct {
 	spotReconciler spotOrderTracker
 
 	// Durable reservation store; nil keeps in-memory-only idempotency
-	bracketStore BracketStore
+	bracketStore        BracketStore
+	requireDurableStore bool
+	executionGate       ExecutionGate
+	emergencyConfig     EmergencyConfig
 
 	// Defer TP/SL placement until the entry fills (requires the bracket
 	// store: planned legs must survive a crash)
@@ -59,9 +63,22 @@ type BracketStore interface {
 	UpdateLegStatus(ctx context.Context, bracketID uuid.UUID, clientOrderID, status string, exchangeOrderID int64) error
 }
 
+type ExecutionGate interface {
+	AcquirePlacement(ctx context.Context) (state string, release func() error, err error)
+	AcquireEmergency(ctx context.Context) (state string, release func() error, err error)
+}
+
 // SetBracketStore installs the durable reservation store.
 func (m *Manager) SetBracketStore(store BracketStore) {
 	m.bracketStore = store
+}
+
+func (m *Manager) RequireDurableStore() {
+	m.requireDurableStore = true
+}
+
+func (m *Manager) SetExecutionGate(gate ExecutionGate) {
+	m.executionGate = gate
 }
 
 // SetLegsOnFill defers futures protective legs until the entry fills.
@@ -98,12 +115,13 @@ func (m *Manager) spotLegsDeferred(req *PlaceBracketRequest) bool {
 // NewManager creates a new order manager
 func NewManager(spotClient, futuresClient *binance.Client, eventEmitter EventEmitter, logger zerolog.Logger) *Manager {
 	return &Manager{
-		spotClient:     spotClient,
-		futuresClient:  futuresClient,
-		orders:         make(map[string]*BracketOrder),
-		ordersByClient: make(map[string]string),
-		eventEmitter:   eventEmitter,
-		logger:         logger,
+		spotClient:      spotClient,
+		futuresClient:   futuresClient,
+		orders:          make(map[string]*BracketOrder),
+		ordersByClient:  make(map[string]string),
+		eventEmitter:    eventEmitter,
+		logger:          logger,
+		emergencyConfig: defaultEmergencyConfig(),
 	}
 }
 
@@ -262,12 +280,48 @@ func (m *Manager) ClosePositions(
 
 // PlaceBracketOrder places a bracket order with idempotency
 func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketRequest) (*PlaceBracketResponse, error) {
+	if m.executionGate == nil {
+		if m.requireDurableStore {
+			return nil, &ExecutionDurabilityError{Cause: fmt.Errorf("execution control is not configured")}
+		}
+		return m.placeBracketOrder(ctx, req)
+	}
+	state, release, err := m.executionGate.AcquirePlacement(ctx)
+	if err != nil {
+		return nil, &ExecutionDurabilityError{Cause: fmt.Errorf("execution-control permit failed: %w", err)}
+	}
+	if release == nil {
+		return nil, &ExecutionDurabilityError{Cause: fmt.Errorf("execution-control permit has no release")}
+	}
+	if state != storage.ExecutionStateRunning {
+		if releaseErr := release(); releaseErr != nil {
+			return nil, &ExecutionDurabilityError{Cause: fmt.Errorf("release halted placement permit: %w", releaseErr)}
+		}
+		return nil, ErrExecutionHalted
+	}
+	response, placementErr := m.placeBracketOrder(ctx, req)
+	if releaseErr := release(); releaseErr != nil && placementErr == nil {
+		return response, &ExecutionDurabilityError{Cause: fmt.Errorf("release placement permit: %w", releaseErr)}
+	}
+	return response, placementErr
+}
+
+func (m *Manager) placeBracketOrder(ctx context.Context, req *PlaceBracketRequest) (*PlaceBracketResponse, error) {
 	// Validate request
 	if err := m.validateBracketRequest(req); err != nil {
 		return nil, fmt.Errorf("invalid bracket request: %w", err)
 	}
+	if req.IsFutures && m.futuresClient == nil {
+		return nil, fmt.Errorf("futures exchange client is not configured")
+	}
+	if !req.IsFutures && m.spotClient == nil {
+		return nil, fmt.Errorf("spot exchange client is not configured")
+	}
+	if m.requireDurableStore && m.bracketStore == nil {
+		return nil, &ExecutionDurabilityError{Cause: fmt.Errorf("bracket store is not configured")}
+	}
 
-	if req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
+	if m.bracketStore == nil && req.ClientOrderIDs != nil && req.ClientOrderIDs.Main != "" {
 		// Check-and-reserve under one write lock: with a read-lock check two
 		// concurrent identical requests both miss and both POST to Binance.
 		m.mu.Lock()
@@ -306,6 +360,7 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 				Quantity:           existing.Quantity,
 				StopLossLimitPrice: existing.StopLossLimitPrice,
 				CreatedAt:          existing.CreatedAt,
+				Errors:             []string{},
 			}, nil
 		}
 	}
@@ -370,11 +425,7 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		record, inserted, reserveErr := m.bracketStore.Reserve(ctx, bracketRecordFromRequest(req, legsDeferred))
 		switch {
 		case reserveErr != nil:
-			m.logger.Warn().Err(reserveErr).
-				Str("client_order_id", req.ClientOrderIDs.Main).
-				Msg("Bracket store reserve failed; continuing with in-memory idempotency only")
-			// Without a durable record the armer could never find the legs
-			legsDeferred = false
+			return nil, &ExecutionDurabilityError{Cause: fmt.Errorf("bracket reservation failed: %w", reserveErr)}
 		case inserted:
 			reservedBracketID = record.BracketID
 		default:
@@ -446,6 +497,7 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		Side:           req.Side,
 		Quantity:       req.Quantity,
 		CreatedAt:      bracket.CreatedAt,
+		Errors:         []string{},
 	}
 
 	var placement *bracketPlacementResult
@@ -482,7 +534,15 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 		}
 	}
 
-	m.persistPlacementOutcome(ctx, reservedBracketID, placement, criticalPlacementErr != nil, legsDeferred)
+	if persistErr := m.persistPlacementOutcome(
+		ctx,
+		reservedBracketID,
+		placement,
+		criticalPlacementErr != nil,
+		legsDeferred,
+	); persistErr != nil {
+		return response, &ExecutionDurabilityError{Cause: persistErr}
+	}
 
 	// Store order (only store successfully placed order IDs)
 	m.mu.Lock()
@@ -522,7 +582,9 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 			UpdateTime:    orderUpdateTimeFromMillis(placement.Main.TransactTime),
 		}
 		response.SpotExecutionSnapshots = append(response.SpotExecutionSnapshots, spotExecutionSnapshotFromOrderResponse(initialUpdate, placement.Main))
-		m.emitOrderUpdateWithLogging(ctx, initialUpdate)
+		if !m.requireDurableStore {
+			m.emitOrderUpdateWithLogging(ctx, initialUpdate)
+		}
 
 		if !req.IsFutures && m.spotReconciler != nil {
 			m.trackSpotPlacementLegs(placement)
@@ -544,7 +606,9 @@ func (m *Manager) PlaceBracketOrder(ctx context.Context, req *PlaceBracketReques
 			UpdateTime:    orderUpdateTimeFromMillis(placement.FailsafeClose.TransactTime),
 		}
 		response.SpotExecutionSnapshots = append(response.SpotExecutionSnapshots, spotExecutionSnapshotFromOrderResponse(closeUpdate, placement.FailsafeClose))
-		m.emitOrderUpdateWithLogging(ctx, closeUpdate)
+		if !m.requireDurableStore {
+			m.emitOrderUpdateWithLogging(ctx, closeUpdate)
+		}
 	}
 
 	return response, criticalPlacementErr
@@ -582,8 +646,7 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 	}
 
 	if err == nil {
-		// Emit cancellation event
-		m.emitOrderUpdateWithLogging(ctx, &OrderUpdate{
+		update := &OrderUpdate{
 			EventType:     "order_update.v1",
 			Venue:         venue,
 			Symbol:        req.Symbol,
@@ -592,7 +655,14 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 			Status:        "CANCELED",
 			UpdateTime:    time.Now(),
 			Reason:        "User requested cancellation",
-		})
+		}
+		if m.eventEmitter == nil {
+			if m.requireDurableStore {
+				return &ExecutionDurabilityError{Cause: fmt.Errorf("order update outbox is not configured")}
+			}
+		} else if emitErr := m.eventEmitter.EmitOrderUpdate(ctx, update); emitErr != nil {
+			return &ExecutionDurabilityError{Cause: fmt.Errorf("persist cancellation update: %w", emitErr)}
+		}
 	}
 
 	return err
@@ -600,6 +670,12 @@ func (m *Manager) CancelOrder(ctx context.Context, req *CancelRequest) error {
 
 // validateBracketRequest validates bracket order request
 func (m *Manager) validateBracketRequest(req *PlaceBracketRequest) error {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		return fmt.Errorf("idempotency_key is required")
+	}
+	if len(req.IdempotencyKey) > 128 {
+		return fmt.Errorf("idempotency_key too long: %d", len(req.IdempotencyKey))
+	}
 	if req.Symbol == "" {
 		return fmt.Errorf("symbol is required")
 	}
@@ -616,6 +692,9 @@ func (m *Manager) validateBracketRequest(req *PlaceBracketRequest) error {
 		return fmt.Errorf("stop loss price must be positive")
 	}
 
+	if req.ClientOrderIDs == nil {
+		return fmt.Errorf("client_order_ids is required")
+	}
 	if req.ClientOrderIDs != nil {
 		if req.ClientOrderIDs.Main == "" {
 			return fmt.Errorf("client_order_ids.main is required")

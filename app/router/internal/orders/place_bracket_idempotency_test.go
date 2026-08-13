@@ -85,6 +85,7 @@ func TestManager_PlaceBracketOrder_UsesProvidedClientOrderIDs(t *testing.T) {
 	manager := NewManager(nil, futuresClient, nil, logger)
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "provided-ids-1",
 		Symbol:           "BTCUSDT",
 		Side:             "SELL",
 		Quantity:         decimal.RequireFromString("0.001"),
@@ -170,6 +171,7 @@ func TestManager_PlaceBracketOrder_IsIdempotentByProvidedMainClientOrderID(t *te
 	manager := NewManager(nil, futuresClient, nil, logger)
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "provided-ids-replay",
 		Symbol:           "BTCUSDT",
 		Side:             "SELL",
 		Quantity:         decimal.RequireFromString("0.001"),
@@ -232,6 +234,7 @@ func TestManager_PlaceBracketOrder_ConcurrentSameClientIDPlacesOnce(t *testing.T
 
 	makeReq := func() *PlaceBracketRequest {
 		return &PlaceBracketRequest{
+			IdempotencyKey:   "concurrent-provided-ids",
 			Symbol:           "BTCUSDT",
 			Side:             "SELL",
 			Quantity:         decimal.RequireFromString("0.001"),
@@ -279,6 +282,7 @@ func TestManager_PlaceBracketOrder_ReservationReleasedOnFailure(t *testing.T) {
 	manager := NewManager(nil, futuresClient, nil, logger)
 
 	req := &PlaceBracketRequest{
+		IdempotencyKey:   "same-nanosecond-ids",
 		Symbol:           "BTCUSDT",
 		Side:             "SELL",
 		Quantity:         decimal.RequireFromString("0.001"),
@@ -338,6 +342,7 @@ func TestManager_FuturesStopLossSendsClosePositionWithoutReduceOnly(t *testing.T
 	manager := NewManager(nil, futuresClient, nil, logger)
 
 	_, err = manager.PlaceBracketOrder(context.Background(), &PlaceBracketRequest{
+		IdempotencyKey:   "duplicate-provided-ids",
 		Symbol:           "BTCUSDT",
 		Side:             "SELL",
 		Quantity:         decimal.RequireFromString("0.001"),

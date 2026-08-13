@@ -107,11 +107,15 @@ export class TradingGateway implements OnGatewayInit, OnGatewayConnection, OnGat
   @SubscribeMessage('placeOrder')
   async placeOrder(
     @ConnectedSocket() client: Socket,
-    @MessageBody() orderRequest: OrderRequest,
+    @MessageBody() request: OrderRequest & { idempotencyKey?: string },
   ): Promise<WebSocketResponse> {
     try {
       const user = client.data.user as JwtPayload;
-      const command = new PlaceOrderCommand(user.sub, orderRequest);
+      if (!request.idempotencyKey?.trim()) {
+        throw new Error('idempotencyKey is required');
+      }
+      const { idempotencyKey, ...orderRequest } = request;
+      const command = new PlaceOrderCommand(user.sub, orderRequest, idempotencyKey.trim());
       const result = await this.commandBus.execute(command);
       return { success: true, data: result };
     } catch (error) {

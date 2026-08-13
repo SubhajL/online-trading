@@ -6,11 +6,13 @@ import { OrderRepository } from '../orders/repositories/order.repository';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CONTRACT_TOPICS } from '../contracts/topics';
 import type { OrderUpdateV1 } from '../contracts/gen';
+import { createRouterPlacementIdentity } from './placement-identity';
 
 describe('TradingService', () => {
   let service: TradingService;
   let routerClient: RouterClientService;
   let eventEmitter: EventEmitter2;
+  const placementIdentity = createRouterPlacementIdentity('user-123', 'request-456', 1);
 
   const mockEngineClientService = {
     subscribe: jest.fn(),
@@ -99,7 +101,7 @@ describe('TradingService', () => {
 
       mockRouterClientService.placeOrder.mockResolvedValue(orderResponse);
 
-      const result = await service.placeOrder(orderRequest);
+      const result = await service.placeOrder(orderRequest, placementIdentity);
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -112,7 +114,7 @@ describe('TradingService', () => {
           venue: 'USD_M',
         }),
       );
-      expect(routerClient.placeOrder).toHaveBeenCalledWith(orderRequest);
+      expect(routerClient.placeOrder).toHaveBeenCalledWith(orderRequest, placementIdentity);
       expect(mockOrderRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           orderId: '123456',
@@ -159,7 +161,7 @@ describe('TradingService', () => {
 
       mockRouterClientService.placeOrder.mockResolvedValue(orderResponse);
 
-      const result = await service.placeOrder(orderRequest);
+      const result = await service.placeOrder(orderRequest, placementIdentity);
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -192,7 +194,9 @@ describe('TradingService', () => {
       const error = new Error('Insufficient balance');
       mockRouterClientService.placeOrder.mockRejectedValue(error);
 
-      await expect(service.placeOrder(orderRequest)).rejects.toThrow('Insufficient balance');
+      await expect(service.placeOrder(orderRequest, placementIdentity)).rejects.toThrow(
+        'Insufficient balance',
+      );
       expect(eventEmitter.emit).toHaveBeenCalledWith(CONTRACT_TOPICS.orderFailedV1, {
         request: orderRequest,
         error: 'Insufficient balance',
@@ -486,15 +490,18 @@ describe('TradingService', () => {
 
       await service.handleDecisionEvent(decisionEvent);
 
-      expect(routerClient.placeOrder).toHaveBeenCalledWith({
-        symbol: 'BTCUSDT',
-        side: 'BUY',
-        type: 'MARKET',
-        quantity: 0.01,
-        stopLossPrice: 44000,
-        takeProfitPrice: 47000,
-        venue: 'USD_M',
-      });
+      expect(routerClient.placeOrder).toHaveBeenCalledWith(
+        {
+          symbol: 'BTCUSDT',
+          side: 'BUY',
+          type: 'MARKET',
+          quantity: 0.01,
+          stopLossPrice: 44000,
+          takeProfitPrice: 47000,
+          venue: 'USD_M',
+        },
+        expect.any(Object),
+      );
     });
 
     it('should not execute trades when auto trading is disabled', async () => {

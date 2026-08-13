@@ -30,6 +30,7 @@ type FuturesOrderRequest struct {
 	StopPrice        decimal.Decimal `json:"stopPrice,omitempty"`
 	ReduceOnly       bool            `json:"reduceOnly,omitempty"`
 	ClosePosition    bool            `json:"closePosition,omitempty"`
+	PositionSide     string          `json:"positionSide,omitempty"`
 	NewClientOrderID string          `json:"newClientOrderId,omitempty"`
 }
 
@@ -117,6 +118,11 @@ type Order struct {
 	TimeInForce   string          `json:"timeInForce"`
 	Type          string          `json:"type"`
 	Side          string          `json:"side"`
+	OrderListID   int64           `json:"orderListId"`
+	StopPrice     decimal.Decimal `json:"stopPrice"`
+	ReduceOnly    bool            `json:"reduceOnly"`
+	ClosePosition bool            `json:"closePosition"`
+	PositionSide  string          `json:"positionSide"`
 	Time          int64           `json:"time"`
 	UpdateTime    int64           `json:"updateTime"`
 }

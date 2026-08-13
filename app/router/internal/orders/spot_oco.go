@@ -279,8 +279,7 @@ func (a *SpotLegArmer) armSlice(ctx context.Context, record *storage.BracketReco
 
 	resp, err := a.client.PlaceSpotOCO(ctx, slice.req)
 	if err == nil {
-		a.persistSliceOutcome(ctx, record, slice, resp)
-		return slicePlaced
+		return a.persistSliceOutcome(ctx, record, slice, resp)
 	}
 
 	switch {
@@ -320,8 +319,7 @@ func (a *SpotLegArmer) resolveAfterUnknownOutcome(
 	if err == nil {
 		a.logger.Warn().Str("list_client_order_id", slice.req.ListClientOrderID).
 			Msg("spot armer: adopted existing OCO list")
-		a.persistSliceOutcome(ctx, record, slice, adopted)
-		return slicePlaced
+		return a.persistSliceOutcome(ctx, record, slice, adopted)
 	}
 	if rest.IsOrderNotFound(err) && !duplicate {
 		// Confirmed absent: the ambiguous POST never landed; safe to retry
@@ -351,8 +349,7 @@ func (a *SpotLegArmer) resolveStalePlacing(
 	if err == nil {
 		a.logger.Warn().Str("list_client_order_id", slice.req.ListClientOrderID).
 			Msg("spot armer: adopted OCO list left PLACING by a previous run")
-		a.persistSliceOutcome(ctx, record, slice, adopted)
-		return slicePlaced
+		return a.persistSliceOutcome(ctx, record, slice, adopted)
 	}
 	if rest.IsOrderNotFound(err) {
 		a.updateLegStatus(ctx, record, slice.tpLeg.ClientOrderID, storage.LegStatusFailed, 0, slice.req.Quantity, slice.index+1)
@@ -411,9 +408,8 @@ func (a *SpotLegArmer) emergencyCloseSlice(
 
 	a.updateLegStatus(ctx, record, slice.tpLeg.ClientOrderID, storage.LegStatusCanceled, 0, decimal.Zero, slice.index+1)
 	a.updateLegStatus(ctx, record, slice.stopID, storage.LegStatusCanceled, 0, decimal.Zero, slice.index+1)
-	// Record the close as a placed SL-role leg for provenance
-	a.updateLegStatus(ctx, record, closeID, storage.LegStatusPlaced, resp.OrderID, slice.req.Quantity, slice.index+1)
-	a.emitCloseUpdate(ctx, record, slice, closeID, resp)
+	status, _ := legStatusFromOrder(resp.Status)
+	a.updateLegStatus(ctx, record, closeID, status, resp.OrderID, slice.req.Quantity, slice.index+1)
 	return sliceClosed
 }
 
@@ -422,16 +418,34 @@ func (a *SpotLegArmer) persistSliceOutcome(
 	record *storage.BracketRecord,
 	slice spotOCOSlice,
 	resp *rest.OCOResponse,
-) {
+) sliceOutcome {
 	exchangeIDs := make(map[string]int64, len(resp.Orders))
 	for _, order := range resp.Orders {
 		exchangeIDs[order.ClientOrderID] = order.OrderID
 	}
-	a.updateLegStatus(ctx, record, slice.tpLeg.ClientOrderID, storage.LegStatusPlaced,
+	reportStatuses := make(map[string]string, len(resp.OrderReports))
+	for _, report := range resp.OrderReports {
+		reportStatuses[report.ClientOrderID] = report.Status
+		if report.OrderID != 0 {
+			exchangeIDs[report.ClientOrderID] = report.OrderID
+		}
+	}
+	tpStatus, tpWorking := legStatusFromOrder(reportStatuses[slice.tpLeg.ClientOrderID])
+	stopStatus, stopWorking := legStatusFromOrder(reportStatuses[slice.stopID])
+	if _, ok := reportStatuses[slice.tpLeg.ClientOrderID]; !ok {
+		tpStatus, tpWorking = storage.LegStatusPlaced, true
+	}
+	if _, ok := reportStatuses[slice.stopID]; !ok {
+		stopStatus, stopWorking = storage.LegStatusPlaced, true
+	}
+	a.updateLegStatus(ctx, record, slice.tpLeg.ClientOrderID, tpStatus,
 		exchangeIDs[slice.tpLeg.ClientOrderID], slice.req.Quantity, slice.index+1)
-	a.updateLegStatus(ctx, record, slice.stopID, storage.LegStatusPlaced,
+	a.updateLegStatus(ctx, record, slice.stopID, stopStatus,
 		exchangeIDs[slice.stopID], slice.req.Quantity, slice.index+1)
-	a.emitSliceUpdates(ctx, record, slice, resp)
+	if tpWorking || stopWorking {
+		return slicePlaced
+	}
+	return sliceClosed
 }
 
 // updateLegStatus persists a leg outcome; ids without a reserved row (stop
@@ -486,67 +500,6 @@ func (a *SpotLegArmer) releaseUnarmedLegs(ctx context.Context, record *storage.B
 		}
 	}
 	a.updateBracketStatus(ctx, record, storage.BracketStatusClosed)
-}
-
-func (a *SpotLegArmer) emitSliceUpdates(
-	ctx context.Context,
-	record *storage.BracketRecord,
-	slice spotOCOSlice,
-	resp *rest.OCOResponse,
-) {
-	if a.emitter == nil {
-		return
-	}
-	for _, report := range resp.OrderReports {
-		update := &OrderUpdate{
-			EventType:     "order_update.v1",
-			Venue:         "SPOT",
-			Symbol:        record.Symbol,
-			OrderID:       report.OrderID,
-			ClientOrderID: report.ClientOrderID,
-			Status:        normalizeOrderStatus(report.Status),
-			Side:          slice.req.Side,
-			OrderType:     report.Type,
-			Price:         report.Price,
-			Quantity:      report.OrigQty,
-			UpdateTime:    time.Now().UTC(),
-		}
-		if err := a.emitter.EmitOrderUpdate(ctx, update); err != nil {
-			a.logger.Warn().Err(err).
-				Str("client_order_id", report.ClientOrderID).
-				Msg("spot armer: failed to emit order update")
-		}
-	}
-}
-
-func (a *SpotLegArmer) emitCloseUpdate(
-	ctx context.Context,
-	record *storage.BracketRecord,
-	slice spotOCOSlice,
-	closeID string,
-	resp *binance.OrderResponse,
-) {
-	if a.emitter == nil {
-		return
-	}
-	update := &OrderUpdate{
-		EventType:     "order_update.v1",
-		Venue:         "SPOT",
-		Symbol:        record.Symbol,
-		OrderID:       resp.OrderID,
-		ClientOrderID: closeID,
-		Status:        normalizeOrderStatus(resp.Status),
-		Side:          slice.req.Side,
-		OrderType:     "MARKET",
-		Price:         resp.Price,
-		Quantity:      resp.OrigQty,
-		UpdateTime:    time.Now().UTC(),
-	}
-	if err := a.emitter.EmitOrderUpdate(ctx, update); err != nil {
-		a.logger.Warn().Err(err).
-			Str("client_order_id", closeID).
-			Msg("spot armer: failed to emit close update")
-	}
 }
 
 // deriveSliceID appends a slice suffix while respecting Binance's 36-char

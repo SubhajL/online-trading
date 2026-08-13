@@ -6,6 +6,7 @@ position management, and account operations.
 """
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 import logging
@@ -13,7 +14,7 @@ from types import TracebackType
 from typing import Any
 from urllib.parse import urljoin
 
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientError, ClientSession, ClientTimeout
 
 from ...decision.idempotency import generate_client_order_id
 from ...models import TradingDecision
@@ -23,6 +24,158 @@ from ...resilience.thread_safe_circuit_breaker import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class RouterError(RuntimeError):
+    """Base failure returned by the live order router boundary."""
+
+
+class RouterCircuitOpenError(RouterError):
+    """The endpoint circuit is open and no request was attempted."""
+
+
+class RouterTransportError(RouterError):
+    """The transport failed before a trustworthy response was received."""
+
+
+class RouterHTTPError(RouterError):
+    """The router returned a non-success HTTP status."""
+
+    def __init__(self, status: int, message: str):
+        super().__init__(f"Router returned HTTP {status}: {message}")
+        self.status = status
+
+    @property
+    def retryable(self) -> bool:
+        return self.status == 429 or self.status >= 500
+
+
+class RouterProtocolError(RouterError):
+    """A successful HTTP response violated the placement contract."""
+
+
+@dataclass(frozen=True)
+class BracketClientOrderIDs:
+    main: str
+    take_profits: tuple[str, ...]
+    stop_loss: str
+
+
+@dataclass(frozen=True)
+class BracketPlacementResult:
+    bracket_order_id: str
+    client_order_ids: BracketClientOrderIDs
+    symbol: str
+    side: str
+    quantity: Decimal
+    created_at: datetime
+    partial_failure: bool
+    errors: tuple[str, ...]
+    legs_pending_trigger: bool
+    stop_loss_limit_price: Decimal | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "bracket_order_id": self.bracket_order_id,
+            "client_order_ids": {
+                "main": self.client_order_ids.main,
+                "take_profits": list(self.client_order_ids.take_profits),
+                "stop_loss": self.client_order_ids.stop_loss,
+            },
+            "symbol": self.symbol,
+            "side": self.side,
+            "quantity": str(self.quantity),
+            "created_at": self.created_at.isoformat(),
+            "partial_failure": self.partial_failure,
+            "errors": list(self.errors),
+            "legs_pending_trigger": self.legs_pending_trigger,
+            "stop_loss_limit_price": (
+                str(self.stop_loss_limit_price) if self.stop_loss_limit_price is not None else None
+            ),
+        }
+
+
+def _bounded_router_error_body(value: str, limit: int = 512) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[:limit]}..."
+
+
+def _require_non_empty_string(payload: dict[str, Any], field: str) -> str:
+    value = payload.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise RouterProtocolError(f"Router placement response missing {field}")
+    return value.strip()
+
+
+def _parse_bracket_placement(payload: dict[str, Any]) -> BracketPlacementResult:
+    bracket_order_id = _require_non_empty_string(payload, "bracket_order_id")
+    symbol = _require_non_empty_string(payload, "symbol").upper()
+    side = _require_non_empty_string(payload, "side").upper()
+
+    raw_client_ids = payload.get("client_order_ids")
+    if not isinstance(raw_client_ids, dict):
+        raise RouterProtocolError("Router placement response missing client_order_ids")
+    main = _require_non_empty_string(raw_client_ids, "main")
+    stop_loss = _require_non_empty_string(raw_client_ids, "stop_loss")
+    raw_take_profits = raw_client_ids.get("take_profits")
+    if not isinstance(raw_take_profits, list) or not raw_take_profits:
+        raise RouterProtocolError("Router placement response missing take-profit client IDs")
+    if not all(isinstance(value, str) and value.strip() for value in raw_take_profits):
+        raise RouterProtocolError("Router placement response has invalid take-profit client IDs")
+
+    try:
+        quantity = Decimal(str(payload["quantity"]))
+    except (KeyError, ValueError, TypeError) as exc:
+        raise RouterProtocolError("Router placement response has invalid quantity") from exc
+    if not quantity.is_finite() or quantity <= 0:
+        raise RouterProtocolError("Router placement response quantity must be positive")
+
+    created_at_raw = payload.get("created_at")
+    if not isinstance(created_at_raw, str) or not created_at_raw:
+        raise RouterProtocolError("Router placement response missing created_at")
+    try:
+        created_at = datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise RouterProtocolError("Router placement response has invalid created_at") from exc
+    if created_at.tzinfo is None:
+        raise RouterProtocolError("Router placement response created_at must include a timezone")
+
+    partial_failure = payload.get("partial_failure")
+    legs_pending_trigger = payload.get("legs_pending_trigger")
+    if not isinstance(partial_failure, bool) or not isinstance(legs_pending_trigger, bool):
+        raise RouterProtocolError("Router placement response has invalid boolean fields")
+    raw_errors = payload.get("errors")
+    if not isinstance(raw_errors, list) or not all(isinstance(value, str) for value in raw_errors):
+        raise RouterProtocolError("Router placement response has invalid errors")
+
+    stop_loss_limit_price: Decimal | None = None
+    stop_loss_limit_raw = payload.get("stop_loss_limit_price")
+    if stop_loss_limit_raw not in (None, ""):
+        try:
+            stop_loss_limit_price = Decimal(str(stop_loss_limit_raw))
+        except (ValueError, TypeError) as exc:
+            raise RouterProtocolError(
+                "Router placement response has invalid stop_loss_limit_price"
+            ) from exc
+
+    return BracketPlacementResult(
+        bracket_order_id=bracket_order_id,
+        client_order_ids=BracketClientOrderIDs(
+            main=main,
+            take_profits=tuple(value.strip() for value in raw_take_profits),
+            stop_loss=stop_loss,
+        ),
+        symbol=symbol,
+        side=side,
+        quantity=quantity,
+        created_at=created_at,
+        partial_failure=partial_failure,
+        errors=tuple(raw_errors),
+        legs_pending_trigger=legs_pending_trigger,
+        stop_loss_limit_price=stop_loss_limit_price,
+    )
 
 
 class RouterHTTPClient:
@@ -150,8 +303,9 @@ class RouterHTTPClient:
         endpoint: str,
         data: dict[Any, Any] | None = None,
         params: dict[Any, Any] | None = None,
+        retry_transport: bool = True,
     ) -> dict[str, Any]:
-        """Make HTTP request with retry logic"""
+        """Make an HTTP request and return a JSON object for any 2xx response."""
         self._ensure_initialized()
 
         url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
@@ -161,9 +315,10 @@ class RouterHTTPClient:
         breaker = self._get_breaker_for(method, endpoint)
         if not await breaker.should_allow_request():
             logger.error("Circuit breaker open for RouterHTTPClient")
-            return {"error": "circuit_breaker_open", "status": 503}
+            raise RouterCircuitOpenError(f"Router circuit is open for {method.upper()} {endpoint}")
 
-        for attempt in range(self.retry_attempts):
+        attempts = self.retry_attempts if retry_transport else 1
+        for attempt in range(attempts):
             try:
                 async with self._session.request(
                     method=method,
@@ -172,41 +327,46 @@ class RouterHTTPClient:
                     params=params,
                     headers=headers,
                 ) as response:
-                    if response.status == 200:
-                        payload = await response.json()
+                    if 200 <= response.status < 300:
+                        try:
+                            payload = await response.json()
+                        except Exception as exc:
+                            await breaker.record_failure()
+                            raise RouterProtocolError(
+                                f"Router returned non-JSON {response.status} for {endpoint}"
+                            ) from exc
+                        if not isinstance(payload, dict):
+                            await breaker.record_failure()
+                            raise RouterProtocolError(
+                                f"Router returned non-object {response.status} for {endpoint}"
+                            )
                         await breaker.record_success()
                         return payload
-                    if response.status in (418, 429):
-                        # Throttling or banned; do not count towards breaker failures
-                        warn_text = await response.text()
-                        logger.warning(
-                            f"Throttled/banned ({response.status}) for {endpoint}: {warn_text}",
-                        )
-                        return {"error": "throttled", "status": response.status}
-                    if response.status == 404:
-                        logger.warning(f"Endpoint not found: {endpoint}")
+                    error_text = _bounded_router_error_body(await response.text())
+                    if response.status not in (418, 429):
                         await breaker.record_failure()
-                        return {"error": "endpoint_not_found", "status": 404}
-                    if response.status >= 400:
-                        error_text = await response.text()
-                        logger.error(f"HTTP {response.status} error: {error_text}")
-                        await breaker.record_failure()
-                        return {"error": error_text, "status": response.status}
+                    raise RouterHTTPError(response.status, error_text or "empty response body")
 
-            except TimeoutError:
+            except (RouterHTTPError, RouterProtocolError):
+                raise
+            except (TimeoutError, ClientError) as exc:
                 logger.warning(
                     f"Request timeout for {method} {endpoint} (attempt {attempt + 1})",
                 )
                 await breaker.record_failure()
-                if attempt == self.retry_attempts - 1:
-                    raise
+                if attempt == attempts - 1:
+                    raise RouterTransportError(
+                        f"Router transport failed for {method.upper()} {endpoint}: {exc}"
+                    ) from exc
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
 
             except Exception as e:
                 logger.error(f"Request error for {method} {endpoint}: {e}")
                 await breaker.record_failure()
-                if attempt == self.retry_attempts - 1:
-                    raise
+                if attempt == attempts - 1:
+                    raise RouterTransportError(
+                        f"Router transport failed for {method.upper()} {endpoint}: {e}"
+                    ) from e
                 await asyncio.sleep(self.retry_delay * (attempt + 1))
 
         raise RuntimeError(
@@ -257,15 +417,21 @@ class RouterHTTPClient:
             logger.error(f"Error getting order status: {e}")
             return None
 
-    async def place_bracket_order(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def place_bracket_order(self, payload: dict[str, Any]) -> BracketPlacementResult:
         """Place a bracket order via the router /place_bracket endpoint."""
-        try:
-            result = await self._make_request("POST", "/place_bracket", data=payload)
-            logger.info("Placed bracket order for %s: %s", payload.get("symbol"), result)
-            return result
-        except Exception as e:
-            logger.error("Error placing bracket order: %s", e)
-            return {"error": str(e), "success": False}
+        response = await self._make_request(
+            "POST",
+            "/place_bracket",
+            data=payload,
+            retry_transport=False,
+        )
+        result = _parse_bracket_placement(response)
+        logger.info(
+            "Placed bracket order for %s: %s",
+            payload.get("symbol"),
+            result.bracket_order_id,
+        )
+        return result
 
     async def get_internal_equity(self, *, venue: str | None = None) -> tuple[Decimal, datetime]:
         """Fetch live equity snapshot from router.

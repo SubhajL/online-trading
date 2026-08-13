@@ -203,6 +203,7 @@ func (c *Client) PlaceFuturesOrder(ctx context.Context, order FuturesOrderReques
 		TimeInForce:      order.TimeInForce,
 		ReduceOnly:       order.ReduceOnly,
 		ClosePosition:    order.ClosePosition,
+		PositionSide:     order.PositionSide,
 		NewClientOrderID: order.NewClientOrderID,
 	}
 
@@ -287,6 +288,31 @@ func (c *Client) GetAccountInfo(ctx context.Context) (*AccountResponse, error) {
 	c.accountCache = account
 	c.accountCacheTime = time.Now()
 
+	return account, nil
+}
+
+// GetAccountInfoFresh bypasses the account cache for safety-critical verification.
+func (c *Client) GetAccountInfoFresh(ctx context.Context) (*AccountResponse, error) {
+	restAccount, err := c.restClient.GetAccount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fresh account info: %w", err)
+	}
+	account := &AccountResponse{
+		MakerCommission:  restAccount.MakerCommission,
+		TakerCommission:  restAccount.TakerCommission,
+		BuyerCommission:  restAccount.BuyerCommission,
+		SellerCommission: restAccount.SellerCommission,
+		CanTrade:         restAccount.CanTrade,
+		CanWithdraw:      restAccount.CanWithdraw,
+		CanDeposit:       restAccount.CanDeposit,
+		UpdateTime:       restAccount.UpdateTime,
+		AccountType:      restAccount.AccountType,
+		Balances:         convertBalances(restAccount.Balances),
+	}
+	c.accountCacheMutex.Lock()
+	c.accountCache = account
+	c.accountCacheTime = time.Now()
+	c.accountCacheMutex.Unlock()
 	return account, nil
 }
 
@@ -411,6 +437,72 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]*Order, er
 	return orders, nil
 }
 
+// GetAllOpenOrders retrieves every open order directly from the exchange.
+func (c *Client) GetAllOpenOrders(ctx context.Context) ([]*Order, error) {
+	var (
+		restOrders []rest.Order
+		err        error
+	)
+	if c.isFutures {
+		restOrders, err = c.restClient.GetAllFuturesOpenOrders(ctx)
+	} else {
+		restOrders, err = c.restClient.GetAllOpenOrders(ctx)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all open orders: %w", err)
+	}
+	orders := make([]*Order, len(restOrders))
+	for i, order := range restOrders {
+		orders[i] = &Order{
+			Symbol:        order.Symbol,
+			OrderID:       order.OrderID,
+			ClientOrderID: order.ClientOrderID,
+			Price:         order.Price,
+			OrigQty:       order.OrigQty,
+			ExecutedQty:   order.ExecutedQty,
+			Status:        order.Status,
+			TimeInForce:   order.TimeInForce,
+			Type:          order.Type,
+			Side:          order.Side,
+			OrderListID:   order.OrderListID,
+			StopPrice:     order.StopPrice,
+			ReduceOnly:    order.ReduceOnly,
+			ClosePosition: order.ClosePosition,
+			PositionSide:  order.PositionSide,
+			Time:          order.Time,
+			UpdateTime:    order.UpdateTime,
+		}
+	}
+	return orders, nil
+}
+
+// GetSpotSymbolsFresh bypasses exchange-info caches for emergency asset discovery.
+func (c *Client) GetSpotSymbolsFresh(ctx context.Context) ([]SymbolInfo, error) {
+	if c.isFutures {
+		return nil, fmt.Errorf("spot symbols not available on futures client")
+	}
+	exchangeInfo, err := c.restClient.GetExchangeInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	symbols := make([]SymbolInfo, 0, len(exchangeInfo.Symbols))
+	for _, symbol := range exchangeInfo.Symbols {
+		if symbol.Status != "TRADING" {
+			continue
+		}
+		info := SymbolInfo{
+			Symbol:              symbol.Symbol,
+			BaseAsset:           symbol.BaseAsset,
+			QuoteAsset:          symbol.QuoteAsset,
+			BaseAssetPrecision:  symbol.BaseAssetPrecision,
+			QuoteAssetPrecision: symbol.QuoteAssetPrecision,
+		}
+		applyRawFilters(&info, symbol.Filters)
+		symbols = append(symbols, info)
+	}
+	return symbols, nil
+}
+
 // GetOrder retrieves a single spot order by exchange order ID.
 func (c *Client) GetOrder(ctx context.Context, symbol string, orderID int64) (*Order, error) {
 	if c.isFutures {
@@ -480,8 +572,9 @@ type FuturesAccountResponse struct {
 }
 
 type FuturesPosition struct {
-	Symbol      string          `json:"symbol"`
-	PositionAmt decimal.Decimal `json:"positionAmt"`
+	Symbol       string          `json:"symbol"`
+	PositionAmt  decimal.Decimal `json:"positionAmt"`
+	PositionSide string          `json:"positionSide"`
 }
 
 func (c *Client) GetFuturesAccountInfo(ctx context.Context) (*FuturesAccountResponse, error) {
@@ -497,8 +590,9 @@ func (c *Client) GetFuturesAccountInfo(ctx context.Context) (*FuturesAccountResp
 	positions := make([]FuturesPosition, 0, len(account.Positions))
 	for _, p := range account.Positions {
 		positions = append(positions, FuturesPosition{
-			Symbol:      p.Symbol,
-			PositionAmt: p.PositionAmt,
+			Symbol:       p.Symbol,
+			PositionAmt:  p.PositionAmt,
+			PositionSide: p.PositionSide,
 		})
 	}
 

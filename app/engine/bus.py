@@ -299,6 +299,27 @@ class EventBus:
             await handle_error(pub_error)
             return False
 
+    async def publish_and_wait(self, event: BaseEvent, priority: int = 0) -> bool:
+        """Dispatch an event and report subscriber completion to durable callers."""
+        if not self._running:
+            logger.warning("EventBus not running, rejecting synchronous event")
+            return False
+
+        event.metadata["priority"] = priority
+        event.metadata["published_at"] = asyncio.get_event_loop().time()
+        try:
+            result = await self._process_one_event(event)
+        except Exception:
+            logger.exception("Synchronous event dispatch failed for %s", event.event_id)
+            await self._maybe_enqueue_dead_letter(event, "synchronous_dispatch_failed")
+            return False
+
+        if result is not None and result.successful_handlers > 0 and result.failed_handlers == 0:
+            return True
+        if result is None or self._dlq_on_any_failure or result.successful_handlers == 0:
+            await self._maybe_enqueue_dead_letter(event, "synchronous_handler_failed")
+        return False
+
     async def publish_many(self, events: list[BaseEvent]) -> int:
         """
         Publish multiple events.

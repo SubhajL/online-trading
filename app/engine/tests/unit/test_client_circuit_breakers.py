@@ -7,7 +7,12 @@ from datetime import datetime
 
 import pytest
 
-from app.engine.adapters.router_client.http_client import RouterHTTPClient
+from app.engine.adapters.router_client.http_client import (
+    RouterCircuitOpenError,
+    RouterHTTPClient,
+    RouterHTTPError,
+    RouterTransportError,
+)
 from app.engine.ingest.binance_rest import BinanceRestClient
 from app.engine.models import EventType, TimeFrame
 
@@ -129,25 +134,12 @@ async def test_router_client_circuit_breaker_opens_and_fast_fails() -> None:
     client._initialized = True
     client._session = _FailingSession(Exception("network down"))  # type: ignore[assignment]
 
-    # Cause consecutive failures to trip the breaker
-    tripped = False
-    for i in range(6):  # default threshold is 5
-        try:
-            await client.get_order_status("id")
-        except Exception:
-            # ignore real exceptions until breaker opens
-            pass
-        # Try a call that should fast-fail once breaker is open
-        try:
-            resp = await client._make_request("GET", "/health")
-            if resp.get("error") == "circuit_breaker_open":
-                tripped = True
-                break
-        except Exception:
-            # before breaker opens, the network error propagates
-            pass
+    for _ in range(5):
+        with pytest.raises(RouterTransportError):
+            await client._make_request("GET", "/orders/id")
 
-    assert tripped is True
+    with pytest.raises(RouterCircuitOpenError):
+        await client._make_request("GET", "/orders/id")
 
 
 @pytest.mark.asyncio
@@ -182,10 +174,11 @@ async def test_router_per_endpoint_breakers_independent() -> None:
 
     # Cause multiple failures on /orders
     for _ in range(5):
-        await client._make_request("GET", "/orders")
+        with pytest.raises(RouterHTTPError):
+            await client._make_request("GET", "/orders")
     # Next publish on /orders fast-fails with breaker open
-    resp = await client._make_request("GET", "/orders")
-    assert resp.get("error") == "circuit_breaker_open"
+    with pytest.raises(RouterCircuitOpenError):
+        await client._make_request("GET", "/orders")
 
     # Independent endpoint should still work
     ok = await client._make_request("GET", "/health")
@@ -203,13 +196,14 @@ async def test_router_throttling_429_does_not_trip_breaker() -> None:
 
     # Many throttled responses should not open breaker
     for _ in range(8):
-        resp = await client._make_request("GET", "/orders")
-        assert resp.get("status") == 429
-        assert resp.get("error") == "throttled"
+        with pytest.raises(RouterHTTPError) as exc_info:
+            await client._make_request("GET", "/orders")
+        assert exc_info.value.status == 429
 
     # Should still not be breaker open
-    resp = await client._make_request("GET", "/orders")
-    assert resp.get("status") == 429 and resp.get("error") == "throttled"
+    with pytest.raises(RouterHTTPError) as exc_info:
+        await client._make_request("GET", "/orders")
+    assert exc_info.value.status == 429
 
 
 @pytest.mark.asyncio
@@ -267,8 +261,18 @@ async def test_router_half_open_probe_closes_on_success() -> None:
     # Configure per-endpoint breaker: 1 failure to open, 1 success to close, 20ms timeout
     from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConfig
 
-    cfg = {"GET:/orders": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)}
-    client = RouterHTTPClient(base_url="http://example", timeout=1, retry_attempts=1, retry_delay=0, per_endpoint_breakers_config=cfg)
+    cfg = {
+        "GET:/orders": CircuitBreakerConfig(
+            failure_threshold=1, success_threshold=1, timeout_seconds=0.02
+        )
+    }
+    client = RouterHTTPClient(
+        base_url="http://example",
+        timeout=1,
+        retry_attempts=1,
+        retry_delay=0,
+        per_endpoint_breakers_config=cfg,
+    )
     client._initialized = True
 
     # First request fails and opens breaker
@@ -276,11 +280,12 @@ async def test_router_half_open_probe_closes_on_success() -> None:
         ("GET", "/orders"): [(500, "e")],
     }
     client._session = _RouterSession(mapping)  # type: ignore[arg-type, assignment]
-    await client._make_request("GET", "/orders")
+    with pytest.raises(RouterHTTPError):
+        await client._make_request("GET", "/orders")
 
     # Immediately next call should be fast-failed due to OPEN
-    resp = await client._make_request("GET", "/orders")
-    assert resp.get("error") == "circuit_breaker_open"
+    with pytest.raises(RouterCircuitOpenError):
+        await client._make_request("GET", "/orders")
 
     # Wait for timeout to transition to HALF_OPEN, then return success
     await asyncio.sleep(0.03)
@@ -298,36 +303,53 @@ async def test_router_half_open_probe_closes_on_success() -> None:
 async def test_router_half_open_failure_reopens() -> None:
     from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConfig
 
-    cfg = {"GET:/orders": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)}
-    client = RouterHTTPClient(base_url="http://example", timeout=1, retry_attempts=1, retry_delay=0, per_endpoint_breakers_config=cfg)
+    cfg = {
+        "GET:/orders": CircuitBreakerConfig(
+            failure_threshold=1, success_threshold=1, timeout_seconds=0.02
+        )
+    }
+    client = RouterHTTPClient(
+        base_url="http://example",
+        timeout=1,
+        retry_attempts=1,
+        retry_delay=0,
+        per_endpoint_breakers_config=cfg,
+    )
     client._initialized = True
 
     mapping = {
         ("GET", "/orders"): [(500, "e")],
     }
     client._session = _RouterSession(mapping)  # type: ignore[arg-type, assignment]
-    await client._make_request("GET", "/orders")
+    with pytest.raises(RouterHTTPError):
+        await client._make_request("GET", "/orders")
     # Wait for half-open
     await asyncio.sleep(0.03)
     # First probe fails -> back to OPEN
     mapping[("GET", "/orders")] = [(500, "e")]
     try:
         await client._make_request("GET", "/orders")
-    except Exception:
-        # Router client returns error dict not raise; but in case of unexpected exception ignore
+    except RouterHTTPError:
         pass
     # Next call should be fast-failed
-    resp = await client._make_request("GET", "/orders")
-    assert resp.get("error") == "circuit_breaker_open"
+    with pytest.raises(RouterCircuitOpenError):
+        await client._make_request("GET", "/orders")
 
 
 @pytest.mark.asyncio
 async def test_binance_half_open_probe_and_close() -> None:
     from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConfig
 
-    client = BinanceRestClient(api_key="k", api_secret="s", testnet=True, per_endpoint_breakers_config={
-        "GET:/api/v3/depth": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)
-    })
+    client = BinanceRestClient(
+        api_key="k",
+        api_secret="s",
+        testnet=True,
+        per_endpoint_breakers_config={
+            "GET:/api/v3/depth": CircuitBreakerConfig(
+                failure_threshold=1, success_threshold=1, timeout_seconds=0.02
+            )
+        },
+    )
 
     # Trip breaker with one failure
     mapping = {
@@ -353,9 +375,16 @@ async def test_binance_half_open_probe_and_close() -> None:
 async def test_binance_half_open_failure_reopens() -> None:
     from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConfig
 
-    client = BinanceRestClient(api_key="k", api_secret="s", testnet=True, per_endpoint_breakers_config={
-        "GET:/api/v3/depth": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)
-    })
+    client = BinanceRestClient(
+        api_key="k",
+        api_secret="s",
+        testnet=True,
+        per_endpoint_breakers_config={
+            "GET:/api/v3/depth": CircuitBreakerConfig(
+                failure_threshold=1, success_threshold=1, timeout_seconds=0.02
+            )
+        },
+    )
 
     mapping = {
         ("GET", "/api/v3/depth"): [(500, {"msg": "error"})],
@@ -378,12 +407,23 @@ async def test_binance_half_open_failure_reopens() -> None:
 async def test_router_breaker_metrics_shape_and_values() -> None:
     from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConfig
 
-    cfg = {"GET:/orders": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)}
-    client = RouterHTTPClient(base_url="http://example", timeout=1, retry_attempts=1, retry_delay=0, per_endpoint_breakers_config=cfg)
+    cfg = {
+        "GET:/orders": CircuitBreakerConfig(
+            failure_threshold=1, success_threshold=1, timeout_seconds=0.02
+        )
+    }
+    client = RouterHTTPClient(
+        base_url="http://example",
+        timeout=1,
+        retry_attempts=1,
+        retry_delay=0,
+        per_endpoint_breakers_config=cfg,
+    )
     client._initialized = True
     mapping = {("GET", "/orders"): [(500, "e")]}  # one failure trips OPEN
     client._session = _RouterSession(mapping)  # type: ignore[arg-type, assignment]
-    await client._make_request("GET", "/orders")
+    with pytest.raises(RouterHTTPError):
+        await client._make_request("GET", "/orders")
 
     metrics_open = await client.get_breaker_metrics()
     assert "GET:/orders" in metrics_open
@@ -403,9 +443,16 @@ async def test_router_breaker_metrics_shape_and_values() -> None:
 async def test_binance_breaker_metrics_shape_and_values() -> None:
     from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerConfig
 
-    client = BinanceRestClient(api_key="k", api_secret="s", testnet=True, per_endpoint_breakers_config={
-        "GET:/api/v3/depth": CircuitBreakerConfig(failure_threshold=1, success_threshold=1, timeout_seconds=0.02)
-    })
+    client = BinanceRestClient(
+        api_key="k",
+        api_secret="s",
+        testnet=True,
+        per_endpoint_breakers_config={
+            "GET:/api/v3/depth": CircuitBreakerConfig(
+                failure_threshold=1, success_threshold=1, timeout_seconds=0.02
+            )
+        },
+    )
     mapping = {("GET", "/api/v3/depth"): [(500, {"msg": "error"})]}
     client._session = _BinanceSession(mapping)  # type: ignore[arg-type, assignment]
     with pytest.raises(Exception):
@@ -424,9 +471,12 @@ async def test_binance_breaker_metrics_shape_and_values() -> None:
         pass
     m2 = await client.get_breaker_metrics()
     assert m2["GET:/api/v3/depth"]["success_count"] >= 0  # monotonic
+
+
 def test_router_breaker_config_wired_from_env(monkeypatch) -> None:
-    from app.engine.core.breaker_config import router_breaker_config_from_env
     import json as _json
+
+    from app.engine.core.breaker_config import router_breaker_config_from_env
 
     cfg = {"GET:/orders": {"failure_threshold": 2, "success_threshold": 1, "timeout_seconds": 0.01}}
     monkeypatch.setenv("ROUTER_BREAKERS_JSON", _json.dumps(cfg))
@@ -436,10 +486,17 @@ def test_router_breaker_config_wired_from_env(monkeypatch) -> None:
 
 
 def test_binance_breaker_config_wired_from_env(monkeypatch) -> None:
-    from app.engine.core.breaker_config import binance_breaker_config_from_env
     import json as _json
 
-    cfg = {"GET:/api/v3/depth": {"failure_threshold": 3, "success_threshold": 1, "timeout_seconds": 0.02}}
+    from app.engine.core.breaker_config import binance_breaker_config_from_env
+
+    cfg = {
+        "GET:/api/v3/depth": {
+            "failure_threshold": 3,
+            "success_threshold": 1,
+            "timeout_seconds": 0.02,
+        }
+    }
     monkeypatch.setenv("BINANCE_BREAKERS_JSON", _json.dumps(cfg))
     mapping = binance_breaker_config_from_env()
     assert "GET:/api/v3/depth" in mapping
@@ -455,10 +512,13 @@ def test_router_breaker_config_invalid_json(monkeypatch) -> None:
 
 
 def test_binance_breaker_config_missing_fields(monkeypatch) -> None:
-    from app.engine.core.breaker_config import binance_breaker_config_from_env
     import json as _json
 
-    bad = {"GET:/api/v3/time": {"failure_threshold": 1}}  # missing success_threshold/timeout_seconds
+    from app.engine.core.breaker_config import binance_breaker_config_from_env
+
+    bad = {
+        "GET:/api/v3/time": {"failure_threshold": 1}
+    }  # missing success_threshold/timeout_seconds
     monkeypatch.setenv("BINANCE_BREAKERS_JSON", _json.dumps(bad))
     with pytest.raises(ValueError):
         _ = binance_breaker_config_from_env()

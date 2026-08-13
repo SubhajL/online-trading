@@ -3,13 +3,14 @@ Unit tests for the DI EventBus (priority, DLQ, CB, metrics).
 """
 
 import asyncio
-import pytest
-import pytest_asyncio
 from datetime import datetime
 
+import pytest
+import pytest_asyncio
+
 from app.engine.core.event_bus_factory import EventBusConfig, EventBusFactory
-from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerState
 from app.engine.models import BaseEvent, EventType
+from app.engine.resilience.thread_safe_circuit_breaker import CircuitBreakerState
 
 
 class TestEventBusFactory:
@@ -38,6 +39,58 @@ class TestEventBus:
 
         ok = await event_bus.publish(event)
         assert ok is True
+
+    async def test_publish_and_wait_returns_after_subscriber_completion(self, event_bus) -> None:
+        handled = asyncio.Event()
+
+        async def handler(_: BaseEvent) -> None:
+            await asyncio.sleep(0)
+            handled.set()
+
+        await event_bus.subscribe("durable-sub", handler, [EventType.ORDER_UPDATE])
+        event = BaseEvent(
+            event_type=EventType.ORDER_UPDATE,
+            timestamp=datetime.utcnow(),
+            symbol="BTCUSDT",
+        )
+
+        accepted = await event_bus.publish_and_wait(event, priority=7)
+
+        assert accepted is True
+        assert handled.is_set()
+
+    async def test_publish_and_wait_rejects_failed_subscriber(self, event_bus) -> None:
+        async def handler(_: BaseEvent) -> None:
+            raise RuntimeError("delivery failed")
+
+        await event_bus.subscribe(
+            "durable-sub",
+            handler,
+            [EventType.ORDER_UPDATE],
+            max_retries=1,
+        )
+        event = BaseEvent(
+            event_type=EventType.ORDER_UPDATE,
+            timestamp=datetime.utcnow(),
+            symbol="BTCUSDT",
+        )
+
+        accepted = await event_bus.publish_and_wait(event, priority=7)
+
+        assert accepted is False
+
+    async def test_publish_and_wait_rejects_when_no_subscriber_handles_event(
+        self, event_bus
+    ) -> None:
+        event = BaseEvent(
+            event_type=EventType.ORDER_UPDATE,
+            timestamp=datetime.utcnow(),
+            symbol="BTCUSDT",
+        )
+
+        accepted = await event_bus.publish_and_wait(event, priority=7)
+
+        assert accepted is False
 
     async def test_multiple_subscribers_receive_event(self, event_bus) -> None:
         received_events = []
@@ -114,10 +167,14 @@ class TestEventBus:
         # Configure failure threshold low via factory config
         # Note: for this test fixture, we will locally construct a new bus with config overrides
         await event_bus.stop()
-        cfg = EventBusConfig(max_queue_size=100, num_workers=1, processing_config={"failure_threshold": 2})
+        cfg = EventBusConfig(
+            max_queue_size=100, num_workers=1, processing_config={"failure_threshold": 2}
+        )
         event_bus = EventBusFactory().create_with_config(cfg)
         await event_bus.start()
-        subscription_id = await event_bus.subscribe("failing_sub", failing_handler, [EventType.CANDLE_UPDATE])
+        subscription_id = await event_bus.subscribe(
+            "failing_sub", failing_handler, [EventType.CANDLE_UPDATE]
+        )
 
         # Send 2 events that will fail (circuit breaker threshold is 2)
         for i in range(2):
@@ -174,7 +231,9 @@ class TestEventBus:
 
         # Publish three events; handler should be invoked three times
         for _ in range(3):
-            evt = BaseEvent(event_type=EventType.CANDLE_UPDATE, timestamp=datetime.utcnow(), symbol="BTCUSDT")
+            evt = BaseEvent(
+                event_type=EventType.CANDLE_UPDATE, timestamp=datetime.utcnow(), symbol="BTCUSDT"
+            )
             await event_bus.publish(evt)
 
         await asyncio.sleep(0.3)
@@ -237,7 +296,9 @@ class TestEventBus:
             await bus.subscribe(f"m{i}", measured_handler, [EventType.CANDLE_UPDATE])
         await bus.subscribe("fail", failing_handler, [EventType.CANDLE_UPDATE])
 
-        evt = BaseEvent(event_type=EventType.CANDLE_UPDATE, timestamp=datetime.utcnow(), symbol="BTCUSDT")
+        evt = BaseEvent(
+            event_type=EventType.CANDLE_UPDATE, timestamp=datetime.utcnow(), symbol="BTCUSDT"
+        )
         await bus.publish(evt)
 
         await asyncio.sleep(0.3)

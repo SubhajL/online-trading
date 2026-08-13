@@ -2,7 +2,6 @@ package orders
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -209,8 +208,8 @@ func (a *LegArmer) armSingleLeg(
 		return false
 	}
 
-	a.updateLegStatus(ctx, record.BracketID, leg.ClientOrderID, storage.LegStatusPlaced, resp.OrderID)
-	a.emitLegUpdate(ctx, record, order, resp)
+	status, _ := legStatusFromOrder(resp.Status)
+	a.updateLegStatus(ctx, record.BracketID, leg.ClientOrderID, status, resp.OrderID)
 	return true
 }
 
@@ -307,36 +306,6 @@ func (a *LegArmer) updateLegStatus(
 			Str("client_order_id", clientOrderID).
 			Str("status", status).
 			Msg("leg armer: failed to persist leg status")
-	}
-}
-
-func (a *LegArmer) emitLegUpdate(
-	ctx context.Context,
-	record *storage.BracketRecord,
-	order binance.FuturesOrderRequest,
-	resp *binance.OrderResponse,
-) {
-	if a.emitter == nil {
-		return
-	}
-	update := &OrderUpdate{
-		EventType:     "order_update.v1",
-		Venue:         "USD_M",
-		Symbol:        record.Symbol,
-		OrderID:       resp.OrderID,
-		ClientOrderID: order.NewClientOrderID,
-		Status:        normalizeOrderStatus(resp.Status),
-		Side:          order.Side,
-		OrderType:     order.Type,
-		Price:         order.Price,
-		Quantity:      order.Quantity,
-		ExecutedQty:   resp.ExecutedQty,
-		UpdateTime:    time.Now().UTC(),
-	}
-	if err := a.emitter.EmitOrderUpdate(ctx, update); err != nil {
-		a.logger.Warn().Err(err).
-			Str("client_order_id", order.NewClientOrderID).
-			Msg("leg armer: failed to emit order update")
 	}
 }
 

@@ -35,6 +35,8 @@ func newBracketTestRepo(t *testing.T) (*BracketRepo, context.Context) {
 	for _, file := range []string{
 		"../../../../db/migrations/030_brackets.sql",
 		"../../../../db/migrations/031_bracket_leg_placing.sql",
+		"../../../../db/migrations/034_execution_safety.sql",
+		"../../../../db/migrations/035_order_update_delivery.sql",
 	} {
 		migration, err := os.ReadFile(file)
 		require.NoError(t, err)
@@ -46,14 +48,43 @@ func newBracketTestRepo(t *testing.T) (*BracketRepo, context.Context) {
 		defer cleanupCancel()
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM bracket_legs`)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM brackets`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM router_order_update_outbox`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM router_order_update_sequences`)
 	})
 
 	return NewBracketRepo(pool), ctx
 }
 
+func TestStateAndOutboxCommitAtomically(t *testing.T) {
+	repo, ctx := newBracketTestRepo(t)
+	entryID := "atomic-" + uuid.NewString()[:8]
+	record, inserted, err := repo.Reserve(ctx, sampleBracket(entryID))
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	require.NoError(t, repo.UpdateLegStatus(ctx, record.BracketID, entryID, LegStatusPlaced, 99001))
+
+	var legStatus string
+	var outboxStatus string
+	var aggregateID string
+	err = repo.pool.QueryRow(ctx, `
+		SELECT leg.status, outbox.status, outbox.aggregate_id
+		FROM bracket_legs leg
+		JOIN router_order_update_outbox outbox
+		  ON outbox.aggregate_id = 'SPOT:' || leg.client_order_id
+		WHERE leg.bracket_id = $1 AND leg.client_order_id = $2
+	`, record.BracketID, entryID).Scan(&legStatus, &outboxStatus, &aggregateID)
+	require.NoError(t, err)
+	assert.Equal(t, LegStatusPlaced, legStatus)
+	assert.Equal(t, "PENDING", outboxStatus)
+	assert.Equal(t, "SPOT:"+entryID, aggregateID)
+}
+
 func sampleBracket(entryID string) BracketRecord {
 	return BracketRecord{
 		Venue:              "SPOT",
+		IdempotencyKey:     "test:" + entryID,
+		RequestHash:        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		Symbol:             "BTCUSDT",
 		Side:               "BUY",
 		Quantity:           decimal.RequireFromString("0.02"),
@@ -85,6 +116,24 @@ func TestBracketRepo_ReserveInsertsOnceAndRoundTripsLegs(t *testing.T) {
 	assert.Equal(t, StatusRolesFromLegs(second.Legs), map[string]string{
 		"ENTRY": LegStatusPlanned, "TP": LegStatusPlanned, "SL": LegStatusPlanned,
 	})
+}
+
+func TestBracketRepo_ReserveConflictsOnVenueAndIdempotencyKey(t *testing.T) {
+	repo, ctx := newBracketTestRepo(t)
+	first := sampleBracket("it-" + uuid.NewString()[:8])
+	second := sampleBracket("it-" + uuid.NewString()[:8])
+	second.IdempotencyKey = first.IdempotencyKey
+	second.RequestHash = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+
+	stored, inserted, err := repo.Reserve(ctx, first)
+	require.NoError(t, err)
+	require.True(t, inserted)
+	replayed, inserted, err := repo.Reserve(ctx, second)
+	require.NoError(t, err)
+
+	assert.False(t, inserted)
+	assert.Equal(t, stored.BracketID, replayed.BracketID)
+	assert.Equal(t, first.RequestHash, replayed.RequestHash)
 }
 
 // StatusRolesFromLegs maps role -> status for compact whole-structure asserts.

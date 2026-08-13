@@ -2,8 +2,12 @@ package orders
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"maps"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,8 +53,11 @@ func bracketRecordFromRequest(req *PlaceBracketRequest, legsOnFill bool) storage
 		Status:        storage.LegStatusPlanned,
 	})
 
+	requestHash, _ := canonicalBracketRequestHash(req)
 	return storage.BracketRecord{
 		Venue:              venue,
+		IdempotencyKey:     req.IdempotencyKey,
+		RequestHash:        requestHash,
 		Symbol:             req.Symbol,
 		Side:               req.Side,
 		Quantity:           req.Quantity,
@@ -61,6 +68,60 @@ func bracketRecordFromRequest(req *PlaceBracketRequest, legsOnFill bool) storage
 		LegsOnFill:         legsOnFill,
 		Legs:               legs,
 	}
+}
+
+type canonicalBracketRequest struct {
+	Venue              string   `json:"venue"`
+	Symbol             string   `json:"symbol"`
+	Side               string   `json:"side"`
+	Quantity           string   `json:"quantity"`
+	EntryPrice         string   `json:"entry_price"`
+	TakeProfitPrices   []string `json:"take_profit_prices"`
+	StopLossPrice      string   `json:"stop_loss_price"`
+	OrderType          string   `json:"order_type"`
+	EntryClientOrderID string   `json:"entry_client_order_id"`
+	TPClientOrderIDs   []string `json:"tp_client_order_ids"`
+	SLClientOrderID    string   `json:"sl_client_order_id"`
+}
+
+func canonicalBracketRequestHash(req *PlaceBracketRequest) (string, error) {
+	if req == nil || req.ClientOrderIDs == nil {
+		return "", fmt.Errorf("idempotency identity is incomplete")
+	}
+	venue := "SPOT"
+	if req.IsFutures {
+		venue = "USD_M"
+	}
+	orderType := strings.ToUpper(strings.TrimSpace(req.OrderType))
+	if orderType == "" {
+		orderType = "LIMIT"
+		if req.EntryPrice.IsZero() {
+			orderType = "MARKET"
+		}
+	}
+	tpPrices := make([]string, len(req.TakeProfitPrices))
+	for index, price := range req.TakeProfitPrices {
+		tpPrices[index] = price.String()
+	}
+	tpIDs := append([]string(nil), req.ClientOrderIDs.TakeProfits...)
+	payload, err := json.Marshal(canonicalBracketRequest{
+		Venue:              venue,
+		Symbol:             strings.ToUpper(strings.TrimSpace(req.Symbol)),
+		Side:               strings.ToUpper(strings.TrimSpace(req.Side)),
+		Quantity:           req.Quantity.String(),
+		EntryPrice:         req.EntryPrice.String(),
+		TakeProfitPrices:   tpPrices,
+		StopLossPrice:      req.StopLossPrice.String(),
+		OrderType:          orderType,
+		EntryClientOrderID: req.ClientOrderIDs.Main,
+		TPClientOrderIDs:   tpIDs,
+		SLClientOrderID:    req.ClientOrderIDs.StopLoss,
+	})
+	if err != nil {
+		return "", fmt.Errorf("marshal canonical bracket request: %w", err)
+	}
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func tpPriceAt(prices []decimal.Decimal, i int) decimal.Decimal {
@@ -74,6 +135,16 @@ func tpPriceAt(prices []decimal.Decimal, i int) decimal.Decimal {
 // diverges from its durable reservation: with regenerated exit-leg ids the
 // pre-crash legs would stay live while new-id legs place cleanly beside them.
 func validateReplayMatchesReservation(rec *storage.BracketRecord, req *PlaceBracketRequest) error {
+	requestHash, err := canonicalBracketRequestHash(req)
+	if err != nil {
+		return err
+	}
+	if rec.IdempotencyKey != "" && rec.IdempotencyKey != req.IdempotencyKey {
+		return &IdempotencyConflictError{IdempotencyKey: req.IdempotencyKey}
+	}
+	if rec.RequestHash != "" && rec.RequestHash != requestHash {
+		return &IdempotencyConflictError{IdempotencyKey: req.IdempotencyKey}
+	}
 	if rec.Symbol != req.Symbol || rec.Side != req.Side {
 		return fmt.Errorf(
 			"replayed request diverges from reservation %s: got %s/%s, reserved %s/%s",
@@ -142,17 +213,16 @@ func (m *Manager) replayEntryState(
 	return existing, nil
 }
 
-// persistPlacementOutcome records leg-level results after a placement pass;
-// best-effort — trading must not block on bookkeeping.
+// persistPlacementOutcome records leg-level results after a placement pass.
 func (m *Manager) persistPlacementOutcome(
 	ctx context.Context,
 	bracketID uuid.UUID,
 	placement *bracketPlacementResult,
 	critical bool,
 	legsDeferred bool,
-) {
+) error {
 	if m.bracketStore == nil || bracketID == uuid.Nil {
-		return
+		return nil
 	}
 	// Bookkeeping must survive a caller cancel/disconnect after the POSTs.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -169,43 +239,59 @@ func (m *Manager) persistPlacementOutcome(
 		if _, err := m.bracketStore.UpdateBracketStatusIf(
 			ctx, bracketID, storage.BracketStatusReserved, storage.BracketStatusEntryPlaced,
 		); err != nil {
-			m.logger.Warn().Err(err).Str("bracket_id", bracketID.String()).
-				Msg("Failed to persist bracket status")
+			return fmt.Errorf("persist bracket status: %w", err)
 		}
 	} else if err := m.bracketStore.UpdateBracketStatus(ctx, bracketID, status); err != nil {
-		m.logger.Warn().Err(err).Str("bracket_id", bracketID.String()).
-			Msg("Failed to persist bracket status")
+		return fmt.Errorf("persist bracket status: %w", err)
 	}
 	if placement == nil {
-		return
+		return nil
 	}
 
-	update := func(clientOrderID string, resp *binance.OrderResponse) {
+	update := func(clientOrderID string, resp *binance.OrderResponse) error {
 		if clientOrderID == "" {
-			return
+			return nil
 		}
 		legStatus := storage.LegStatusFailed
 		var exchangeID int64
 		if resp != nil {
-			legStatus = storage.LegStatusPlaced
+			switch normalizeOrderStatus(resp.Status) {
+			case "FILLED":
+				legStatus = storage.LegStatusFilled
+			case "CANCELED", "CANCELLED":
+				legStatus = storage.LegStatusCanceled
+			case "EXPIRED", "EXPIRED_IN_MATCH":
+				legStatus = storage.LegStatusExpired
+			case "REJECTED":
+				legStatus = storage.LegStatusFailed
+			default:
+				legStatus = storage.LegStatusPlaced
+			}
 			exchangeID = resp.OrderID
 		}
 		if err := m.bracketStore.UpdateLegStatus(ctx, bracketID, clientOrderID, legStatus, exchangeID); err != nil {
-			m.logger.Warn().Err(err).Str("client_order_id", clientOrderID).
-				Msg("Failed to persist bracket leg status")
+			return fmt.Errorf("persist bracket leg %s: %w", clientOrderID, err)
 		}
+		return nil
 	}
 
-	update(placement.IDs.Main, placement.Main)
+	if err := update(placement.IDs.Main, placement.Main); err != nil {
+		return err
+	}
 	if legsDeferred {
-		return
+		return nil
 	}
 	for i, tpID := range placement.IDs.TakeProfits {
 		var resp *binance.OrderResponse
 		if i < len(placement.TakeProfits) {
 			resp = placement.TakeProfits[i]
 		}
-		update(tpID, resp)
+		if err := update(tpID, resp); err != nil {
+			return err
+		}
 	}
-	update(placement.IDs.StopLoss, placement.StopLoss)
+	if err := update(placement.IDs.StopLoss, placement.StopLoss); err != nil {
+		return err
+	}
+	return nil
 }

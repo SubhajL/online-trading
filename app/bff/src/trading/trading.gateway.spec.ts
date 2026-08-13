@@ -140,6 +140,7 @@ describe('TradingGateway', () => {
         stopLossPrice: 44000,
         takeProfitPrice: 47000,
         venue: 'USD_M' as const,
+        idempotencyKey: 'socket-456',
       };
 
       const orderResponse = {
@@ -152,7 +153,9 @@ describe('TradingGateway', () => {
       const result = await gateway.placeOrder(mockClient, orderRequest);
 
       expect(result).toEqual({ success: true, data: orderResponse });
-      expect(mockCommandBus.execute).toHaveBeenCalled();
+      expect(mockCommandBus.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ idempotencyKey: 'socket-456' }),
+      );
     });
 
     it('should handle order placement errors', async () => {
@@ -164,6 +167,7 @@ describe('TradingGateway', () => {
         stopLossPrice: 44000,
         takeProfitPrice: 47000,
         venue: 'USD_M' as const,
+        idempotencyKey: 'socket-456',
       };
 
       const error = new Error('Insufficient balance');
