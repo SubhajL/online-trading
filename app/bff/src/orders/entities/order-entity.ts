@@ -32,6 +32,10 @@ export type Venue = 'SPOT' | 'USD_M';
 @Index(['venue', 'clientOrderId'], { unique: true })
 @Index(['clientOrderId'])
 @Index(['exchangeOrderId'])
+@Index('uq_orders_venue_exchange_order_id', ['venue', 'symbol', 'exchangeOrderId'], {
+  unique: true,
+  where: '"exchange_order_id" IS NOT NULL',
+})
 @Index(['decisionId'])
 export class OrderEntity {
   @PrimaryGeneratedColumn('uuid', { name: 'order_id' })

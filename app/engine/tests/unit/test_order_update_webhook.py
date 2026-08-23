@@ -114,7 +114,12 @@ def _valid_order_update_payload() -> dict[str, object]:
 @pytest.mark.parametrize(
     ("prior_status", "current_status", "expected"),
     [
-        (prior, current, prior == current)
+        (
+            prior,
+            current,
+            prior == current
+            or (prior in {"CANCELED", "CANCELLED", "EXPIRED"} and current == "FILLED"),
+        )
         for prior in ("FILLED", "REJECTED", "CANCELED", "CANCELLED", "EXPIRED")
         for current in (
             "NEW",
@@ -132,7 +137,56 @@ def test_terminal_order_update_cannot_change_state(
     current_status: str,
     expected: bool,
 ) -> None:
-    assert is_terminal_transition_allowed(prior_status, current_status) is expected
+    prior_payload = {
+        "status": prior_status,
+        "quantity": "1",
+        "executed_qty": "0.25",
+        "update_time": "2026-03-21T20:05:00Z",
+    }
+    current_payload = {
+        "status": current_status,
+        "quantity": "1",
+        "executed_qty": "1" if current_status == "FILLED" else "0.25",
+        "update_time": "2026-03-21T20:06:00Z",
+    }
+
+    assert is_terminal_transition_allowed(prior_payload, current_payload) is expected
+
+
+@pytest.mark.parametrize(
+    "current_payload",
+    [
+        {
+            "status": "FILLED",
+            "quantity": "1",
+            "executed_qty": "0.75",
+            "update_time": "2026-03-21T20:06:00Z",
+        },
+        {
+            "status": "FILLED",
+            "quantity": "1",
+            "executed_qty": "1",
+            "update_time": "2026-03-21T20:04:00Z",
+        },
+        {
+            "status": "FILLED",
+            "quantity": "1",
+            "executed_qty": "1",
+            "update_time": None,
+        },
+    ],
+)
+def test_terminal_full_fill_upgrade_requires_complete_newer_observation(
+    current_payload: dict[str, object],
+) -> None:
+    prior_payload = {
+        "status": "CANCELED",
+        "quantity": "1",
+        "executed_qty": "0.25",
+        "update_time": "2026-03-21T20:05:00Z",
+    }
+
+    assert is_terminal_transition_allowed(prior_payload, current_payload) is False
 
 
 @pytest.mark.asyncio
@@ -446,6 +500,136 @@ async def test_ingest_order_update_persists_to_db_when_database_available() -> N
 
 
 @pytest.mark.asyncio
+async def test_stop_market_update_persists_canonical_stop_loss_type() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        db = _CapturingDB()
+        bus = _CapturingBus()
+        payload = _valid_order_update_payload()
+        payload["order_type"] = "STOP_MARKET"
+        payload["price"] = "49000.00"
+        services.update(event_bus=bus, database=db)
+
+        response = await ingest_order_update(payload)
+
+        assert response == {"status": "ok"}
+        assert len(db.rows) == 1
+        assert {
+            "type": db.rows[0]["type"],
+            "price": db.rows[0]["price"],
+            "stop_price": db.rows[0].get("stop_price"),
+        } == {
+            "type": "STOP_LOSS",
+            "price": None,
+            "stop_price": Decimal("49000.00"),
+        }
+        assert len(bus.published) == 1
+        event = bus.published[0]
+        assert isinstance(event, OrderUpdateEvent)
+        assert {
+            "order_type": event.update.order_type,
+            "price": event.update.price,
+            "stop_price": event.update.stop_price,
+        } == {
+            "order_type": "STOP_MARKET",
+            "price": None,
+            "stop_price": Decimal("49000.00"),
+        }
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_spot_stop_limit_update_preserves_limit_and_trigger_prices() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        db = _CapturingDB()
+        bus = _CapturingBus()
+        payload = _valid_order_update_payload()
+        payload.update(
+            venue="SPOT",
+            order_type="STOP_LOSS_LIMIT",
+            price="49000.00",
+            stop_price="49500.00",
+        )
+        services.update(event_bus=bus, database=db)
+
+        response = await ingest_order_update(payload)
+
+        assert response == {"status": "ok"}
+        assert len(db.rows) == 1
+        assert {
+            "type": db.rows[0]["type"],
+            "price": db.rows[0]["price"],
+            "stop_price": db.rows[0].get("stop_price"),
+        } == {
+            "type": "STOP_LOSS_LIMIT",
+            "price": Decimal("49000.00"),
+            "stop_price": Decimal("49500.00"),
+        }
+        assert len(bus.published) == 1
+        event = bus.published[0]
+        assert isinstance(event, OrderUpdateEvent)
+        assert {
+            "order_type": event.update.order_type,
+            "price": event.update.price,
+            "stop_price": event.update.stop_price,
+        } == {
+            "order_type": "STOP_LOSS_LIMIT",
+            "price": Decimal("49000.00"),
+            "stop_price": Decimal("49500.00"),
+        }
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
+async def test_market_update_persists_null_price() -> None:
+    previous = dict(services)
+    services.clear()
+    try:
+        db = _CapturingDB()
+        bus = _CapturingBus()
+        payload = _valid_order_update_payload()
+        payload["order_type"] = "MARKET"
+        payload["price"] = "0"
+        services.update(event_bus=bus, database=db)
+
+        response = await ingest_order_update(payload)
+
+        assert response == {"status": "ok"}
+        assert len(db.rows) == 1
+        assert {
+            "type": db.rows[0]["type"],
+            "price": db.rows[0]["price"],
+            "stop_price": db.rows[0].get("stop_price"),
+        } == {
+            "type": "MARKET",
+            "price": None,
+            "stop_price": None,
+        }
+        assert len(bus.published) == 1
+        event = bus.published[0]
+        assert isinstance(event, OrderUpdateEvent)
+        assert {
+            "order_type": event.update.order_type,
+            "price": event.update.price,
+            "stop_price": event.update.stop_price,
+        } == {
+            "order_type": "MARKET",
+            "price": None,
+            "stop_price": None,
+        }
+    finally:
+        services.clear()
+        services.update(previous)
+
+
+@pytest.mark.asyncio
 async def test_ingest_order_update_persists_reconciled_spot_average_fill_price() -> None:
     previous = dict(services)
     services.clear()
@@ -465,9 +649,10 @@ async def test_ingest_order_update_persists_reconciled_spot_average_fill_price()
             "status": "FILLED",
             "side": "BUY",
             "order_type": "LIMIT",
-            "price": "50020.00",
+            "price": "50000.00",
             "quantity": "0.02",
             "executed_qty": "0.02",
+            "average_fill_price": "50020.00",
             "update_time": now.isoformat(),
         }
 
@@ -475,8 +660,11 @@ async def test_ingest_order_update_persists_reconciled_spot_average_fill_price()
 
         assert resp == {"status": "ok"}
         assert len(db.rows) == 1
+        assert db.rows[0]["price"] == Decimal("50000.00")
         assert db.rows[0]["average_fill_price"] == Decimal("50020.00")
         assert db.rows[0]["filled_quantity"] == Decimal("0.02")
+        assert len(bus.published) == 1
+        assert bus.published[0].update.average_fill_price == Decimal("50020.00")
     finally:
         services.clear()
         services.update(previous)

@@ -9,12 +9,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.engine import bus as bus_module
-from app.engine.decision.decision_publisher import DecisionPublisher
-from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 from app.engine.adapters.router_client.http_client import (
     BracketClientOrderIDs,
     BracketPlacementResult,
 )
+from app.engine.decision.decision_publisher import DecisionPublisher
+from app.engine.execution.order_update_correlation import OrderUpdateCorrelationStore
 from app.engine.execution.router_execution_subscriber import (
     ExecutionMode,
     RouterExecutionSubscriber,
@@ -70,11 +70,43 @@ class _InProcBus:
 
 
 class _FakeDBAdapter:
+    def __init__(self) -> None:
+        self.delivery_state = "PENDING"
+
+    async def has_incomplete_execution_intent_outside_venue(
+        self,
+        active_venue: str,
+    ) -> bool:
+        _ = active_venue
+        return False
+
+    async def get_execution_intent_for_request(self, *_args, **_kwargs):
+        return None
+
     async def prepare_execution_intent(self, _intent):
         return True
 
     async def transition_execution_intent(self, *_args, **_kwargs):
         return True
+
+    async def commit_execution_ack(self, *_args, **_kwargs):
+        self.delivery_state = "PENDING"
+        return True
+
+    async def claim_execution_success_delivery(self, *_args, **_kwargs):
+        if self.delivery_state != "PENDING":
+            return None
+        self.delivery_state = "DELIVERING"
+        return {"delivery_kind": "ORDER_PLACED", "lease_token": "lease-1"}
+
+    async def complete_execution_success_delivery(self, *_args, **_kwargs):
+        self.delivery_state = "DELIVERED"
+
+    async def fail_execution_success_delivery(self, *_args, **_kwargs):
+        self.delivery_state = "PENDING"
+
+    async def has_pending_execution_success_delivery(self, *_args, **_kwargs):
+        return self.delivery_state != "DELIVERED"
 
     async def get_latest_equity_sample(self):
         return Decimal(10_000), datetime.now(UTC)

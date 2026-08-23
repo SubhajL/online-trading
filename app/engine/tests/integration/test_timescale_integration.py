@@ -462,37 +462,43 @@ class TestOrderOperations:
         )
         await adapter.initialize()
         try:
-            assert await adapter.upsert_order(
-                {
-                    "client_order_id": client_order_id,
-                    "venue": "SPOT",
-                    "symbol": "BTCUSDT",
-                    "side": "BUY",
-                    "type": "LIMIT",
-                    "quantity": "0.01",
-                    "price": "50000.00",
-                    "status": "FILLED",
-                    "filled_quantity": "0.01",
-                    "average_fill_price": "50100.25",
-                    "decision_id": decision_id,
-                    "last_update_time": datetime(2026, 3, 12, 8, 0, tzinfo=UTC),
-                },
-            ) is True
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "type": "LIMIT",
+                        "quantity": "0.01",
+                        "price": "50000.00",
+                        "status": "FILLED",
+                        "filled_quantity": "0.01",
+                        "average_fill_price": "50100.25",
+                        "decision_id": decision_id,
+                        "last_update_time": datetime(2026, 3, 12, 8, 0, tzinfo=UTC),
+                    },
+                )
+                is True
+            )
 
-            assert await adapter.upsert_order(
-                {
-                    "client_order_id": client_order_id,
-                    "venue": "SPOT",
-                    "symbol": "BTCUSDT",
-                    "side": "BUY",
-                    "type": "LIMIT",
-                    "quantity": "0.01",
-                    "price": "50000.00",
-                    "status": "NEW",
-                    "decision_id": decision_id,
-                    "last_update_time": datetime(2026, 3, 12, 7, 59, tzinfo=UTC),
-                },
-            ) is True
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "type": "LIMIT",
+                        "quantity": "0.01",
+                        "price": "50000.00",
+                        "status": "NEW",
+                        "decision_id": decision_id,
+                        "last_update_time": datetime(2026, 3, 12, 7, 59, tzinfo=UTC),
+                    },
+                )
+                is True
+            )
         finally:
             await adapter.close()
 
@@ -537,35 +543,41 @@ class TestOrderOperations:
         )
         await adapter.initialize()
         try:
-            assert await adapter.upsert_order(
-                {
-                    "client_order_id": client_order_id,
-                    "venue": "SPOT",
-                    "symbol": "ETHUSDT",
-                    "side": "SELL",
-                    "type": "LIMIT",
-                    "quantity": "0.1",
-                    "price": "2000.00",
-                    "status": "PARTIALLY_FILLED",
-                    "decision_id": decision_id,
-                    "last_update_time": datetime(2026, 3, 12, 8, 15, tzinfo=UTC),
-                },
-            ) is True
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "ETHUSDT",
+                        "side": "SELL",
+                        "type": "LIMIT",
+                        "quantity": "0.1",
+                        "price": "2000.00",
+                        "status": "PARTIALLY_FILLED",
+                        "decision_id": decision_id,
+                        "last_update_time": datetime(2026, 3, 12, 8, 15, tzinfo=UTC),
+                    },
+                )
+                is True
+            )
 
-            assert await adapter.upsert_order(
-                {
-                    "client_order_id": client_order_id,
-                    "venue": "SPOT",
-                    "symbol": "ETHUSDT",
-                    "side": "SELL",
-                    "type": "LIMIT",
-                    "quantity": "0.1",
-                    "price": "2000.00",
-                    "status": "PARTIALLY_FILLED",
-                    "decision_id": decision_id,
-                    "last_update_time": datetime(2026, 3, 12, 8, 10, tzinfo=UTC),
-                },
-            ) is True
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "ETHUSDT",
+                        "side": "SELL",
+                        "type": "LIMIT",
+                        "quantity": "0.1",
+                        "price": "2000.00",
+                        "status": "PARTIALLY_FILLED",
+                        "decision_id": decision_id,
+                        "last_update_time": datetime(2026, 3, 12, 8, 10, tzinfo=UTC),
+                    },
+                )
+                is True
+            )
         finally:
             await adapter.close()
 
@@ -608,34 +620,40 @@ class TestOrderOperations:
         )
         await adapter.initialize()
         try:
-            assert await adapter.upsert_order(
-                {
-                    "client_order_id": client_order_id,
-                    "venue": "SPOT",
-                    "symbol": "ETHUSDT",
-                    "side": "BUY",
-                    "type": "LIMIT",
-                    "quantity": "0.1",
-                    "price": "2000.00",
-                    "status": "PARTIALLY_FILLED",
-                    "filled_quantity": "0.04",
-                    "decision_id": decision_id,
-                },
-            ) is True
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "ETHUSDT",
+                        "side": "BUY",
+                        "type": "LIMIT",
+                        "quantity": "0.1",
+                        "price": "2000.00",
+                        "status": "PARTIALLY_FILLED",
+                        "filled_quantity": "0.04",
+                        "decision_id": decision_id,
+                    },
+                )
+                is True
+            )
 
-            assert await adapter.upsert_order(
-                {
-                    "client_order_id": client_order_id,
-                    "venue": "SPOT",
-                    "symbol": "ETHUSDT",
-                    "side": "BUY",
-                    "type": "LIMIT",
-                    "quantity": "0.1",
-                    "price": "2000.00",
-                    "status": "NEW",
-                    "decision_id": decision_id,
-                },
-            ) is True
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "ETHUSDT",
+                        "side": "BUY",
+                        "type": "LIMIT",
+                        "quantity": "0.1",
+                        "price": "2000.00",
+                        "status": "NEW",
+                        "decision_id": decision_id,
+                    },
+                )
+                is True
+            )
         finally:
             await adapter.close()
 
@@ -678,39 +696,45 @@ class TestOrderOperations:
         )
         await adapter.initialize()
         try:
-            assert await adapter.upsert_order(
-                {
-                    "client_order_id": client_order_id,
-                    "venue": "SPOT",
-                    "symbol": "BTCUSDT",
-                    "side": "BUY",
-                    "type": "LIMIT",
-                    "quantity": "0.01",
-                    "price": "50000.00",
-                    "status": "FILLED",
-                    "filled_quantity": "0.01",
-                    "average_fill_price": "50100.25",
-                    "decision_id": decision_id,
-                    "last_update_time": datetime(2026, 3, 12, 8, 0, tzinfo=UTC),
-                },
-            ) is True
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "type": "LIMIT",
+                        "quantity": "0.01",
+                        "price": "50000.00",
+                        "status": "FILLED",
+                        "filled_quantity": "0.01",
+                        "average_fill_price": "50100.25",
+                        "decision_id": decision_id,
+                        "last_update_time": datetime(2026, 3, 12, 8, 0, tzinfo=UTC),
+                    },
+                )
+                is True
+            )
 
-            assert await adapter.upsert_order(
-                {
-                    "client_order_id": client_order_id,
-                    "venue": "SPOT",
-                    "symbol": "BTCUSDT",
-                    "side": "BUY",
-                    "type": "LIMIT",
-                    "quantity": "0.01",
-                    "price": "50000.00",
-                    "status": "FILLED",
-                    "filled_quantity": "0.01",
-                    "average_fill_price": "50000.00",
-                    "decision_id": decision_id,
-                    "last_update_time": datetime(2026, 3, 12, 7, 59, tzinfo=UTC),
-                },
-            ) is True
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "type": "LIMIT",
+                        "quantity": "0.01",
+                        "price": "50000.00",
+                        "status": "FILLED",
+                        "filled_quantity": "0.01",
+                        "average_fill_price": "50000.00",
+                        "decision_id": decision_id,
+                        "last_update_time": datetime(2026, 3, 12, 7, 59, tzinfo=UTC),
+                    },
+                )
+                is True
+            )
         finally:
             await adapter.close()
 
@@ -723,6 +747,168 @@ class TestOrderOperations:
         assert row is not None
         assert row["average_fill_price"] == Decimal("50100.25")
         assert row["last_update_time"] == datetime(2026, 3, 12, 8, 0, tzinfo=UTC)
+
+    @pytest.mark.asyncio
+    async def test_upsert_order_accepts_newer_same_quantity_filled_average_correction(
+        self,
+        test_pool,
+        test_db_config: DBConfig,
+    ) -> None:
+        decision_id = str(uuid4())
+        async with test_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO trading_decisions (
+                    decision_id, timestamp, venue, symbol, action, entry_price,
+                    quantity, stop_loss, take_profit, confidence, reasoning
+                ) VALUES ($1, NOW(), 'SPOT', 'BTCUSDT', 'BUY', 50000, 0.01, 49000, 51000, 0.8, 'test')
+                """,
+                decision_id,
+            )
+
+        client_order_id = f"test_filled_avg_correction_{uuid4()}"
+        adapter = TimescaleDBAdapter(
+            host=test_db_config.host,
+            port=test_db_config.port,
+            database=test_db_config.database,
+            username=test_db_config.username,
+            password=test_db_config.password,
+        )
+        await adapter.initialize()
+        try:
+            base = {
+                "client_order_id": client_order_id,
+                "venue": "SPOT",
+                "symbol": "BTCUSDT",
+                "side": "BUY",
+                "type": "LIMIT",
+                "quantity": "0.01",
+                "price": "50000.00",
+                "status": "FILLED",
+                "filled_quantity": "0.01",
+                "decision_id": decision_id,
+            }
+            assert (
+                await adapter.upsert_order(
+                    {
+                        **base,
+                        "average_fill_price": "50100.25",
+                        "last_update_time": datetime(2026, 3, 12, 8, 0, tzinfo=UTC),
+                    },
+                )
+                is True
+            )
+            assert (
+                await adapter.upsert_order_update(
+                    {
+                        **base,
+                        "average_fill_price": "50102.50",
+                        "last_update_time": datetime(2026, 3, 12, 8, 1, tzinfo=UTC),
+                    },
+                )
+                is True
+            )
+        finally:
+            await adapter.close()
+
+        async with test_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT average_fill_price, last_update_time FROM orders WHERE client_order_id = $1",
+                client_order_id,
+            )
+
+        assert row is not None
+        assert row["average_fill_price"] == Decimal("50102.50")
+        assert row["last_update_time"] == datetime(2026, 3, 12, 8, 1, tzinfo=UTC)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("terminal_status", ["CANCELED", "EXPIRED"])
+    async def test_order_update_upgrades_partial_terminal_to_authoritative_full_fill(
+        self,
+        test_pool,
+        test_db_config: DBConfig,
+        terminal_status: str,
+    ) -> None:
+        decision_id = str(uuid4())
+        async with test_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO trading_decisions (
+                    decision_id, timestamp, venue, symbol, action, entry_price,
+                    quantity, stop_loss, take_profit, confidence, reasoning
+                ) VALUES ($1, NOW(), 'SPOT', 'BTCUSDT', 'BUY', 50000, 1, 49000, 51000, 0.8, 'test')
+                """,
+                decision_id,
+            )
+
+        client_order_id = f"test_terminal_full_fill_{uuid4()}"
+        update_time = datetime(2026, 3, 12, 8, 0, tzinfo=UTC)
+        adapter = TimescaleDBAdapter(
+            host=test_db_config.host,
+            port=test_db_config.port,
+            database=test_db_config.database,
+            username=test_db_config.username,
+            password=test_db_config.password,
+        )
+        await adapter.initialize()
+        try:
+            assert (
+                await adapter.upsert_order(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "type": "LIMIT",
+                        "quantity": "1",
+                        "price": "50000",
+                        "status": terminal_status,
+                        "filled_quantity": "0.25",
+                        "average_fill_price": "50010",
+                        "decision_id": decision_id,
+                        "last_update_time": update_time,
+                    },
+                )
+                is True
+            )
+            assert (
+                await adapter.upsert_order_update(
+                    {
+                        "client_order_id": client_order_id,
+                        "venue": "SPOT",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "type": "LIMIT",
+                        "quantity": "1",
+                        "price": "50000",
+                        "status": "FILLED",
+                        "filled_quantity": "1",
+                        "average_fill_price": "50020",
+                        "decision_id": decision_id,
+                        "last_update_time": update_time,
+                    },
+                )
+                is True
+            )
+        finally:
+            await adapter.close()
+
+        async with test_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT status, filled_quantity, average_fill_price, reject_reason
+                FROM orders WHERE venue = 'SPOT' AND client_order_id = $1
+                """,
+                client_order_id,
+            )
+
+        assert row is not None
+        assert dict(row) == {
+            "status": "FILLED",
+            "filled_quantity": Decimal("1"),
+            "average_fill_price": Decimal("50020"),
+            "reject_reason": None,
+        }
 
 
 class TestPositionOperations:
@@ -752,9 +938,9 @@ class TestPositionOperations:
             for i, symbol in enumerate(["BTCUSDT", "ETHUSDT", "BTCUSDT"]):
                 position_id = str(uuid4())
                 side = "BUY"
-                size = Decimal(f"0.{i+1}")
-                entry_price = Decimal(f"{50000 + i*1000}.00")
-                current_price = Decimal(f"{51000 + i*1000}.00")
+                size = Decimal(f"0.{i + 1}")
+                entry_price = Decimal(f"{50000 + i * 1000}.00")
+                current_price = Decimal(f"{51000 + i * 1000}.00")
                 unrealized_pnl = (current_price - entry_price) * size
                 opened_at = now - timedelta(minutes=i)
                 updated_at = now
@@ -785,7 +971,7 @@ class TestPositionOperations:
                     current_price,
                     unrealized_pnl,
                     Decimal("0.00"),
-                    Decimal(f"{1000 + i*100}.00"),
+                    Decimal(f"{1000 + i * 100}.00"),
                     Decimal("5.0"),
                     opened_at,
                     updated_at,

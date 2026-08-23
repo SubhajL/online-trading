@@ -14,9 +14,9 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -582,7 +582,9 @@ class TestPaperBrokerMemoryMutation:
         candle = MagicMock()
         candle.close_price = Decimal("50000")
 
-        with patch.object(broker, "_insert_paper_fill", AsyncMock(side_effect=Exception("DB down"))):
+        with patch.object(
+            broker, "_insert_paper_fill", AsyncMock(side_effect=Exception("DB down"))
+        ):
             with pytest.raises(Exception, match="DB down"):
                 await broker._apply_fill(order, fill, candle)
 
@@ -727,11 +729,10 @@ class TestGapDetectionRound2:
 
 
 class TestBracketOrderIdMapping:
-    """Verify persisted order rows map bracket_order_id from router response."""
+    """Verify router correlation IDs never become exchange identities."""
 
     @pytest.mark.asyncio
-    async def test_persist_order_uses_bracket_order_id(self) -> None:
-        """exchange_order_id must come from response['bracket_order_id']."""
+    async def test_persist_order_does_not_use_bracket_order_id_as_exchange_id(self) -> None:
         from app.engine.execution.router_execution_subscriber import (
             RouterExecutionSubscriber,
             _ClientOrderIDs,
@@ -771,7 +772,7 @@ class TestBracketOrderIdMapping:
         await sub._persist_orders_to_db(event, response, client_ids, [], False)
 
         assert len(captured_rows) == 1
-        assert captured_rows[0]["exchange_order_id"] == "bracket-abc-123"
+        assert captured_rows[0].get("exchange_order_id") is None
 
 
 class TestLoggerExceptionTracebacks:
@@ -779,7 +780,8 @@ class TestLoggerExceptionTracebacks:
 
     @pytest.mark.asyncio
     async def test_smc_engine_logs_exception_on_candle_error(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """When _handle_candle_update raises, SMC engine must log with exc_info."""
         from app.engine.bus import set_event_bus
@@ -843,7 +845,8 @@ class TestLoggerExceptionTracebacks:
 
     @pytest.mark.asyncio
     async def test_ingest_service_logs_exception_on_persist_failure(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """When candle persistence fails, ingest service must log with exc_info."""
         from app.engine.ingest.ingest_service import IngestService

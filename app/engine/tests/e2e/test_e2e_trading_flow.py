@@ -78,6 +78,67 @@ class _InProcBus:
 
 
 class _FakeDBAdapter:
+    def __init__(self) -> None:
+        self.delivery_state = "PENDING"
+
+    async def has_incomplete_execution_intent_outside_venue(
+        self,
+        active_venue: str,
+    ) -> bool:
+        _ = active_venue
+        return False
+
+    async def insert_trading_decision(self, _decision: object) -> bool:
+        return True
+
+    async def get_execution_intent_for_request(self, *_args: object, **_kwargs: object):
+        return None
+
+    async def prepare_execution_intent(self, _intent: dict[str, object]) -> bool:
+        return True
+
+    async def transition_execution_intent(self, *_args: object, **_kwargs: object) -> bool:
+        return True
+
+    async def commit_execution_ack(self, *_args: object, **_kwargs: object) -> bool:
+        self.delivery_state = "PENDING"
+        return True
+
+    async def claim_execution_success_delivery(self, *_args: object, **_kwargs: object):
+        if self.delivery_state != "PENDING":
+            return None
+        self.delivery_state = "DELIVERING"
+        return {"delivery_kind": "ORDER_PLACED", "lease_token": "lease-1"}
+
+    async def complete_execution_success_delivery(
+        self,
+        *_args: object,
+        **_kwargs: object,
+    ) -> None:
+        self.delivery_state = "DELIVERED"
+
+    async def fail_execution_success_delivery(
+        self,
+        *_args: object,
+        **_kwargs: object,
+    ) -> None:
+        self.delivery_state = "PENDING"
+
+    async def has_pending_execution_success_delivery(
+        self,
+        *_args: object,
+        **_kwargs: object,
+    ) -> bool:
+        return self.delivery_state != "DELIVERED"
+
+    async def claim_next_execution_intent_recovery(
+        self,
+        *,
+        venue: str,
+    ) -> None:
+        _ = venue
+        return None
+
     async def get_latest_equity_sample(self):
         return Decimal(10_000), datetime.now(UTC)
 
@@ -205,8 +266,7 @@ async def test_retest_signal_risk_rejection_emits_error_and_skips_execution() ->
         max_open_positions=100,
         max_total_exposure_leverage=Decimal("100"),
         max_symbol_exposure_pct=Decimal("1"),
-        # Force a pretrade rejection in DecisionPublisher/evaluate_pretrade_risk.
-        max_position_notional_pct=Decimal("0.01"),
+        max_position_notional_pct=Decimal("1"),
         risk_data_max_age_seconds=86400,
         drawdown_lookback_days=30,
     )
@@ -224,6 +284,7 @@ async def test_retest_signal_risk_rejection_emits_error_and_skips_execution() ->
         venue="USD_M",
         execution_mode=ExecutionMode.FUTURES_TESTNET,
         order_update_correlation_store=OrderUpdateCorrelationStore(ttl_seconds=3600),
+        max_position_size=Decimal("0.0005"),
     )
 
     try:
@@ -231,7 +292,7 @@ async def test_retest_signal_risk_rejection_emits_error_and_skips_execution() ->
         await execution.start()
 
         now = datetime.now(UTC)
-        # Tight stop => large notional ratio => expected to exceed max_position_notional_pct=0.01.
+        # The generated quantity exceeds max_position_size, so execution must fail closed.
         signal = RetestSignal(
             venue="USD_M",
             symbol="BTCUSDT",

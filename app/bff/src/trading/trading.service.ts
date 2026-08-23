@@ -16,7 +16,11 @@ import {
   type RouterBracketPlacementResponse,
 } from '../router-client/router-client.service';
 import type { EmergencyCloseScope } from './dto/emergency-close.dto';
-import { OrderRepository } from '../orders/repositories/order.repository';
+import {
+  OrderRepository,
+  type LockedOrderUpdate,
+  type PositionSnapshot,
+} from '../orders/repositories/order.repository';
 import type { OrderType as EntityOrderType, OrderStatus } from '../orders/entities/order-entity';
 import { generateClientOrderId, mapRouterErrorToHttpException } from './mappers/order.mapper';
 import type { OrderEntity } from '../orders/entities/order-entity';
@@ -33,6 +37,53 @@ export interface Position {
   pnlPercent: number;
   venue: 'SPOT' | 'USD_M';
   timestamp: number;
+}
+
+function positionKey(venue: Position['venue'], symbol: string): string {
+  return `${venue}:${symbol}`;
+}
+
+function snapshotToPosition(snapshot: PositionSnapshot): Position | undefined {
+  const quantity = parseContractNumber(snapshot.size);
+  const entryPrice = parseContractNumber(snapshot.entryPrice);
+  const currentPrice = parseContractNumber(snapshot.currentPrice);
+  const pnl = parseContractNumber(snapshot.unrealizedPnl);
+  const side =
+    snapshot.side === 'BUY' || snapshot.side === 'LONG'
+      ? 'LONG'
+      : snapshot.side === 'SELL' || snapshot.side === 'SHORT'
+        ? 'SHORT'
+        : undefined;
+  if (
+    quantity === undefined ||
+    quantity <= 0 ||
+    entryPrice === undefined ||
+    entryPrice <= 0 ||
+    currentPrice === undefined ||
+    currentPrice <= 0 ||
+    pnl === undefined ||
+    side === undefined
+  ) {
+    return undefined;
+  }
+
+  const timestampValue =
+    snapshot.updatedAt instanceof Date
+      ? snapshot.updatedAt.getTime()
+      : Date.parse(String(snapshot.updatedAt));
+  const notional = entryPrice * quantity;
+  const pnlPercent = notional > 0 && Number.isFinite(notional) ? (pnl / notional) * 100 : 0;
+  return {
+    symbol: snapshot.symbol,
+    side,
+    quantity,
+    entryPrice,
+    currentPrice,
+    pnl,
+    pnlPercent: Number.isFinite(pnlPercent) ? pnlPercent : 0,
+    venue: snapshot.venue,
+    timestamp: Number.isFinite(timestampValue) ? timestampValue : Date.now(),
+  };
 }
 
 export interface DecisionEvent {
@@ -68,12 +119,121 @@ const orderUpdateStatusMap: Record<OrderUpdateV1['status'], OrderStatus> = {
   expired: 'EXPIRED',
 };
 
-function parseContractNumber(value: string | null | undefined): number | undefined {
+function parseContractNumber(value: string | number | null | undefined): number | undefined {
   if (value == null || value === '') {
     return undefined;
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+type ExactDecimal = {
+  scaled: bigint;
+  text: string;
+};
+
+const exactDecimalScale = 100_000_000n;
+const zeroExactDecimal: ExactDecimal = { scaled: 0n, text: '0' };
+
+function parseExactDecimal(
+  value: string | number | null | undefined,
+): ExactDecimal | null | undefined {
+  if (value == null || value === '') {
+    return null;
+  }
+  const text = typeof value === 'number' ? String(value) : value;
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(text);
+  if (!match || match[1].length > 10 || (match[2]?.length ?? 0) > 8) {
+    return undefined;
+  }
+  const fraction = (match[2] ?? '').padEnd(8, '0');
+  return {
+    scaled: BigInt(match[1]) * exactDecimalScale + BigInt(fraction || '0'),
+    text,
+  };
+}
+
+function decimalForLockedUpdate(value: ExactDecimal, preferNumber: boolean): string | number {
+  if (!preferNumber) {
+    return value.text;
+  }
+  const numeric = Number(value.text);
+  const roundTrip = parseExactDecimal(numeric);
+  return Number.isFinite(numeric) && roundTrip?.scaled === value.scaled ? numeric : value.text;
+}
+
+function usesNumericProjectionValues(order: OrderEntity): boolean {
+  return [
+    order.quantity,
+    order.price,
+    order.stopPrice,
+    order.filledQuantity,
+    order.averageFillPrice,
+  ].some((value) => typeof value === 'number');
+}
+
+function nullableNumericIdentityMatches(
+  persisted: string | number | null | undefined,
+  incoming: string | null | undefined,
+): boolean {
+  const persistedValue = parseExactDecimal(persisted);
+  if (incoming === null) {
+    return persistedValue === null;
+  }
+  const incomingValue = parseExactDecimal(incoming);
+  return (
+    persistedValue !== null &&
+    persistedValue !== undefined &&
+    incomingValue !== null &&
+    incomingValue !== undefined &&
+    persistedValue.scaled === incomingValue.scaled
+  );
+}
+
+function isValidOrderUpdateState(
+  status: OrderStatus | undefined,
+  quantity: ExactDecimal | null | undefined,
+  filledQuantity: ExactDecimal | null | undefined,
+  averageFillPrice: ExactDecimal | null | undefined,
+): boolean {
+  if (
+    !status ||
+    quantity === null ||
+    quantity === undefined ||
+    quantity.scaled <= 0n ||
+    filledQuantity === null ||
+    filledQuantity === undefined ||
+    filledQuantity.scaled < 0n ||
+    filledQuantity.scaled > quantity.scaled ||
+    averageFillPrice === undefined
+  ) {
+    return false;
+  }
+
+  if (status === 'NEW') {
+    return filledQuantity.scaled === 0n && averageFillPrice === null;
+  }
+  if (status === 'PARTIALLY_FILLED') {
+    return (
+      filledQuantity.scaled > 0n &&
+      filledQuantity.scaled < quantity.scaled &&
+      averageFillPrice !== null &&
+      averageFillPrice.scaled > 0n
+    );
+  }
+  if (status === 'FILLED') {
+    return (
+      filledQuantity.scaled === quantity.scaled &&
+      averageFillPrice !== null &&
+      averageFillPrice.scaled > 0n
+    );
+  }
+  if (terminalOrderStatuses.has(status)) {
+    return filledQuantity.scaled === 0n
+      ? averageFillPrice === null
+      : averageFillPrice !== null && averageFillPrice.scaled > 0n;
+  }
+  return false;
 }
 
 function parseContractTimestamp(value: string): number | undefined {
@@ -92,17 +252,38 @@ function mapOrderResponseToUpdateEvent(order: OrderResponse): OrderUpdateEvent {
   };
 }
 
-function mapContractUpdateToEvent(orderId: string, update: OrderUpdateV1): OrderUpdateEvent {
+function normalizeVenue(value: string): 'SPOT' | 'USD_M' | null {
+  const venue = value.trim().toUpperCase();
+  return venue === 'SPOT' || venue === 'USD_M' ? venue : null;
+}
+
+function mapContractOrderType(value: string): EntityOrderType | null {
+  const orderTypeMap: Record<string, EntityOrderType> = {
+    MARKET: 'MARKET',
+    LIMIT: 'LIMIT',
+    STOP_MARKET: 'STOP_LOSS',
+    STOP_LOSS: 'STOP_LOSS',
+    STOP_LIMIT: 'STOP_LOSS_LIMIT',
+    STOP_LOSS_LIMIT: 'STOP_LOSS_LIMIT',
+  };
+  return orderTypeMap[value.trim().toUpperCase()] ?? null;
+}
+
+function mapPersistedOrderToUpdateEvent(order: OrderEntity): OrderUpdateEvent {
+  const timestamp = order.lastUpdateTime ?? order.updatedAt;
   return {
-    orderId,
-    symbol: update.symbol,
-    status: orderUpdateStatusMap[update.status],
-    executedQty: parseContractNumber(update.filled_quantity),
-    executedPrice:
-      parseContractNumber(update.average_fill_price) ?? parseContractNumber(update.price),
-    timestamp: parseContractTimestamp(update.update_time),
+    orderId: order.orderId,
+    symbol: order.symbol,
+    status: order.status,
+    executedQty: parseContractNumber(order.filledQuantity) ?? 0,
+    executedPrice: parseContractNumber(order.averageFillPrice),
+    timestamp: timestamp ? timestamp.getTime() : undefined,
   };
 }
+
+const terminalOrderStatuses = new Set<OrderStatus>(['FILLED', 'CANCELED', 'REJECTED', 'EXPIRED']);
+
+class ImmutableOrderUpdateError extends Error {}
 
 function mapPersistedOrderToResponse(order: OrderEntity): OrderResponse {
   return {
@@ -158,6 +339,7 @@ function mapOrderType(requestType: string): EntityOrderType {
 export class TradingService implements OnModuleInit {
   private readonly logger = new Logger(TradingService.name);
   private readonly positions = new Map<string, Position>();
+  private readonly positionRefreshTails = new Map<string, Promise<void>>();
   private readonly activeOrders = new Map<string, OrderResponse>();
   private autoTrading = false;
 
@@ -185,7 +367,42 @@ export class TradingService implements OnModuleInit {
         venue: order.venue,
       });
     }
+    const positionSnapshots = await this.orderRepository.findActivePositionSnapshots();
+    this.positions.clear();
+    for (const snapshot of positionSnapshots) {
+      const position = snapshotToPosition(snapshot);
+      if (position) {
+        this.positions.set(positionKey(position.venue, position.symbol), position);
+      }
+    }
     this.logger.log(`Recovered ${activeOrders.length} active orders from database`);
+  }
+
+  private async refreshPositionProjection(venue: Position['venue'], symbol: string): Promise<void> {
+    const key = positionKey(venue, symbol);
+    const previous = this.positionRefreshTails.get(key) ?? Promise.resolve();
+    const refresh = previous
+      .catch(() => undefined)
+      .then(async () => {
+        const snapshots = await this.orderRepository.findActivePositionSnapshots({ venue, symbol });
+        const snapshot = snapshots.find(
+          (candidate) => candidate.venue === venue && candidate.symbol === symbol,
+        );
+        const projection = snapshot ? snapshotToPosition(snapshot) : undefined;
+        if (projection) {
+          this.positions.set(key, projection);
+        } else {
+          this.positions.delete(key);
+        }
+        this.eventEmitter.emit(CONTRACT_TOPICS.positionUpdateV1, projection);
+      });
+    const tail = refresh.finally(() => {
+      if (this.positionRefreshTails.get(key) === tail) {
+        this.positionRefreshTails.delete(key);
+      }
+    });
+    this.positionRefreshTails.set(key, tail);
+    await tail;
   }
 
   private subscribeToEngineEvents() {
@@ -446,117 +663,242 @@ export class TradingService implements OnModuleInit {
   }
 
   private async handleOrderUpdate(update: OrderUpdateV1): Promise<void> {
-    const persisted = await this.findOrderForUpdate(update);
-    if (!persisted) {
+    const accepted = await this.reconcileOrderUpdate(update);
+    if (accepted) {
+      this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, accepted.event);
+    }
+  }
+
+  async acceptOrderUpdate(update: OrderUpdateV1): Promise<OrderUpdateEvent | null> {
+    const accepted = await this.reconcileOrderUpdate(update);
+    return accepted?.event ?? null;
+  }
+
+  private async reconcileOrderUpdate(
+    update: OrderUpdateV1,
+  ): Promise<{ event: OrderUpdateEvent; updated: boolean } | null> {
+    const venue = normalizeVenue(update.venue);
+    const symbol = update.symbol.trim();
+    const clientOrderId = update.client_order_id.trim();
+    const exchangeOrderId = update.order_id.trim();
+    if (!venue || !symbol || (!clientOrderId && !exchangeOrderId)) {
       this.logger.warn(
         `Ignoring order update without persisted match: clientOrderId=${update.client_order_id} exchangeOrderId=${update.order_id}`,
       );
-      return;
+      return null;
     }
 
-    const normalizedUpdate = mapContractUpdateToEvent(persisted.orderId, update);
-    const updatedAt = new Date();
-    const lastUpdateTime = new Date(update.update_time);
-    const updates: Partial<OrderEntity> = {
-      status: normalizedUpdate.status,
-      filledQuantity: normalizedUpdate.executedQty ?? persisted.filledQuantity,
-      averageFillPrice: normalizedUpdate.executedPrice ?? persisted.averageFillPrice,
-      exchangeOrderId: update.order_id || persisted.exchangeOrderId,
-      rejectReason: update.error_message ?? persisted.rejectReason,
-      lastUpdateTime: Number.isNaN(lastUpdateTime.getTime())
-        ? persisted.lastUpdateTime
-        : lastUpdateTime,
-      updatedAt,
-    };
-    await this.orderRepository.update(persisted.orderId, updates);
+    let accepted;
+    try {
+      accepted = await this.orderRepository.withLockedOrderForUpdate(
+        {
+          venue,
+          symbol,
+          clientOrderId,
+          exchangeOrderId,
+        },
+        (persisted) => {
+          const mappedOrderType = mapContractOrderType(update.order_type);
+          const incomingQuantity = parseExactDecimal(update.quantity);
+          const persistedQuantity = parseExactDecimal(persisted.quantity);
+          const side = update.side.trim().toUpperCase();
+          const decisionId = update.decision_id.trim() || null;
+          const exchangeOrderId = update.order_id.trim();
+          const persistedExchangeOrderId = persisted.exchangeOrderId?.trim() || '';
+          const incomingUpdateTime = new Date(update.update_time);
+          const incomingStatus = orderUpdateStatusMap[update.status];
+          const incomingFilledQuantity = parseExactDecimal(update.filled_quantity);
+          const incomingAverageFillPrice = parseExactDecimal(update.average_fill_price);
+          const status =
+            persisted.status === 'PARTIALLY_FILLED' && incomingStatus === 'NEW'
+              ? persisted.status
+              : incomingStatus;
+          const currentFilledQuantity = parseExactDecimal(persisted.filledQuantity);
+          const isSyntheticUpdate = exchangeOrderId === '';
+          const isStrictlyNewerUpdate =
+            !isSyntheticUpdate &&
+            !Number.isNaN(incomingUpdateTime.getTime()) &&
+            (!persisted.lastUpdateTime || incomingUpdateTime > persisted.lastUpdateTime);
+          const isSameStatusAverageCorrection =
+            isStrictlyNewerUpdate &&
+            (persisted.status === 'PARTIALLY_FILLED' || persisted.status === 'FILLED') &&
+            incomingStatus === persisted.status &&
+            incomingFilledQuantity !== null &&
+            incomingFilledQuantity !== undefined &&
+            currentFilledQuantity !== null &&
+            currentFilledQuantity !== undefined &&
+            currentFilledQuantity.scaled > 0n &&
+            incomingFilledQuantity.scaled === currentFilledQuantity.scaled &&
+            incomingAverageFillPrice !== null &&
+            incomingAverageFillPrice !== undefined &&
+            incomingAverageFillPrice.scaled > 0n;
+          const isSyntheticPartialReplay =
+            isSyntheticUpdate &&
+            incomingStatus === 'NEW' &&
+            persisted.status === 'PARTIALLY_FILLED' &&
+            incomingFilledQuantity?.scaled === 0n &&
+            incomingAverageFillPrice === null;
+          const canUpgradeTerminalFill =
+            (persisted.status === 'CANCELED' || persisted.status === 'EXPIRED') &&
+            incomingStatus === 'FILLED' &&
+            incomingQuantity !== null &&
+            incomingQuantity !== undefined &&
+            incomingFilledQuantity !== null &&
+            incomingFilledQuantity !== undefined &&
+            currentFilledQuantity !== null &&
+            currentFilledQuantity !== undefined &&
+            incomingFilledQuantity.scaled === incomingQuantity.scaled &&
+            incomingFilledQuantity.scaled > currentFilledQuantity.scaled;
+          if (
+            (clientOrderId !== '' && persisted.clientOrderId !== clientOrderId) ||
+            persisted.venue !== venue ||
+            persisted.symbol.trim().toUpperCase() !== symbol.toUpperCase() ||
+            persisted.side !== side ||
+            persisted.type !== mappedOrderType ||
+            incomingQuantity === null ||
+            incomingQuantity === undefined ||
+            persistedQuantity === null ||
+            persistedQuantity === undefined ||
+            persistedQuantity.scaled !== incomingQuantity.scaled ||
+            (persisted.decisionId != null && persisted.decisionId !== decisionId) ||
+            (exchangeOrderId !== '' &&
+              persistedExchangeOrderId !== '' &&
+              persistedExchangeOrderId !== exchangeOrderId) ||
+            !nullableNumericIdentityMatches(persisted.price, update.price) ||
+            !nullableNumericIdentityMatches(persisted.stopPrice, update.stop_price)
+          ) {
+            throw new ImmutableOrderUpdateError('order update immutable identity mismatch');
+          }
+          if (
+            !isSyntheticPartialReplay &&
+            !isValidOrderUpdateState(
+              status,
+              incomingQuantity,
+              incomingFilledQuantity,
+              incomingAverageFillPrice,
+            )
+          ) {
+            throw new ImmutableOrderUpdateError('order update has invalid relational state');
+          }
+          if (isSyntheticPartialReplay) {
+            return null;
+          }
+          if (
+            !isSyntheticUpdate &&
+            persisted.lastUpdateTime &&
+            !Number.isNaN(incomingUpdateTime.getTime()) &&
+            incomingUpdateTime < persisted.lastUpdateTime
+          ) {
+            return null;
+          }
+          if (
+            terminalOrderStatuses.has(persisted.status) &&
+            !canUpgradeTerminalFill &&
+            !isSameStatusAverageCorrection
+          ) {
+            return null;
+          }
 
-    const order: OrderResponse = {
-      ...mapPersistedOrderToResponse({
-        ...persisted,
-        ...updates,
-      }),
-      updatedAt: updatedAt.toISOString(),
-    };
+          const currentAverageFillPrice = parseExactDecimal(persisted.averageFillPrice);
+          if (
+            currentFilledQuantity === undefined ||
+            incomingFilledQuantity === null ||
+            incomingFilledQuantity === undefined ||
+            currentAverageFillPrice === undefined ||
+            incomingAverageFillPrice === undefined
+          ) {
+            throw new ImmutableOrderUpdateError('order update has invalid decimal values');
+          }
+          const currentEffectiveFilledQuantity = currentFilledQuantity ?? zeroExactDecimal;
+          const fillIncreased =
+            incomingFilledQuantity.scaled > currentEffectiveFilledQuantity.scaled;
+          const preferNumericUpdate = usesNumericProjectionValues(persisted);
+          const effectiveAverageFillPrice =
+            incomingAverageFillPrice !== null &&
+            (currentAverageFillPrice === null || fillIncreased || isSameStatusAverageCorrection)
+              ? incomingAverageFillPrice
+              : currentAverageFillPrice;
+          const nextExchangeOrderId = exchangeOrderId || persisted.exchangeOrderId;
+          const lastUpdateTime =
+            !isSyntheticUpdate &&
+            !Number.isNaN(incomingUpdateTime.getTime()) &&
+            (!persisted.lastUpdateTime || incomingUpdateTime > persisted.lastUpdateTime)
+              ? incomingUpdateTime
+              : persisted.lastUpdateTime;
+          const nextDecisionId = persisted.decisionId ?? decisionId;
+          const updates: LockedOrderUpdate = {};
 
-    if (normalizedUpdate.executedQty !== undefined) {
-      order.executedQty = normalizedUpdate.executedQty;
+          updates.status = status;
+          if (fillIncreased) {
+            updates.filledQuantity = decimalForLockedUpdate(
+              incomingFilledQuantity,
+              preferNumericUpdate,
+            );
+          } else if (preferNumericUpdate && typeof persisted.filledQuantity === 'number') {
+            updates.filledQuantity = persisted.filledQuantity;
+          }
+          if (
+            effectiveAverageFillPrice !== null &&
+            (currentAverageFillPrice === null ||
+              effectiveAverageFillPrice.scaled !== currentAverageFillPrice.scaled)
+          ) {
+            updates.averageFillPrice = decimalForLockedUpdate(
+              effectiveAverageFillPrice,
+              preferNumericUpdate,
+            );
+          } else if (preferNumericUpdate && typeof persisted.averageFillPrice === 'number') {
+            updates.averageFillPrice = persisted.averageFillPrice;
+          }
+          updates.exchangeOrderId = nextExchangeOrderId;
+          if (nextDecisionId !== persisted.decisionId) {
+            updates.decisionId = nextDecisionId;
+          }
+          if (canUpgradeTerminalFill && persisted.rejectReason != null) {
+            updates.rejectReason = null;
+          } else if (
+            update.error_message != null &&
+            update.error_message !== persisted.rejectReason
+          ) {
+            updates.rejectReason = update.error_message;
+          }
+          if (lastUpdateTime?.getTime() !== persisted.lastUpdateTime?.getTime()) {
+            updates.lastUpdateTime = lastUpdateTime;
+          }
+          if (Object.keys(updates).length === 0) {
+            return null;
+          }
+          updates.updatedAt = new Date();
+          return updates;
+        },
+      );
+    } catch (error) {
+      if (error instanceof ImmutableOrderUpdateError) {
+        this.logger.warn(
+          `Ignoring order update with immutable identity mismatch: clientOrderId=${clientOrderId} exchangeOrderId=${exchangeOrderId}`,
+        );
+        return null;
+      }
+      throw error;
+    }
+    if (!accepted) {
+      this.logger.warn(
+        `Ignoring order update without compatible persisted match: clientOrderId=${clientOrderId} exchangeOrderId=${exchangeOrderId}`,
+      );
+      return null;
     }
 
-    if (normalizedUpdate.status === 'FILLED' && normalizedUpdate.executedPrice !== undefined) {
-      this.updatePosition(order, normalizedUpdate.executedPrice);
+    const normalizedUpdate = mapPersistedOrderToUpdateEvent(accepted.order);
+    const order = mapPersistedOrderToResponse(accepted.order);
+    if (normalizedUpdate.status === 'FILLED') {
       this.activeOrders.delete(order.orderId);
-    } else if (
-      normalizedUpdate.status === 'CANCELED' ||
-      normalizedUpdate.status === 'REJECTED' ||
-      normalizedUpdate.status === 'EXPIRED'
-    ) {
+    } else if (terminalOrderStatuses.has(normalizedUpdate.status)) {
       this.activeOrders.delete(order.orderId);
     } else {
       this.activeOrders.set(order.orderId, order);
     }
 
-    this.eventEmitter.emit(CONTRACT_TOPICS.orderUpdateV1, normalizedUpdate);
-  }
+    await this.refreshPositionProjection(accepted.order.venue, accepted.order.symbol);
 
-  private async findOrderForUpdate(update: OrderUpdateV1): Promise<OrderEntity | null> {
-    if (update.client_order_id) {
-      const matchedByClientOrderId = await this.orderRepository.findByClientOrderId(
-        update.client_order_id,
-        update.venue as 'SPOT' | 'USD_M',
-      );
-      if (matchedByClientOrderId) {
-        return matchedByClientOrderId;
-      }
-    }
-
-    if (update.order_id) {
-      return this.orderRepository.findByExchangeOrderId(
-        update.order_id,
-        update.venue as 'SPOT' | 'USD_M',
-      );
-    }
-
-    return null;
-  }
-
-  private updatePosition(order: OrderResponse, executedPrice: number) {
-    const key = order.symbol;
-    const existingPosition = this.positions.get(key);
-
-    if (!existingPosition) {
-      // Create new position
-      const position: Position = {
-        symbol: order.symbol,
-        side: order.side === 'BUY' ? 'LONG' : 'SHORT',
-        quantity: order.quantity,
-        entryPrice: executedPrice,
-        currentPrice: executedPrice,
-        pnl: 0,
-        pnlPercent: 0,
-        venue: order.venue || 'SPOT',
-        timestamp: Date.now(),
-      };
-      this.positions.set(key, position);
-    } else {
-      // Update existing position
-      if (
-        (existingPosition.side === 'LONG' && order.side === 'BUY') ||
-        (existingPosition.side === 'SHORT' && order.side === 'SELL')
-      ) {
-        // Adding to position
-        const totalCost =
-          existingPosition.quantity * existingPosition.entryPrice + order.quantity * executedPrice;
-        existingPosition.quantity += order.quantity;
-        existingPosition.entryPrice = totalCost / existingPosition.quantity;
-      } else {
-        // Reducing or closing position
-        existingPosition.quantity -= order.quantity;
-        if (existingPosition.quantity <= 0) {
-          this.positions.delete(key);
-        }
-      }
-    }
-
-    this.eventEmitter.emit(CONTRACT_TOPICS.positionUpdateV1, this.positions.get(key));
+    return { event: normalizedUpdate, updated: accepted.updated };
   }
 }

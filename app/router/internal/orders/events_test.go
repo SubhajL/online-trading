@@ -2,6 +2,7 @@ package orders
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOrderUpdateJSONUsesNullUntilAnAverageFillPriceExists(t *testing.T) {
+	update := newTestOrderUpdate()
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(requireJSON(t, update), &payload))
+	assert.Nil(t, payload["average_fill_price"])
+
+	update.AverageFillPrice = decimal.RequireFromString("50020")
+	require.NoError(t, json.Unmarshal(requireJSON(t, update), &payload))
+	assert.Equal(t, "50020", payload["average_fill_price"])
+}
+
+func TestOrderUpdateJSONUsesNullPriceForMarketOrders(t *testing.T) {
+	update := newTestOrderUpdate()
+	update.OrderType = "MARKET"
+	update.Price = decimal.Zero
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(requireJSON(t, update), &payload))
+	assert.Nil(t, payload["price"])
+}
+
+func TestOrderUpdateJSONIncludesStopPriceForStopLimitOrders(t *testing.T) {
+	update := newTestOrderUpdate()
+	update.OrderType = "STOP_LOSS_LIMIT"
+	update.Price = decimal.RequireFromString("49000")
+	update.StopPrice = decimal.RequireFromString("49500")
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(requireJSON(t, update), &payload))
+	assert.Equal(t, "49000", payload["price"])
+	assert.Equal(t, "49500", payload["stop_price"])
+}
+
+func requireJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	payload, err := json.Marshal(value)
+	require.NoError(t, err)
+	return payload
+}
 
 func newTestOrderUpdate() *OrderUpdate {
 	return &OrderUpdate{

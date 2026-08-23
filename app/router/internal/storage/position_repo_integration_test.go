@@ -93,33 +93,7 @@ func TestPositionRepo_UpsertAndCloseActivePosition(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	require.NoError(t, RunInTx(ctx, pool, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `CREATE EXTENSION IF NOT EXISTS pgcrypto`)
-		require.NoError(t, err)
-
-		_, err = tx.Exec(ctx, `
-			CREATE TEMP TABLE positions (
-				position_id UUID NOT NULL DEFAULT gen_random_uuid(),
-				venue TEXT NOT NULL,
-				symbol TEXT NOT NULL,
-				side TEXT NOT NULL,
-				size NUMERIC(18,8) NOT NULL,
-				entry_price NUMERIC(18,8) NOT NULL,
-				current_price NUMERIC(18,8) NOT NULL,
-				unrealized_pnl NUMERIC(18,8) NOT NULL,
-				realized_pnl NUMERIC(18,8) NOT NULL DEFAULT 0,
-				margin_used NUMERIC(18,8) NOT NULL DEFAULT 0,
-				leverage NUMERIC(5,2) NOT NULL DEFAULT 1,
-				opened_at TIMESTAMPTZ NOT NULL,
-				updated_at TIMESTAMPTZ NOT NULL,
-				closed_at TIMESTAMPTZ,
-				is_active BOOLEAN NOT NULL DEFAULT TRUE,
-				entry_order_id UUID,
-				commission_paid NUMERIC(18,8) NOT NULL DEFAULT 0,
-				funding_paid NUMERIC(18,8) NOT NULL DEFAULT 0,
-				slippage_paid NUMERIC(18,8) NOT NULL DEFAULT 0
-			) ON COMMIT DROP
-		`)
-		require.NoError(t, err)
+		createTempTableWithPartialIndex(ctx, t, tx)
 
 		require.NoError(t, repo.UpsertActive(ctx, tx, ActivePositionUpsert{
 			Venue:          "USD_M",

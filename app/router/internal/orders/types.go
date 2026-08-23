@@ -1,6 +1,8 @@
 package orders
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -39,19 +41,80 @@ type ClientOrderIDs struct {
 
 // OrderUpdate represents an order status update event
 type OrderUpdate struct {
-	EventType     string          `json:"event_type"`
-	Venue         string          `json:"venue"`
-	Symbol        string          `json:"symbol"`
-	OrderID       int64           `json:"order_id"`
-	ClientOrderID string          `json:"client_order_id"`
-	Status        string          `json:"status"`
-	Side          string          `json:"side"`
-	OrderType     string          `json:"order_type"`
-	Price         decimal.Decimal `json:"price"`
-	Quantity      decimal.Decimal `json:"quantity"`
-	ExecutedQty   decimal.Decimal `json:"executed_qty"`
-	UpdateTime    time.Time       `json:"update_time"`
-	Reason        string          `json:"reason,omitempty"`
+	EventType        string          `json:"event_type"`
+	Venue            string          `json:"venue"`
+	Symbol           string          `json:"symbol"`
+	OrderID          int64           `json:"order_id"`
+	ClientOrderID    string          `json:"client_order_id"`
+	Status           string          `json:"status"`
+	Side             string          `json:"side"`
+	OrderType        string          `json:"order_type"`
+	Price            decimal.Decimal `json:"price"`
+	StopPrice        decimal.Decimal `json:"stop_price"`
+	Quantity         decimal.Decimal `json:"quantity"`
+	ExecutedQty      decimal.Decimal `json:"executed_qty"`
+	AverageFillPrice decimal.Decimal `json:"average_fill_price"`
+	UpdateTime       time.Time       `json:"update_time"`
+	Reason           string          `json:"reason,omitempty"`
+}
+
+func fixedPointDecimal(value decimal.Decimal) string {
+	scale := int32(0)
+	if value.Exponent() < 0 {
+		scale = -value.Exponent()
+	}
+	return value.StringFixed(scale)
+}
+
+func (u OrderUpdate) MarshalJSON() ([]byte, error) {
+	var stopPrice any
+	if u.StopPrice.IsPositive() {
+		stopPrice = fixedPointDecimal(u.StopPrice)
+	}
+	var averageFillPrice any
+	if u.AverageFillPrice.IsPositive() {
+		averageFillPrice = fixedPointDecimal(u.AverageFillPrice)
+	}
+	price := any(fixedPointDecimal(u.Price))
+	if strings.EqualFold(strings.TrimSpace(u.OrderType), "MARKET") {
+		price = nil
+	}
+
+	type orderUpdatePayload struct {
+		EventType        string    `json:"event_type"`
+		Venue            string    `json:"venue"`
+		Symbol           string    `json:"symbol"`
+		OrderID          int64     `json:"order_id"`
+		ClientOrderID    string    `json:"client_order_id"`
+		Status           string    `json:"status"`
+		Side             string    `json:"side"`
+		OrderType        string    `json:"order_type"`
+		Price            any       `json:"price"`
+		StopPrice        any       `json:"stop_price"`
+		Quantity         string    `json:"quantity"`
+		ExecutedQty      string    `json:"executed_qty"`
+		AverageFillPrice any       `json:"average_fill_price"`
+		UpdateTime       time.Time `json:"update_time"`
+		Reason           string    `json:"reason,omitempty"`
+	}
+
+	return json.Marshal(orderUpdatePayload{
+		EventType:        u.EventType,
+		Venue:            u.Venue,
+		Symbol:           u.Symbol,
+		OrderID:          u.OrderID,
+		ClientOrderID:    u.ClientOrderID,
+		Status:           u.Status,
+		Side:             u.Side,
+		OrderType:        u.OrderType,
+		Price:            price,
+		StopPrice:        stopPrice,
+		Quantity:         fixedPointDecimal(u.Quantity),
+		ExecutedQty:      fixedPointDecimal(u.ExecutedQty),
+		AverageFillPrice: averageFillPrice,
+		UpdateTime:       u.UpdateTime,
+		Reason:           u.Reason,
+	})
 }
 
 // PlaceBracketRequest represents a request to place a bracket order

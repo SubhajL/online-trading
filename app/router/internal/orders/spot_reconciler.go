@@ -350,9 +350,9 @@ func (r *SpotReconciler) persistExecutionSnapshot(
 			totalQuote = totalQuote.Add(trade.Price.Mul(trade.Qty))
 		}
 		if !totalQty.IsZero() {
-			averageFillPrice := totalQuote.Div(totalQty)
+			averageFillPrice := totalQuote.Div(totalQty).Round(8)
 			snapshot.Price = averageFillPrice
-			update.Price = averageFillPrice
+			update.AverageFillPrice = averageFillPrice
 		}
 	}
 

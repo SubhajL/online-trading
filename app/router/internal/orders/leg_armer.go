@@ -20,7 +20,31 @@ type armerStore interface {
 	UpdateLegStatus(ctx context.Context, bracketID uuid.UUID, clientOrderID, status string, exchangeOrderID int64) error
 	UpdateLegStatusIf(ctx context.Context, bracketID uuid.UUID, clientOrderID, expected, status string, exchangeOrderID int64) (bool, error)
 	UpdateBracketStatus(ctx context.Context, bracketID uuid.UUID, status string) error
+	AdvanceBracketStatus(ctx context.Context, bracketID uuid.UUID, status string) (bool, error)
 	InsertLeg(ctx context.Context, leg storage.BracketLegRecord) error
+}
+
+func persistLegExecution(
+	ctx context.Context,
+	store armerStore,
+	bracketID uuid.UUID,
+	clientOrderID, status string,
+	exchangeOrderID int64,
+	averageFillPrice decimal.Decimal,
+) error {
+	if averageFillPrice.IsPositive() {
+		if updater, ok := store.(bracketLegExecutionUpdater); ok {
+			return updater.UpdateLegExecution(
+				ctx,
+				bracketID,
+				clientOrderID,
+				status,
+				exchangeOrderID,
+				averageFillPrice,
+			)
+		}
+	}
+	return store.UpdateLegStatus(ctx, bracketID, clientOrderID, status, exchangeOrderID)
 }
 
 // LegArmer places protective TP/SL legs when a deferred bracket's entry
@@ -64,7 +88,7 @@ func (a *LegArmer) OnOrderTradeUpdate(ctx context.Context, event *websocket.Futu
 	}
 	if record != nil {
 		if record.LegsOnFill {
-			a.handleEntryUpdate(ctx, record, data)
+			a.handleEntryUpdate(ctx, record, data, event.TransactionTime)
 		}
 		return
 	}
@@ -84,17 +108,45 @@ func (a *LegArmer) handleEntryUpdate(
 	ctx context.Context,
 	record *storage.BracketRecord,
 	data websocket.FuturesOrderTradeData,
+	transactionTime int64,
 ) {
 	if record.Status == storage.BracketStatusClosed || record.Status == storage.BracketStatusFailed {
 		// A late duplicate must not resurrect a settled bracket
 		return
 	}
 	switch data.OrderStatus {
+	case "PARTIALLY_FILLED":
+		observed := &binance.OrderResponse{
+			Symbol:           data.Symbol,
+			ClientOrderID:    data.ClientOrderID,
+			OrderID:          data.OrderID,
+			OrigQty:          data.Quantity,
+			ExecutedQty:      data.CumulativeFilledQty,
+			AverageFillPrice: data.AvgPrice,
+			TransactTime:     transactionTime,
+			Status:           data.OrderStatus,
+			Type:             data.OrderType,
+			Side:             data.Side,
+		}
+		finalizePartialEntry(ctx, a.store, a.client, record, observed, a.logger,
+			func(ctx context.Context, record *storage.BracketRecord, entry *binance.OrderResponse) {
+				a.armLegs(ctx, record, entry.ExecutedQty)
+			})
 	case "FILLED":
-		a.armLegs(ctx, record, data.CumulativeFilledQty)
+		if !a.persistEntryUpdate(ctx, record, data, transactionTime) {
+			return
+		}
+		quantity := data.CumulativeFilledQty
+		if quantity.IsZero() {
+			quantity = record.Quantity
+		}
+		a.armLegs(ctx, record, quantity)
 	case "CANCELED", "EXPIRED":
 		if data.CumulativeFilledQty.IsPositive() {
 			// A partial position exists and must still be protected.
+			if !a.persistEntryUpdate(ctx, record, data, transactionTime) {
+				return
+			}
 			a.armLegs(ctx, record, data.CumulativeFilledQty)
 			return
 		}
@@ -113,6 +165,34 @@ func (a *LegArmer) armLegs(ctx context.Context, record *storage.BracketRecord, e
 	exitSide := getOppositeSide(record.Side)
 	tpLegs := legsByRole(record, "TP")
 	tpQuantities := a.takeProfitQuantities(ctx, record.Symbol, executedQty, len(tpLegs))
+	slLegs := legsByRole(record, "SL")
+	slQuantities := splitTakeProfitQuantities(executedQty, len(slLegs), decimal.Zero)
+	coverageReady := true
+	for i, leg := range tpLegs {
+		if err := updateLegQuantity(ctx, a.store, record.BracketID, leg.ClientOrderID, tpQuantities[i]); err != nil {
+			a.logger.Warn().Err(err).Str("client_order_id", leg.ClientOrderID).
+				Msg("leg armer: failed to persist TP coverage")
+			coverageReady = false
+			continue
+		}
+		setRecordLegQuantity(record, leg.ClientOrderID, tpQuantities[i])
+	}
+	for i, leg := range slLegs {
+		quantity := executedQty
+		if i < len(slQuantities) {
+			quantity = slQuantities[i]
+		}
+		if err := updateLegQuantity(ctx, a.store, record.BracketID, leg.ClientOrderID, quantity); err != nil {
+			a.logger.Warn().Err(err).Str("client_order_id", leg.ClientOrderID).
+				Msg("leg armer: failed to persist SL coverage")
+			coverageReady = false
+			continue
+		}
+		setRecordLegQuantity(record, leg.ClientOrderID, quantity)
+	}
+	if !coverageReady {
+		return
+	}
 	allPlaced := true
 
 	// Defensive re-rounding: records written before rounding preceded the
@@ -142,7 +222,7 @@ func (a *LegArmer) armLegs(ctx context.Context, record *storage.BracketRecord, e
 		}
 	}
 
-	for _, leg := range legsByRole(record, "SL") {
+	for _, leg := range slLegs {
 		stopPrice := record.StopLossPrice
 		if rounded, err := a.client.RoundPriceDirection(ctx, record.Symbol, stopPrice, slDir); err == nil {
 			stopPrice = rounded
@@ -166,7 +246,7 @@ func (a *LegArmer) armLegs(ctx context.Context, record *storage.BracketRecord, e
 	if allPlaced {
 		status = storage.BracketStatusLegsPlaced
 	}
-	if err := a.store.UpdateBracketStatus(ctx, record.BracketID, status); err != nil {
+	if _, err := a.store.AdvanceBracketStatus(ctx, record.BracketID, status); err != nil {
 		a.logger.Warn().Err(err).Str("bracket_id", record.BracketID.String()).
 			Msg("leg armer: failed to persist bracket status")
 	}
@@ -191,7 +271,7 @@ func (a *LegArmer) armSingleLeg(
 		return false
 	}
 	if !claimed {
-		return true // another event placed (or is placing) it
+		return false // durable placement is unknown; the reconciler will retry
 	}
 
 	resp, err := submitResolvingAmbiguity(
@@ -225,7 +305,13 @@ func (a *LegArmer) handleExitUpdate(
 
 	switch data.OrderStatus {
 	case "FILLED":
-		a.updateLegStatus(ctx, record.BracketID, leg.ClientOrderID, storage.LegStatusFilled, data.OrderID)
+		if err := persistLegExecution(ctx, a.store, record.BracketID, leg.ClientOrderID,
+			storage.LegStatusFilled, data.OrderID, data.AvgPrice); err != nil {
+			a.logger.Warn().Err(err).
+				Str("client_order_id", leg.ClientOrderID).
+				Msg("leg armer: failed to persist filled execution")
+			return
+		}
 		leg.Status = storage.LegStatusFilled
 		if leg.Role == "SL" {
 			a.cancelLegs(ctx, record, "TP")
@@ -242,6 +328,36 @@ func (a *LegArmer) handleExitUpdate(
 			status = storage.LegStatusExpired
 		}
 		a.updateLegStatus(ctx, record.BracketID, leg.ClientOrderID, status, data.OrderID)
+	}
+}
+
+func (a *LegArmer) persistEntryUpdate(
+	ctx context.Context,
+	record *storage.BracketRecord,
+	data websocket.FuturesOrderTradeData,
+	transactionTime int64,
+) bool {
+	status, _ := legStatusFromOrder(data.OrderStatus)
+	quantity := data.CumulativeFilledQty
+	if normalizeOrderStatus(data.OrderStatus) == "FILLED" && quantity.IsZero() {
+		quantity = record.Quantity
+	}
+	if err := persistLegExecutionProgress(ctx, a.store, record.BracketID, record.EntryClientOrderID,
+		status, data.OrderID, quantity, data.AvgPrice,
+		exchangeObservationTime(transactionTime)); err != nil {
+		a.logger.Warn().Err(err).
+			Str("client_order_id", record.EntryClientOrderID).
+			Msg("leg armer: failed to persist entry execution")
+		return false
+	}
+	return true
+}
+
+func setRecordLegQuantity(record *storage.BracketRecord, clientOrderID string, quantity decimal.Decimal) {
+	for i := range record.Legs {
+		if record.Legs[i].ClientOrderID == clientOrderID {
+			record.Legs[i].Quantity = quantity
+		}
 	}
 }
 

@@ -73,6 +73,13 @@ class _StubDBAdapter:
     async def close(self) -> None:
         return None
 
+    async def has_incomplete_execution_intent_outside_venue(
+        self,
+        active_venue: str,
+    ) -> bool:
+        _ = active_venue
+        return False
+
     async def insert_equity_sample(
         self,
         *,
@@ -179,6 +186,7 @@ class TestMainExecutionWiring:
         await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
 
         assert captured["symbols"] == ["BTCUSDT", "ETHUSDT"]
+        assert "execution_subscriber" in main_mod.services
 
     async def test_initialize_services_fails_fast_when_trading_symbols_empty(
         self,
@@ -241,6 +249,8 @@ class TestMainExecutionWiring:
         monkeypatch.setenv("EXECUTION_MODE", "futures_testnet")
         monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
         monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+        monkeypatch.setenv("BFF_URL", "http://bff.test")
+        monkeypatch.setenv("INTERNAL_ALERTS_TOKEN", "test-token")
 
         monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
         monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
@@ -275,11 +285,64 @@ class TestMainExecutionWiring:
         await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
 
         assert "execution_subscriber" in main_mod.services
+        assert set(main_mod.services["execution_subscriber"]._success_delivery_venues) == {
+            "SPOT",
+            "USD_M",
+        }
         assert "retest_engine" in main_mod.services
         assert "decision_publisher" in main_mod.services
         assert "execution_cooldown" in main_mod.services
         assert "alert_cooldown" in main_mod.services
         assert main_mod.services["execution_cooldown"] is not main_mod.services["alert_cooldown"]
+
+    @pytest.mark.parametrize("missing_key", ["BFF_URL", "INTERNAL_ALERTS_TOKEN"])
+    async def test_enabled_execution_requires_the_durable_bff_sink(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        missing_key: str,
+    ) -> None:
+        from app.engine import main as main_mod
+
+        main_mod.services.clear()
+        bus = _StubEventBus()
+        monkeypatch.setenv("EXECUTION_MODE", "futures_testnet")
+        monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
+        monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+        monkeypatch.setenv("BFF_URL", "http://bff.test")
+        monkeypatch.setenv("INTERNAL_ALERTS_TOKEN", "test-token")
+        monkeypatch.delenv(missing_key)
+
+        monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
+        monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
+        monkeypatch.setattr(main_mod, "RouterHTTPClient", lambda **_: _StubRouterClient())
+        monkeypatch.setattr(main_mod, "IngestService", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "FeatureService", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "SMCEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RetestEngine", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "DecisionPublisher", lambda **_: _StubAsyncService())
+        monkeypatch.setattr(main_mod, "RiskManager", lambda *_: object())
+        monkeypatch.setattr(main_mod, "set_event_bus", lambda *_: None)
+        import app.engine.bus as bus_mod
+
+        monkeypatch.setattr(bus_mod, "create_event_bus", lambda: bus)
+        cfg = _StubConfig(
+            database=_StubDatabaseCfg(),
+            redis=_StubRedisCfg(),
+            binance=type("BinanceCfg", (), {"api_key": "", "api_secret": "", "testnet": True})(),
+            risk_parameters=type(
+                "RiskParams",
+                (),
+                {
+                    "risk_per_trade": Decimal("0.01"),
+                    "max_position_size": Decimal(1),
+                },
+            )(),
+        )
+
+        with pytest.raises(RuntimeError, match="BFF_URL.*INTERNAL_ALERTS_TOKEN"):
+            await main_mod.initialize_services(cfg)  # type: ignore[arg-type]
+
+        assert "execution_subscriber" not in main_mod.services
 
     async def test_start_services_starts_execution_subscriber(
         self,
@@ -293,6 +356,8 @@ class TestMainExecutionWiring:
         monkeypatch.setenv("EXECUTION_MODE", "futures_testnet")
         monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
         monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+        monkeypatch.setenv("BFF_URL", "http://bff.test")
+        monkeypatch.setenv("INTERNAL_ALERTS_TOKEN", "test-token")
 
         monkeypatch.setattr(main_mod, "TimescaleDBAdapter", lambda **_: _StubDBAdapter())
         monkeypatch.setattr(main_mod, "RedisAdapter", lambda **_: _StubRedisAdapter())
@@ -356,6 +421,8 @@ class TestMainExecutionWiring:
         monkeypatch.setenv("EXECUTION_MODE", "futures_testnet")
         monkeypatch.setenv("TRADING_SYMBOLS", "BTCUSDT")
         monkeypatch.setenv("LIVE_REST_FALLBACK_ENABLED", "0")
+        monkeypatch.setenv("BFF_URL", "http://bff.test")
+        monkeypatch.setenv("INTERNAL_ALERTS_TOKEN", "test-token")
         monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
         monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat-1")
         monkeypatch.setenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", "1")
@@ -520,9 +587,9 @@ class TestTrendLiveMainWiring:
 
 
 class TestTelegramExecutionDecisionAlertsDefault:
-    """Decision alerts in execution mode are opt-out (default enabled)."""
+    """Durable placement owns the default execution-mode trade alert."""
 
-    def test_helper_defaults_to_enabled_when_env_unset(
+    def test_helper_defaults_to_disabled_when_env_unset(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -530,10 +597,10 @@ class TestTelegramExecutionDecisionAlertsDefault:
 
         monkeypatch.delenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", raising=False)
 
-        assert main_mod._telegram_execution_decision_alerts_enabled_from_env() is True
+        assert main_mod._telegram_execution_decision_alerts_enabled_from_env() is False
 
-    @pytest.mark.parametrize("value", ["0", "false", "no", "off"])
-    def test_helper_opt_out_values_disable(
+    @pytest.mark.parametrize("value", ["1", "true", "yes", "on"])
+    def test_helper_explicit_opt_in_values_enable(
         self,
         monkeypatch: pytest.MonkeyPatch,
         value: str,
@@ -542,7 +609,7 @@ class TestTelegramExecutionDecisionAlertsDefault:
 
         monkeypatch.setenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", value)
 
-        assert main_mod._telegram_execution_decision_alerts_enabled_from_env() is False
+        assert main_mod._telegram_execution_decision_alerts_enabled_from_env() is True
 
 
 class TestRiskPerTradeDefault:

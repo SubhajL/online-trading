@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -25,9 +26,86 @@ import (
 type fakeArmerStore struct {
 	mu             sync.Mutex
 	record         *storage.BracketRecord
+	denyClaims     bool
 	bracketUpdates []string
 	legUpdates     []string         // "clientOrderID:status"
 	legExchangeIDs map[string]int64 // last exchange id written per leg
+	legAverages    map[string]decimal.Decimal
+	legExecuted    map[string]decimal.Decimal
+	legObservedAt  map[string]time.Time
+	openRecords    []storage.BracketRecord
+	pageLimit      int
+	pageCalls      int
+}
+
+func (f *fakeArmerStore) UpdateLegExecution(
+	_ context.Context,
+	_ uuid.UUID,
+	clientOrderID, status string,
+	exchangeOrderID int64,
+	averageFillPrice decimal.Decimal,
+) error {
+	if err := f.UpdateLegStatus(context.Background(), uuid.Nil, clientOrderID, status, exchangeOrderID); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.legAverages == nil {
+		f.legAverages = map[string]decimal.Decimal{}
+	}
+	f.legAverages[clientOrderID] = averageFillPrice
+	return nil
+}
+
+func (f *fakeArmerStore) UpdateLegExecutionProgress(
+	_ context.Context,
+	_ uuid.UUID,
+	clientOrderID, status string,
+	exchangeOrderID int64,
+	executedQuantity, averageFillPrice decimal.Decimal,
+	observedAt time.Time,
+) error {
+	if err := f.UpdateLegExecution(
+		context.Background(),
+		uuid.Nil,
+		clientOrderID,
+		status,
+		exchangeOrderID,
+		averageFillPrice,
+	); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.legExecuted == nil {
+		f.legExecuted = map[string]decimal.Decimal{}
+	}
+	if executedQuantity.GreaterThan(f.legExecuted[clientOrderID]) {
+		f.legExecuted[clientOrderID] = executedQuantity
+	}
+	if f.legObservedAt == nil {
+		f.legObservedAt = map[string]time.Time{}
+	}
+	if observedAt.After(f.legObservedAt[clientOrderID]) {
+		f.legObservedAt[clientOrderID] = observedAt
+	}
+	return nil
+}
+
+func (f *fakeArmerStore) UpdateLegQuantity(
+	_ context.Context,
+	_ uuid.UUID,
+	clientOrderID string,
+	quantity decimal.Decimal,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.record.Legs {
+		if f.record.Legs[i].ClientOrderID == clientOrderID {
+			f.record.Legs[i].Quantity = quantity
+		}
+	}
+	return nil
 }
 
 func (f *fakeArmerStore) get(clientOrderID string, entryOnly bool) *storage.BracketRecord {
@@ -65,6 +143,9 @@ func (f *fakeArmerStore) GetByLegClientOrderID(_ context.Context, _, clientOrder
 func (f *fakeArmerStore) TryMarkLegPlacing(_ context.Context, _ uuid.UUID, clientOrderID string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.denyClaims {
+		return false, nil
+	}
 	for i := range f.record.Legs {
 		if f.record.Legs[i].ClientOrderID == clientOrderID &&
 			(f.record.Legs[i].Status == storage.LegStatusPlanned ||
@@ -124,6 +205,20 @@ func (f *fakeArmerStore) UpdateBracketStatus(_ context.Context, _ uuid.UUID, sta
 	return nil
 }
 
+func (f *fakeArmerStore) AdvanceBracketStatus(_ context.Context, _ uuid.UUID, status string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.record.Status == storage.BracketStatusClosed || f.record.Status == storage.BracketStatusFailed {
+		return false, nil
+	}
+	if f.record.Status == storage.BracketStatusLegsPlaced && status == storage.BracketStatusEntryFilled {
+		return false, nil
+	}
+	f.bracketUpdates = append(f.bracketUpdates, status)
+	f.record.Status = status
+	return true, nil
+}
+
 func (f *fakeArmerStore) InsertLeg(_ context.Context, leg storage.BracketLegRecord) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -140,6 +235,10 @@ type armerExchange struct {
 	canceledIDs []int64
 	failPosts   bool // all POSTs fail with a non-retryable -1102
 	postStatus  string
+	getStatus   string
+	getQty      string
+	getAverage  string
+	getCalls    int
 }
 
 func (f *armerExchange) posted() []string {
@@ -169,6 +268,28 @@ func (f *armerExchange) handler() http.HandlerFunc {
 			return v
 		}
 		switch r.Method {
+		case http.MethodGet:
+			f.mu.Lock()
+			f.getCalls++
+			status := f.getStatus
+			qty := f.getQty
+			average := f.getAverage
+			f.mu.Unlock()
+			if status == "" {
+				status = "CANCELED"
+			}
+			if qty == "" {
+				qty = "0.01"
+			}
+			if average == "" {
+				average = "50020"
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"orderId": 42, "symbol": "BTCUSDT", "status": status,
+				"clientOrderId": "arm-main", "price": "50000", "avgPrice": average,
+				"origQty": "0.02", "executedQty": qty, "cumQty": qty, "cumQuote": "500.2",
+				"timeInForce": "GTC", "type": "LIMIT", "side": "BUY", "updateTime": 1,
+			})
 		case http.MethodPost:
 			clientOrderID := q.Get("newClientOrderId")
 			if f.failPosts {
@@ -252,6 +373,7 @@ func entryFillEvent(clientOrderID, status, cumQty string) *websocket.FuturesOrde
 			OrderStatus:         status,
 			CumulativeFilledQty: decimal.RequireFromString(cumQty),
 			OrderID:             42,
+			AvgPrice:            decimal.RequireFromString("50020"),
 		},
 	}
 }
@@ -266,7 +388,52 @@ func TestLegArmer_EntryFillArmsProtectiveLegs(t *testing.T) {
 	assert.Equal(t, "0.02", fake.postedQtys["arm-tp1"], "TP sized by executed quantity")
 	assert.Contains(t, store.legUpdates, "arm-tp1:PLACED")
 	assert.Contains(t, store.legUpdates, "arm-sl:PLACED")
+	assert.Contains(t, store.legUpdates, "arm-main:FILLED")
+	assert.Equal(t, int64(42), store.legExchangeIDs["arm-main"])
+	assert.True(t, decimal.RequireFromString("50020").Equal(store.legAverages["arm-main"]))
 	assert.Equal(t, []string{storage.BracketStatusLegsPlaced}, store.bracketUpdates)
+}
+
+func TestLegArmer_EntryFillPersistsExchangeTransactionTime(t *testing.T) {
+	store := &fakeArmerStore{record: armerRecord()}
+	armer, _ := newArmerFixture(t, store)
+	event := entryFillEvent("arm-main", "FILLED", "0.02")
+	event.TransactionTime = 1774116365123
+
+	armer.OnOrderTradeUpdate(context.Background(), event)
+
+	assert.Equal(t, time.UnixMilli(event.TransactionTime).UTC(), store.legObservedAt["arm-main"])
+}
+
+func TestLegArmer_ClaimLoserKeepsBracketRearmable(t *testing.T) {
+	staleRecord := armerRecord()
+	durableRecord := armerRecord()
+	durableRecord.BracketID = staleRecord.BracketID
+	durableRecord.Legs[1].Status = storage.LegStatusPlacing
+	store := &fakeArmerStore{record: durableRecord, denyClaims: true}
+	armer, fake := newArmerFixture(t, store)
+
+	armer.armLegs(context.Background(), staleRecord, decimal.RequireFromString("0.01"))
+
+	assert.Empty(t, fake.posted())
+	assert.Equal(t, []string{storage.BracketStatusEntryFilled}, store.bracketUpdates)
+	assert.NotContains(t, store.bracketUpdates, storage.BracketStatusLegsPlaced)
+}
+
+func TestLegArmer_ClaimLoserCannotRegressWinnerBracketStatus(t *testing.T) {
+	winnerRecord := armerRecord()
+	staleLoserRecord := armerRecord()
+	staleLoserRecord.BracketID = winnerRecord.BracketID
+	store := &fakeArmerStore{record: winnerRecord}
+	armer, fake := newArmerFixture(t, store)
+
+	armer.armLegs(context.Background(), winnerRecord, decimal.RequireFromString("0.01"))
+	armer.armLegs(context.Background(), staleLoserRecord, decimal.RequireFromString("0.01"))
+
+	assert.Equal(t, []string{"arm-tp1", "arm-sl"}, fake.posted())
+	assert.Equal(t, storage.BracketStatusLegsPlaced, store.record.Status)
+	require.NotEmpty(t, store.bracketUpdates)
+	assert.Equal(t, storage.BracketStatusLegsPlaced, store.bracketUpdates[len(store.bracketUpdates)-1])
 }
 
 func TestLegArmer_ImmediateTerminalResponseIsPersisted(t *testing.T) {
@@ -296,14 +463,43 @@ func TestLegArmer_DuplicateFillEventIsIdempotent(t *testing.T) {
 		"duplicate events must never double-place protective legs")
 }
 
-func TestLegArmer_PreFillStatusesPlaceNothing(t *testing.T) {
+func TestLegArmer_NewEntryPlacesNothing(t *testing.T) {
 	store := &fakeArmerStore{record: armerRecord()}
 	armer, fake := newArmerFixture(t, store)
 
 	armer.OnOrderTradeUpdate(context.Background(), entryFillEvent("arm-main", "NEW", "0"))
-	armer.OnOrderTradeUpdate(context.Background(), entryFillEvent("arm-main", "PARTIALLY_FILLED", "0.01"))
 
 	assert.Empty(t, fake.posted())
+}
+
+func TestLegArmer_PartialEntryCancelsRemainderThenArmsFinalQuantity(t *testing.T) {
+	store := &fakeArmerStore{record: armerRecord()}
+	armer, fake := newArmerFixture(t, store)
+
+	armer.OnOrderTradeUpdate(context.Background(), entryFillEvent("arm-main", "PARTIALLY_FILLED", "0.01"))
+
+	assert.Equal(t, []int64{42}, fake.canceled())
+	assert.Equal(t, 1, fake.getCalls)
+	assert.Equal(t, []string{"arm-tp1", "arm-sl"}, fake.posted())
+	assert.Equal(t, "0.01", fake.postedQtys["arm-tp1"])
+	assert.True(t, decimal.RequireFromString("0.01").Equal(store.legExecuted["arm-main"]))
+	assert.True(t, decimal.RequireFromString("0.01").Equal(store.record.Legs[1].Quantity))
+	assert.True(t, decimal.RequireFromString("0.01").Equal(store.record.Legs[2].Quantity))
+}
+
+func TestLegArmer_StaleTerminalQueryKeepsAverageFromHigherQuantityObservation(t *testing.T) {
+	store := &fakeArmerStore{record: armerRecord()}
+	armer, fake := newArmerFixture(t, store)
+	fake.getQty = "0.01"
+	fake.getAverage = "50010"
+	event := entryFillEvent("arm-main", "PARTIALLY_FILLED", "0.015")
+	event.OrderTradeUpdate.AvgPrice = decimal.RequireFromString("50030")
+
+	armer.OnOrderTradeUpdate(context.Background(), event)
+
+	assert.True(t, decimal.RequireFromString("0.015").Equal(store.legExecuted["arm-main"]))
+	assert.True(t, decimal.RequireFromString("50030").Equal(store.legAverages["arm-main"]))
+	assert.Equal(t, "0.015", fake.postedQtys["arm-tp1"])
 }
 
 func TestLegArmer_CanceledEntryWithPartialFillStillArms(t *testing.T) {
@@ -342,6 +538,7 @@ func TestLegArmer_StopLossFillCancelsTakeProfits(t *testing.T) {
 
 	assert.Equal(t, []int64{7101}, fake.canceled(), "SL fill must cancel resting TPs")
 	assert.Contains(t, store.legUpdates, "arm-sl:FILLED")
+	assert.True(t, decimal.RequireFromString("50020").Equal(store.legAverages["arm-sl"]))
 	assert.Contains(t, store.legUpdates, "arm-tp1:CANCELED")
 	assert.Contains(t, store.bracketUpdates, storage.BracketStatusClosed)
 }

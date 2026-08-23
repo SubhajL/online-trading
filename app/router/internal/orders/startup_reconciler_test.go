@@ -81,10 +81,17 @@ func (f *reconExchange) handler() http.HandlerFunc {
 }
 
 func exchangeOrder(clientOrderID, status, executedQty string, orderID int64) map[string]any {
+	cumulativeQuote := "0"
+	averageFillPrice := "0"
+	if executedQty != "0" {
+		cumulativeQuote = decimal.RequireFromString(executedQty).Mul(decimal.RequireFromString("50020")).String()
+		averageFillPrice = "50020"
+	}
 	return map[string]any{
 		"symbol": "BTCUSDT", "orderId": orderID, "clientOrderId": clientOrderID,
 		"price": "51000", "origQty": "0.02", "executedQty": executedQty,
-		"cummulativeQuoteQty": "0", "status": status, "timeInForce": "GTC",
+		"cummulativeQuoteQty": cumulativeQuote, "avgPrice": averageFillPrice,
+		"cumQuote": cumulativeQuote, "status": status, "timeInForce": "GTC",
 		"type": "LIMIT", "side": "SELL", "updateTime": 1,
 	}
 }
@@ -197,6 +204,7 @@ func TestStartupReconciler_SpotExitFillsCloseBracket(t *testing.T) {
 		BracketsClosed:  1,
 	}, summary)
 	assert.Contains(t, store.legUpdates, "arm-tp1:FILLED")
+	assert.True(t, decimal.RequireFromString("50020").Equal(store.legAverages["arm-tp1"]))
 	assert.Contains(t, store.legUpdates, "arm-sl:EXPIRED")
 	assert.Equal(t, []string{storage.BracketStatusClosed}, store.bracketUpdates)
 	assert.Empty(t, emitter.emitted(), "the transactional leg-status trigger owns delivery")
@@ -457,15 +465,42 @@ func TestStartupReconciler_EntryPhaseArmsThroughWatcher(t *testing.T) {
 	assert.Contains(t, store.bracketUpdates, storage.BracketStatusLegsPlaced)
 }
 
-// blockingStore gates LoadOpenBrackets so a pass can be held in flight.
+func TestStartupReconciler_SweepsEveryOpenBracketPage(t *testing.T) {
+	records := make([]storage.BracketRecord, 3)
+	for i := range records {
+		records[i] = storage.BracketRecord{
+			BracketID: uuid.New(),
+			Venue:     "SPOT",
+			Status:    "UNKNOWN",
+			CreatedAt: time.Date(2026, 8, 23, 0, i, 0, 0, time.UTC),
+		}
+	}
+	store := &fakeWatcherStore{fakeArmerStore: fakeArmerStore{
+		openRecords: records,
+		pageLimit:   1,
+	}}
+	reconciler, _ := newReconcilerFixture(t, newReconExchange().handler(), store, "SPOT")
+
+	summary, err := reconciler.Reconcile(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, summary.BracketsSwept)
+	assert.Equal(t, 3, store.pageCalls)
+}
+
+// blockingStore gates LoadOpenBracketPage so a pass can be held in flight.
 type blockingStore struct {
 	fakeWatcherStore
 	release chan struct{}
 }
 
-func (b *blockingStore) LoadOpenBrackets(ctx context.Context, lookback time.Duration) ([]storage.BracketRecord, error) {
+func (b *blockingStore) LoadOpenBracketPage(
+	ctx context.Context,
+	cursor *storage.OpenBracketCursor,
+	pageSize int,
+) ([]storage.BracketRecord, *storage.OpenBracketCursor, error) {
 	<-b.release
-	return b.fakeWatcherStore.LoadOpenBrackets(ctx, lookback)
+	return b.fakeWatcherStore.LoadOpenBracketPage(ctx, cursor, pageSize)
 }
 
 func TestStartupReconciler_StatusCachesLastCompletedPass(t *testing.T) {

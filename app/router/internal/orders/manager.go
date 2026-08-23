@@ -568,18 +568,19 @@ func (m *Manager) placeBracketOrder(ctx context.Context, req *PlaceBracketReques
 
 	if placement != nil && placement.Main != nil {
 		initialUpdate := &OrderUpdate{
-			EventType:     "order_update.v1",
-			Venue:         venue,
-			Symbol:        req.Symbol,
-			OrderID:       placement.Main.OrderID,
-			ClientOrderID: bracket.ClientOrderIDs.Main,
-			Status:        normalizeOrderStatus(placement.Main.Status),
-			Side:          placement.Main.Side,
-			OrderType:     placement.Main.Type,
-			Price:         initialOrderUpdatePrice(req, placement.Main),
-			Quantity:      orderUpdateQuantity(req.Quantity, placement.Main.OrigQty),
-			ExecutedQty:   placement.Main.ExecutedQty,
-			UpdateTime:    orderUpdateTimeFromMillis(placement.Main.TransactTime),
+			EventType:        "order_update.v1",
+			Venue:            venue,
+			Symbol:           req.Symbol,
+			OrderID:          placement.Main.OrderID,
+			ClientOrderID:    bracket.ClientOrderIDs.Main,
+			Status:           normalizeOrderStatus(placement.Main.Status),
+			Side:             placement.Main.Side,
+			OrderType:        placement.Main.Type,
+			Price:            initialOrderUpdatePrice(req, placement.Main),
+			Quantity:         orderUpdateQuantity(req.Quantity, placement.Main.OrigQty),
+			ExecutedQty:      placement.Main.ExecutedQty,
+			AverageFillPrice: placement.Main.AverageFillPrice,
+			UpdateTime:       orderUpdateTimeFromMillis(placement.Main.TransactTime),
 		}
 		response.SpotExecutionSnapshots = append(response.SpotExecutionSnapshots, spotExecutionSnapshotFromOrderResponse(initialUpdate, placement.Main))
 		if !m.requireDurableStore {
@@ -592,18 +593,19 @@ func (m *Manager) placeBracketOrder(ctx context.Context, req *PlaceBracketReques
 	}
 	if !req.IsFutures && placement != nil && placement.FailsafeClose != nil {
 		closeUpdate := &OrderUpdate{
-			EventType:     "order_update.v1",
-			Venue:         "SPOT",
-			Symbol:        placement.FailsafeClose.Symbol,
-			OrderID:       placement.FailsafeClose.OrderID,
-			ClientOrderID: placement.FailsafeClose.ClientOrderID,
-			Status:        normalizeOrderStatus(placement.FailsafeClose.Status),
-			Side:          placement.FailsafeClose.Side,
-			OrderType:     placement.FailsafeClose.Type,
-			Price:         placement.FailsafeClose.Price,
-			Quantity:      orderUpdateQuantity(req.Quantity, placement.FailsafeClose.OrigQty),
-			ExecutedQty:   placement.FailsafeClose.ExecutedQty,
-			UpdateTime:    orderUpdateTimeFromMillis(placement.FailsafeClose.TransactTime),
+			EventType:        "order_update.v1",
+			Venue:            "SPOT",
+			Symbol:           placement.FailsafeClose.Symbol,
+			OrderID:          placement.FailsafeClose.OrderID,
+			ClientOrderID:    placement.FailsafeClose.ClientOrderID,
+			Status:           normalizeOrderStatus(placement.FailsafeClose.Status),
+			Side:             placement.FailsafeClose.Side,
+			OrderType:        placement.FailsafeClose.Type,
+			Price:            placement.FailsafeClose.Price,
+			Quantity:         orderUpdateQuantity(req.Quantity, placement.FailsafeClose.OrigQty),
+			ExecutedQty:      placement.FailsafeClose.ExecutedQty,
+			AverageFillPrice: placement.FailsafeClose.AverageFillPrice,
+			UpdateTime:       orderUpdateTimeFromMillis(placement.FailsafeClose.TransactTime),
 		}
 		response.SpotExecutionSnapshots = append(response.SpotExecutionSnapshots, spotExecutionSnapshotFromOrderResponse(closeUpdate, placement.FailsafeClose))
 		if !m.requireDurableStore {
@@ -809,18 +811,6 @@ func initialOrderUpdatePrice(req *PlaceBracketRequest, response *binance.OrderRe
 		return req.EntryPrice
 	}
 
-	totalQty := decimal.Zero
-	totalNotional := decimal.Zero
-	for _, fill := range response.Fills {
-		if fill.Qty.LessThanOrEqual(decimal.Zero) {
-			continue
-		}
-		totalQty = totalQty.Add(fill.Qty)
-		totalNotional = totalNotional.Add(fill.Price.Mul(fill.Qty))
-	}
-	if totalQty.GreaterThan(decimal.Zero) {
-		return totalNotional.Div(totalQty)
-	}
 	if response.Price.GreaterThan(decimal.Zero) {
 		return response.Price
 	}

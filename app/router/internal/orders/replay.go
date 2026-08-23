@@ -175,6 +175,16 @@ func validateReplayMatchesReservation(rec *storage.BracketRecord, req *PlaceBrac
 	return nil
 }
 
+type bracketLegExecutionUpdater interface {
+	UpdateLegExecution(
+		ctx context.Context,
+		bracketID uuid.UUID,
+		clientOrderID, status string,
+		exchangeOrderID int64,
+		averageFillPrice decimal.Decimal,
+	) error
+}
+
 // replayEntryState checks the exchange for the reserved entry before a
 // replayed placement: a live entry must be adopted, never re-POSTed (a
 // filled-and-closed entry frees its client id and a blind re-POST would
@@ -268,6 +278,43 @@ func (m *Manager) persistPlacementOutcome(
 				legStatus = storage.LegStatusPlaced
 			}
 			exchangeID = resp.OrderID
+		}
+		if resp != nil && (normalizeOrderStatus(resp.Status) == "PARTIALLY_FILLED" ||
+			normalizeOrderStatus(resp.Status) == "FILLED" || resp.ExecutedQty.IsPositive()) {
+			if updater, ok := m.bracketStore.(bracketLegExecutionProgressUpdater); ok {
+				progressStatus := legStatus
+				if normalizeOrderStatus(resp.Status) == "PARTIALLY_FILLED" {
+					progressStatus = "PARTIALLY_FILLED"
+				}
+				if err := updater.UpdateLegExecutionProgress(
+					ctx,
+					bracketID,
+					clientOrderID,
+					progressStatus,
+					exchangeID,
+					resp.ExecutedQty,
+					resp.AverageFillPrice,
+					exchangeObservationTime(resp.TransactTime),
+				); err != nil {
+					return fmt.Errorf("persist bracket leg %s: %w", clientOrderID, err)
+				}
+				return nil
+			}
+			if normalizeOrderStatus(resp.Status) == "FILLED" {
+				if updater, ok := m.bracketStore.(bracketLegExecutionUpdater); ok {
+					if err := updater.UpdateLegExecution(
+						ctx,
+						bracketID,
+						clientOrderID,
+						legStatus,
+						exchangeID,
+						resp.AverageFillPrice,
+					); err != nil {
+						return fmt.Errorf("persist bracket leg %s: %w", clientOrderID, err)
+					}
+					return nil
+				}
+			}
 		}
 		if err := m.bracketStore.UpdateLegStatus(ctx, bracketID, clientOrderID, legStatus, exchangeID); err != nil {
 			return fmt.Errorf("persist bracket leg %s: %w", clientOrderID, err)

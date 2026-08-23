@@ -57,6 +57,13 @@ func TestOrderRepo_ApplyFillUpdate_UpdatesTotalsAndStatus(t *testing.T) {
 				total_commission NUMERIC(18,8) NOT NULL DEFAULT 0,
 				total_slippage NUMERIC(18,8) NOT NULL DEFAULT 0,
 				signal_id TEXT,
+				decision_ts TIMESTAMPTZ,
+				expected_price NUMERIC(20,8),
+				router_received_ts TIMESTAMPTZ,
+				router_sent_ts TIMESTAMPTZ,
+				exchange_ack_ts TIMESTAMPTZ,
+				first_fill_ts TIMESTAMPTZ,
+				filled_ts TIMESTAMPTZ,
 				timeframe TEXT,
 				zone JSONB,
 				CONSTRAINT uq_orders_client_order_id UNIQUE (venue, client_order_id)
@@ -79,12 +86,13 @@ func TestOrderRepo_ApplyFillUpdate_UpdatesTotalsAndStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		firstFillAt := time.Date(2026, 3, 21, 20, 5, 0, 0, time.UTC)
 		rec, found, err := repo.ApplyFillUpdate(ctx, tx, "USD_M", "abc_entry", OrderFillUpdate{
 			Status:           "FILLED",
 			FilledQuantity:   decimal.RequireFromString("0.01"),
 			AverageFillPrice: decimal.RequireFromString("101"),
 			ExchangeOrderID:  "12345",
-			LastUpdateTime:   time.Unix(0, 0).UTC(),
+			LastUpdateTime:   firstFillAt,
 			CommissionDelta:  decimal.RequireFromString("0.04"),
 			CommissionAsset:  "USDT",
 			SlippageDelta:    decimal.RequireFromString("0.01"),
@@ -94,6 +102,28 @@ func TestOrderRepo_ApplyFillUpdate_UpdatesTotalsAndStatus(t *testing.T) {
 		require.Equal(t, "abc_entry", rec.ClientOrderID)
 		require.True(t, decimal.RequireFromString("0.04").Equal(rec.TotalCommission))
 		require.True(t, decimal.RequireFromString("0.01").Equal(rec.TotalSlippage))
+
+		correctionAt := firstFillAt.Add(time.Minute)
+		_, found, err = repo.ApplyFillUpdate(ctx, tx, "USD_M", "abc_entry", OrderFillUpdate{
+			Status:           "FILLED",
+			FilledQuantity:   decimal.RequireFromString("0.01"),
+			AverageFillPrice: decimal.RequireFromString("102"),
+			ExchangeOrderID:  "12345",
+			LastUpdateTime:   correctionAt,
+		})
+		require.NoError(t, err)
+		require.True(t, found)
+
+		var storedFirstFillAt *time.Time
+		var storedLastUpdateAt time.Time
+		require.NoError(t, tx.QueryRow(ctx, `
+			SELECT first_fill_ts, last_update_time
+			FROM orders
+			WHERE venue = 'USD_M' AND client_order_id = 'abc_entry'
+		`).Scan(&storedFirstFillAt, &storedLastUpdateAt))
+		require.NotNil(t, storedFirstFillAt)
+		require.Equal(t, firstFillAt, storedFirstFillAt.UTC())
+		require.Equal(t, correctionAt, storedLastUpdateAt.UTC())
 		return nil
 	}))
 }

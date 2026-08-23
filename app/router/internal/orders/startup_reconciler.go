@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 
 	"router/internal/binance"
 	"router/internal/rest"
@@ -97,20 +98,30 @@ func (r *StartupReconciler) Reconcile(ctx context.Context) (*ReconcileSummary, e
 	}
 	defer func() { r.inFlight <- struct{}{} }()
 
-	brackets, err := r.store.LoadOpenBrackets(ctx, r.lookback)
-	if err != nil {
-		return nil, err
-	}
-
 	summary := &ReconcileSummary{}
-	for i := range brackets {
-		if ctx.Err() != nil {
+	var cursor *storage.OpenBracketCursor
+	for {
+		if err := ctx.Err(); err != nil {
 			// A partial pass must not read as success: callers retry
-			return summary, ctx.Err()
+			return summary, err
 		}
-		record := &brackets[i]
-		summary.BracketsSwept++
-		r.reconcileBracket(ctx, record, summary)
+		brackets, next, err := r.store.LoadOpenBracketPage(ctx, cursor, openBracketPageSize)
+		if err != nil {
+			return summary, err
+		}
+		for i := range brackets {
+			if err := ctx.Err(); err != nil {
+				// A partial pass must not read as success: callers retry
+				return summary, err
+			}
+			record := &brackets[i]
+			summary.BracketsSwept++
+			r.reconcileBracket(ctx, record, summary)
+		}
+		if next == nil {
+			break
+		}
+		cursor = next
 	}
 	r.logger.Info().
 		Int("brackets_swept", summary.BracketsSwept).
@@ -232,8 +243,7 @@ func (r *StartupReconciler) resolvePlacingLegs(
 		}
 		// Found on the exchange: adopt its real state. Terminal states must
 		// win over any concurrent armer PLACED write, so this is unguarded.
-		status, _ := legStatusFromOrder(resp.Status)
-		if r.updateLeg(ctx, record, leg, status, resp.OrderID) {
+		if r.updateLegFromOrder(ctx, record, leg, resp) {
 			summary.LegsResolved++
 		}
 	}
@@ -350,7 +360,7 @@ func (r *StartupReconciler) sweepOneExitLeg(
 		}
 		return
 	}
-	if !r.updateLeg(ctx, record, leg, status, resp.OrderID) {
+	if !r.updateLegFromOrder(ctx, record, leg, resp) {
 		return // persist failed; re-observed next pass, no premature emit
 	}
 	summary.ExitLegsUpdated++
@@ -456,7 +466,29 @@ func (r *StartupReconciler) updateLeg(
 	status string,
 	exchangeOrderID int64,
 ) bool {
-	if err := r.store.UpdateLegStatus(ctx, record.BracketID, leg.ClientOrderID, status, exchangeOrderID); err != nil {
+	return r.updateLegWithAverage(ctx, record, leg, status, exchangeOrderID, decimal.Zero)
+}
+
+func (r *StartupReconciler) updateLegFromOrder(
+	ctx context.Context,
+	record *storage.BracketRecord,
+	leg *storage.BracketLegRecord,
+	resp *binance.OrderResponse,
+) bool {
+	status, _ := legStatusFromOrder(resp.Status)
+	return r.updateLegWithAverage(ctx, record, leg, status, resp.OrderID, resp.AverageFillPrice)
+}
+
+func (r *StartupReconciler) updateLegWithAverage(
+	ctx context.Context,
+	record *storage.BracketRecord,
+	leg *storage.BracketLegRecord,
+	status string,
+	exchangeOrderID int64,
+	averageFillPrice decimal.Decimal,
+) bool {
+	if err := persistLegExecution(ctx, r.store, record.BracketID, leg.ClientOrderID,
+		status, exchangeOrderID, averageFillPrice); err != nil {
 		r.logger.Warn().Err(err).
 			Str("client_order_id", leg.ClientOrderID).
 			Str("status", status).

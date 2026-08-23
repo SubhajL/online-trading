@@ -13,8 +13,25 @@ describe('OrderRepository', () => {
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
     getMany: jest.fn(),
+  };
+  const mockLockedQueryBuilder = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    setLock: jest.fn().mockReturnThis(),
+    getOne: jest.fn(),
+  };
+  const mockTransactionalRepository = {
+    createQueryBuilder: jest.fn(() => mockLockedQueryBuilder),
+    update: jest.fn(),
+  };
+  const mockManager = {
+    query: jest.fn(),
+    transaction: jest.fn(async (work: (manager: { getRepository: jest.Mock }) => unknown) =>
+      work({ getRepository: jest.fn(() => mockTransactionalRepository) }),
+    ),
   };
 
   beforeEach(async () => {
@@ -28,6 +45,7 @@ describe('OrderRepository', () => {
             findOne: jest.fn(),
             save: jest.fn(),
             update: jest.fn(),
+            manager: mockManager,
           },
         },
       ],
@@ -155,6 +173,33 @@ describe('OrderRepository', () => {
     });
   });
 
+  describe('findActivePositionSnapshots', () => {
+    it('loads authoritative active positions for one venue and symbol', async () => {
+      const snapshots = [
+        {
+          venue: 'USD_M',
+          symbol: 'BTCUSDT',
+          side: 'BUY',
+          size: '1.10000000',
+          entryPrice: '106.66666667',
+          currentPrice: '106.66666667',
+          unrealizedPnl: '0.00000000',
+          updatedAt: new Date('2026-03-21T20:06:00Z'),
+        },
+      ];
+      mockManager.query.mockResolvedValue(snapshots);
+
+      await expect(
+        orderRepository.findActivePositionSnapshots({ venue: 'USD_M', symbol: 'BTCUSDT' }),
+      ).resolves.toEqual(snapshots);
+
+      expect(mockManager.query).toHaveBeenCalledWith(
+        expect.stringMatching(/FROM\s+positions[\s\S]+is_active = TRUE/),
+        ['USD_M', 'BTCUSDT'],
+      );
+    });
+  });
+
   describe('findByClientOrderId', () => {
     it('should find order by client order ID', async () => {
       const mockOrder = { clientOrderId: 'client-1', venue: 'SPOT' as Venue } as OrderEntity;
@@ -170,14 +215,26 @@ describe('OrderRepository', () => {
   });
 
   describe('findByExchangeOrderId', () => {
-    it('should find order by exchange order ID and venue', async () => {
-      const mockOrder = { exchangeOrderId: 'exchange-1', venue: 'USD_M' as Venue } as OrderEntity;
+    it('should find order by exchange order ID, venue, and symbol', async () => {
+      const mockOrder = {
+        exchangeOrderId: 'exchange-1',
+        venue: 'USD_M' as Venue,
+        symbol: 'BTCUSDT',
+      } as OrderEntity;
       (mockRepository.findOne as jest.Mock).mockResolvedValue(mockOrder);
 
-      const result = await orderRepository.findByExchangeOrderId('exchange-1', 'USD_M' as Venue);
+      const result = await orderRepository.findByExchangeOrderId(
+        'exchange-1',
+        'USD_M' as Venue,
+        'BTCUSDT',
+      );
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { exchangeOrderId: 'exchange-1', venue: 'USD_M' as Venue },
+        where: {
+          exchangeOrderId: 'exchange-1',
+          venue: 'USD_M' as Venue,
+          symbol: 'BTCUSDT',
+        },
       });
       expect(result).toEqual(mockOrder);
     });
@@ -218,6 +275,76 @@ describe('OrderRepository', () => {
       await orderRepository.update(orderId, updates);
 
       expect(mockRepository.update).toHaveBeenCalledWith({ orderId }, updates);
+    });
+  });
+
+  describe('withLockedOrderForUpdate', () => {
+    it('serializes reconciliation and writes its result through the transaction repository', async () => {
+      const persisted = {
+        orderId: 'order-1',
+        clientOrderId: 'client-1',
+        exchangeOrderId: 'exchange-1',
+        venue: 'USD_M' as Venue,
+        status: 'NEW' as OrderStatus,
+        filledQuantity: 0,
+      } as OrderEntity;
+      mockLockedQueryBuilder.getOne.mockResolvedValue(persisted);
+      const reconcile = jest.fn(() => ({
+        status: 'PARTIALLY_FILLED' as OrderStatus,
+        filledQuantity: 0.005,
+      }));
+
+      await expect(
+        orderRepository.withLockedOrderForUpdate(
+          {
+            venue: 'USD_M' as Venue,
+            symbol: 'BTCUSDT',
+            clientOrderId: 'client-1',
+            exchangeOrderId: 'exchange-1',
+          },
+          reconcile,
+        ),
+      ).resolves.toEqual({
+        order: expect.objectContaining({
+          orderId: 'order-1',
+          status: 'PARTIALLY_FILLED',
+          filledQuantity: 0.005,
+        }),
+        updated: true,
+      });
+
+      expect(mockManager.transaction).toHaveBeenCalledTimes(1);
+      expect(mockLockedQueryBuilder.setLock).toHaveBeenCalledWith('pessimistic_write');
+      expect(reconcile).toHaveBeenCalledWith(persisted);
+      expect(mockTransactionalRepository.update).toHaveBeenCalledWith(
+        { orderId: 'order-1' },
+        expect.objectContaining({ status: 'PARTIALLY_FILLED', filledQuantity: 0.005 }),
+      );
+    });
+
+    it('returns the locked row without writing when reconciliation is a no-op', async () => {
+      const persisted = {
+        orderId: 'order-1',
+        clientOrderId: 'client-1',
+        venue: 'SPOT' as Venue,
+        status: 'FILLED' as OrderStatus,
+      } as OrderEntity;
+      mockLockedQueryBuilder.getOne.mockResolvedValue(persisted);
+
+      await expect(
+        orderRepository.withLockedOrderForUpdate(
+          {
+            venue: 'SPOT' as Venue,
+            symbol: 'BTCUSDT',
+            clientOrderId: 'client-1',
+            exchangeOrderId: '',
+          },
+          () => null,
+        ),
+      ).resolves.toEqual({ order: persisted, updated: false });
+
+      expect(mockLockedQueryBuilder.setLock).toHaveBeenCalledWith('pessimistic_write');
+      expect(mockTransactionalRepository.update).not.toHaveBeenCalled();
     });
   });
 });

@@ -36,18 +36,19 @@ type FuturesOrderRequest struct {
 
 // OrderResponse represents the response from order placement
 type OrderResponse struct {
-	Symbol        string          `json:"symbol"`
-	OrderID       int64           `json:"orderId"`
-	ClientOrderID string          `json:"clientOrderId"`
-	TransactTime  int64           `json:"transactTime"`
-	Price         decimal.Decimal `json:"price"`
-	OrigQty       decimal.Decimal `json:"origQty"`
-	ExecutedQty   decimal.Decimal `json:"executedQty"`
-	Status        string          `json:"status"`
-	TimeInForce   string          `json:"timeInForce"`
-	Type          string          `json:"type"`
-	Side          string          `json:"side"`
-	Fills         []Fill          `json:"fills"`
+	Symbol           string          `json:"symbol"`
+	OrderID          int64           `json:"orderId"`
+	ClientOrderID    string          `json:"clientOrderId"`
+	TransactTime     int64           `json:"transactTime"`
+	Price            decimal.Decimal `json:"price"`
+	OrigQty          decimal.Decimal `json:"origQty"`
+	ExecutedQty      decimal.Decimal `json:"executedQty"`
+	AverageFillPrice decimal.Decimal `json:"averageFillPrice"`
+	Status           string          `json:"status"`
+	TimeInForce      string          `json:"timeInForce"`
+	Type             string          `json:"type"`
+	Side             string          `json:"side"`
+	Fills            []Fill          `json:"fills"`
 }
 
 // Fill represents individual trade fills

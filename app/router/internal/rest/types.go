@@ -24,10 +24,13 @@ type OrderResponse struct {
 	OrderListID         int64           `json:"orderListId"`
 	ClientOrderID       string          `json:"clientOrderId"`
 	TransactTime        int64           `json:"transactTime"`
+	UpdateTime          int64           `json:"updateTime"`
 	Price               decimal.Decimal `json:"price"`
 	OrigQty             decimal.Decimal `json:"origQty"`
 	ExecutedQty         decimal.Decimal `json:"executedQty"`
 	CummulativeQuoteQty decimal.Decimal `json:"cummulativeQuoteQty"`
+	AvgPrice            decimal.Decimal `json:"avgPrice"`
+	CumQuote            decimal.Decimal `json:"cumQuote"`
 	Status              string          `json:"status"`
 	TimeInForce         string          `json:"timeInForce"`
 	Type                string          `json:"type"`
@@ -230,6 +233,7 @@ type FuturesOrderResponse struct {
 	PriceProtect  bool            `json:"priceProtect"`
 	OrigType      string          `json:"origType"`
 	UpdateTime    int64           `json:"updateTime"`
+	TransactTime  int64           `json:"transactTime"`
 }
 
 // FuturesAccountResponse represents futures account info

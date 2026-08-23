@@ -51,6 +51,19 @@ class _FakeBus:
 
 
 class _FakeDBAdapter:
+    def __init__(self) -> None:
+        self.delivery_state = "PENDING"
+
+    async def has_incomplete_execution_intent_outside_venue(
+        self,
+        active_venue: str,
+    ) -> bool:
+        _ = active_venue
+        return False
+
+    async def get_execution_intent_for_request(self, *_args: object, **_kwargs: object):
+        return None
+
     async def prepare_execution_intent(self, _intent: dict[str, Any]) -> bool:
         return True
 
@@ -61,6 +74,27 @@ class _FakeDBAdapter:
 
     async def upsert_order(self, _order: dict[str, Any]) -> bool:
         return True
+
+    async def commit_execution_ack(self, *_args: object, **_kwargs: object) -> bool:
+        self.delivery_state = "PENDING"
+        return True
+
+    async def claim_execution_success_delivery(self, *_args: object, **_kwargs: object):
+        if self.delivery_state != "PENDING":
+            return None
+        self.delivery_state = "DELIVERING"
+        return {"delivery_kind": "ORDER_PLACED", "lease_token": "lease-1"}
+
+    async def complete_execution_success_delivery(self, *_args: object, **_kwargs: object) -> None:
+        self.delivery_state = "DELIVERED"
+
+    async def fail_execution_success_delivery(self, *_args: object, **_kwargs: object) -> None:
+        self.delivery_state = "PENDING"
+
+    async def has_pending_execution_success_delivery(
+        self, *_args: object, **_kwargs: object
+    ) -> bool:
+        return self.delivery_state != "DELIVERED"
 
     async def get_latest_equity_sample(self):
         return Decimal("10000"), datetime.now(UTC)

@@ -114,6 +114,10 @@ func (a *SpotLegArmer) Arm(ctx context.Context, record *storage.BracketRecord, e
 			a.updateLegStatus(ctx, record, slice.stopID, storage.LegStatusCanceled, 0, decimal.Zero, slice.index+1)
 			continue
 		}
+		if !a.prepareSliceCoverage(ctx, record, slice) {
+			failed++
+			continue
+		}
 		switch a.armSlice(ctx, record, slice) {
 		case slicePlaced:
 			placed++
@@ -132,6 +136,52 @@ func (a *SpotLegArmer) Arm(ctx context.Context, record *storage.BracketRecord, e
 		status = storage.BracketStatusClosed // every slice settled without a resting exit
 	}
 	a.updateBracketStatus(ctx, record, status)
+}
+
+// prepareSliceCoverage persists the fee/step-adjusted quantity for both
+// sides of an OCO before the TP claim can win. Derived stop rows are reserved
+// here as PLANNED so a crash cannot leave an untracked stop claim.
+func (a *SpotLegArmer) prepareSliceCoverage(
+	ctx context.Context,
+	record *storage.BracketRecord,
+	slice spotOCOSlice,
+) bool {
+	quantity := slice.req.Quantity
+	if err := updateLegQuantity(ctx, a.store, record.BracketID, slice.tpLeg.ClientOrderID, quantity); err != nil {
+		a.logger.Warn().Err(err).Str("client_order_id", slice.tpLeg.ClientOrderID).
+			Msg("spot armer: failed to persist TP coverage before claim")
+		return false
+	}
+	setRecordLegQuantity(record, slice.tpLeg.ClientOrderID, quantity)
+
+	if stop := legByClientOrderID(record, slice.stopID); stop != nil {
+		if err := updateLegQuantity(ctx, a.store, record.BracketID, slice.stopID, quantity); err != nil {
+			a.logger.Warn().Err(err).Str("client_order_id", slice.stopID).
+				Msg("spot armer: failed to persist SL coverage before claim")
+			return false
+		}
+		setRecordLegQuantity(record, slice.stopID, quantity)
+		return true
+	}
+
+	derived := storage.BracketLegRecord{
+		BracketID:     record.BracketID,
+		Role:          "SL",
+		TPIndex:       slice.index + 1,
+		ClientOrderID: slice.stopID,
+		StopPrice:     record.StopLossPrice,
+		Quantity:      quantity,
+		Status:        storage.LegStatusPlanned,
+	}
+	if err := a.store.InsertLeg(ctx, derived); err != nil {
+		a.logger.Warn().Err(err).Str("client_order_id", slice.stopID).
+			Msg("spot armer: failed to reserve derived SL before claim")
+		return false
+	}
+	if legByClientOrderID(record, slice.stopID) == nil {
+		record.Legs = append(record.Legs, derived)
+	}
+	return true
 }
 
 // protectableQuantity nets base-asset entry commissions out of the executed

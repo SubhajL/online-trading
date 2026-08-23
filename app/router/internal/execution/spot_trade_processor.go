@@ -76,6 +76,9 @@ func (p *SpotTradeProcessor) persistSpotExecutionTx(
 	if !found || orderRec == nil {
 		return nil
 	}
+	if snapshot.ExecutedQty.IsPositive() && len(snapshot.Trades) == 0 {
+		return fmt.Errorf("executed snapshot requires trade evidence")
+	}
 
 	updateTime := snapshot.UpdateTime.UTC()
 	if updateTime.IsZero() {

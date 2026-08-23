@@ -30,10 +30,14 @@ type fakeBracketStore struct {
 	reserved       []storage.BracketRecord
 	bracketUpdates []string
 	legUpdates     map[string]string
+	legAverages    map[string]decimal.Decimal
 }
 
 func newFakeBracketStore() *fakeBracketStore {
-	return &fakeBracketStore{legUpdates: make(map[string]string)}
+	return &fakeBracketStore{
+		legUpdates:  make(map[string]string),
+		legAverages: make(map[string]decimal.Decimal),
+	}
 }
 
 func TestPersistPlacementOutcomePreservesImmediateFill(t *testing.T) {
@@ -49,6 +53,12 @@ func TestPersistPlacementOutcomePreservesImmediateFill(t *testing.T) {
 			IDs: ClientOrderIDs{Main: "filled-entry"},
 			Main: &binance.OrderResponse{
 				OrderID: 42, ClientOrderID: "filled-entry", Status: "FILLED",
+				ExecutedQty:      decimal.RequireFromString("0.02"),
+				AverageFillPrice: decimal.RequireFromString("50020"),
+				Fills: []binance.Fill{
+					{Price: decimal.RequireFromString("50010"), Qty: decimal.RequireFromString("0.01")},
+					{Price: decimal.RequireFromString("50030"), Qty: decimal.RequireFromString("0.01")},
+				},
 			},
 		},
 		false,
@@ -57,6 +67,7 @@ func TestPersistPlacementOutcomePreservesImmediateFill(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, storage.LegStatusFilled, store.legUpdates["filled-entry"])
+	assert.True(t, decimal.RequireFromString("50020").Equal(store.legAverages["filled-entry"]))
 }
 
 func (f *fakeBracketStore) Reserve(_ context.Context, rec storage.BracketRecord) (*storage.BracketRecord, bool, error) {
@@ -100,6 +111,20 @@ func (f *fakeBracketStore) UpdateLegStatus(_ context.Context, _ uuid.UUID, clien
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.legUpdates[clientOrderID] = status
+	return nil
+}
+
+func (f *fakeBracketStore) UpdateLegExecution(
+	_ context.Context,
+	_ uuid.UUID,
+	clientOrderID, status string,
+	_ int64,
+	averageFillPrice decimal.Decimal,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.legUpdates[clientOrderID] = status
+	f.legAverages[clientOrderID] = averageFillPrice
 	return nil
 }
 
