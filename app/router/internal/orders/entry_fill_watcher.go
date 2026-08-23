@@ -11,12 +11,19 @@ import (
 	"router/internal/storage"
 )
 
-const defaultEntryFillLookback = 168 * time.Hour
+const (
+	defaultEntryFillLookback = 168 * time.Hour
+	openBracketPageSize      = 100
+)
 
 // watcherStore is the store slice the watcher needs beyond the armers.
 type watcherStore interface {
 	armerStore
-	LoadOpenBrackets(ctx context.Context, lookback time.Duration) ([]storage.BracketRecord, error)
+	LoadOpenBracketPage(
+		ctx context.Context,
+		cursor *storage.OpenBracketCursor,
+		pageSize int,
+	) ([]storage.BracketRecord, *storage.OpenBracketCursor, error)
 }
 
 // EntryFillWatcher polls open deferred brackets and arms exit legs once
@@ -95,27 +102,37 @@ func (w *EntryFillWatcher) Stop() {
 }
 
 func (w *EntryFillWatcher) pollOnce(ctx context.Context) {
-	brackets, err := w.store.LoadOpenBrackets(ctx, w.lookback)
-	if err != nil {
-		w.logger.Warn().Err(err).Msg("entry fill watcher: load failed")
-		return
-	}
+	var cursor *storage.OpenBracketCursor
+	for {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+		brackets, next, err := w.store.LoadOpenBracketPage(ctx, cursor, openBracketPageSize)
+		if err != nil {
+			w.logger.Warn().Err(err).Msg("entry fill watcher: load failed")
+			return
+		}
 
-	for i := range brackets {
-		record := &brackets[i]
-		if !record.LegsOnFill {
-			continue
+		for i := range brackets {
+			record := &brackets[i]
+			if !record.LegsOnFill {
+				continue
+			}
+			// RESERVED is included: a crash between the entry POST and the
+			// bookkeeping write leaves a live entry on a RESERVED bracket, and
+			// nothing else would ever protect its fill. A not-yet-POSTed entry
+			// just resolves to -2013 and is skipped.
+			if record.Status != storage.BracketStatusReserved &&
+				record.Status != storage.BracketStatusEntryPlaced &&
+				record.Status != storage.BracketStatusEntryFilled {
+				continue
+			}
+			w.checkBracket(ctx, record)
 		}
-		// RESERVED is included: a crash between the entry POST and the
-		// bookkeeping write leaves a live entry on a RESERVED bracket, and
-		// nothing else would ever protect its fill. A not-yet-POSTed entry
-		// just resolves to -2013 and is skipped.
-		if record.Status != storage.BracketStatusReserved &&
-			record.Status != storage.BracketStatusEntryPlaced &&
-			record.Status != storage.BracketStatusEntryFilled {
-			continue
+		if next == nil {
+			return
 		}
-		w.checkBracket(ctx, record)
+		cursor = next
 	}
 }
 
@@ -143,7 +160,19 @@ func (w *EntryFillWatcher) checkBracket(ctx context.Context, record *storage.Bra
 // checkBracketWithEntry applies the fill/dead-entry decision to an entry the
 // caller already fetched (the reconciler reuses this after its own lookup).
 func (w *EntryFillWatcher) checkBracketWithEntry(ctx context.Context, record *storage.BracketRecord, entry *binance.OrderResponse) {
+	if record == nil || entry == nil {
+		return
+	}
 	switch normalizeOrderStatus(entry.Status) {
+	case "PARTIALLY_FILLED":
+		client := w.spotClient
+		if record.Venue == "USD_M" {
+			client = w.futuresClient
+		}
+		finalizePartialEntry(ctx, w.store, client, record, entry, w.logger,
+			func(ctx context.Context, record *storage.BracketRecord, entry *binance.OrderResponse) {
+				w.armFinalized(ctx, record, entry)
+			})
 	case "FILLED":
 		w.arm(ctx, record, entry)
 	case "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH", "REJECTED":
@@ -157,6 +186,25 @@ func (w *EntryFillWatcher) checkBracketWithEntry(ctx context.Context, record *st
 }
 
 func (w *EntryFillWatcher) arm(ctx context.Context, record *storage.BracketRecord, entry *binance.OrderResponse) {
+	status, _ := legStatusFromOrder(entry.Status)
+	quantity := entry.ExecutedQty
+	if normalizeOrderStatus(entry.Status) == "FILLED" && quantity.IsZero() {
+		quantity = record.Quantity
+	}
+	if err := persistLegExecutionProgress(ctx, w.store, record.BracketID, record.EntryClientOrderID,
+		status, entry.OrderID, quantity, entry.AverageFillPrice,
+		exchangeObservationTime(entry.TransactTime)); err != nil {
+		w.logger.Warn().Err(err).
+			Str("client_order_id", record.EntryClientOrderID).
+			Msg("entry fill watcher: failed to persist entry execution")
+		return
+	}
+	effectiveEntry := *entry
+	effectiveEntry.ExecutedQty = quantity
+	w.armFinalized(ctx, record, &effectiveEntry)
+}
+
+func (w *EntryFillWatcher) armFinalized(ctx context.Context, record *storage.BracketRecord, entry *binance.OrderResponse) {
 	if record.Venue == "USD_M" {
 		if w.futures != nil {
 			w.futures.armLegs(ctx, record, entry.ExecutedQty)

@@ -148,7 +148,7 @@ describe('SignalsService', () => {
       expect(mockQueue.add).toHaveBeenCalledWith(
         'generate',
         validPayload,
-        expect.objectContaining({ attempts: 3 }),
+        expect.objectContaining({ attempts: 3, jobId: 'sig_abc123' }),
       );
     });
 

@@ -29,6 +29,7 @@ type spotOCOExchange struct {
 	mu          sync.Mutex
 	ocoRequests []url.Values
 	closeReqs   []url.Values
+	cancelReqs  []url.Values
 	getStatuses []string // per GET /api/v3/order: order status (default FILLED)
 	getCount    int
 	failOCO     bool   // OCO POSTs fail with -1102
@@ -53,6 +54,12 @@ func (f *spotOCOExchange) closes() []url.Values {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]url.Values(nil), f.closeReqs...)
+}
+
+func (f *spotOCOExchange) cancels() []url.Values {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]url.Values(nil), f.cancelReqs...)
 }
 
 func (f *spotOCOExchange) rememberList(q url.Values) {
@@ -202,6 +209,19 @@ func (f *spotOCOExchange) handler() http.HandlerFunc {
 				"executedQty": q.Get("quantity"), "origQty": q.Get("quantity"),
 				"cummulativeQuoteQty": "975", "price": "0",
 				"type": "MARKET", "side": q.Get("side"), "timeInForce": "GTC",
+			})
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v3/order":
+			f.mu.Lock()
+			f.cancelReqs = append(f.cancelReqs, q)
+			qty := f.getOrderQty
+			f.mu.Unlock()
+			if qty == "" {
+				qty = "0"
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"symbol": "BTCUSDT", "orderId": 321, "clientOrderId": "arm-main",
+				"price": "50000", "origQty": "0.02", "executedQty": qty,
+				"status": "CANCELED", "timeInForce": "GTC", "type": "LIMIT", "side": "BUY",
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v3/myTrades":
 			if f.trades == "" {

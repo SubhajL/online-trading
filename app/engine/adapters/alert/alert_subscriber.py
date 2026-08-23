@@ -18,6 +18,7 @@ from app.engine.models import (
     ErrorEvent,
     EventType,
     OrderFilledEvent,
+    OrderPlacedEvent,
     OrderUpdateEvent,
     StartupCompleteEvent,
     TradingDecisionEvent,
@@ -116,6 +117,22 @@ def _order_filled_event_to_order_update_payload(
         "quantity": event.fill_quantity,
         "filled_price": event.fill_price,
     }
+
+
+def _order_placed_event_to_decision_payload(
+    event: OrderPlacedEvent,
+) -> dict[str, object] | None:
+    if event.decision is None:
+        return None
+    decision_event = TradingDecisionEvent(
+        event_id=event.event_id,
+        timestamp=event.timestamp,
+        symbol=event.symbol,
+        timeframe=event.timeframe,
+        metadata=dict(event.metadata),
+        decision=event.decision,
+    )
+    return _decision_event_to_alert_payload(decision_event)
 
 
 def _normalize_order_update_status(raw: str) -> str:
@@ -369,6 +386,7 @@ DEFAULT_ALERT_EVENT_TYPES: list[EventType] = [
 # Event types for execution-enabled mode (alert on order updates)
 EXECUTION_ENABLED_EVENT_TYPES: list[EventType] = [
     EventType.ORDER_UPDATE,
+    EventType.ORDER_PLACED,
     EventType.ERROR,
     EventType.STARTUP_COMPLETE,
 ]
@@ -376,6 +394,7 @@ EXECUTION_ENABLED_EVENT_TYPES: list[EventType] = [
 # Event types for execution-disabled mode (alert on decision, signal-only)
 EXECUTION_DISABLED_EVENT_TYPES: list[EventType] = [
     EventType.TRADING_DECISION,
+    EventType.ORDER_PLACED,
     EventType.ERROR,
     EventType.STARTUP_COMPLETE,
 ]
@@ -503,6 +522,15 @@ class AlertSubscriber:
                 await self.telegram._handle_decision(payload)
                 return
 
+            if isinstance(event, OrderPlacedEvent):
+                if not self._is_allowed_trade_alert_event(event):
+                    return
+                payload = _order_placed_event_to_decision_payload(event)
+                if payload is None:
+                    return
+                await self.telegram._handle_decision(payload)
+                return
+
             if isinstance(event, OrderFilledEvent):
                 payload = _order_filled_event_to_order_update_payload(event)
                 await self.telegram._handle_order_update(payload)
@@ -538,10 +566,12 @@ class AlertSubscriber:
 
         except Exception:
             logger.exception("Error handling event %s", event.event_type)
+            if isinstance(event, OrderPlacedEvent):
+                raise
 
     def _is_allowed_trade_alert_event(
         self,
-        event: TradingDecisionEvent | OrderUpdateEvent,
+        event: TradingDecisionEvent | OrderPlacedEvent | OrderUpdateEvent,
     ) -> bool:
         decision_source = event.metadata.get("decision_source")
         if isinstance(decision_source, str) and decision_source in self._allowed_decision_sources:

@@ -2,6 +2,9 @@ package binance
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +16,163 @@ import (
 	"router/internal/auth"
 	"router/internal/rest"
 )
+
+func TestGetOrderByClientIDSeparatesMarketPriceFromAverageFillPrice(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/v3/order", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"symbol": "BTCUSDT", "orderId": 42, "clientOrderId": "market-entry",
+			"price": "0", "origQty": "2", "executedQty": "2",
+			"cummulativeQuoteQty": "100040", "status": "FILLED",
+			"timeInForce": "GTC", "type": "MARKET", "side": "BUY",
+			"transactTime": time.Now().UnixMilli(),
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSigner("test-key", "test-secret")
+	restClient := rest.NewClient(server.URL, signer)
+	client, err := NewClient(server.URL, signer, restClient, zerolog.Nop())
+	require.NoError(t, err)
+
+	order, err := client.GetOrderByClientID(context.Background(), "BTCUSDT", "market-entry")
+	require.NoError(t, err)
+	assert.True(t, order.Price.IsZero())
+	assert.True(t, decimal.RequireFromString("50020").Equal(order.AverageFillPrice))
+}
+
+func TestGetFuturesOrderByClientIDPreservesExchangeAverageFillPrice(t *testing.T) {
+	const updateTime = int64(1774116365123)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/fapi/v1/order", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"symbol": "BTCUSDT", "orderId": 42, "clientOrderId": "market-entry",
+			"price": "0", "avgPrice": "50020", "origQty": "2", "executedQty": "2",
+			"cumQty": "2", "cumQuote": "100040", "status": "FILLED",
+			"timeInForce": "GTC", "type": "MARKET", "side": "BUY",
+			"updateTime": updateTime,
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSigner("test-key", "test-secret")
+	restClient := rest.NewClient(server.URL, signer)
+	client, err := NewFuturesClient(server.URL, signer, restClient, zerolog.Nop())
+	require.NoError(t, err)
+
+	order, err := client.GetOrderByClientID(context.Background(), "BTCUSDT", "market-entry")
+	require.NoError(t, err)
+	assert.True(t, order.Price.IsZero())
+	assert.True(t, decimal.RequireFromString("50020").Equal(order.AverageFillPrice))
+	assert.Equal(t, updateTime, order.TransactTime)
+}
+
+func TestPlaceSpotOrderPreservesImmediateFillAverageSeparatelyFromPrice(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/api/v3/order", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"symbol": "BTCUSDT", "orderId": 43, "clientOrderId": "spot-market-entry",
+			"price": "0", "origQty": "2", "executedQty": "2",
+			"cummulativeQuoteQty": "100040", "status": "FILLED",
+			"timeInForce": "GTC", "type": "MARKET", "side": "BUY",
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSigner("test-key", "test-secret")
+	client, err := NewSpotClient(server.URL, signer, rest.NewClient(server.URL, signer), zerolog.Nop())
+	require.NoError(t, err)
+	order, err := client.PlaceSpotOrder(context.Background(), SpotOrderRequest{
+		Symbol: "BTCUSDT", Side: "BUY", Type: "MARKET",
+		Quantity: decimal.NewFromInt(2), NewClientOrderID: "spot-market-entry",
+	})
+	require.NoError(t, err)
+	assert.True(t, order.Price.IsZero())
+	assert.True(t, decimal.RequireFromString("50020").Equal(order.AverageFillPrice))
+}
+
+func TestPlaceFuturesOrderPreservesImmediateExchangeAverageSeparatelyFromPrice(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/fapi/v1/order", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"symbol": "BTCUSDT", "orderId": 44, "clientOrderId": "futures-market-entry",
+			"price": "0", "avgPrice": "50020", "origQty": "2", "executedQty": "2",
+			"cumQty": "2", "cumQuote": "100040", "status": "FILLED",
+			"timeInForce": "GTC", "type": "MARKET", "side": "BUY",
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSigner("test-key", "test-secret")
+	client, err := NewFuturesClient(server.URL, signer, rest.NewClient(server.URL, signer), zerolog.Nop())
+	require.NoError(t, err)
+	order, err := client.PlaceFuturesOrder(context.Background(), FuturesOrderRequest{
+		Symbol: "BTCUSDT", Side: "BUY", Type: "MARKET",
+		Quantity: decimal.NewFromInt(2), NewClientOrderID: "futures-market-entry",
+	})
+	require.NoError(t, err)
+	assert.True(t, order.Price.IsZero())
+	assert.True(t, decimal.RequireFromString("50020").Equal(order.AverageFillPrice))
+}
+
+func TestPlaceFuturesOrderFallsBackToExchangeTransactionTime(t *testing.T) {
+	const transactTime = int64(1774116365123)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/fapi/v1/order", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"symbol": "BTCUSDT", "orderId": 44, "clientOrderId": "futures-observed-at",
+			"price": "0", "avgPrice": "50020", "origQty": "2", "executedQty": "2",
+			"cumQty": "2", "cumQuote": "100040", "status": "FILLED",
+			"timeInForce": "GTC", "type": "MARKET", "side": "BUY",
+			"transactTime": transactTime,
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSigner("test-key", "test-secret")
+	client, err := NewFuturesClient(server.URL, signer, rest.NewClient(server.URL, signer), zerolog.Nop())
+	require.NoError(t, err)
+	order, err := client.PlaceFuturesOrder(context.Background(), FuturesOrderRequest{
+		Symbol: "BTCUSDT", Side: "BUY", Type: "MARKET",
+		Quantity: decimal.NewFromInt(2), NewClientOrderID: "futures-observed-at",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, transactTime, order.TransactTime)
+}
+
+func TestPlaceFuturesOrderFallsBackToCumulativeQuoteForImmediateAverage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/fapi/v1/order", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"symbol": "BTCUSDT", "orderId": 45, "clientOrderId": "futures-market-fallback",
+			"price": "0", "avgPrice": "0", "origQty": "2", "executedQty": "2",
+			"cumQty": "2", "cumQuote": "100040", "status": "FILLED",
+			"timeInForce": "GTC", "type": "MARKET", "side": "BUY",
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	signer := auth.NewSigner("test-key", "test-secret")
+	client, err := NewFuturesClient(server.URL, signer, rest.NewClient(server.URL, signer), zerolog.Nop())
+	require.NoError(t, err)
+	order, err := client.PlaceFuturesOrder(context.Background(), FuturesOrderRequest{
+		Symbol: "BTCUSDT", Side: "BUY", Type: "MARKET",
+		Quantity: decimal.NewFromInt(2), NewClientOrderID: "futures-market-fallback",
+	})
+	require.NoError(t, err)
+	assert.True(t, order.Price.IsZero())
+	assert.True(t, decimal.RequireFromString("50020").Equal(order.AverageFillPrice))
+}
 
 func TestNewClient_ValidatesConfiguration(t *testing.T) {
 	apiKey, secretKey := getTestCredentials(t)

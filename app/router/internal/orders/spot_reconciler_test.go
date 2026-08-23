@@ -589,12 +589,14 @@ func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
 
 	waitForEmitterStatus(t, emitter, "FILLED")
 	// FILLED is emitted before the trades-lag persist retry completes;
-	// wait on the ledger and the price-rewritten emission instead of racing.
+	// wait on the ledger and the authoritative-average emission instead of racing.
 	require.Eventually(t, func() bool { return ledger.callCount() == 1 },
 		time.Second, 5*time.Millisecond)
 	require.Eventually(t, func() bool {
 		_, current := emitter.snapshot()
-		return current != nil && decimal.RequireFromString("50010").Equal(current.Price)
+		return current != nil &&
+			decimal.RequireFromString("50000").Equal(current.Price) &&
+			decimal.RequireFromString("50010").Equal(current.AverageFillPrice)
 	}, time.Second, 5*time.Millisecond)
 
 	assert.GreaterOrEqual(t, getCalls.Load(), int64(2))
@@ -602,7 +604,7 @@ func TestSpotReconciler_RetriesWhenTradesLagTerminalStatus(t *testing.T) {
 	require.Len(t, ledger.latestSnapshot().Trades, 1)
 }
 
-func TestSpotReconciler_RewritesFilledPriceToTradeWeightedAverage(t *testing.T) {
+func TestSpotReconciler_SeparatesLimitPriceFromTradeWeightedAverage(t *testing.T) {
 	var tradeCalls atomic.Int64
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -614,8 +616,8 @@ func TestSpotReconciler_RewritesFilledPriceToTradeWeightedAverage(t *testing.T) 
 				"orderId":             100,
 				"clientOrderId":       "cid-1",
 				"price":               "50000",
-				"origQty":             "0.020",
-				"executedQty":         "0.020",
+				"origQty":             "0.030",
+				"executedQty":         "0.030",
 				"cummulativeQuoteQty": "1000",
 				"status":              "FILLED",
 				"timeInForce":         "GTC",
@@ -644,7 +646,7 @@ func TestSpotReconciler_RewritesFilledPriceToTradeWeightedAverage(t *testing.T) 
 					"id":              702,
 					"orderId":         100,
 					"price":           "50030",
-					"qty":             "0.010",
+					"qty":             "0.020",
 					"commission":      "0.05",
 					"commissionAsset": "USDT",
 					"time":            time.Now().UnixMilli(),
@@ -677,7 +679,7 @@ func TestSpotReconciler_RewritesFilledPriceToTradeWeightedAverage(t *testing.T) 
 		ClientOrderID: "cid-1",
 		Side:          "BUY",
 		OrderType:     "LIMIT",
-		Quantity:      decimal.RequireFromString("0.020"),
+		Quantity:      decimal.RequireFromString("0.030"),
 		Price:         decimal.RequireFromString("50000"),
 		InitialStatus: "NEW",
 		ExecutedQty:   decimal.Zero,
@@ -685,10 +687,11 @@ func TestSpotReconciler_RewritesFilledPriceToTradeWeightedAverage(t *testing.T) 
 
 	update := waitForEmitterStatus(t, emitter, "FILLED")
 	snapshot := ledger.latestSnapshot()
-	expectedAverage := decimal.RequireFromString("50020")
+	expectedAverage := decimal.RequireFromString("50023.33333333")
 
 	assert.Equal(t, int64(1), tradeCalls.Load())
-	assert.True(t, expectedAverage.Equal(update.Price))
+	assert.True(t, decimal.RequireFromString("50000").Equal(update.Price))
+	assert.True(t, expectedAverage.Equal(update.AverageFillPrice))
 	assert.True(t, expectedAverage.Equal(snapshot.Price))
 }
 

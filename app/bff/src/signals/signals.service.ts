@@ -40,6 +40,7 @@ export class SignalsService {
     }
 
     const job = await this.snapshotQueue.add('generate', payload, {
+      jobId: payload.signalId,
       attempts: 3,
       backoff: { type: 'exponential', delay: 2000 },
     });

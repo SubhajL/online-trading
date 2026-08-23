@@ -24,6 +24,8 @@ import { CancelOrderCommand } from './commands/cancel-order.command';
 import { SetAutoTradingCommand } from './commands/set-auto-trading.command';
 import { EmergencyCloseDto, EmergencyCloseResponse } from './dto/emergency-close.dto';
 import { EmergencyCloseService } from './emergency-close.service';
+import { InternalApiGuard } from '../auth/guards/internal-api.guard';
+import { OrderUpdateDto } from './dto/order-update.dto';
 
 interface CancelOrderRequest {
   symbol: string;
@@ -128,5 +130,18 @@ export class TradingController {
     );
 
     return this.emergencyCloseService.execute(dto, idempotencyKey);
+  }
+}
+
+@UseGuards(InternalApiGuard)
+@Controller('internal/trading')
+export class InternalTradingController {
+  constructor(private readonly tradingService: TradingService) {}
+
+  @Post('order-update')
+  @HttpCode(HttpStatus.OK)
+  async acceptOrderUpdate(@Body() update: OrderUpdateDto): Promise<{ ok: boolean }> {
+    const accepted = await this.tradingService.acceptOrderUpdate(update);
+    return { ok: accepted !== null };
   }
 }

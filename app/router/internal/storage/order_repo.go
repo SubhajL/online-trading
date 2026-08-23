@@ -240,6 +240,12 @@ func (r *OrderRepo) ApplyFillUpdate(
 		        average_fill_price = NULLIF($3, 0),
 		        exchange_order_id = NULLIF($4, ''),
 		        last_update_time = $5,
+		        first_fill_ts = CASE
+		            WHEN orders.first_fill_ts IS NULL
+		             AND orders.filled_quantity <= 0
+		             AND $2::numeric > 0 THEN $5
+		            ELSE orders.first_fill_ts
+		        END,
 		        total_commission = COALESCE(total_commission, 0) + $6,
 		        commission = COALESCE(total_commission, 0) + $6,
 		        commission_asset = NULLIF($7, ''),

@@ -187,7 +187,12 @@ describe('OrderForm', () => {
 
   it('disables form while submitting', async () => {
     const user = userEvent.setup()
-    mockOnSubmit.mockReturnValue(new Promise(resolve => setTimeout(resolve, 100)))
+    let resolveSubmission: (() => void) | undefined
+    mockOnSubmit.mockReturnValue(
+      new Promise<void>(resolve => {
+        resolveSubmission = resolve
+      }),
+    )
 
     render(<OrderForm onSubmit={mockOnSubmit} />)
 
@@ -203,6 +208,10 @@ describe('OrderForm', () => {
     expect(submitButton).toBeDisabled()
     expect(symbolInput).toBeDisabled()
     expect(quantityInput).toBeDisabled()
+
+    expect(resolveSubmission).toBeTypeOf('function')
+    resolveSubmission?.()
+    await waitFor(() => expect(submitButton).not.toBeDisabled())
   })
 
   it('shows loading state while submitting', async () => {

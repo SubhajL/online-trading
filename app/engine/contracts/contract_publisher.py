@@ -13,6 +13,7 @@ from app.engine.models import (
     CandleUpdateEvent,
     EventType,
     FeaturesCalculatedEvent,
+    OrderPlacedEvent,
     OrderUpdateEvent,
     RetestSignalEvent,
     TradingDecisionEvent,
@@ -55,6 +56,70 @@ def _dec_to_float(v: Decimal | None) -> float | None:
     if v is None:
         return None
     return float(v)
+
+
+def _format_decimal_fixed(value: Decimal | None) -> str | None:
+    return None if value is None else format(value, "f")
+
+
+def order_placed_event_to_order_update_payload(event: OrderPlacedEvent) -> dict[str, Any]:
+    order = event.order
+    metadata = event.metadata or {}
+    decision_id_raw = metadata.get("decision_id") or metadata.get("decisionId")
+    if decision_id_raw is None and event.decision is not None:
+        decision_id_raw = event.decision.decision_id
+    decision_id = str(decision_id_raw).strip() if decision_id_raw is not None else ""
+
+    venue = metadata.get("venue")
+    if not isinstance(venue, str) or not venue:
+        venue = event.decision.venue if event.decision is not None else "SPOT"
+
+    def map_status(raw: str) -> str:
+        value = raw.strip().upper()
+        return {
+            "PENDING": "pending",
+            "NEW": "new",
+            "PARTIALLY_FILLED": "partially_filled",
+            "FILLED": "filled",
+            "CANCELED": "cancelled",
+            "CANCELLED": "cancelled",
+            "REJECTED": "rejected",
+            "EXPIRED": "expired",
+        }.get(value, "pending")
+
+    def map_order_type(raw: str) -> str:
+        value = raw.strip().upper()
+        return {
+            "MARKET": "market",
+            "LIMIT": "limit",
+            "STOP_MARKET": "stop_market",
+            "STOP_LOSS": "stop_market",
+            "STOP_LOSS_LIMIT": "stop_limit",
+            "TAKE_PROFIT": "limit",
+            "TAKE_PROFIT_LIMIT": "limit",
+        }.get(value, "market")
+
+    return {
+        "version": "1.0.0",
+        "venue": venue,
+        "symbol": order.symbol,
+        "order_id": "",
+        "client_order_id": order.client_order_id,
+        "decision_id": decision_id,
+        "update_time": _format_datetime_iso_z(event.timestamp),
+        "status": map_status(order.status.value),
+        "side": order.side.value.lower(),
+        "order_type": map_order_type(order.type.value),
+        "price": _format_decimal_fixed(order.price),
+        "stop_price": _format_decimal_fixed(order.stop_price),
+        "quantity": _format_decimal_fixed(order.quantity),
+        "filled_quantity": _format_decimal_fixed(order.filled_quantity),
+        "average_fill_price": _format_decimal_fixed(order.average_fill_price),
+        "commission": None,
+        "commission_asset": None,
+        "error_message": None,
+        "is_reduce_only": bool(metadata.get("reduce_only", False)),
+    }
 
 
 class ContractPublisher:
@@ -107,6 +172,14 @@ class ContractPublisher:
                 subscriber_id="contract-publisher:order-updates",
                 handler=self.on_order_update,
                 event_types=[EventType.ORDER_UPDATE],
+                priority=1,
+            ),
+        )
+        self._subs.append(
+            await self._bus.subscribe(
+                subscriber_id="contract-publisher:order-placed",
+                handler=self.on_order_placed,
+                event_types=[EventType.ORDER_PLACED],
                 priority=1,
             ),
         )
@@ -330,13 +403,19 @@ class ContractPublisher:
             "side": map_side(update.side),
             "order_type": map_order_type(update.order_type),
             "price": None if update.price is None else str(update.price),
-            "stop_price": None,
+            "stop_price": None if update.stop_price is None else str(update.stop_price),
             "quantity": str(update.quantity or "0"),
             "filled_quantity": str(update.executed_qty or "0"),
-            "average_fill_price": None,
+            "average_fill_price": _format_decimal_fixed(update.average_fill_price),
             "commission": None,
             "commission_asset": None,
             "error_message": update.reason,
             "is_reduce_only": bool(metadata.get("reduce_only", False)),
         }
         await self._publish(ContractTopic.ORDER_UPDATE_V1, payload)
+
+    async def on_order_placed(self, event: OrderPlacedEvent) -> None:
+        await self._publish(
+            ContractTopic.ORDER_UPDATE_V1,
+            order_placed_event_to_order_update_payload(event),
+        )

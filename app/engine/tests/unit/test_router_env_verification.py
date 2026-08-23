@@ -48,6 +48,15 @@ class _ClientWithoutHealth:
         return {}
 
 
+class _FakeDBAdapter:
+    async def has_incomplete_execution_intent_outside_venue(
+        self,
+        active_venue: str,
+    ) -> bool:
+        _ = active_venue
+        return False
+
+
 def _risk() -> RiskParameters:
     return RiskParameters(
         max_position_size=Decimal("999999"),
@@ -69,7 +78,7 @@ def _subscriber(client: Any, mode: ExecutionMode) -> tuple[RouterExecutionSubscr
     subscriber = RouterExecutionSubscriber(
         bus=bus,  # type: ignore[arg-type]
         router_client=client,
-        db_adapter=object(),  # type: ignore[arg-type]
+        db_adapter=_FakeDBAdapter(),  # type: ignore[arg-type]
         risk=_risk(),
         venue="SPOT",
         execution_mode=mode,

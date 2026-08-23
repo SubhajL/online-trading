@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 )
@@ -34,16 +35,17 @@ const (
 )
 
 type BracketLegRecord struct {
-	LegID           uuid.UUID
-	BracketID       uuid.UUID
-	Role            string // ENTRY | TP | SL
-	TPIndex         int
-	ClientOrderID   string
-	ExchangeOrderID int64
-	Price           decimal.Decimal
-	StopPrice       decimal.Decimal
-	Quantity        decimal.Decimal
-	Status          string
+	LegID            uuid.UUID
+	BracketID        uuid.UUID
+	Role             string // ENTRY | TP | SL
+	TPIndex          int
+	ClientOrderID    string
+	ExchangeOrderID  int64
+	Price            decimal.Decimal
+	StopPrice        decimal.Decimal
+	Quantity         decimal.Decimal
+	ExecutedQuantity decimal.Decimal
+	Status           string
 }
 
 type BracketRecord struct {
@@ -61,6 +63,13 @@ type BracketRecord struct {
 	LegsOnFill         bool
 	CreatedAt          time.Time
 	Legs               []BracketLegRecord
+}
+
+type OpenBracketCursor struct {
+	AfterCreatedAt     time.Time
+	AfterBracketID     uuid.UUID
+	HighWaterCreatedAt time.Time
+	HighWaterBracketID uuid.UUID
 }
 
 type BracketRepo struct {
@@ -158,6 +167,44 @@ func (r *BracketRepo) UpdateBracketStatus(ctx context.Context, bracketID uuid.UU
 	return nil
 }
 
+func bracketStatusRank(status string) (int, bool) {
+	switch status {
+	case BracketStatusReserved:
+		return 0, true
+	case BracketStatusEntryPlaced:
+		return 1, true
+	case BracketStatusEntryFilled:
+		return 2, true
+	case BracketStatusLegsPlaced:
+		return 3, true
+	default:
+		return 0, false
+	}
+}
+
+// AdvanceBracketStatus applies only monotonic non-terminal bracket transitions.
+func (r *BracketRepo) AdvanceBracketStatus(ctx context.Context, bracketID uuid.UUID, status string) (bool, error) {
+	rank, ok := bracketStatusRank(status)
+	if !ok {
+		return false, fmt.Errorf("invalid non-terminal bracket status %q", status)
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE brackets
+		SET status = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1
+		  AND status IN ('RESERVED', 'ENTRY_PLACED', 'ENTRY_FILLED', 'LEGS_PLACED')
+		  AND CASE status
+				WHEN 'RESERVED' THEN 0
+				WHEN 'ENTRY_PLACED' THEN 1
+				WHEN 'ENTRY_FILLED' THEN 2
+				WHEN 'LEGS_PLACED' THEN 3
+			END <= $3`, bracketID, status, rank)
+	if err != nil {
+		return false, fmt.Errorf("advance bracket status: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 func (r *BracketRepo) UpdateLegStatus(
 	ctx context.Context,
 	bracketID uuid.UUID,
@@ -165,9 +212,9 @@ func (r *BracketRepo) UpdateLegStatus(
 	exchangeOrderID int64,
 ) error {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE bracket_legs
+	UPDATE bracket_legs
 		SET status = $3,
-		    exchange_order_id = NULLIF($4, 0),
+		    exchange_order_id = COALESCE(NULLIF($4, 0), exchange_order_id),
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE bracket_id = $1 AND client_order_id = $2`,
 		bracketID, clientOrderID, status, exchangeOrderID)
@@ -176,6 +223,148 @@ func (r *BracketRepo) UpdateLegStatus(
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("update bracket leg status: no leg %s in bracket %s", clientOrderID, bracketID)
+	}
+	return nil
+}
+
+func (r *BracketRepo) UpdateLegExecution(
+	ctx context.Context,
+	bracketID uuid.UUID,
+	clientOrderID, status string,
+	exchangeOrderID int64,
+	averageFillPrice decimal.Decimal,
+) error {
+	tag, err := r.pool.Exec(ctx, `
+	UPDATE bracket_legs
+		SET status = $3,
+		    exchange_order_id = COALESCE(NULLIF($4, 0), exchange_order_id),
+		    average_fill_price = CASE WHEN $5 > 0 THEN $5 ELSE average_fill_price END,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1 AND client_order_id = $2`,
+		bracketID, clientOrderID, status, exchangeOrderID, averageFillPrice)
+	if err != nil {
+		return fmt.Errorf("update bracket leg execution: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("update bracket leg execution: no leg %s in bracket %s", clientOrderID, bracketID)
+	}
+	return nil
+}
+
+// UpdateLegExecutionProgress records monotonic cumulative entry execution.
+// Working exchange statuses use PLACED in the durable leg state; the 042
+// trigger projects a positive executed quantity as PARTIALLY_FILLED.
+func (r *BracketRepo) UpdateLegExecutionProgress(
+	ctx context.Context,
+	bracketID uuid.UUID,
+	clientOrderID, status string,
+	exchangeOrderID int64,
+	executedQuantity, averageFillPrice decimal.Decimal,
+	observedAt time.Time,
+) error {
+	if executedQuantity.IsNegative() {
+		return fmt.Errorf("executed quantity cannot be negative")
+	}
+	if status == "PARTIALLY_FILLED" {
+		status = LegStatusPlaced
+	}
+	var observedAtArg any
+	if !observedAt.IsZero() {
+		observedAtArg = observedAt.UTC()
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE bracket_legs
+		SET status = CASE
+		        WHEN status = 'FILLED' THEN status
+		        WHEN status IN ('CANCELED', 'EXPIRED') AND $3 = 'PLACED' THEN status
+		        ELSE $3
+		    END,
+		    exchange_order_id = COALESCE(NULLIF($4, 0), exchange_order_id),
+		    executed_quantity = GREATEST(executed_quantity, $5),
+		    average_fill_price = CASE
+		        WHEN $6 > 0 AND $5 > executed_quantity THEN $6
+		        WHEN $6 > 0 AND $5 = executed_quantity
+		             AND $7::timestamptz IS NOT NULL
+		             AND (execution_observed_at IS NULL OR $7::timestamptz > execution_observed_at)
+		            THEN $6
+		        ELSE average_fill_price
+		    END,
+		    execution_observed_at = CASE
+		        WHEN $7::timestamptz IS NULL THEN execution_observed_at
+		        WHEN $5 > executed_quantity THEN $7::timestamptz
+		        WHEN $5 = executed_quantity AND $6 > 0
+		             AND (execution_observed_at IS NULL OR $7::timestamptz > execution_observed_at)
+		            THEN $7::timestamptz
+		        ELSE execution_observed_at
+		    END,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1 AND client_order_id = $2 AND $5 <= quantity`,
+		bracketID, clientOrderID, status, exchangeOrderID, executedQuantity, averageFillPrice, observedAtArg)
+	if err != nil {
+		return fmt.Errorf("update bracket leg execution progress: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("update bracket leg execution progress: no leg %s in bracket %s or quantity exceeds leg quantity", clientOrderID, bracketID)
+	}
+	return nil
+}
+
+// UpdateLegQuantity narrows durable protective-leg coverage to the finalized
+// entry quantity before an exit claim can be made.
+func (r *BracketRepo) UpdateLegQuantity(
+	ctx context.Context,
+	bracketID uuid.UUID,
+	clientOrderID string,
+	quantity decimal.Decimal,
+) error {
+	if quantity.IsNegative() {
+		return fmt.Errorf("leg quantity cannot be negative")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE bracket_legs
+		SET quantity = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1 AND client_order_id = $2
+		  AND executed_quantity <= $3
+		  AND (status IN ($4, $5) OR quantity = $3)`,
+		bracketID, clientOrderID, quantity, LegStatusPlanned, LegStatusFailed)
+	if err != nil {
+		return fmt.Errorf("update bracket leg quantity: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("update bracket leg quantity: no leg %s in bracket %s or quantity below executed quantity", clientOrderID, bracketID)
+	}
+	return nil
+}
+
+// TryClaimEntryFinalization serializes cancel-and-finalize across the event
+// stream, spot watcher, and startup reconciler while allowing crash recovery.
+func (r *BracketRepo) TryClaimEntryFinalization(ctx context.Context, bracketID, leaseToken uuid.UUID) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE brackets
+		SET entry_finalization_lease_token = $2,
+		    entry_finalization_lease_until = CURRENT_TIMESTAMP + INTERVAL '5 seconds',
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1
+		  AND (entry_finalization_lease_until IS NULL
+		       OR entry_finalization_lease_until <= CURRENT_TIMESTAMP
+		       OR entry_finalization_lease_token = $2)`,
+		bracketID, leaseToken)
+	if err != nil {
+		return false, fmt.Errorf("claim entry finalization: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+func (r *BracketRepo) ReleaseEntryFinalization(ctx context.Context, bracketID, leaseToken uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE brackets
+		SET entry_finalization_lease_token = NULL,
+		    entry_finalization_lease_until = NULL,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE bracket_id = $1 AND entry_finalization_lease_token = $2`,
+		bracketID, leaseToken)
+	if err != nil {
+		return fmt.Errorf("release entry finalization: %w", err)
 	}
 	return nil
 }
@@ -190,9 +379,9 @@ func (r *BracketRepo) UpdateLegStatusIf(
 	exchangeOrderID int64,
 ) (bool, error) {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE bracket_legs
+	UPDATE bracket_legs
 		SET status = $4,
-		    exchange_order_id = NULLIF($5, 0),
+		    exchange_order_id = COALESCE(NULLIF($5, 0), exchange_order_id),
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE bracket_id = $1 AND client_order_id = $2 AND status = $3`,
 		bracketID, clientOrderID, expected, status, exchangeOrderID)
@@ -313,22 +502,56 @@ func (r *BracketRepo) GetByLegClientOrderID(ctx context.Context, venue, clientOr
 	return &rec, nil
 }
 
-// LoadOpenBrackets returns non-terminal brackets created within lookback,
-// legs included — the work list for startup reconciliation.
-func (r *BracketRepo) LoadOpenBrackets(ctx context.Context, lookback time.Duration) ([]BracketRecord, error) {
+// LoadOpenBracketPage returns a bounded, stable page of every non-terminal
+// bracket at or before the pass high-water mark.
+func (r *BracketRepo) LoadOpenBracketPage(
+	ctx context.Context,
+	cursor *OpenBracketCursor,
+	pageSize int,
+) ([]BracketRecord, *OpenBracketCursor, error) {
+	if pageSize <= 0 {
+		return nil, nil, fmt.Errorf("page size must be greater than zero")
+	}
+
+	afterCreatedAt := time.Time{}
+	afterBracketID := uuid.Nil
+	var highWaterCreatedAt time.Time
+	var highWaterBracketID uuid.UUID
+	if cursor == nil {
+		err := r.pool.QueryRow(ctx, `
+			SELECT created_at, bracket_id
+			FROM brackets
+			WHERE status NOT IN ('CLOSED', 'FAILED')
+			ORDER BY created_at DESC, bracket_id DESC
+			LIMIT 1`).Scan(&highWaterCreatedAt, &highWaterBracketID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []BracketRecord{}, nil, nil
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("load open bracket high-water mark: %w", err)
+		}
+	} else {
+		afterCreatedAt = cursor.AfterCreatedAt
+		afterBracketID = cursor.AfterBracketID
+		highWaterCreatedAt = cursor.HighWaterCreatedAt
+		highWaterBracketID = cursor.HighWaterBracketID
+	}
+
 	rows, err := r.pool.Query(ctx, `
 		SELECT bracket_id, venue, idempotency_key, request_hash, symbol, side, quantity, entry_price,
 		       stop_loss_price, entry_client_order_id, status, legs_on_fill, created_at
 		FROM brackets
 		WHERE status NOT IN ('CLOSED', 'FAILED')
-		  AND created_at >= CURRENT_TIMESTAMP - $1::interval`,
-		fmt.Sprintf("%d seconds", int(lookback.Seconds())))
+		  AND (created_at, bracket_id) > ($1, $2)
+		  AND (created_at, bracket_id) <= ($3, $4)
+		ORDER BY created_at ASC, bracket_id ASC
+		LIMIT $5`, afterCreatedAt, afterBracketID, highWaterCreatedAt, highWaterBracketID, pageSize+1)
 	if err != nil {
-		return nil, fmt.Errorf("load open brackets: %w", err)
+		return nil, nil, fmt.Errorf("load open bracket page: %w", err)
 	}
 	defer rows.Close()
 
-	var records []BracketRecord
+	records := make([]BracketRecord, 0, pageSize+1)
 	for rows.Next() {
 		var rec BracketRecord
 		if err := rows.Scan(
@@ -337,22 +560,34 @@ func (r *BracketRepo) LoadOpenBrackets(ctx context.Context, lookback time.Durati
 			&rec.EntryPrice, &rec.StopLossPrice, &rec.EntryClientOrderID,
 			&rec.Status, &rec.LegsOnFill, &rec.CreatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan bracket: %w", err)
+			return nil, nil, fmt.Errorf("scan open bracket page: %w", err)
 		}
 		records = append(records, rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("read open bracket page: %w", err)
 	}
+	rows.Close()
 
+	var next *OpenBracketCursor
+	if len(records) > pageSize {
+		records = records[:pageSize]
+		last := records[len(records)-1]
+		next = &OpenBracketCursor{
+			AfterCreatedAt:     last.CreatedAt,
+			AfterBracketID:     last.BracketID,
+			HighWaterCreatedAt: highWaterCreatedAt,
+			HighWaterBracketID: highWaterBracketID,
+		}
+	}
 	for i := range records {
 		legs, err := r.loadLegs(ctx, records[i].BracketID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		records[i].Legs = legs
 	}
-	return records, nil
+	return records, next, nil
 }
 
 func (r *BracketRepo) getByEntryClientOrderID(ctx context.Context, venue, entryClientOrderID string) (*BracketRecord, error) {
@@ -409,13 +644,45 @@ func (r *BracketRepo) loadLegs(ctx context.Context, bracketID uuid.UUID) ([]Brac
 	rows, err := r.pool.Query(ctx, `
 		SELECT leg_id, bracket_id, role, tp_index, client_order_id,
 		       COALESCE(exchange_order_id, 0), COALESCE(price, 0),
-		       COALESCE(stop_price, 0), quantity, status
+		       COALESCE(stop_price, 0), quantity, COALESCE(executed_quantity, 0), status
 		FROM bracket_legs
 		WHERE bracket_id = $1
 		ORDER BY role, tp_index`,
 		bracketID)
 	if err != nil {
-		return nil, fmt.Errorf("load bracket legs: %w", err)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "42703" {
+			return nil, fmt.Errorf("load bracket legs: %w", err)
+		}
+		return r.loadLegacyLegs(ctx, bracketID)
+	}
+	defer rows.Close()
+
+	var legs []BracketLegRecord
+	for rows.Next() {
+		var leg BracketLegRecord
+		if err := rows.Scan(
+			&leg.LegID, &leg.BracketID, &leg.Role, &leg.TPIndex, &leg.ClientOrderID,
+			&leg.ExchangeOrderID, &leg.Price, &leg.StopPrice, &leg.Quantity,
+			&leg.ExecutedQuantity, &leg.Status,
+		); err != nil {
+			return nil, fmt.Errorf("scan bracket leg: %w", err)
+		}
+		legs = append(legs, leg)
+	}
+	return legs, rows.Err()
+}
+
+func (r *BracketRepo) loadLegacyLegs(ctx context.Context, bracketID uuid.UUID) ([]BracketLegRecord, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT leg_id, bracket_id, role, tp_index, client_order_id,
+		       COALESCE(exchange_order_id, 0), COALESCE(price, 0),
+		       COALESCE(stop_price, 0), quantity, status
+		FROM bracket_legs
+		WHERE bracket_id = $1
+		ORDER BY role, tp_index`, bracketID)
+	if err != nil {
+		return nil, fmt.Errorf("load legacy bracket legs: %w", err)
 	}
 	defer rows.Close()
 
@@ -426,7 +693,7 @@ func (r *BracketRepo) loadLegs(ctx context.Context, bracketID uuid.UUID) ([]Brac
 			&leg.LegID, &leg.BracketID, &leg.Role, &leg.TPIndex, &leg.ClientOrderID,
 			&leg.ExchangeOrderID, &leg.Price, &leg.StopPrice, &leg.Quantity, &leg.Status,
 		); err != nil {
-			return nil, fmt.Errorf("scan bracket leg: %w", err)
+			return nil, fmt.Errorf("scan legacy bracket leg: %w", err)
 		}
 		legs = append(legs, leg)
 	}

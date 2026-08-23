@@ -57,6 +57,68 @@ func convertFills(restFills []rest.Fill) []Fill {
 	return fills
 }
 
+func spotAverageFillPrice(response *rest.OrderResponse) decimal.Decimal {
+	if response == nil || !response.ExecutedQty.IsPositive() {
+		return decimal.Zero
+	}
+	if response.CummulativeQuoteQty.IsPositive() {
+		return response.CummulativeQuoteQty.Div(response.ExecutedQty)
+	}
+
+	totalQty := decimal.Zero
+	totalQuote := decimal.Zero
+	for _, fill := range response.Fills {
+		if !fill.Qty.IsPositive() {
+			continue
+		}
+		totalQty = totalQty.Add(fill.Qty)
+		totalQuote = totalQuote.Add(fill.Price.Mul(fill.Qty))
+	}
+	if totalQty.IsPositive() {
+		return totalQuote.Div(totalQty)
+	}
+	return decimal.Zero
+}
+
+func futuresAverageFillPrice(response *rest.FuturesOrderResponse) decimal.Decimal {
+	if response == nil || !response.ExecutedQty.IsPositive() {
+		return decimal.Zero
+	}
+	if response.AvgPrice.IsPositive() {
+		return response.AvgPrice
+	}
+	if response.CumQuote.IsPositive() {
+		return response.CumQuote.Div(response.ExecutedQty)
+	}
+	return decimal.Zero
+}
+
+func orderObservationMillis(updateTime, transactTime int64) int64 {
+	if updateTime > 0 {
+		return updateTime
+	}
+	if transactTime > 0 {
+		return transactTime
+	}
+	return 0
+}
+
+func queriedFuturesAverageFillPrice(response *rest.OrderResponse) decimal.Decimal {
+	if response == nil || !response.ExecutedQty.IsPositive() {
+		return decimal.Zero
+	}
+	if response.AvgPrice.IsPositive() {
+		return response.AvgPrice
+	}
+	if response.CumQuote.IsPositive() {
+		return response.CumQuote.Div(response.ExecutedQty)
+	}
+	if response.CummulativeQuoteQty.IsPositive() {
+		return response.CummulativeQuoteQty.Div(response.ExecutedQty)
+	}
+	return decimal.Zero
+}
+
 func convertTrades(restTrades []rest.Trade) []Trade {
 	trades := make([]Trade, len(restTrades))
 	for i, trade := range restTrades {
@@ -143,18 +205,19 @@ func (c *Client) PlaceSpotOrder(ctx context.Context, order SpotOrderRequest) (*O
 
 	// Convert REST response to our response type
 	response := &OrderResponse{
-		Symbol:        restResp.Symbol,
-		OrderID:       restResp.OrderID,
-		ClientOrderID: restResp.ClientOrderID,
-		TransactTime:  restResp.TransactTime,
-		Price:         restResp.Price,
-		OrigQty:       restResp.OrigQty,
-		ExecutedQty:   restResp.ExecutedQty,
-		Status:        restResp.Status,
-		TimeInForce:   restResp.TimeInForce,
-		Type:          restResp.Type,
-		Side:          restResp.Side,
-		Fills:         convertFills(restResp.Fills),
+		Symbol:           restResp.Symbol,
+		OrderID:          restResp.OrderID,
+		ClientOrderID:    restResp.ClientOrderID,
+		TransactTime:     orderObservationMillis(restResp.UpdateTime, restResp.TransactTime),
+		Price:            restResp.Price,
+		OrigQty:          restResp.OrigQty,
+		ExecutedQty:      restResp.ExecutedQty,
+		AverageFillPrice: spotAverageFillPrice(restResp),
+		Status:           restResp.Status,
+		TimeInForce:      restResp.TimeInForce,
+		Type:             restResp.Type,
+		Side:             restResp.Side,
+		Fills:            convertFills(restResp.Fills),
 	}
 
 	c.logger.Info().
@@ -221,18 +284,19 @@ func (c *Client) PlaceFuturesOrder(ctx context.Context, order FuturesOrderReques
 
 	// Convert REST response to our response type
 	response := &OrderResponse{
-		Symbol:        restResp.Symbol,
-		OrderID:       restResp.OrderID,
-		ClientOrderID: restResp.ClientOrderID,
-		TransactTime:  time.Now().UnixMilli(), // Futures response doesn't include TransactTime
-		Price:         restResp.Price,
-		OrigQty:       restResp.OrigQty,
-		ExecutedQty:   restResp.ExecutedQty,
-		Status:        restResp.Status,
-		TimeInForce:   restResp.TimeInForce,
-		Type:          restResp.Type,
-		Side:          restResp.Side,
-		Fills:         []Fill{}, // Futures response doesn't include Fills in the same way
+		Symbol:           restResp.Symbol,
+		OrderID:          restResp.OrderID,
+		ClientOrderID:    restResp.ClientOrderID,
+		TransactTime:     orderObservationMillis(restResp.UpdateTime, restResp.TransactTime),
+		Price:            restResp.Price,
+		OrigQty:          restResp.OrigQty,
+		ExecutedQty:      restResp.ExecutedQty,
+		AverageFillPrice: futuresAverageFillPrice(restResp),
+		Status:           restResp.Status,
+		TimeInForce:      restResp.TimeInForce,
+		Type:             restResp.Type,
+		Side:             restResp.Side,
+		Fills:            []Fill{}, // Futures response doesn't include Fills in the same way
 	}
 
 	c.logger.Info().
@@ -761,26 +825,25 @@ func (c *Client) GetOrderByClientID(
 		return nil, fmt.Errorf("failed to query order by client id: %w", err)
 	}
 
-	// The order-query response carries no fills and, for market orders, a
-	// zero price; derive the average fill price so adopters don't record 0.
-	price := restResp.Price
-	if price.IsZero() && restResp.ExecutedQty.IsPositive() && restResp.CummulativeQuoteQty.IsPositive() {
-		price = restResp.CummulativeQuoteQty.Div(restResp.ExecutedQty)
+	averageFillPrice := spotAverageFillPrice(restResp)
+	if c.isFutures {
+		averageFillPrice = queriedFuturesAverageFillPrice(restResp)
 	}
 
 	return &OrderResponse{
-		Symbol:        restResp.Symbol,
-		OrderID:       restResp.OrderID,
-		ClientOrderID: restResp.ClientOrderID,
-		TransactTime:  restResp.TransactTime,
-		Price:         price,
-		OrigQty:       restResp.OrigQty,
-		ExecutedQty:   restResp.ExecutedQty,
-		Status:        restResp.Status,
-		TimeInForce:   restResp.TimeInForce,
-		Type:          restResp.Type,
-		Side:          restResp.Side,
-		Fills:         convertFills(restResp.Fills),
+		Symbol:           restResp.Symbol,
+		OrderID:          restResp.OrderID,
+		ClientOrderID:    restResp.ClientOrderID,
+		TransactTime:     orderObservationMillis(restResp.UpdateTime, restResp.TransactTime),
+		Price:            restResp.Price,
+		OrigQty:          restResp.OrigQty,
+		ExecutedQty:      restResp.ExecutedQty,
+		AverageFillPrice: averageFillPrice,
+		Status:           restResp.Status,
+		TimeInForce:      restResp.TimeInForce,
+		Type:             restResp.Type,
+		Side:             restResp.Side,
+		Fills:            convertFills(restResp.Fills),
 	}, nil
 }
 

@@ -12,11 +12,13 @@ from app.engine.adapters.alert.alert_subscriber import (
     AlertSubscriber,
     _error_event_to_text,
 )
+from app.engine.core.event_bus_factory import EventBusConfig, EventBusFactory
 from app.engine.models import (
     ErrorEvent,
     EventType,
     Order,
     OrderFilledEvent,
+    OrderPlacedEvent,
     OrderSide,
     OrderStatus,
     OrderType,
@@ -103,6 +105,31 @@ def _make_order_filled_event(*, timestamp: datetime) -> OrderFilledEvent:
     )
 
 
+def _make_order_placed_event(*, timestamp: datetime) -> OrderPlacedEvent:
+    decision_event = _make_trading_decision_event(timestamp=timestamp)
+    return OrderPlacedEvent(
+        timestamp=timestamp,
+        symbol=decision_event.symbol,
+        timeframe=decision_event.timeframe,
+        metadata={
+            **decision_event.metadata,
+            "venue": "SPOT",
+        },
+        order=Order(
+            client_order_id="order-123",
+            symbol="BTCUSDT",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            quantity=Decimal("0.01"),
+            price=Decimal("50000"),
+            status=OrderStatus.NEW,
+            created_at=timestamp,
+        ),
+        decision=decision_event.decision,
+        router_response={"ok": True},
+    )
+
+
 def _make_error_event(*, timestamp: datetime) -> ErrorEvent:
     return ErrorEvent(
         timestamp=timestamp,
@@ -126,7 +153,7 @@ class TestAlertSubscriberRegister:
 
     @pytest.mark.asyncio
     async def test_registers_with_correct_event_types(self) -> None:
-        """Default mode (execution_enabled=False) subscribes to TRADING_DECISION and ERROR."""
+        """Disabled mode subscribes to decisions, durable placements, and lifecycle alerts."""
         bus = _FakeBus()
         subscriber = AlertSubscriber()
 
@@ -136,9 +163,10 @@ class TestAlertSubscriberRegister:
         assert event_types is not None
         # Default is execution_enabled=False, which subscribes to decision-only events
         assert EventType.TRADING_DECISION in event_types  # type: ignore[operator]
+        assert EventType.ORDER_PLACED in event_types  # type: ignore[operator]
         assert EventType.ERROR in event_types  # type: ignore[operator]
         assert EventType.STARTUP_COMPLETE in event_types  # type: ignore[operator]
-        assert len(event_types) == 3  # type: ignore[arg-type]
+        assert len(event_types) == 4  # type: ignore[arg-type]
 
     @pytest.mark.asyncio
     async def test_registers_with_low_priority(self) -> None:
@@ -185,6 +213,63 @@ class TestAlertSubscriberHandleEvent:
         assert payload["timeframe"] == "1h"
         assert payload["venue"] is None
         assert payload["reasons"] == ["SMC Break", "Trend Alignment"]
+
+    @pytest.mark.asyncio
+    async def test_routes_enriched_order_placed_to_telegram_without_duplicate_snapshot(
+        self,
+    ) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_decision = AsyncMock()
+        mock_bff = MagicMock()
+        mock_bff.post = AsyncMock()
+
+        subscriber = AlertSubscriber(
+            telegram_adapter=mock_telegram,
+            execution_enabled=False,
+            bff_client=mock_bff,
+        )
+        ts = datetime.now(UTC)
+
+        await subscriber._handle_event(_make_order_placed_event(timestamp=ts))
+
+        mock_telegram._handle_decision.assert_called_once()
+        payload = mock_telegram._handle_decision.call_args.args[0]
+        assert payload["symbol"] == "BTCUSDT"
+        assert payload["side"] == "long"
+        assert payload["signal_id"] == "sig_123"
+        assert payload["venue"] == "SPOT"
+        mock_bff.post.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_order_placed_telegram_failure_propagates_to_durable_dispatch(self) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_decision = AsyncMock(side_effect=RuntimeError("telegram failed"))
+        subscriber = AlertSubscriber(telegram_adapter=mock_telegram)
+
+        with pytest.raises(RuntimeError, match="telegram failed"):
+            await subscriber._handle_event(_make_order_placed_event(timestamp=datetime.now(UTC)))
+
+    @pytest.mark.asyncio
+    async def test_order_placed_telegram_failure_rejects_real_event_bus_dispatch(self) -> None:
+        mock_telegram = MagicMock()
+        mock_telegram._handle_decision = AsyncMock(side_effect=RuntimeError("telegram failed"))
+        subscriber = AlertSubscriber(telegram_adapter=mock_telegram)
+        bus = EventBusFactory().create_with_config(
+            EventBusConfig(max_queue_size=10, num_workers=1),
+        )
+        await bus.start()
+        try:
+            await subscriber.register(bus)
+
+            accepted = await bus.publish_and_wait(
+                _make_order_placed_event(timestamp=datetime.now(UTC)),
+                priority=7,
+            )
+
+            assert accepted is False
+        finally:
+            await subscriber.stop()
+            await bus.stop()
 
     @pytest.mark.asyncio
     async def test_trade_alert_is_skipped_when_decision_source_missing(self) -> None:
@@ -368,8 +453,9 @@ class TestAlertSubscriberEventTypesParameter:
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
         # Default is execution_enabled=False
-        assert len(event_types) == 3  # type: ignore[arg-type]
+        assert len(event_types) == 4  # type: ignore[arg-type]
         assert EventType.TRADING_DECISION in event_types  # type: ignore[operator]
+        assert EventType.ORDER_PLACED in event_types  # type: ignore[operator]
         assert EventType.ERROR in event_types  # type: ignore[operator]
 
     @pytest.mark.asyncio
@@ -382,8 +468,9 @@ class TestAlertSubscriberEventTypesParameter:
 
         event_types = bus.subscriptions[0]["event_types"]
         assert event_types is not None
-        assert len(event_types) == 3  # type: ignore[arg-type]
+        assert len(event_types) == 4  # type: ignore[arg-type]
         assert EventType.ORDER_UPDATE in event_types  # type: ignore[operator]
+        assert EventType.ORDER_PLACED in event_types  # type: ignore[operator]
         assert EventType.ERROR in event_types  # type: ignore[operator]
 
     @pytest.mark.asyncio

@@ -15,6 +15,7 @@ import logging
 import os
 from types import TracebackType
 from typing import Any, NamedTuple
+from uuid import uuid4
 
 import asyncpg
 from asyncpg import Pool
@@ -859,6 +860,56 @@ class TimescaleDBAdapter:
             logger.error(f"Error inserting trading decision: {e}")
             return False
 
+    async def get_execution_intent_for_request(
+        self,
+        idempotency_key: str,
+        *,
+        venue: str,
+        request_payload: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Load and hash-verify an existing execution intent for a replay request."""
+        payload_json = json.dumps(request_payload, sort_keys=True, default=str)
+        request_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+        async with self.get_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT request_hash, request_payload, response_payload, state
+                FROM execution_intents
+                WHERE venue = $1 AND idempotency_key = $2
+                """,
+                venue,
+                idempotency_key,
+            )
+        if row is None:
+            return None
+        if row["request_hash"] != request_hash:
+            raise RuntimeError(
+                f"execution intent request hash mismatch for idempotency_key={idempotency_key}"
+            )
+
+        def _normalize_json_object(value: Any, field_name: str) -> dict[str, Any] | None:
+            if value is None:
+                return None
+            if isinstance(value, (str, bytes, bytearray)):
+                try:
+                    value = json.loads(value)
+                except (TypeError, ValueError) as exc:
+                    raise RuntimeError(
+                        f"execution intent {field_name} payload is malformed"
+                    ) from exc
+            if not isinstance(value, dict):
+                raise RuntimeError(f"execution intent {field_name} payload is malformed")
+            return value
+
+        stored_request_payload = _normalize_json_object(row["request_payload"], "request")
+        if stored_request_payload is None:
+            raise RuntimeError("execution intent request payload is malformed")
+        return {
+            "request_payload": stored_request_payload,
+            "response_payload": _normalize_json_object(row["response_payload"], "response"),
+            "state": row["state"],
+        }
+
     async def prepare_execution_intent(self, intent: dict[str, Any]) -> bool:
         """Persist PREPARED before the router can submit to the exchange."""
         try:
@@ -934,6 +985,16 @@ class TimescaleDBAdapter:
                     SET state = $3,
                         response_payload = COALESCE($4::jsonb, response_payload),
                         error_message = COALESCE($5, error_message),
+                        recovery_lease_expires_at = CASE
+                            WHEN $3 = ANY(ARRAY['ACKNOWLEDGED', 'REJECTED']::text[])
+                            THEN NULL
+                            WHEN $3 = 'AMBIGUOUS'
+                            THEN COALESCE(
+                                recovery_lease_expires_at,
+                                CURRENT_TIMESTAMP + INTERVAL '60 seconds'
+                            )
+                            ELSE recovery_lease_expires_at
+                        END,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE venue = $1
                       AND idempotency_key = $2
@@ -954,6 +1015,82 @@ class TimescaleDBAdapter:
                 state,
             )
             return False
+
+    async def claim_next_execution_intent_recovery(
+        self,
+        *,
+        venue: str,
+    ) -> dict[str, Any] | None:
+        """Claim one stale incomplete execution intent for restart recovery."""
+        async with self.get_write_connection() as conn, conn.transaction():
+            row = await conn.fetchrow(
+                """
+                WITH candidate AS (
+                    SELECT idempotency_key
+                    FROM execution_intents
+                    WHERE venue = $1
+                      AND state IN ('SUBMITTING', 'AMBIGUOUS')
+                      AND (
+                          recovery_lease_expires_at IS NULL
+                          OR recovery_lease_expires_at <= CURRENT_TIMESTAMP
+                      )
+                      AND (
+                          state = 'AMBIGUOUS'
+                          OR updated_at <= CURRENT_TIMESTAMP - INTERVAL '5 seconds'
+                      )
+                    ORDER BY updated_at ASC, idempotency_key ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                )
+                UPDATE execution_intents AS intent
+                SET recovery_attempts = intent.recovery_attempts + 1,
+                    recovery_lease_expires_at = CURRENT_TIMESTAMP + INTERVAL '60 seconds',
+                    updated_at = CURRENT_TIMESTAMP
+                FROM candidate
+                WHERE intent.venue = $1
+                  AND intent.idempotency_key = candidate.idempotency_key
+                RETURNING intent.idempotency_key,
+                          intent.venue,
+                          intent.state,
+                          intent.request_payload
+                """,
+                venue,
+            )
+        if row is None:
+            return None
+        request_payload = row["request_payload"]
+        if isinstance(request_payload, (str, bytes, bytearray)):
+            try:
+                request_payload = json.loads(request_payload)
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError(
+                    "execution intent recovery request payload is malformed"
+                ) from exc
+        if not isinstance(request_payload, dict):
+            raise RuntimeError("execution intent recovery request payload is malformed")
+        return {
+            "idempotency_key": row["idempotency_key"],
+            "venue": row["venue"],
+            "state": row["state"],
+            "request_payload": request_payload,
+        }
+
+    async def has_incomplete_execution_intent_outside_venue(self, active_venue: str) -> bool:
+        """Return whether another venue has an incomplete execution intent."""
+        async with self.get_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM execution_intents
+                    WHERE venue <> $1
+                      AND state = ANY($2::text[])
+                ) AS has_incomplete_intent
+                """,
+                active_venue,
+                ["SUBMITTING", "AMBIGUOUS"],
+            )
+        return bool(row and row["has_incomplete_intent"])
 
     async def claim_order_update_inbox(
         self,
@@ -1006,7 +1143,7 @@ class TimescaleDBAdapter:
 
             prior = await conn.fetchrow(
                 """
-                SELECT sequence, payload->>'status' AS status
+                SELECT sequence, payload
                 FROM engine_order_update_inbox
                 WHERE aggregate_id = $1 AND state = 'PROCESSED' AND sequence < $2
                 ORDER BY sequence DESC LIMIT 1
@@ -1027,11 +1164,18 @@ class TimescaleDBAdapter:
                 )
                 return "GAP"
 
-            current_status = str(payload.get("status", "")).upper()
-            prior_status = str(prior["status"] or "").upper() if prior is not None else ""
             from ...execution.order_update_inbox import is_terminal_transition_allowed
 
-            if not is_terminal_transition_allowed(prior_status, current_status):
+            prior_payload = None if prior is None else prior["payload"]
+            if isinstance(prior_payload, (str, bytes, bytearray)):
+                try:
+                    prior_payload = json.loads(prior_payload)
+                except (TypeError, ValueError):
+                    prior_payload = {}
+            if not isinstance(prior_payload, dict):
+                prior_payload = {} if prior is not None else None
+
+            if not is_terminal_transition_allowed(prior_payload, payload):
                 await conn.execute(
                     """
                     UPDATE engine_order_update_inbox
@@ -1078,15 +1222,12 @@ class TimescaleDBAdapter:
                 error_message[:1000],
             )
 
-    async def upsert_order(self, order: dict[str, Any]) -> bool:
-        """Upsert an order row using unique key (venue, client_order_id).
-
-        This is used by the live execution path to persist order placement and
-        later apply router/exchange updates.
-
-        This helper is append-only / null-preserving on conflict: `None` values in
-        the incoming payload do not clear existing DB columns.
-        """
+    async def _upsert_order_with_connection(
+        self,
+        conn: asyncpg.Connection,
+        order: dict[str, Any],
+    ) -> None:
+        """Upsert one order row on a supplied connection without swallowing errors."""
 
         def _to_decimal(val: Any) -> Decimal | None:
             if val is None:
@@ -1095,156 +1236,1080 @@ class TimescaleDBAdapter:
                 return val
             return Decimal(str(val))
 
+        venue = order.get("venue")
+        client_order_id = order.get("client_order_id")
+        symbol = order.get("symbol")
+        side = order.get("side")
+        order_type = order.get("type")
+        quantity = _to_decimal(order.get("quantity"))
+
+        if not isinstance(venue, str) or not venue:
+            raise ValueError("order.venue is required")
+        if not isinstance(client_order_id, str) or not client_order_id:
+            raise ValueError("order.client_order_id is required")
+        if not isinstance(symbol, str) or not symbol:
+            raise ValueError("order.symbol is required")
+        if not isinstance(side, str) or not side:
+            raise ValueError("order.side is required")
+        if not isinstance(order_type, str) or not order_type:
+            raise ValueError("order.type is required")
+        if quantity is None or quantity <= 0:
+            raise ValueError("order.quantity must be > 0")
+
+        zone = order.get("zone")
+        zone_json = json.dumps(zone) if zone is not None else None
+
+        await conn.execute(
+            """
+            INSERT INTO orders (
+                order_id,
+                client_order_id,
+                venue,
+                symbol,
+                side,
+                type,
+                quantity,
+                price,
+                stop_price,
+                status,
+                filled_quantity,
+                average_fill_price,
+                created_at,
+                decision_id,
+                exchange_order_id,
+                commission,
+                commission_asset,
+                last_update_time,
+                reject_reason,
+                signal_id,
+                timeframe,
+                zone
+            ) VALUES (
+                COALESCE($1::uuid, gen_random_uuid()),
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                COALESCE($10, 'NEW'),
+                COALESCE($11::numeric, 0::numeric),
+                $12,
+                COALESCE($13, NOW()),
+                $14,
+                $15,
+                COALESCE($16::numeric, 0::numeric),
+                $17,
+                $18,
+                $19,
+                $20,
+                $21,
+                $22::jsonb
+            )
+            ON CONFLICT (venue, client_order_id) DO UPDATE SET
+                symbol = COALESCE(EXCLUDED.symbol, orders.symbol),
+                side = COALESCE(EXCLUDED.side, orders.side),
+                type = COALESCE(EXCLUDED.type, orders.type),
+                quantity = COALESCE(EXCLUDED.quantity, orders.quantity),
+                price = COALESCE(EXCLUDED.price, orders.price),
+                stop_price = COALESCE(EXCLUDED.stop_price, orders.stop_price),
+                status = CASE
+                    WHEN orders.status IN ('FILLED', 'REJECTED') THEN orders.status
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        AND EXCLUDED.status = 'FILLED'
+                        AND EXCLUDED.filled_quantity = EXCLUDED.quantity
+                        AND EXCLUDED.filled_quantity > orders.filled_quantity
+                        AND EXCLUDED.last_update_time IS NOT NULL
+                        AND orders.last_update_time IS NOT NULL
+                        AND EXCLUDED.last_update_time >= orders.last_update_time
+                        THEN EXCLUDED.status
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED') THEN orders.status
+                    WHEN orders.status = 'PARTIALLY_FILLED' AND EXCLUDED.status = 'NEW' THEN orders.status
+                    WHEN $10 IS NULL THEN orders.status
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.status
+                    ELSE EXCLUDED.status
+                END,
+                filled_quantity = CASE
+                    WHEN orders.status IN ('FILLED', 'REJECTED') THEN orders.filled_quantity
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        AND NOT (
+                            EXCLUDED.status = 'FILLED'
+                            AND EXCLUDED.filled_quantity = EXCLUDED.quantity
+                            AND EXCLUDED.filled_quantity > orders.filled_quantity
+                            AND EXCLUDED.last_update_time IS NOT NULL
+                            AND orders.last_update_time IS NOT NULL
+                            AND EXCLUDED.last_update_time >= orders.last_update_time
+                        ) THEN orders.filled_quantity
+                    WHEN $11::numeric IS NULL THEN orders.filled_quantity
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.filled_quantity
+                    ELSE GREATEST(EXCLUDED.filled_quantity, orders.filled_quantity)
+                END,
+                average_fill_price = CASE
+                    WHEN orders.status = 'REJECTED' THEN orders.average_fill_price
+                    WHEN orders.status = 'FILLED' THEN CASE
+                        WHEN EXCLUDED.status = 'FILLED'
+                            AND EXCLUDED.filled_quantity = orders.filled_quantity
+                            AND EXCLUDED.average_fill_price IS NOT NULL
+                            AND EXCLUDED.average_fill_price > 0
+                            AND EXCLUDED.last_update_time IS NOT NULL
+                            AND (orders.last_update_time IS NULL OR EXCLUDED.last_update_time > orders.last_update_time)
+                            THEN EXCLUDED.average_fill_price
+                        ELSE orders.average_fill_price
+                    END
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        AND NOT (
+                            EXCLUDED.status = 'FILLED'
+                            AND EXCLUDED.filled_quantity = EXCLUDED.quantity
+                            AND EXCLUDED.filled_quantity > orders.filled_quantity
+                            AND EXCLUDED.last_update_time IS NOT NULL
+                            AND orders.last_update_time IS NOT NULL
+                            AND EXCLUDED.last_update_time >= orders.last_update_time
+                        ) THEN orders.average_fill_price
+                    WHEN $12::numeric IS NULL THEN orders.average_fill_price
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.average_fill_price
+                    ELSE COALESCE(EXCLUDED.average_fill_price, orders.average_fill_price)
+                END,
+                decision_id = COALESCE(EXCLUDED.decision_id, orders.decision_id),
+                exchange_order_id = COALESCE(EXCLUDED.exchange_order_id, orders.exchange_order_id),
+                commission = CASE
+                    WHEN $16::numeric IS NULL THEN orders.commission
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.commission
+                    ELSE GREATEST(EXCLUDED.commission, orders.commission)
+                END,
+                commission_asset = COALESCE(EXCLUDED.commission_asset, orders.commission_asset),
+                last_update_time = CASE
+                    WHEN orders.status = 'REJECTED' THEN orders.last_update_time
+                    WHEN orders.status = 'FILLED' THEN CASE
+                        WHEN EXCLUDED.status = 'FILLED'
+                            AND EXCLUDED.filled_quantity = orders.filled_quantity
+                            AND EXCLUDED.average_fill_price IS NOT NULL
+                            AND EXCLUDED.average_fill_price > 0
+                            AND EXCLUDED.last_update_time IS NOT NULL
+                            AND (orders.last_update_time IS NULL OR EXCLUDED.last_update_time > orders.last_update_time)
+                            THEN EXCLUDED.last_update_time
+                        ELSE orders.last_update_time
+                    END
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        AND NOT (
+                            EXCLUDED.status = 'FILLED'
+                            AND EXCLUDED.filled_quantity = EXCLUDED.quantity
+                            AND EXCLUDED.filled_quantity > orders.filled_quantity
+                            AND EXCLUDED.last_update_time IS NOT NULL
+                            AND orders.last_update_time IS NOT NULL
+                            AND EXCLUDED.last_update_time >= orders.last_update_time
+                        ) THEN orders.last_update_time
+                    WHEN $18 IS NULL THEN orders.last_update_time
+                    WHEN orders.last_update_time IS NULL THEN EXCLUDED.last_update_time
+                    ELSE GREATEST(EXCLUDED.last_update_time, orders.last_update_time)
+                END,
+                reject_reason = CASE
+                    WHEN orders.status IN ('FILLED', 'REJECTED') THEN orders.reject_reason
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        THEN CASE
+                            WHEN EXCLUDED.status = 'FILLED'
+                                AND EXCLUDED.filled_quantity = EXCLUDED.quantity
+                                AND EXCLUDED.filled_quantity > orders.filled_quantity
+                                AND EXCLUDED.last_update_time IS NOT NULL
+                                AND orders.last_update_time IS NOT NULL
+                                AND EXCLUDED.last_update_time >= orders.last_update_time
+                                THEN NULL
+                            ELSE orders.reject_reason
+                        END
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.reject_reason
+                    ELSE COALESCE(EXCLUDED.reject_reason, orders.reject_reason)
+                END,
+                signal_id = COALESCE(EXCLUDED.signal_id, orders.signal_id),
+                timeframe = COALESCE(EXCLUDED.timeframe, orders.timeframe),
+                zone = COALESCE(EXCLUDED.zone, orders.zone),
+                updated_at = NOW()
+            """,
+            order.get("order_id"),
+            client_order_id,
+            venue,
+            symbol,
+            side,
+            order_type,
+            quantity,
+            _to_decimal(order.get("price")),
+            _to_decimal(order.get("stop_price")),
+            order.get("status"),
+            _to_decimal(order.get("filled_quantity", 0)),
+            _to_decimal(order.get("average_fill_price")),
+            order.get("created_at"),
+            order.get("decision_id"),
+            order.get("exchange_order_id"),
+            _to_decimal(order.get("commission")),
+            order.get("commission_asset"),
+            order.get("last_update_time"),
+            order.get("reject_reason"),
+            order.get("signal_id"),
+            order.get("timeframe"),
+            zone_json,
+        )
+
+    async def upsert_order(self, order: dict[str, Any]) -> bool:
+        """Upsert an order row using unique key (venue, client_order_id)."""
         try:
-            venue = order.get("venue")
-            client_order_id = order.get("client_order_id")
-            symbol = order.get("symbol")
-            side = order.get("side")
-            order_type = order.get("type")
-            quantity = _to_decimal(order.get("quantity"))
-
-            if not isinstance(venue, str) or not venue:
-                raise ValueError("order.venue is required")
-            if not isinstance(client_order_id, str) or not client_order_id:
-                raise ValueError("order.client_order_id is required")
-            if not isinstance(symbol, str) or not symbol:
-                raise ValueError("order.symbol is required")
-            if not isinstance(side, str) or not side:
-                raise ValueError("order.side is required")
-            if not isinstance(order_type, str) or not order_type:
-                raise ValueError("order.type is required")
-            if quantity is None or quantity <= 0:
-                raise ValueError("order.quantity must be > 0")
-
-            zone = order.get("zone")
-            zone_json = json.dumps(zone) if zone is not None else None
-
             async with self.get_connection() as conn:
-                await conn.execute(
-                    """
-                    INSERT INTO orders (
-                        order_id,
-                        client_order_id,
-                        venue,
-                        symbol,
-                        side,
-                        type,
-                        quantity,
-                        price,
-                        stop_price,
-                        status,
-                        filled_quantity,
-                        average_fill_price,
-                        created_at,
-                        decision_id,
-                        exchange_order_id,
-                        commission,
-                        commission_asset,
-                        last_update_time,
-                        reject_reason,
-                        signal_id,
-                        timeframe,
-                        zone
-                    ) VALUES (
-                        COALESCE($1, gen_random_uuid()),
-                        $2,
-                        $3,
-                        $4,
-                        $5,
-                        $6,
-                        $7,
-                        $8,
-                        $9,
-                        COALESCE($10, 'NEW'),
-                        COALESCE($11::numeric, 0::numeric),
-                        $12,
-                        COALESCE($13, NOW()),
-                        $14,
-                        $15,
-                        COALESCE($16::numeric, 0::numeric),
-                        $17,
-                        $18,
-                        $19,
-                        $20,
-                        $21,
-                        $22::jsonb
-                    )
-                    ON CONFLICT (venue, client_order_id) DO UPDATE SET
-                        symbol = COALESCE(EXCLUDED.symbol, orders.symbol),
-                        side = COALESCE(EXCLUDED.side, orders.side),
-                        type = COALESCE(EXCLUDED.type, orders.type),
-                        quantity = COALESCE(EXCLUDED.quantity, orders.quantity),
-                        price = COALESCE(EXCLUDED.price, orders.price),
-                        stop_price = COALESCE(EXCLUDED.stop_price, orders.stop_price),
-                        status = CASE
-                            WHEN orders.status IN ('FILLED', 'CANCELED', 'REJECTED', 'EXPIRED') THEN orders.status
-                            WHEN orders.status = 'PARTIALLY_FILLED' AND EXCLUDED.status = 'NEW' THEN orders.status
-                            WHEN $10 IS NULL THEN orders.status
-                            WHEN orders.last_update_time IS NOT NULL
-                                AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.status
-                            ELSE EXCLUDED.status
-                        END,
-                        filled_quantity = CASE
-                            WHEN $11::numeric IS NULL THEN orders.filled_quantity
-                            WHEN orders.last_update_time IS NOT NULL
-                                AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.filled_quantity
-                            ELSE GREATEST(EXCLUDED.filled_quantity, orders.filled_quantity)
-                        END,
-                        average_fill_price = CASE
-                            WHEN $12::numeric IS NULL THEN orders.average_fill_price
-                            WHEN orders.last_update_time IS NOT NULL
-                                AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.average_fill_price
-                            ELSE COALESCE(EXCLUDED.average_fill_price, orders.average_fill_price)
-                        END,
-                        decision_id = COALESCE(EXCLUDED.decision_id, orders.decision_id),
-                        exchange_order_id = COALESCE(EXCLUDED.exchange_order_id, orders.exchange_order_id),
-                        commission = CASE
-                            WHEN $16::numeric IS NULL THEN orders.commission
-                            WHEN orders.last_update_time IS NOT NULL
-                                AND ($18 IS NULL OR $18 < orders.last_update_time) THEN orders.commission
-                            ELSE GREATEST(EXCLUDED.commission, orders.commission)
-                        END,
-                        commission_asset = COALESCE(EXCLUDED.commission_asset, orders.commission_asset),
-                        last_update_time = CASE
-                            WHEN $18 IS NULL THEN orders.last_update_time
-                            WHEN orders.last_update_time IS NULL THEN EXCLUDED.last_update_time
-                            ELSE GREATEST(EXCLUDED.last_update_time, orders.last_update_time)
-                        END,
-                        reject_reason = COALESCE(EXCLUDED.reject_reason, orders.reject_reason),
-                        signal_id = COALESCE(EXCLUDED.signal_id, orders.signal_id),
-                        timeframe = COALESCE(EXCLUDED.timeframe, orders.timeframe),
-                        zone = COALESCE(EXCLUDED.zone, orders.zone),
-                        updated_at = NOW()
-                    """,
-                    order.get("order_id"),
-                    client_order_id,
-                    venue,
-                    symbol,
-                    side,
-                    order_type,
-                    quantity,
-                    _to_decimal(order.get("price")),
-                    _to_decimal(order.get("stop_price")),
-                    order.get("status"),
-                    _to_decimal(order.get("filled_quantity", 0)),
-                    _to_decimal(order.get("average_fill_price")),
-                    order.get("created_at"),
-                    order.get("decision_id"),
-                    order.get("exchange_order_id"),
-                    _to_decimal(order.get("commission")),
-                    order.get("commission_asset"),
-                    order.get("last_update_time"),
-                    order.get("reject_reason"),
-                    order.get("signal_id"),
-                    order.get("timeframe"),
-                    zone_json,
-                )
+                await self._upsert_order_with_connection(conn, order)
             return True
         except Exception:
             logger.exception(
                 "Error upserting order: client_order_id=%s", order.get("client_order_id")
             )
             return False
+
+    async def upsert_order_update(self, order: dict[str, Any]) -> bool:
+        async with self.get_write_connection() as conn, conn.transaction():
+            await self._upsert_order_update_with_connection(conn, order)
+        return True
+
+    async def _upsert_order_update_with_connection(
+        self,
+        conn: asyncpg.Connection,
+        order: dict[str, Any],
+    ) -> None:
+        def _to_decimal(value: Any) -> Decimal | None:
+            if value is None:
+                return None
+            if isinstance(value, Decimal):
+                return value
+            return Decimal(str(value))
+
+        venue = order.get("venue")
+        client_order_id = order.get("client_order_id")
+        symbol = order.get("symbol")
+        side = order.get("side")
+        order_type = order.get("type")
+        quantity = _to_decimal(order.get("quantity"))
+        price = _to_decimal(order.get("price"))
+        stop_price = _to_decimal(order.get("stop_price"))
+        exchange_order_id = order.get("exchange_order_id")
+        if exchange_order_id is not None:
+            exchange_order_id = str(exchange_order_id).strip() or None
+
+        if not isinstance(venue, str) or not venue:
+            raise ValueError("order.venue is required")
+        if not isinstance(client_order_id, str) or not client_order_id:
+            raise ValueError("order.client_order_id is required")
+        if not isinstance(symbol, str) or not symbol:
+            raise ValueError("order.symbol is required")
+        if not isinstance(side, str) or not side:
+            raise ValueError("order.side is required")
+        if not isinstance(order_type, str) or not order_type:
+            raise ValueError("order.type is required")
+        if quantity is None or quantity <= 0:
+            raise ValueError("order.quantity must be > 0")
+
+        zone = order.get("zone")
+        zone_json = (
+            json.dumps(zone, sort_keys=True, separators=(",", ":"), default=str)
+            if zone is not None
+            else None
+        )
+        await conn.execute(
+            """
+            INSERT INTO orders (
+                order_id,
+                client_order_id,
+                venue,
+                symbol,
+                side,
+                type,
+                quantity,
+                price,
+                stop_price,
+                status,
+                filled_quantity,
+                average_fill_price,
+                created_at,
+                decision_id,
+                exchange_order_id,
+                commission,
+                commission_asset,
+                last_update_time,
+                reject_reason,
+                signal_id,
+                timeframe,
+                zone
+            ) VALUES (
+                COALESCE($1::uuid, gen_random_uuid()),
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                COALESCE($10, 'NEW'),
+                COALESCE($11::numeric, 0::numeric),
+                $12,
+                COALESCE($13, NOW()),
+                $14,
+                $15,
+                COALESCE($16::numeric, 0::numeric),
+                $17,
+                $18,
+                $19,
+                $20,
+                $21,
+                $22::jsonb
+            )
+            ON CONFLICT (venue, client_order_id) DO NOTHING
+            """,
+            order.get("order_id"),
+            client_order_id,
+            venue,
+            symbol,
+            side,
+            order_type,
+            quantity,
+            price,
+            stop_price,
+            order.get("status"),
+            _to_decimal(order.get("filled_quantity", 0)),
+            _to_decimal(order.get("average_fill_price")),
+            order.get("created_at"),
+            order.get("decision_id"),
+            exchange_order_id,
+            _to_decimal(order.get("commission")),
+            order.get("commission_asset"),
+            order.get("last_update_time"),
+            order.get("reject_reason"),
+            order.get("signal_id"),
+            order.get("timeframe"),
+            zone_json,
+        )
+
+        existing = await conn.fetchrow(
+            """
+            SELECT order_id, venue, client_order_id, symbol, side, type,
+                   quantity, price, stop_price, decision_id, signal_id,
+                   timeframe, zone, exchange_order_id
+            FROM orders
+            WHERE venue = $1 AND client_order_id = $2
+            FOR UPDATE
+            """,
+            venue,
+            client_order_id,
+        )
+        if existing is None:
+            raise RuntimeError("order projection was not available after insert")
+
+        identity_values = {
+            "venue": (venue, existing["venue"]),
+            "client_order_id": (client_order_id, existing["client_order_id"]),
+            "symbol": (symbol.strip().upper(), str(existing["symbol"]).strip().upper()),
+            "side": (side.strip().upper(), str(existing["side"]).strip().upper()),
+            "type": (order_type.strip().upper(), str(existing["type"]).strip().upper()),
+            "quantity": (quantity, _to_decimal(existing["quantity"])),
+            "price": (price, _to_decimal(existing["price"])),
+            "stop_price": (stop_price, _to_decimal(existing["stop_price"])),
+        }
+        for field_name, (expected, actual) in identity_values.items():
+            if expected != actual:
+                raise RuntimeError(f"order identity conflict for {field_name}")
+
+        existing_decision_id = existing["decision_id"]
+        incoming_decision_id = order.get("decision_id")
+        if (
+            existing_decision_id is not None
+            and incoming_decision_id is not None
+            and str(existing_decision_id) != str(incoming_decision_id)
+        ):
+            raise RuntimeError("order identity conflict for decision_id")
+        existing_signal_id = existing["signal_id"]
+        incoming_signal_id = order.get("signal_id")
+        if (
+            existing_signal_id is not None
+            and incoming_signal_id is not None
+            and str(existing_signal_id) != str(incoming_signal_id)
+        ):
+            raise RuntimeError("order identity conflict for signal_id")
+        existing_timeframe = existing["timeframe"]
+        incoming_timeframe = order.get("timeframe")
+        if (
+            existing_timeframe is not None
+            and incoming_timeframe is not None
+            and str(existing_timeframe) != str(incoming_timeframe)
+        ):
+            raise RuntimeError("order identity conflict for timeframe")
+
+        def _canonical_zone(value: Any) -> str | None:
+            if value is None:
+                return None
+            if isinstance(value, (str, bytes, bytearray)):
+                try:
+                    value = json.loads(value)
+                except (TypeError, ValueError) as exc:
+                    raise RuntimeError("order identity conflict for zone") from exc
+            if not isinstance(value, dict):
+                raise RuntimeError("order identity conflict for zone")
+            return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+
+        existing_zone = _canonical_zone(existing["zone"])
+        incoming_zone = _canonical_zone(zone)
+        if (
+            existing_zone is not None
+            and incoming_zone is not None
+            and existing_zone != incoming_zone
+        ):
+            raise RuntimeError("order identity conflict for zone")
+
+        existing_exchange_order_id = str(existing["exchange_order_id"] or "").strip()
+        incoming_exchange_order_id = str(exchange_order_id or "").strip()
+        if (
+            existing_exchange_order_id
+            and incoming_exchange_order_id
+            and existing_exchange_order_id != incoming_exchange_order_id
+        ):
+            raise RuntimeError("order identity conflict for exchange_order_id")
+        if incoming_exchange_order_id and incoming_exchange_order_id != existing_exchange_order_id:
+            owner = await conn.fetchval(
+                """
+                SELECT order_id
+                FROM orders
+                WHERE venue = $1
+                  AND symbol = $2
+                  AND exchange_order_id = $3
+                  AND order_id <> $4
+                FOR UPDATE
+                """,
+                venue,
+                symbol,
+                incoming_exchange_order_id,
+                existing["order_id"],
+            )
+            if owner is not None:
+                raise RuntimeError("order identity conflict for exchange_order_id ownership")
+
+        await conn.execute(
+            """
+            UPDATE orders
+            SET status = CASE
+                    WHEN orders.status IN ('FILLED', 'REJECTED') THEN orders.status
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        AND $1 = 'FILLED'
+                        AND $2::numeric = orders.quantity
+                        AND $2::numeric > orders.filled_quantity
+                        AND $3::timestamptz IS NOT NULL
+                        AND orders.last_update_time IS NOT NULL
+                        AND $3::timestamptz >= orders.last_update_time
+                        THEN 'FILLED'
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED') THEN orders.status
+                    WHEN orders.status = 'PARTIALLY_FILLED' AND $1 = 'NEW' THEN orders.status
+                    WHEN $1 IS NULL THEN orders.status
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($3::timestamptz IS NULL OR $3::timestamptz < orders.last_update_time) THEN orders.status
+                    ELSE $1
+                END,
+                filled_quantity = CASE
+                    WHEN orders.status IN ('FILLED', 'REJECTED') THEN orders.filled_quantity
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        AND NOT (
+                            $1 = 'FILLED'
+                            AND $2::numeric = orders.quantity
+                            AND $2::numeric > orders.filled_quantity
+                            AND $3::timestamptz IS NOT NULL
+                            AND orders.last_update_time IS NOT NULL
+                            AND $3::timestamptz >= orders.last_update_time
+                        ) THEN orders.filled_quantity
+                    WHEN $2::numeric IS NULL THEN orders.filled_quantity
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($3::timestamptz IS NULL OR $3::timestamptz < orders.last_update_time) THEN orders.filled_quantity
+                    ELSE GREATEST($2::numeric, orders.filled_quantity)
+                END,
+                average_fill_price = CASE
+                    WHEN orders.status = 'REJECTED' THEN orders.average_fill_price
+                    WHEN orders.status = 'FILLED' THEN CASE
+                        WHEN $1 = 'FILLED'
+                            AND $2::numeric = orders.filled_quantity
+                            AND $4::numeric IS NOT NULL
+                            AND $4::numeric > 0
+                            AND $3::timestamptz IS NOT NULL
+                            AND (orders.last_update_time IS NULL OR $3::timestamptz > orders.last_update_time)
+                            THEN $4::numeric
+                        ELSE orders.average_fill_price
+                    END
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        AND NOT (
+                            $1 = 'FILLED'
+                            AND $2::numeric = orders.quantity
+                            AND $2::numeric > orders.filled_quantity
+                            AND $3::timestamptz IS NOT NULL
+                            AND orders.last_update_time IS NOT NULL
+                            AND $3::timestamptz >= orders.last_update_time
+                        ) THEN orders.average_fill_price
+                    WHEN $4::numeric IS NULL THEN orders.average_fill_price
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($3::timestamptz IS NULL OR $3::timestamptz < orders.last_update_time) THEN orders.average_fill_price
+                    ELSE COALESCE($4::numeric, orders.average_fill_price)
+                END,
+                exchange_order_id = COALESCE(NULLIF($5, ''), orders.exchange_order_id),
+                decision_id = COALESCE(orders.decision_id, $6),
+                signal_id = COALESCE(orders.signal_id, $7),
+                timeframe = COALESCE(orders.timeframe, $8),
+                zone = COALESCE(orders.zone, $9::jsonb),
+                commission = CASE
+                    WHEN $10::numeric IS NULL THEN orders.commission
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($3::timestamptz IS NULL OR $3::timestamptz < orders.last_update_time) THEN orders.commission
+                    ELSE GREATEST($10::numeric, orders.commission)
+                END,
+                commission_asset = COALESCE($11, orders.commission_asset),
+                last_update_time = CASE
+                    WHEN orders.status = 'REJECTED' THEN orders.last_update_time
+                    WHEN orders.status = 'FILLED' THEN CASE
+                        WHEN $1 = 'FILLED'
+                            AND $2::numeric = orders.filled_quantity
+                            AND $4::numeric IS NOT NULL
+                            AND $4::numeric > 0
+                            AND $3::timestamptz IS NOT NULL
+                            AND (orders.last_update_time IS NULL OR $3::timestamptz > orders.last_update_time)
+                            THEN $3::timestamptz
+                        ELSE orders.last_update_time
+                    END
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        AND NOT (
+                            $1 = 'FILLED'
+                            AND $2::numeric = orders.quantity
+                            AND $2::numeric > orders.filled_quantity
+                            AND $3::timestamptz IS NOT NULL
+                            AND orders.last_update_time IS NOT NULL
+                            AND $3::timestamptz >= orders.last_update_time
+                        ) THEN orders.last_update_time
+                    WHEN $3::timestamptz IS NULL THEN orders.last_update_time
+                    WHEN orders.last_update_time IS NULL THEN $3::timestamptz
+                    ELSE GREATEST($3::timestamptz, orders.last_update_time)
+                END,
+                reject_reason = CASE
+                    WHEN orders.status IN ('FILLED', 'REJECTED') THEN orders.reject_reason
+                    WHEN orders.status IN ('CANCELED', 'CANCELLED', 'EXPIRED')
+                        THEN CASE
+                            WHEN $1 = 'FILLED'
+                                AND $2::numeric = orders.quantity
+                                AND $2::numeric > orders.filled_quantity
+                                AND $3::timestamptz IS NOT NULL
+                                AND orders.last_update_time IS NOT NULL
+                                AND $3::timestamptz >= orders.last_update_time
+                                THEN NULL
+                            ELSE orders.reject_reason
+                        END
+                    WHEN orders.last_update_time IS NOT NULL
+                        AND ($3::timestamptz IS NULL OR $3::timestamptz < orders.last_update_time) THEN orders.reject_reason
+                    ELSE COALESCE($12, orders.reject_reason)
+                END,
+                updated_at = NOW()
+            WHERE order_id = $13
+            """,
+            order.get("status"),
+            _to_decimal(order.get("filled_quantity", 0)),
+            order.get("last_update_time"),
+            _to_decimal(order.get("average_fill_price")),
+            incoming_exchange_order_id,
+            incoming_decision_id,
+            incoming_signal_id,
+            incoming_timeframe,
+            zone_json,
+            _to_decimal(order.get("commission")),
+            order.get("commission_asset"),
+            order.get("reject_reason"),
+            existing["order_id"],
+        )
+
+    async def _insert_or_validate_order_with_connection(
+        self,
+        conn: asyncpg.Connection,
+        order: dict[str, Any],
+    ) -> None:
+        """Adopt an ACK projection only when its immutable identity matches."""
+
+        def _to_decimal(val: Any) -> Decimal | None:
+            if val is None:
+                return None
+            if isinstance(val, Decimal):
+                return val
+            return Decimal(str(val))
+
+        venue = order.get("venue")
+        client_order_id = order.get("client_order_id")
+        symbol = order.get("symbol")
+        side = order.get("side")
+        order_type = order.get("type")
+        quantity = _to_decimal(order.get("quantity"))
+        price = _to_decimal(order.get("price"))
+        stop_price = _to_decimal(order.get("stop_price"))
+
+        if not isinstance(venue, str) or not venue:
+            raise ValueError("order.venue is required")
+        if not isinstance(client_order_id, str) or not client_order_id:
+            raise ValueError("order.client_order_id is required")
+        if not isinstance(symbol, str) or not symbol:
+            raise ValueError("order.symbol is required")
+        if not isinstance(side, str) or not side:
+            raise ValueError("order.side is required")
+        if not isinstance(order_type, str) or not order_type:
+            raise ValueError("order.type is required")
+        if quantity is None or quantity <= 0:
+            raise ValueError("order.quantity must be > 0")
+
+        zone = order.get("zone")
+        zone_json = (
+            json.dumps(zone, sort_keys=True, separators=(",", ":"), default=str)
+            if zone is not None
+            else None
+        )
+        await conn.execute(
+            """
+            INSERT INTO orders (
+                order_id,
+                client_order_id,
+                venue,
+                symbol,
+                side,
+                type,
+                quantity,
+                price,
+                stop_price,
+                status,
+                filled_quantity,
+                average_fill_price,
+                created_at,
+                decision_id,
+                exchange_order_id,
+                commission,
+                commission_asset,
+                last_update_time,
+                reject_reason,
+                signal_id,
+                timeframe,
+                zone
+            ) VALUES (
+                COALESCE($1::uuid, gen_random_uuid()),
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                COALESCE($10, 'NEW'),
+                COALESCE($11::numeric, 0::numeric),
+                $12,
+                COALESCE($13, NOW()),
+                $14,
+                $15,
+                COALESCE($16::numeric, 0::numeric),
+                $17,
+                $18,
+                $19,
+                $20,
+                $21,
+                $22::jsonb
+            )
+            ON CONFLICT (venue, client_order_id) DO NOTHING
+            """,
+            order.get("order_id"),
+            client_order_id,
+            venue,
+            symbol,
+            side,
+            order_type,
+            quantity,
+            price,
+            stop_price,
+            order.get("status"),
+            _to_decimal(order.get("filled_quantity", 0)),
+            _to_decimal(order.get("average_fill_price")),
+            order.get("created_at"),
+            order.get("decision_id"),
+            order.get("exchange_order_id"),
+            _to_decimal(order.get("commission")),
+            order.get("commission_asset"),
+            order.get("last_update_time"),
+            order.get("reject_reason"),
+            order.get("signal_id"),
+            order.get("timeframe"),
+            zone_json,
+        )
+
+        existing = await conn.fetchrow(
+            """
+            SELECT venue, client_order_id, symbol, side, type,
+                   quantity, price, stop_price, decision_id, signal_id,
+                   timeframe, zone
+            FROM orders
+            WHERE venue = $1 AND client_order_id = $2
+            FOR UPDATE
+            """,
+            venue,
+            client_order_id,
+        )
+        if existing is None:
+            return
+
+        identity_values = {
+            "venue": (venue, existing["venue"]),
+            "client_order_id": (client_order_id, existing["client_order_id"]),
+            "symbol": (symbol, existing["symbol"]),
+            "side": (side, existing["side"]),
+            "type": (order_type, existing["type"]),
+            "quantity": (quantity, _to_decimal(existing["quantity"])),
+            "price": (price, _to_decimal(existing["price"])),
+            "stop_price": (stop_price, _to_decimal(existing["stop_price"])),
+        }
+        for field_name, (expected, actual) in identity_values.items():
+            if expected != actual:
+                raise RuntimeError(f"order identity conflict for {field_name}")
+
+        existing_decision_id = existing["decision_id"]
+        incoming_decision_id = order.get("decision_id")
+        if (
+            existing_decision_id is not None
+            and incoming_decision_id is not None
+            and str(existing_decision_id) != str(incoming_decision_id)
+        ):
+            raise RuntimeError("order identity conflict for decision_id")
+        existing_signal_id = existing["signal_id"]
+        incoming_signal_id = order.get("signal_id")
+        if (
+            existing_signal_id is not None
+            and incoming_signal_id is not None
+            and str(existing_signal_id) != str(incoming_signal_id)
+        ):
+            raise RuntimeError("order identity conflict for signal_id")
+
+        existing_timeframe = existing["timeframe"]
+        incoming_timeframe = order.get("timeframe")
+        if existing_timeframe is not None and (
+            incoming_timeframe is None or str(existing_timeframe) != str(incoming_timeframe)
+        ):
+            raise RuntimeError("order identity conflict for timeframe")
+
+        def _canonical_zone(value: Any) -> str | None:
+            if value is None:
+                return None
+            if isinstance(value, (str, bytes, bytearray)):
+                try:
+                    value = json.loads(value)
+                except (TypeError, ValueError) as exc:
+                    raise RuntimeError("order identity conflict for zone") from exc
+            if not isinstance(value, dict):
+                raise RuntimeError("order identity conflict for zone")
+            return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+
+        existing_zone = _canonical_zone(existing["zone"])
+        incoming_zone = _canonical_zone(zone)
+        if existing_zone is not None and existing_zone != incoming_zone:
+            raise RuntimeError("order identity conflict for zone")
+
+        if (
+            (existing_decision_id is None and incoming_decision_id is not None)
+            or (existing_signal_id is None and incoming_signal_id is not None)
+            or (existing_timeframe is None and incoming_timeframe is not None)
+            or (existing_zone is None and incoming_zone is not None)
+        ):
+            await conn.execute(
+                """
+                UPDATE orders
+                SET decision_id = COALESCE(decision_id, $3),
+                    signal_id = COALESCE(signal_id, $4),
+                    timeframe = COALESCE(timeframe, $5),
+                    zone = COALESCE(zone, $6::jsonb),
+                    updated_at = NOW()
+                WHERE venue = $1 AND client_order_id = $2
+                """,
+                venue,
+                client_order_id,
+                incoming_decision_id,
+                incoming_signal_id,
+                incoming_timeframe,
+                zone_json,
+            )
+
+    async def commit_execution_ack(
+        self,
+        idempotency_key: str,
+        *,
+        venue: str,
+        response_payload: dict[str, Any],
+        order_rows: list[dict[str, Any]],
+        deliveries: list[dict[str, Any]],
+    ) -> bool:
+        """Atomically persist projections, router ACK, and pending success deliveries."""
+        response_json = json.dumps(response_payload, sort_keys=True, default=str)
+        async with self.get_write_connection() as conn, conn.transaction():
+            for order in order_rows:
+                await self._insert_or_validate_order_with_connection(conn, order)
+
+            result = await conn.execute(
+                """
+                UPDATE execution_intents
+                SET state = 'ACKNOWLEDGED',
+                    response_payload = $3::jsonb,
+                    error_message = NULL,
+                    recovery_lease_expires_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE venue = $1
+                  AND idempotency_key = $2
+                  AND state = 'SUBMITTING'
+                """,
+                venue,
+                idempotency_key,
+                response_json,
+            )
+            if result != "UPDATE 1":
+                raise RuntimeError(
+                    "execution intent ACKNOWLEDGED transition expected SUBMITTING state"
+                )
+
+            for delivery in deliveries:
+                delivery_kind = delivery.get("delivery_kind")
+                delivery_payload = delivery.get("delivery_payload")
+                if not isinstance(delivery_kind, str) or delivery_kind not in {
+                    "SNAPSHOT",
+                    "ORDER_PLACED",
+                }:
+                    raise ValueError("invalid success delivery kind")
+                if not isinstance(delivery_payload, dict):
+                    raise ValueError("success delivery payload is required")
+                await conn.execute(
+                    """
+                    INSERT INTO execution_success_deliveries (
+                        venue,
+                        idempotency_key,
+                        delivery_kind,
+                        state,
+                        attempts,
+                        delivery_payload
+                    ) VALUES ($1, $2, $3, 'PENDING', 0, $4::jsonb)
+                    ON CONFLICT (venue, idempotency_key, delivery_kind) DO NOTHING
+                    """,
+                    venue,
+                    idempotency_key,
+                    delivery_kind,
+                    json.dumps(delivery_payload, sort_keys=True, default=str),
+                )
+        return True
+
+    async def _claim_execution_success_delivery(
+        self,
+        idempotency_key: str | None,
+        *,
+        venue: str,
+    ) -> dict[str, Any] | None:
+        """Claim the next eligible success delivery with a 60-second lease."""
+        lease_token = str(uuid4())
+        async with self.get_write_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                WITH candidate AS (
+                    SELECT d.venue, d.idempotency_key, d.delivery_kind
+                    FROM execution_success_deliveries AS d
+                    WHERE d.venue = $1
+                      AND ($2::text IS NULL OR d.idempotency_key = $2)
+                      AND (
+                          (d.state = 'PENDING' AND d.next_attempt_at <= CURRENT_TIMESTAMP)
+                          OR (
+                              d.state = 'DELIVERING'
+                              AND d.lease_expires_at <= CURRENT_TIMESTAMP
+                          )
+                      )
+                      AND (
+                          d.delivery_kind = 'SNAPSHOT'
+                          OR (
+                              d.delivery_kind = 'ORDER_PLACED'
+                              AND NOT EXISTS (
+                                  SELECT 1
+                                  FROM execution_success_deliveries AS snapshot
+                                  WHERE snapshot.venue = d.venue
+                                    AND snapshot.idempotency_key = d.idempotency_key
+                                    AND snapshot.delivery_kind = 'SNAPSHOT'
+                                    AND snapshot.state <> 'DELIVERED'
+                              )
+                          )
+                      )
+                    ORDER BY
+                        d.next_attempt_at,
+                        d.created_at,
+                        d.delivery_kind
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                )
+                UPDATE execution_success_deliveries AS d
+                SET state = 'DELIVERING',
+                    attempts = d.attempts + 1,
+                    lease_token = $3,
+                    lease_expires_at = CURRENT_TIMESTAMP + INTERVAL '60 seconds',
+                    last_error = NULL,
+                    delivered_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                FROM candidate
+                WHERE d.venue = candidate.venue
+                  AND d.idempotency_key = candidate.idempotency_key
+                  AND d.delivery_kind = candidate.delivery_kind
+                RETURNING d.venue, d.idempotency_key, d.delivery_kind, d.lease_token,
+                          d.delivery_payload, d.next_attempt_at
+                """,
+                venue,
+                idempotency_key,
+                lease_token,
+            )
+        if row is None:
+            return None
+        delivery_payload = row["delivery_payload"]
+        if isinstance(delivery_payload, (str, bytes, bytearray)):
+            try:
+                delivery_payload = json.loads(delivery_payload)
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError("success delivery payload is malformed") from exc
+        if not isinstance(delivery_payload, dict):
+            raise RuntimeError("success delivery payload is malformed")
+
+        def _row_value(name: str, default: Any = None) -> Any:
+            try:
+                return row[name]
+            except (KeyError, IndexError):
+                return default
+
+        claimed_idempotency_key = (
+            idempotency_key if idempotency_key is not None else row["idempotency_key"]
+        )
+        return {
+            "venue": _row_value("venue", venue),
+            "idempotency_key": claimed_idempotency_key,
+            "delivery_kind": row["delivery_kind"],
+            "lease_token": row["lease_token"],
+            "delivery_payload": delivery_payload,
+            "next_attempt_at": _row_value("next_attempt_at"),
+        }
+
+    async def claim_execution_success_delivery(
+        self,
+        idempotency_key: str,
+        *,
+        venue: str,
+    ) -> dict[str, Any] | None:
+        claim = await self._claim_execution_success_delivery(idempotency_key, venue=venue)
+        if claim is None:
+            return None
+        claim.pop("idempotency_key", None)
+        claim.pop("venue", None)
+        claim.pop("next_attempt_at", None)
+        return claim
+
+    async def claim_next_execution_success_delivery(
+        self,
+        *,
+        venue: str,
+    ) -> dict[str, Any] | None:
+        return await self._claim_execution_success_delivery(None, venue=venue)
+
+    async def complete_execution_success_delivery(
+        self,
+        idempotency_key: str,
+        *,
+        venue: str,
+        delivery_kind: str,
+        lease_token: str,
+    ) -> None:
+        """Mark a delivery delivered only when its active lease still matches."""
+        async with self.get_write_connection() as conn:
+            result = await conn.execute(
+                """
+                UPDATE execution_success_deliveries
+                SET state = 'DELIVERED',
+                    lease_token = NULL,
+                    lease_expires_at = NULL,
+                    delivered_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP,
+                    last_error = NULL
+                WHERE venue = $1
+                  AND idempotency_key = $2
+                  AND delivery_kind = $3
+                  AND state = 'DELIVERING'
+                  AND lease_token = $4
+                """,
+                venue,
+                idempotency_key,
+                delivery_kind,
+                lease_token,
+            )
+        if result != "UPDATE 1":
+            raise RuntimeError("success delivery lease is no longer valid")
+
+    async def fail_execution_success_delivery(
+        self,
+        idempotency_key: str,
+        *,
+        venue: str,
+        delivery_kind: str,
+        lease_token: str,
+        error_message: str,
+    ) -> None:
+        """Return a leased delivery to pending when its effect fails."""
+        async with self.get_write_connection() as conn:
+            result = await conn.execute(
+                """
+                UPDATE execution_success_deliveries
+                SET state = 'PENDING',
+                    lease_token = NULL,
+                    lease_expires_at = NULL,
+                    delivered_at = NULL,
+                    last_error = $5,
+                    next_attempt_at = CURRENT_TIMESTAMP
+                        + LEAST(
+                            300.0,
+                            POWER(2.0, attempts)
+                                * (0.75 + random() * 0.25)
+                        ) * INTERVAL '1 second',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE venue = $1
+                  AND idempotency_key = $2
+                  AND delivery_kind = $3
+                  AND state = 'DELIVERING'
+                  AND lease_token = $4
+                """,
+                venue,
+                idempotency_key,
+                delivery_kind,
+                lease_token,
+                error_message[:1000],
+            )
+        if result != "UPDATE 1":
+            raise RuntimeError("success delivery lease is no longer valid")
+
+    async def has_pending_execution_success_delivery(
+        self,
+        idempotency_key: str,
+        *,
+        venue: str,
+    ) -> bool:
+        """Return whether any success-delivery obligation is not yet delivered."""
+        async with self.get_connection() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM execution_success_deliveries
+                    WHERE venue = $1
+                      AND idempotency_key = $2
+                      AND state <> 'DELIVERED'
+                ) AS has_pending
+                """,
+                venue,
+                idempotency_key,
+            )
+        return bool(row and row["has_pending"])
 
     async def get_order_by_client_order_id(
         self,

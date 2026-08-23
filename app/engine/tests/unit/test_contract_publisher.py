@@ -1,17 +1,24 @@
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
+from app.engine.adapters.alert.alert_subscriber import AlertSubscriber
 from app.engine.contracts.contract_publisher import ContractPublisher
+from app.engine.core.event_bus_factory import EventBusConfig, EventBusFactory
 from app.engine.models import (
     Candle,
     CandleOrigin,
     CandleUpdateEvent,
     EventType,
     FeaturesCalculatedEvent,
+    Order,
+    OrderPlacedEvent,
+    OrderSide,
+    OrderStatus,
+    OrderType,
     OrderUpdate,
     OrderUpdateEvent,
     RetestSignal,
@@ -37,6 +44,41 @@ class _FakeBus:
     def __init__(self) -> None:
         self.subscribe = AsyncMock(return_value="sub-id")
         self.unsubscribe = AsyncMock(return_value=True)
+
+
+def _make_order_placed_event(timestamp: datetime) -> OrderPlacedEvent:
+    decision = TradingDecision(
+        symbol="BTCUSDT",
+        timestamp=timestamp,
+        action="BUY",
+        entry_price=Decimal("100"),
+        quantity=Decimal("0.01"),
+        stop_loss=Decimal("95"),
+        take_profit=Decimal("110"),
+        confidence=Decimal("0.8"),
+        reasoning="test",
+        venue="SPOT",
+    )
+    order = Order(
+        client_order_id="cid-entry",
+        symbol="BTCUSDT",
+        side=OrderSide.BUY,
+        type=OrderType.LIMIT,
+        quantity=Decimal("0.01"),
+        price=Decimal("100"),
+        status=OrderStatus.NEW,
+        created_at=timestamp,
+        decision_id=decision.decision_id,
+    )
+    return OrderPlacedEvent(
+        timestamp=timestamp,
+        symbol="BTCUSDT",
+        timeframe=TimeFrame.M15,
+        metadata={"venue": "SPOT", "decision_source": "retest_decision_publisher"},
+        order=order,
+        decision=decision,
+        router_response={"ok": True, "bracket_order_id": "bracket-1"},
+    )
 
 
 @pytest.mark.asyncio
@@ -294,14 +336,15 @@ async def test_contract_publisher_publishes_order_update_v1() -> None:
     await publisher.start()
 
     update = OrderUpdate(
-        venue="SPOT",
+        venue="USD_M",
         symbol="BTCUSDT",
         order_id=123,
         client_order_id="cid",
         status="NEW",
-        side="BUY",
-        order_type="LIMIT",
-        price=Decimal("100"),
+        side="SELL",
+        order_type="STOP_MARKET",
+        price=None,
+        stop_price=Decimal("95"),
         quantity=Decimal("1"),
         executed_qty=Decimal("0"),
         update_time=datetime(2025, 1, 1, 0, 15, tzinfo=UTC),
@@ -321,6 +364,52 @@ async def test_contract_publisher_publishes_order_update_v1() -> None:
     assert channel == "engine:order_update.v1"
     assert payload["decision_id"] == "dec-1"
     assert payload["status"] == "new"
+    assert payload["order_type"] == "stop_market"
+    assert payload["price"] is None
+    assert payload["stop_price"] == "95"
+
+
+@pytest.mark.asyncio
+async def test_contract_publisher_preserves_limit_and_average_fill_prices() -> None:
+    redis = AsyncMock()
+    publisher = ContractPublisher(bus=_FakeBus(), redis=redis)
+    await publisher.start()
+
+    update = OrderUpdate(
+        venue="SPOT",
+        symbol="BTCUSDT",
+        order_id=123,
+        client_order_id="cid",
+        status="PARTIALLY_FILLED",
+        side="BUY",
+        order_type="LIMIT",
+        price=Decimal("50000"),
+        quantity=Decimal("0.02"),
+        executed_qty=Decimal("0.01"),
+        average_fill_price=Decimal("50020"),
+        update_time=datetime(2025, 1, 1, 0, 15, tzinfo=UTC),
+    )
+
+    await publisher.on_order_update(
+        OrderUpdateEvent(
+            timestamp=datetime(2025, 1, 1, 0, 15, tzinfo=UTC),
+            symbol="BTCUSDT",
+            metadata={"decision_id": "dec-1"},
+            update=update,
+        ),
+    )
+
+    channel, payload = redis.publish.await_args.args
+    assert channel == "engine:order_update.v1"
+    assert {
+        "price": payload["price"],
+        "filled_quantity": payload["filled_quantity"],
+        "average_fill_price": payload["average_fill_price"],
+    } == {
+        "price": "50000",
+        "filled_quantity": "0.01",
+        "average_fill_price": "50020",
+    }
 
 
 @pytest.mark.asyncio
@@ -358,3 +447,166 @@ async def test_contract_publisher_publishes_order_update_v1_with_uuid_decision_i
     channel, payload = redis.publish.await_args.args
     assert channel == "engine:order_update.v1"
     assert payload["decision_id"] == str(decision_id)
+
+
+@pytest.mark.asyncio
+async def test_contract_publisher_registers_unconditional_order_placed_consumer() -> None:
+    bus = _FakeBus()
+    publisher = ContractPublisher(bus=bus, redis=AsyncMock())
+
+    await publisher.start()
+
+    subscriptions = bus.subscribe.await_args_list
+    assert any(
+        call.kwargs["subscriber_id"] == "contract-publisher:order-placed"
+        and call.kwargs["event_types"] == [EventType.ORDER_PLACED]
+        for call in subscriptions
+    )
+
+
+@pytest.mark.asyncio
+async def test_contract_publisher_publishes_order_placed_as_order_update_v1() -> None:
+    redis = AsyncMock()
+    publisher = ContractPublisher(bus=_FakeBus(), redis=redis)
+    timestamp = datetime(2025, 1, 1, 0, 15, tzinfo=UTC)
+    event = _make_order_placed_event(timestamp)
+
+    await publisher.on_order_placed(event)
+
+    channel, payload = redis.publish.await_args.args
+    assert event.decision is not None
+    assert channel == "engine:order_update.v1"
+    assert payload == {
+        "version": "1.0.0",
+        "venue": "SPOT",
+        "symbol": "BTCUSDT",
+        "order_id": "",
+        "client_order_id": "cid-entry",
+        "decision_id": str(event.decision.decision_id),
+        "update_time": "2025-01-01T00:15:00Z",
+        "status": "new",
+        "side": "buy",
+        "order_type": "limit",
+        "price": "100",
+        "stop_price": None,
+        "quantity": "0.01",
+        "filled_quantity": "0",
+        "average_fill_price": None,
+        "commission": None,
+        "commission_asset": None,
+        "error_message": None,
+        "is_reduce_only": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_contract_publisher_uses_fixed_point_for_scale_eight_order_decimals() -> None:
+    redis = AsyncMock()
+    publisher = ContractPublisher(bus=_FakeBus(), redis=redis)
+    event = _make_order_placed_event(datetime(2025, 1, 1, 0, 15, tzinfo=UTC))
+    event = event.model_copy(
+        update={
+            "order": event.order.model_copy(
+                update={
+                    "type": OrderType.STOP_LOSS_LIMIT,
+                    "quantity": Decimal("0.00000010"),
+                    "price": Decimal("0.00000010"),
+                    "stop_price": Decimal("0.00000001"),
+                    "status": OrderStatus.FILLED,
+                    "filled_quantity": Decimal("0.00000010"),
+                    "average_fill_price": Decimal("0.00000001"),
+                }
+            )
+        }
+    )
+
+    await publisher.on_order_placed(event)
+
+    _, payload = redis.publish.await_args.args
+    assert {
+        "quantity": payload["quantity"],
+        "price": payload["price"],
+        "stop_price": payload["stop_price"],
+        "filled_quantity": payload["filled_quantity"],
+        "average_fill_price": payload["average_fill_price"],
+    } == {
+        "quantity": "0.00000010",
+        "price": "0.00000010",
+        "stop_price": "0.00000001",
+        "filled_quantity": "0.00000010",
+        "average_fill_price": "0.00000001",
+    }
+
+
+@pytest.mark.asyncio
+async def test_contract_publisher_acknowledges_order_placed_without_telegram() -> None:
+    redis = AsyncMock()
+    bus = EventBusFactory().create_with_config(EventBusConfig(max_queue_size=10, num_workers=1))
+    publisher = ContractPublisher(bus=bus, redis=redis)
+    await bus.start()
+    try:
+        await publisher.start()
+
+        accepted = await bus.publish_and_wait(
+            _make_order_placed_event(datetime(2025, 1, 1, 0, 15, tzinfo=UTC)),
+            priority=7,
+        )
+
+        assert accepted is True
+        redis.publish.assert_awaited_once()
+    finally:
+        await publisher.stop()
+        await bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_contract_publisher_success_does_not_mask_telegram_failure() -> None:
+    redis = AsyncMock()
+    telegram = MagicMock()
+    telegram._handle_decision = AsyncMock(side_effect=RuntimeError("telegram failed"))
+    bus = EventBusFactory().create_with_config(EventBusConfig(max_queue_size=10, num_workers=1))
+    publisher = ContractPublisher(bus=bus, redis=redis)
+    subscriber = AlertSubscriber(telegram_adapter=telegram)
+    await bus.start()
+    try:
+        await publisher.start()
+        await subscriber.register(bus)
+
+        accepted = await bus.publish_and_wait(
+            _make_order_placed_event(datetime(2025, 1, 1, 0, 15, tzinfo=UTC)),
+            priority=7,
+        )
+
+        assert accepted is False
+        redis.publish.assert_awaited_once()
+    finally:
+        await subscriber.stop()
+        await publisher.stop()
+        await bus.stop()
+
+
+@pytest.mark.asyncio
+async def test_telegram_success_does_not_mask_contract_publisher_failure() -> None:
+    redis = AsyncMock()
+    redis.publish.side_effect = RuntimeError("redis failed")
+    telegram = MagicMock()
+    telegram._handle_decision = AsyncMock()
+    bus = EventBusFactory().create_with_config(EventBusConfig(max_queue_size=10, num_workers=1))
+    publisher = ContractPublisher(bus=bus, redis=redis)
+    subscriber = AlertSubscriber(telegram_adapter=telegram)
+    await bus.start()
+    try:
+        await publisher.start()
+        await subscriber.register(bus)
+
+        accepted = await bus.publish_and_wait(
+            _make_order_placed_event(datetime(2025, 1, 1, 0, 15, tzinfo=UTC)),
+            priority=7,
+        )
+
+        assert accepted is False
+        telegram._handle_decision.assert_awaited_once()
+    finally:
+        await subscriber.stop()
+        await publisher.stop()
+        await bus.stop()

@@ -20,6 +20,7 @@ from ...models import Candle, TechnicalIndicators, TimeFrame
 
 logger = logging.getLogger(__name__)
 
+
 async def _await_redis(value: Any) -> Any:
     # redis-py typing can surface "Awaitable[T] | T" for commands. In practice we
     # run with the asyncio client; this helper keeps mypy happy and the code robust.
@@ -708,7 +709,7 @@ class RedisAdapter:
         self._ensure_connected()
 
         try:
-            redis_pairs: dict[str, str] = {}
+            redis_pairs: dict[str | bytes, bytes | float | int | str] = {}
             for key, value in key_value_pairs.items():
                 redis_key = self._build_key(prefix, key)
                 redis_pairs[redis_key] = self._serialize_value(value)

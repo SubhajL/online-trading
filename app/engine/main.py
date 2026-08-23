@@ -219,12 +219,8 @@ def _pipeline_health_alerts_enabled_from_env() -> bool:
 
 
 def _telegram_execution_decision_alerts_enabled_from_env() -> bool:
-    """Decision alerts in execution mode are opt-out: unset means enabled.
-
-    Switching EXECUTION_MODE must not silently stop signal alerts; set
-    TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED=0 to opt out explicitly.
-    """
-    value = os.getenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", "1").strip().lower()
+    """Decision alerts in execution mode are opt-in."""
+    value = os.getenv("TELEGRAM_EXECUTION_DECISION_ALERTS_ENABLED", "0").strip().lower()
     return value in {"1", "true", "yes", "on"}
 
 
@@ -421,6 +417,12 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         execution_mode = execution_mode_from_env(os.environ)
         services["execution_mode"] = execution_mode  # Store for AlertSubscriber
         execution_enabled = execution_mode != ExecutionMode.DISABLED
+        bff_url = os.getenv("BFF_URL", "").strip()
+        internal_alerts_token = os.getenv("INTERNAL_ALERTS_TOKEN", "").strip()
+        if execution_enabled and (not bff_url or not internal_alerts_token):
+            raise RuntimeError(
+                "Enabled execution requires BFF_URL and INTERNAL_ALERTS_TOKEN for durable delivery"
+            )
         execution_decision_alerts_enabled = (
             execution_enabled and _telegram_execution_decision_alerts_enabled_from_env()
         )
@@ -443,18 +445,18 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
         services["execution_cooldown"] = execution_cooldown
         services["alert_cooldown"] = alert_cooldown
 
-        if execution_enabled:
-            min_confidence = Decimal(os.getenv("MIN_CONFIDENCE_TO_EXECUTE", "0.70"))
-            from .execution.order_update_correlation import OrderUpdateCorrelationStore
+        min_confidence = Decimal(os.getenv("MIN_CONFIDENCE_TO_EXECUTE", "0.70"))
+        from .execution.order_update_correlation import OrderUpdateCorrelationStore
 
-            correlation_ttl_seconds = int(
-                os.getenv("ORDER_UPDATE_CORRELATION_TTL_SECONDS", "21600")
-            )
-            correlation_store = OrderUpdateCorrelationStore(
-                ttl_seconds=correlation_ttl_seconds,
-                redis=redis_adapter,
-            )
-            services["order_update_correlation_store"] = correlation_store
+        correlation_ttl_seconds = int(os.getenv("ORDER_UPDATE_CORRELATION_TTL_SECONDS", "21600"))
+        correlation_store = OrderUpdateCorrelationStore(
+            ttl_seconds=correlation_ttl_seconds,
+            redis=redis_adapter,
+        )
+        services["order_update_correlation_store"] = correlation_store
+
+        readiness_check = None
+        if execution_enabled:
 
             async def execution_readiness_check() -> tuple[bool, str | None, dict[str, object]]:
                 ingest_service = services.get("ingest")
@@ -501,26 +503,32 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
                     },
                 )
 
-            services["execution_subscriber"] = RouterExecutionSubscriber(
-                bus=event_bus,
-                router_client=router_client,
-                db_adapter=db_adapter,
-                risk=config.risk_parameters,
-                venue=execution_venue,
-                execution_mode=execution_mode,
-                order_update_correlation_store=correlation_store,
-                cooldown=execution_cooldown,
-                min_confidence=min_confidence,
-                max_position_size=config.risk_parameters.max_position_size,
-                execution_readiness_check=execution_readiness_check,
-                router_env_probe_attempts=5,
-            )
+            readiness_check = execution_readiness_check
+
+        services["execution_subscriber"] = RouterExecutionSubscriber(
+            bus=event_bus,
+            router_client=router_client,
+            db_adapter=db_adapter,
+            risk=config.risk_parameters,
+            venue=execution_venue,
+            execution_mode=execution_mode,
+            order_update_correlation_store=correlation_store,
+            cooldown=execution_cooldown,
+            min_confidence=min_confidence,
+            max_position_size=config.risk_parameters.max_position_size,
+            execution_readiness_check=readiness_check,
+            router_env_probe_attempts=5,
+            success_delivery_venues=("SPOT", "USD_M"),
+        )
+        if execution_enabled:
             logger.info(
                 "Execution subscriber enabled: %s (min_confidence=%s, cooldown=%ss)",
                 execution_mode.value,
                 min_confidence,
                 cooldown_seconds,
             )
+        else:
+            logger.info("Execution subscriber started in disabled recovery mode")
 
         # Initialize risk manager
         risk_manager = RiskManager(config.risk_parameters)
@@ -685,8 +693,6 @@ async def initialize_services(config: EngineConfig) -> None:  # noqa: PLR0915, C
             )
 
         # Initialize BFF API client (for signal alerts with snapshots)
-        bff_url = os.getenv("BFF_URL")
-        internal_alerts_token = os.getenv("INTERNAL_ALERTS_TOKEN")
         if bff_url and internal_alerts_token:
             from .adapters.alert.bff_api_client import BffApiClient
 
@@ -779,14 +785,16 @@ async def start_services() -> None:
             await services["live_rest_fallback"].start()
             logger.info("Started live_rest_fallback")
 
+        # Start BFF before execution delivery drain so persisted snapshots can be
+        # delivered as soon as the subscriber starts.
+        if "bff_client" in services:
+            await services["bff_client"].start()
+            logger.info("Started bff_client")
         if "execution_subscriber" in services:
             await services["execution_subscriber"].start()
             logger.info("Started execution_subscriber")
 
-        # Start BFF client and signal emitter subscriber
-        if "bff_client" in services:
-            await services["bff_client"].start()
-            logger.info("Started bff_client")
+        # Start signal emitter subscriber
         if "signal_emitter_subscriber" in services:
             await services["signal_emitter_subscriber"].start()
             logger.info("Started signal_emitter_subscriber")
@@ -1185,6 +1193,20 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
     except Exception as exc:
         raise HTTPException(status_code=400, detail="invalid order update payload") from exc
 
+    raw_order_type = (parsed.order_type or "").strip().upper()
+    is_stop_order = raw_order_type in {"STOP_MARKET", "STOP_LOSS"}
+    is_market_order = raw_order_type == "MARKET"
+    if is_stop_order:
+        parsed = parsed.model_copy(
+            update={
+                "order_type": "STOP_MARKET",
+                "price": None,
+                "stop_price": parsed.stop_price or parsed.price,
+            },
+        )
+    elif is_market_order:
+        parsed = parsed.model_copy(update={"price": None, "stop_price": None})
+
     ts = parsed.update_time or datetime.now(UTC)
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=UTC)
@@ -1231,7 +1253,7 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
         symbol=parsed.symbol,
         metadata=metadata,
         update=parsed,
-        payload=update,
+        payload=parsed.model_dump(mode="json"),
     )
 
     normalized_status = parsed.status.strip().upper()
@@ -1241,12 +1263,25 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
     terminal_update_persisted = False
 
     # Persist order updates for auditability (best-effort; do not block alerting).
-    if hydration_enabled and db_adapter is not None and hasattr(db_adapter, "upsert_order"):
+    if (
+        hydration_enabled
+        and db_adapter is not None
+        and (
+            hasattr(db_adapter, "upsert_order")
+            or (inbox_event_id is not None and hasattr(db_adapter, "upsert_order_update"))
+        )
+    ):
         try:
             venue = parsed.venue or metadata.get("venue")
             if isinstance(venue, str) and venue:
-                raw_type = (parsed.order_type or "").strip().upper()
-                order_type = "STOP_LOSS" if raw_type == "STOP_MARKET" else raw_type
+                order_type = {
+                    "STOP_MARKET": "STOP_LOSS",
+                    "STOP_LOSS": "STOP_LOSS",
+                    "STOP_LIMIT": "STOP_LOSS_LIMIT",
+                }.get(raw_order_type, raw_order_type)
+                stop_price = (
+                    parsed.stop_price or parsed.price if is_stop_order else parsed.stop_price
+                )
 
                 order_row: dict[str, Any] = {
                     "venue": venue,
@@ -1255,14 +1290,16 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
                     "side": (parsed.side or "").strip().upper(),
                     "type": order_type,
                     "quantity": parsed.quantity or parsed.executed_qty,
-                    "price": parsed.price,
+                    "price": None if is_stop_order or is_market_order else parsed.price,
+                    "stop_price": None if is_market_order else stop_price,
                     "status": normalized_status,
                     "filled_quantity": parsed.executed_qty,
-                    "average_fill_price": parsed.price if normalized_status == "FILLED" else None,
+                    "average_fill_price": parsed.average_fill_price,
                     "exchange_order_id": str(parsed.order_id)
                     if parsed.order_id is not None
                     else None,
                     "last_update_time": ts,
+                    "reject_reason": parsed.reason,
                 }
                 decision_id = metadata.get("decision_id")
                 if isinstance(decision_id, str) and decision_id:
@@ -1276,7 +1313,11 @@ async def ingest_order_update(update: dict[str, Any]) -> dict[str, str]:
                 zone = metadata.get("zone")
                 if isinstance(zone, dict) and zone:
                     order_row["zone"] = zone
-                persisted = await db_adapter.upsert_order(order_row)
+                safe_upsert = getattr(db_adapter, "upsert_order_update", None)
+                if inbox_event_id is not None and callable(safe_upsert):
+                    persisted = await safe_upsert(order_row)
+                else:
+                    persisted = await db_adapter.upsert_order(order_row)
                 if inbox_event_id is not None and not persisted:
                     raise RuntimeError("order projection persistence failed")
                 terminal_update_persisted = (

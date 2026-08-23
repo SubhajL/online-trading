@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"router/internal/storage"
@@ -70,7 +71,7 @@ func TestPostgresStatsProvider_ComputesNetPnLFromClosedPositions(t *testing.T) {
 		require.Equal(t, 2, stats.TotalTrades)
 		require.Equal(t, 1, stats.WinCount)
 		require.Equal(t, 1, stats.LossCount)
-		require.Equal(t, "-2", stats.NetPnL)
+		require.True(t, decimal.RequireFromString("-2").Equal(decimal.RequireFromString(stats.NetPnL)))
 		return nil
 	}))
 }
